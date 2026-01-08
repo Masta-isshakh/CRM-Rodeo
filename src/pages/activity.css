@@ -1,0 +1,54 @@
+.activity-page {
+  padding: 32px;
+  max-width: 900px;
+  margin: auto;
+}
+
+.timeline {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.timeline-item {
+  display: flex;
+  gap: 16px;
+  padding: 16px;
+  background: #ffffff;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+}
+
+.badge {
+  min-width: 80px;
+  text-align: center;
+  padding: 6px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+}
+
+.badge.create {
+  background: #16a34a;
+}
+
+.badge.update {
+  background: #2563eb;
+}
+
+.badge.delete {
+  background: #dc2626;
+}
+
+.content .message {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.content .meta {
+  font-size: 12px;
+  color: #64748b;
+}

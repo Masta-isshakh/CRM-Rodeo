@@ -1,0 +1,71 @@
+.employees-page {
+  max-width: 1200px;
+  margin: auto;
+  padding: 32px;
+}
+
+.employees-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.employees-grid {
+  margin-top: 32px;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+}
+
+.employee-card {
+  background: white;
+  border-radius: 10px;
+  padding: 20px;
+  border: 1px solid #e5e7eb;
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+
+.employee-card h4 {
+  margin: 0;
+}
+
+.position {
+  color: #64748b;
+  margin-bottom: 12px;
+}
+
+.card-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 16px;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15,23,42,.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.modal {
+  background: white;
+  padding: 24px;
+  border-radius: 12px;
+  width: 480px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 20px;
+}
