@@ -8,7 +8,7 @@ import AdminUsers from "../pages/UserAdmin";
 
 import { fetchAuthSession, getCurrentUser, GetCurrentUserOutput } from "aws-amplify/auth";
 import logo from "../assets/react.svg";
-import "./mainlayout.css";
+import "./mainLayout.css";
 
 interface Props {
   user: GetCurrentUserOutput | null;
