@@ -7,7 +7,7 @@ import ActivityLog from "../pages/ActivityLogs";
 import AdminUsers from "../pages/UserAdmin";
 
 import { fetchAuthSession, getCurrentUser, GetCurrentUserOutput } from "aws-amplify/auth";
-import logo from "../assets/logo.jpeg";
+import logo from "../assets/react.svg";
 import "./mainlayout.css";
 
 interface Props {
