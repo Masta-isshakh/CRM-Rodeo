@@ -3,9 +3,6 @@ import { inviteUser } from "../functions/invite-user/resource";
 
 const schema = a
   .schema({
-    /**
-     * Type de retour de l’invitation
-     */
     InviteUserResult: a.customType({
       email: a.string().required(),
       userSub: a.string().required(),
@@ -15,20 +12,13 @@ const schema = a
       message: a.string().required(),
     }),
 
-    /**
-     * USER PROFILE
-     * Important: profileOwner permet à l’admin de créer le record “pour” l’utilisateur.
-     * Format: `${sub}::${username}`
-     */
     UserProfile: a
       .model({
         email: a.string().required(),
         fullName: a.string().required(),
-        role: a.enum(["ADMIN", "SALES", "SUPPORT"]),
+        role: a.enum(["ADMIN", "SALES", "SUPPORT", "SALES_MANAGER"]),
         isActive: a.boolean().default(true),
         createdAt: a.datetime(),
-
-        // critical for owner-based access
         profileOwner: a.string().required(),
       })
       .authorization((allow) => [
@@ -55,6 +45,7 @@ const schema = a
         allow.owner(),
         allow.group("ADMIN"),
         allow.group("SALES"),
+        allow.group("SALES_MANAGER"),
         allow.group("SUPPORT").to(["read"]),
       ]),
 
@@ -91,7 +82,11 @@ const schema = a
 
         customer: a.belongsTo("Customer", "customerId"),
       })
-      .authorization((allow) => [allow.group("ADMIN"), allow.group("SALES")]),
+      .authorization((allow) => [
+        allow.group("ADMIN"),
+        allow.group("SALES"),
+        allow.group("SALES_MANAGER"),
+      ]),
 
     Deal: a
       .model({
@@ -112,7 +107,11 @@ const schema = a
 
         customer: a.belongsTo("Customer", "customerId"),
       })
-      .authorization((allow) => [allow.group("ADMIN"), allow.group("SALES")]),
+      .authorization((allow) => [
+        allow.group("ADMIN"),
+        allow.group("SALES"),
+        allow.group("SALES_MANAGER"),
+      ]),
 
     Ticket: a
       .model({
@@ -131,6 +130,7 @@ const schema = a
         allow.group("ADMIN"),
         allow.group("SUPPORT"),
         allow.group("SALES").to(["read"]),
+        allow.group("SALES_MANAGER").to(["read"]),
       ]),
 
     TicketComment: a
@@ -144,24 +144,90 @@ const schema = a
       })
       .authorization((allow) => [allow.group("ADMIN"), allow.group("SUPPORT")]),
 
-    /**
-     * MUTATION: inviteUser (ADMIN only)
-     */
+    // =========================
+    // NEW MODELS
+    // =========================
+
+    JobCard: a
+      .model({
+        title: a.string().required(),
+        customerName: a.string().required(),
+        customerPhone: a.string(),
+        vehicle: a.string(),
+        plateNumber: a.string(),
+        serviceType: a.string(),
+        notes: a.string(),
+        status: a.enum(["OPEN", "IN_PROGRESS", "DONE", "CANCELLED"]),
+        createdBy: a.string(),
+        createdAt: a.datetime(),
+      })
+      .authorization((allow) => [
+        allow.group("ADMIN"),
+        allow.group("SALES"),
+        allow.group("SALES_MANAGER"),
+      ]),
+
+    CallTracking: a
+      .model({
+        customerName: a.string().required(),
+        phone: a.string().required(),
+        source: a.string(),
+        outcome: a.enum([
+          "NO_ANSWER",
+          "ANSWERED",
+          "BOOKED",
+          "FOLLOW_UP",
+          "NOT_INTERESTED",
+        ]),
+        followUpAt: a.datetime(),
+        notes: a.string(),
+        createdBy: a.string(),
+        createdAt: a.datetime(),
+      })
+      .authorization((allow) => [
+        allow.group("ADMIN"),
+        allow.group("SALES"),
+        allow.group("SALES_MANAGER"),
+      ]),
+
+InspectionApproval: a
+  .model({
+    jobCardId: a.id(),
+    customerName: a.string().required(),
+    vehicle: a.string(),
+    inspectionNotes: a.string(),
+    amountQuoted: a.float(),
+    status: a.enum(["PENDING", "APPROVED", "REJECTED"]),
+    approvedBy: a.string(),
+    approvedAt: a.datetime(),
+    createdBy: a.string(),
+    createdAt: a.datetime(),
+  })
+  .authorization((allow) => [
+    // ADMIN full access (includes read)
+    allow.group("ADMIN"),
+
+    // SALES_MANAGER full access (includes read)
+    allow.group("SALES_MANAGER"),
+
+    // SALES read-only
+    allow.group("SALES").to(["read"]),
+  ]),
+
 
     inviteUser: a
       .mutation()
       .arguments({
         email: a.string().required(),
         fullName: a.string().required(),
-        role: a.string().required(), // validate in handler against ADMIN/SALES/SUPPORT
+        role: a.string().required(),
       })
       .authorization((allow) => [allow.group("ADMIN")])
       .handler(a.handler.function(inviteUser))
       .returns(a.json()),
   })
-  // Autorise la Lambda inviteUser à appeler l’API Data (mutation) — pattern officiel. :contentReference[oaicite:10]{index=10}
   .authorization((allow) => [allow.resource(inviteUser)]);
-  
+
 export type Schema = ClientSchema<typeof schema>;
 
 export const data = defineData({

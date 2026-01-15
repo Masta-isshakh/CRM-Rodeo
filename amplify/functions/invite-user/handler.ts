@@ -15,9 +15,14 @@ type Handler = Schema["inviteUser"]["functionHandler"];
 
 const cognito = new CognitoIdentityProviderClient();
 
-const ALLOWED_ROLES = new Set(["ADMIN", "SALES", "SUPPORT"]);
+const ALLOWED_ROLES = new Set(["ADMIN", "SALES", "SUPPORT", "SALES_MANAGER"]);
 
-function getAttr(attrs: { Name?: string; Value?: string }[] | undefined, name: string) {
+type AllowedRole = "ADMIN" | "SALES" | "SUPPORT" | "SALES_MANAGER";
+
+function getAttr(
+  attrs: { Name?: string; Value?: string }[] | undefined,
+  name: string
+) {
   const found = (attrs ?? []).find((a) => a.Name === name);
   return found?.Value;
 }
@@ -25,76 +30,84 @@ function getAttr(attrs: { Name?: string; Value?: string }[] | undefined, name: s
 export const handler: Handler = async (event) => {
   const { email, fullName, role } = event.arguments;
 
-  if (!ALLOWED_ROLES.has(role)) {
-    throw new Error(`Invalid role. Allowed roles: ADMIN, SALES, SUPPORT`);
+  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedName = fullName.trim();
+
+  if (!normalizedEmail || !normalizedName) {
+    throw new Error("Email and fullName are required.");
   }
 
-  // Type assertion after validation
-  const validatedRole = role as "ADMIN" | "SALES" | "SUPPORT";
+  if (!ALLOWED_ROLES.has(role)) {
+    throw new Error(
+      `Invalid role. Allowed roles: ADMIN, SALES, SUPPORT, SALES_MANAGER`
+    );
+  }
 
-  // 1) Create Cognito user (invite email is sent by Cognito)
+  const validatedRole = role as AllowedRole;
+
+  const userPoolId = process.env.AMPLIFY_AUTH_USERPOOL_ID;
+  if (!userPoolId) {
+    throw new Error("Missing AMPLIFY_AUTH_USERPOOL_ID env var.");
+  }
+
+  // 1) Create Cognito user (Cognito sends invite email)
   const createRes = await cognito.send(
     new AdminCreateUserCommand({
-      UserPoolId: process.env.AMPLIFY_AUTH_USERPOOL_ID,
-      Username: email, // simplest: username == email
+      UserPoolId: userPoolId,
+      Username: normalizedEmail,
       UserAttributes: [
-        { Name: "email", Value: email },
+        { Name: "email", Value: normalizedEmail },
         { Name: "email_verified", Value: "true" },
-        // Optional: if you later add custom attributes, set them here
       ],
       DesiredDeliveryMediums: ["EMAIL"],
-      // Optional: if you want to suppress Cognito email and send your own:
-      // MessageAction: "SUPPRESS",
-      // TemporaryPassword: "SomeTempPass#123", // optional; Cognito can generate if omitted
     })
   );
 
-  // 2) Add user to group (role)
+  // 2) Add user to group
   await cognito.send(
     new AdminAddUserToGroupCommand({
-      UserPoolId: process.env.AMPLIFY_AUTH_USERPOOL_ID,
-      Username: email,
+      UserPoolId: userPoolId,
+      Username: normalizedEmail,
       GroupName: validatedRole,
     })
   );
 
-  // 3) Get "sub" so we can set correct owner string for UserProfile
-  // Sometimes AdminCreateUser returns attrs including sub; sometimes not.
+  // 3) Resolve sub
   let sub = getAttr(createRes.User?.Attributes, "sub");
 
   if (!sub) {
     const getUserRes = await cognito.send(
       new AdminGetUserCommand({
-        UserPoolId: process.env.AMPLIFY_AUTH_USERPOOL_ID,
-        Username: email,
+        UserPoolId: userPoolId,
+        Username: normalizedEmail,
       })
     );
     sub = getAttr(getUserRes.UserAttributes, "sub");
   }
 
   if (!sub) {
-    throw new Error("Could not resolve user 'sub' attribute after creating user.");
+    throw new Error("Could not resolve user 'sub' after creating user.");
   }
 
-  // 4) Write UserProfile record in Amplify Data
-  // Configure Amplify client inside the function using recommended config helper
-  const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
+  // 4) Write UserProfile
+  const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(
+    process.env as any
+  );
   Amplify.configure(resourceConfig, libraryOptions);
   const dataClient = generateClient<Schema>();
 
-  const profileOwner = `${sub}::${email}`;
+  const profileOwner = `${sub}::${normalizedEmail}`;
 
-  // Create profile (idempotent-ish for small org: update if found)
   const existing = await dataClient.models.UserProfile.list({
-    filter: { email: { eq: email } },
+    filter: { email: { eq: normalizedEmail } },
     limit: 1,
   });
 
-  if (existing.data.length > 0) {
+  if (existing.data.length > 0 && existing.data[0]?.id) {
     await dataClient.models.UserProfile.update({
       id: existing.data[0].id,
-      email,
-      fullName,
+      email: normalizedEmail,
+      fullName: normalizedName,
       role: validatedRole,
       isActive: true,
       profileOwner,
@@ -102,8 +115,8 @@ export const handler: Handler = async (event) => {
     });
   } else {
     await dataClient.models.UserProfile.create({
-      email,
-      fullName,
+      email: normalizedEmail,
+      fullName: normalizedName,
       role: validatedRole,
       isActive: true,
       profileOwner,
@@ -111,10 +124,19 @@ export const handler: Handler = async (event) => {
     });
   }
 
+  // Optional: include a direct app URL you can show in UI logs
+  const appBaseUrl = process.env.APP_BASE_URL || ""; // set if you want
+  const inviteLink = appBaseUrl
+    ? `${appBaseUrl.replace(/\/$/, "")}/set-password?email=${encodeURIComponent(
+        normalizedEmail
+      )}`
+    : "";
+
   return {
     ok: true,
-    invitedEmail: email,
+    invitedEmail: normalizedEmail,
     role: validatedRole,
     sub,
+    inviteLink,
   };
 };

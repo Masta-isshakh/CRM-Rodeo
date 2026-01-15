@@ -10,7 +10,7 @@ const client = generateClient<Schema>();
 export default function AdminUsers() {
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<"ADMIN" | "SALES" | "SUPPORT">("SALES");
+  const [role, setRole] = useState<"ADMIN" | "SALES" | "SALES_MANAGER" | "SUPPORT">("SALES");
   const [status, setStatus] = useState<string>("");
 
   const invite = async () => {
@@ -58,7 +58,8 @@ export default function AdminUsers() {
         >
           <option value="ADMIN">ADMIN</option>
           <option value="SALES">SALES</option>
-          <option value="SUPPORT">SUPPORT</option>
+          <option value="SALES_MANAGER">SALES_MANAGER</option>
+                    <option value="SUPPORT">SUPPORT</option>
         </SelectField>
 
         <Button variation="primary" onClick={invite}>

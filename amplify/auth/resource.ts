@@ -12,7 +12,7 @@ export const auth = defineAuth({
   },
 
   // Your private-app roles
-  groups: ["ADMIN", "SALES", "SUPPORT"],
+  groups: ["ADMIN", "SALES", "SALES_MANAGER", "SUPPORT"],
 
   // Allow the inviteUser function to perform Cognito admin actions
   access: (allow) => [

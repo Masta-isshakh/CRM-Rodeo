@@ -1,10 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Dashboard from "../pages/Dashboard";
 import Customers from "../pages/Customer";
 import Tickets from "../pages/Tickets";
 import Employees from "../pages/Employees";
 import ActivityLog from "../pages/ActivityLogs";
 import AdminUsers from "../pages/UserAdmin";
+
+// New pages (create these files in ../pages/)
+import JobCards from "../pages/JobCards";
+import CallTracking from "../pages/CallTracking";
+import InspectionApprovals from "../pages/InspectionApprovals";
 
 import {
   fetchAuthSession,
@@ -26,12 +31,19 @@ type Page =
   | "customers"
   | "tickets"
   | "activitylogger"
-  | "users";
+  | "users"
+  | "jobcards"
+  | "calltracking"
+  | "inspection";
+
+function hasAnyGroup(groups: string[], required: string[]) {
+  return required.some((g) => groups.includes(g));
+}
 
 export default function MainLayout({ signOut }: Props) {
   const [page, setPage] = useState<Page>("dashboard");
   const [userEmail, setUserEmail] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
+  const [groups, setGroups] = useState<string[]>([]);
 
   // Mobile drawer state
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -43,17 +55,39 @@ export default function MainLayout({ signOut }: Props) {
         setUserEmail(u.signInDetails?.loginId || null);
 
         const session = await fetchAuthSession();
-        const groups =
+        const g =
           (session.tokens?.idToken?.payload["cognito:groups"] as string[]) ?? [];
-        setIsAdmin(groups.includes("ADMIN"));
+        setGroups(g);
       } catch (err) {
         console.error(err);
         setUserEmail(null);
-        setIsAdmin(false);
+        setGroups([]);
       }
     };
     load();
   }, []);
+
+  const isAdmin = useMemo(() => groups.includes("ADMIN"), [groups]);
+
+  // Allowed viewers for the new pages:
+  const canViewSalesPages = useMemo(
+    () => hasAnyGroup(groups, ["ADMIN", "SALES", "SALES_MANAGER"]),
+    [groups]
+  );
+
+  // Only ADMIN + SALES_MANAGER can approve inspections:
+  const canApproveInspection = useMemo(
+    () => hasAnyGroup(groups, ["ADMIN", "SALES_MANAGER"]),
+    [groups]
+  );
+
+  // Guard: prevent access even if someone forces the page state
+  const isPageAllowed = useMemo(() => {
+    if (page === "users") return isAdmin;
+    if (page === "jobcards" || page === "calltracking" || page === "inspection")
+      return canViewSalesPages;
+    return true;
+  }, [page, isAdmin, canViewSalesPages]);
 
   // Close sidebar on page change (mobile)
   const go = (p: Page) => {
@@ -112,6 +146,32 @@ export default function MainLayout({ signOut }: Props) {
             Activity Logger
           </button>
 
+          {/* New pages - only for ADMIN/SALES/SALES_MANAGER */}
+          {canViewSalesPages && (
+            <>
+              <button
+                className={page === "jobcards" ? "active" : ""}
+                onClick={() => go("jobcards")}
+              >
+                Job Cards
+              </button>
+
+              <button
+                className={page === "calltracking" ? "active" : ""}
+                onClick={() => go("calltracking")}
+              >
+                Call Tracking
+              </button>
+
+              <button
+                className={page === "inspection" ? "active" : ""}
+                onClick={() => go("inspection")}
+              >
+                Inspection Approval
+              </button>
+            </>
+          )}
+
           {isAdmin && (
             <button
               className={page === "users" ? "active" : ""}
@@ -143,16 +203,41 @@ export default function MainLayout({ signOut }: Props) {
             <p className="sub">
               {userEmail ? `Signed in as: ${userEmail}` : "Loading user..."}
             </p>
+            <p className="sub" style={{ opacity: 0.7 }}>
+              {groups.length ? `Groups: ${groups.join(", ")}` : "Groups: none"}
+            </p>
           </div>
         </header>
 
         <section className="page-content">
-          {page === "dashboard" && <Dashboard />}
-          {page === "employees" && <Employees />}
-          {page === "customers" && <Customers />}
-          {page === "tickets" && <Tickets />}
-          {page === "activitylogger" && <ActivityLog />}
-          {page === "users" && isAdmin && <AdminUsers />}
+          {!isPageAllowed ? (
+            <div
+              style={{
+                padding: 16,
+                border: "1px solid #ddd",
+                borderRadius: 8,
+                background: "#fff",
+              }}
+            >
+              <h3>Access denied</h3>
+              <p>You don’t have permission to view this page.</p>
+            </div>
+          ) : (
+            <>
+              {page === "dashboard" && <Dashboard />}
+              {page === "employees" && <Employees />}
+              {page === "customers" && <Customers />}
+              {page === "tickets" && <Tickets />}
+              {page === "activitylogger" && <ActivityLog />}
+              {page === "users" && isAdmin && <AdminUsers />}
+
+              {page === "jobcards" && <JobCards />}
+              {page === "calltracking" && <CallTracking />}
+              {page === "inspection" && (
+                <InspectionApprovals canApprove={canApproveInspection} />
+              )}
+            </>
+          )}
         </section>
       </main>
     </div>

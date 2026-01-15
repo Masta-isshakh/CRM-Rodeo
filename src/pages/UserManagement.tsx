@@ -6,7 +6,7 @@ import type { Schema } from "../../amplify/data/resource";
 
 const client = generateClient<Schema>();
 
-type Role = "ADMIN" | "SALES" | "SUPPORT";
+type Role = "ADMIN" | "SALES" | "SALES_MANAGER" | "SUPPORT";
 
 export default function UserManagement() {
   const [email, setEmail] = useState("");
@@ -76,6 +76,7 @@ export default function UserManagement() {
         >
           <option value="ADMIN">ADMIN</option>
           <option value="SALES">SALES</option>
+          <option value="SALES_MANAGER">SALES_MANAGER</option>
           <option value="SUPPORT">SUPPORT</option>
         </SelectField>
 
