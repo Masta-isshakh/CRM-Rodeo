@@ -4,9 +4,8 @@ import Customers from "../pages/Customer";
 import Tickets from "../pages/Tickets";
 import Employees from "../pages/Employees";
 import ActivityLog from "../pages/ActivityLogs";
-import AdminUsers from "../pages/UserAdmin";
+import Users from "../pages/UserAdmin";
 
-// New pages (create these files in ../pages/)
 import JobCards from "../pages/JobCards";
 import CallTracking from "../pages/CallTracking";
 import InspectionApprovals from "../pages/InspectionApprovals";
@@ -36,16 +35,21 @@ type Page =
   | "calltracking"
   | "inspection";
 
-function hasAnyGroup(groups: string[], required: string[]) {
-  return required.some((g) => groups.includes(g));
+type Group = "ADMIN" | "SALES" | "SALES_MANAGER" | "SUPPORT";
+
+function pickPrimaryRole(groups: string[]): Group | null {
+  // precedence if user belongs to multiple groups
+  if (groups.includes("ADMIN")) return "ADMIN";
+  if (groups.includes("SALES_MANAGER")) return "SALES_MANAGER";
+  if (groups.includes("SALES")) return "SALES";
+  if (groups.includes("SUPPORT")) return "SUPPORT";
+  return null;
 }
 
 export default function MainLayout({ signOut }: Props) {
   const [page, setPage] = useState<Page>("dashboard");
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [groups, setGroups] = useState<string[]>([]);
-
-  // Mobile drawer state
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -67,43 +71,91 @@ export default function MainLayout({ signOut }: Props) {
     load();
   }, []);
 
-  const isAdmin = useMemo(() => groups.includes("ADMIN"), [groups]);
+  const primaryRole = useMemo(() => pickPrimaryRole(groups), [groups]);
 
-  // Allowed viewers for the new pages:
-  const canViewSalesPages = useMemo(
-    () => hasAnyGroup(groups, ["ADMIN", "SALES", "SALES_MANAGER"]),
-    [groups]
-  );
+  const isAdmin = primaryRole === "ADMIN";
+  const isSalesManager = primaryRole === "SALES_MANAGER";
+  const isSales = primaryRole === "SALES";
+  const isSupport = primaryRole === "SUPPORT";
 
-  // Only ADMIN + SALES_MANAGER can approve inspections:
-  const canApproveInspection = useMemo(
-    () => hasAnyGroup(groups, ["ADMIN", "SALES_MANAGER"]),
-    [groups]
-  );
+  // Page permissions (menu + hard guard)
+  const canSee = useMemo(() => {
+    const allow: Record<Page, boolean> = {
+      dashboard: true,
 
-  // Guard: prevent access even if someone forces the page state
-  const isPageAllowed = useMemo(() => {
-    if (page === "users") return isAdmin;
-    if (page === "jobcards" || page === "calltracking" || page === "inspection")
-      return canViewSalesPages;
-    return true;
-  }, [page, isAdmin, canViewSalesPages]);
+      // default false, then enable per role
+      employees: false,
+      customers: false,
+      tickets: false,
+      activitylogger: false,
+      users: false,
+      jobcards: false,
+      calltracking: false,
+      inspection: false,
+    };
 
-  // Close sidebar on page change (mobile)
+    if (isAdmin) {
+      // Admin sees everything
+      (Object.keys(allow) as Page[]).forEach((k) => (allow[k] = true));
+      return allow;
+    }
+
+    if (isSalesManager) {
+      // SALES_MANAGER: ONLY these pages
+      allow.customers = true;
+      allow.jobcards = true;
+      allow.calltracking = true;
+      allow.inspection = true;
+      // dashboard already true
+      return allow;
+    }
+
+    if (isSales) {
+      // You can tune this as you want. Example:
+      allow.customers = true;
+      allow.tickets = true; // read-only is enforced by backend model auth
+      allow.jobcards = true;
+      allow.calltracking = true;
+      allow.inspection = true; // read-only enforced in Inspection model auth + UI
+      return allow;
+    }
+
+    if (isSupport) {
+      // Example support permissions
+      allow.tickets = true;
+      allow.activitylogger = true;
+      return allow;
+    }
+
+    return allow;
+  }, [isAdmin, isSalesManager, isSales, isSupport]);
+
+  // Hard guard (if someone forces setPage)
+  const isPageAllowed = canSee[page];
+
+  // If role changes or current page becomes forbidden, fallback to dashboard
+  useEffect(() => {
+    if (!isPageAllowed) setPage("dashboard");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [primaryRole]);
+
   const go = (p: Page) => {
     setPage(p);
     setSidebarOpen(false);
   };
 
+  const canApproveInspection = useMemo(() => {
+    // Only ADMIN + SALES_MANAGER approve
+    return isAdmin || isSalesManager;
+  }, [isAdmin, isSalesManager]);
+
   return (
     <div className="layout-container">
-      {/* Mobile overlay */}
       <div
         className={`overlay ${sidebarOpen ? "show" : ""}`}
         onClick={() => setSidebarOpen(false)}
       />
 
-      {/* Sidebar (desktop + drawer on mobile) */}
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-logo">
           <img src={logo} alt="Rodeo Drive CRM Logo" className="logo-img" />
@@ -111,72 +163,65 @@ export default function MainLayout({ signOut }: Props) {
         </div>
 
         <nav className="sidebar-nav">
-          <button
-            className={page === "dashboard" ? "active" : ""}
-            onClick={() => go("dashboard")}
-          >
-            Dashboard
-          </button>
-
-          <button
-            className={page === "employees" ? "active" : ""}
-            onClick={() => go("employees")}
-          >
-            Employees
-          </button>
-
-          <button
-            className={page === "customers" ? "active" : ""}
-            onClick={() => go("customers")}
-          >
-            Customers
-          </button>
-
-          <button
-            className={page === "tickets" ? "active" : ""}
-            onClick={() => go("tickets")}
-          >
-            Tickets
-          </button>
-
-          <button
-            className={page === "activitylogger" ? "active" : ""}
-            onClick={() => go("activitylogger")}
-          >
-            Activity Logger
-          </button>
-
-          {/* New pages - only for ADMIN/SALES/SALES_MANAGER */}
-          {canViewSalesPages && (
-            <>
-              <button
-                className={page === "jobcards" ? "active" : ""}
-                onClick={() => go("jobcards")}
-              >
-                Job Cards
-              </button>
-
-              <button
-                className={page === "calltracking" ? "active" : ""}
-                onClick={() => go("calltracking")}
-              >
-                Call Tracking
-              </button>
-
-              <button
-                className={page === "inspection" ? "active" : ""}
-                onClick={() => go("inspection")}
-              >
-                Inspection Approval
-              </button>
-            </>
+          {canSee.dashboard && (
+            <button className={page === "dashboard" ? "active" : ""} onClick={() => go("dashboard")}>
+              Dashboard
+            </button>
           )}
 
-          {isAdmin && (
+          {canSee.employees && (
+            <button className={page === "employees" ? "active" : ""} onClick={() => go("employees")}>
+              Employees
+            </button>
+          )}
+
+          {canSee.customers && (
+            <button className={page === "customers" ? "active" : ""} onClick={() => go("customers")}>
+              Customers
+            </button>
+          )}
+
+          {canSee.tickets && (
+            <button className={page === "tickets" ? "active" : ""} onClick={() => go("tickets")}>
+              Tickets
+            </button>
+          )}
+
+          {canSee.activitylogger && (
             <button
-              className={page === "users" ? "active" : ""}
-              onClick={() => go("users")}
+              className={page === "activitylogger" ? "active" : ""}
+              onClick={() => go("activitylogger")}
             >
+              Activity Logger
+            </button>
+          )}
+
+          {canSee.jobcards && (
+            <button className={page === "jobcards" ? "active" : ""} onClick={() => go("jobcards")}>
+              Job Cards
+            </button>
+          )}
+
+          {canSee.calltracking && (
+            <button
+              className={page === "calltracking" ? "active" : ""}
+              onClick={() => go("calltracking")}
+            >
+              Call Tracking
+            </button>
+          )}
+
+          {canSee.inspection && (
+            <button
+              className={page === "inspection" ? "active" : ""}
+              onClick={() => go("inspection")}
+            >
+              Inspection Approval
+            </button>
+          )}
+
+          {canSee.users && (
+            <button className={page === "users" ? "active" : ""} onClick={() => go("users")}>
               Users
             </button>
           )}
@@ -187,38 +232,24 @@ export default function MainLayout({ signOut }: Props) {
         </nav>
       </aside>
 
-      {/* Main */}
       <main className="main-content">
         <header className="main-header">
-          <button
-            className="menu-btn"
-            aria-label="Open menu"
-            onClick={() => setSidebarOpen(true)}
-          >
+          <button className="menu-btn" aria-label="Open menu" onClick={() => setSidebarOpen(true)}>
             ☰
           </button>
 
           <div className="header-text">
             <h1>Welcome</h1>
-            <p className="sub">
-              {userEmail ? `Signed in as: ${userEmail}` : "Loading user..."}
-            </p>
+            <p className="sub">{userEmail ? `Signed in as: ${userEmail}` : "Loading user..."}</p>
             <p className="sub" style={{ opacity: 0.7 }}>
-              {groups.length ? `Groups: ${groups.join(", ")}` : "Groups: none"}
+              Role: {primaryRole ?? "none"} {groups.length ? `(${groups.join(", ")})` : ""}
             </p>
           </div>
         </header>
 
         <section className="page-content">
           {!isPageAllowed ? (
-            <div
-              style={{
-                padding: 16,
-                border: "1px solid #ddd",
-                borderRadius: 8,
-                background: "#fff",
-              }}
-            >
+            <div style={{ padding: 16, border: "1px solid #ddd", borderRadius: 8, background: "#fff" }}>
               <h3>Access denied</h3>
               <p>You don’t have permission to view this page.</p>
             </div>
@@ -229,7 +260,7 @@ export default function MainLayout({ signOut }: Props) {
               {page === "customers" && <Customers />}
               {page === "tickets" && <Tickets />}
               {page === "activitylogger" && <ActivityLog />}
-              {page === "users" && isAdmin && <AdminUsers />}
+              {page === "users" && <Users />}
 
               {page === "jobcards" && <JobCards />}
               {page === "calltracking" && <CallTracking />}

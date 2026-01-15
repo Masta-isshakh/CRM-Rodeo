@@ -220,7 +220,7 @@ InspectionApproval: a
       .arguments({
         email: a.string().required(),
         fullName: a.string().required(),
-        role: a.string().required(),
+    role: a.enum(["ADMIN", "SALES", "SALES_MANAGER", "SUPPORT"]),
       })
       .authorization((allow) => [allow.group("ADMIN")])
       .handler(a.handler.function(inviteUser))

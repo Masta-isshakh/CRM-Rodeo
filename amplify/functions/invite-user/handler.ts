@@ -37,13 +37,14 @@ export const handler: Handler = async (event) => {
     throw new Error("Email and fullName are required.");
   }
 
-  if (!ALLOWED_ROLES.has(role)) {
+  if (!role || !ALLOWED_ROLES.has(role)) {
     throw new Error(
       `Invalid role. Allowed roles: ADMIN, SALES, SUPPORT, SALES_MANAGER`
     );
   }
 
-  const validatedRole = role as AllowedRole;
+const validatedRole = role as "ADMIN" | "SALES" | "SALES_MANAGER" | "SUPPORT";
+
 
   const userPoolId = process.env.AMPLIFY_AUTH_USERPOOL_ID;
   if (!userPoolId) {
