@@ -176,7 +176,8 @@ export default function Users() {
   };
 
   return (
-    <div style={{ padding: 24, maxWidth: 1100 }}>
+<div style={{ padding: 24, width: "100%", maxWidth: "100%" }}>
+
       <h2>Users (Admin)</h2>
       <p style={{ opacity: 0.8 }}>
         Invite users, edit roles, disable/enable accounts, and delete users.

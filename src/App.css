@@ -1,5 +1,8 @@
-/* App.css (replace your current file content) */
+/* App.css - full screen */
 #root {
   width: 100%;
   min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  text-align: initial;
 }
