@@ -260,7 +260,7 @@ export default function MainLayout({ signOut }: Props) {
               {page === "customers" && <Customers />}
               {page === "tickets" && <Tickets />}
               {page === "activitylogger" && <ActivityLog />}
-              {page === "users" && <Users />}
+              {page === "users" && isAdmin && <Users />}
 
               {page === "jobcards" && <JobCards />}
               {page === "calltracking" && <CallTracking />}

@@ -1,5 +1,9 @@
 import { a, defineData, type ClientSchema } from "@aws-amplify/backend";
 import { inviteUser } from "../functions/invite-user/resource";
+import { updateUserRole } from "../functions/update-user-role/resource";
+import { setUserActive } from "../functions/set-user-active/resource";
+import { deleteUser } from "../functions/delete-user/resource";
+
 
 const schema = a
   .schema({
@@ -225,8 +229,45 @@ InspectionApproval: a
       .authorization((allow) => [allow.group("ADMIN")])
       .handler(a.handler.function(inviteUser))
       .returns(a.json()),
+
+
+      adminUpdateUserRole: a
+  .mutation()
+  .arguments({
+    email: a.string().required(),
+    role: a.enum(["ADMIN", "SALES", "SALES_MANAGER", "SUPPORT"]),
   })
-  .authorization((allow) => [allow.resource(inviteUser)]);
+  .authorization((allow) => [allow.group("ADMIN")])
+  .handler(a.handler.function(updateUserRole))
+  .returns(a.json()),
+
+adminSetUserActive: a
+  .mutation()
+  .arguments({
+    email: a.string().required(),
+    isActive: a.boolean().required(),
+  })
+  .authorization((allow) => [allow.group("ADMIN")])
+  .handler(a.handler.function(setUserActive))
+  .returns(a.json()),
+
+adminDeleteUser: a
+  .mutation()
+  .arguments({
+    email: a.string().required(),
+  })
+  .authorization((allow) => [allow.group("ADMIN")])
+  .handler(a.handler.function(deleteUser))
+  .returns(a.json()),
+
+  })
+.authorization((allow) => [
+  allow.resource(inviteUser),
+  allow.resource(updateUserRole),
+  allow.resource(setUserActive),
+  allow.resource(deleteUser),
+]);
+
 
 export type Schema = ClientSchema<typeof schema>;
 
