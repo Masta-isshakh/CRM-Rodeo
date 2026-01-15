@@ -251,7 +251,7 @@ export default function MainLayout({ signOut }: Props) {
           {!isPageAllowed ? (
             <div style={{ padding: 16, border: "1px solid #ddd", borderRadius: 8, background: "#fff" }}>
               <h3>Access denied</h3>
-              <p>You don’t have permission to view this page.</p>
+              <p>You don’t have permission  to view this page.</p>
             </div>
           ) : (
             <>
