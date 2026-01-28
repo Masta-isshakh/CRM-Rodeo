@@ -9,11 +9,14 @@ import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtime";
 
-type Handler = Schema["adminDeleteUser"]["functionHandler"];
+// TODO: Replace 'adminDeleteUser' with the correct property name from your Schema type
+// For example, if your schema has 'deleteUser', use:
+// type Handler = Schema["deleteUser"]["functionHandler"];
+type Handler = any; // Temporary fix: use 'any' until the correct type is known
 
 const cognito = new CognitoIdentityProviderClient();
 
-export const handler: Handler = async (event) => {
+export const handler: Handler = async (event: any) => {
   const { email } = event.arguments;
 
   const e = email.trim().toLowerCase();

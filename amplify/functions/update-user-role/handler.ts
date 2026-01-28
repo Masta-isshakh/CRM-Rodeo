@@ -11,7 +11,9 @@ import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtime";
 
-type Handler = Schema["adminUpdateUserRole"]["functionHandler"];
+// Replace 'adminUpdateUserRole' with the correct property name from your Schema type, for example 'updateUserRole'
+// Define the handler type explicitly if 'updateUserRole' does not exist in Schema
+type Handler = (event: { arguments: { email: string; role: string } }) => Promise<{ ok: boolean; email: string; role: string }>;
 
 const cognito = new CognitoIdentityProviderClient();
 

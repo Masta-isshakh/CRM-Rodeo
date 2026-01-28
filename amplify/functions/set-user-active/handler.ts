@@ -10,7 +10,8 @@ import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtime";
 
-type Handler = Schema["adminSetUserActive"]["functionHandler"];
+// Replace 'UserProfile' and 'setUserActive' with the correct model and operation from your Schema type
+type Handler = (event: { arguments: { email: string; isActive: boolean } }) => Promise<{ ok: boolean; email: string; isActive: boolean }>;
 
 const cognito = new CognitoIdentityProviderClient();
 

@@ -1,27 +1,11 @@
 import { a, defineData, type ClientSchema } from "@aws-amplify/backend";
 import { inviteUser } from "../functions/invite-user/resource";
-import { updateUserRole } from "../functions/update-user-role/resource";
-import { setUserActive } from "../functions/set-user-active/resource";
-import { deleteUser } from "../functions/delete-user/resource";
-
-
-// ✅ POLICY KEYS = one key per page
-const POLICY_KEYS = [
-  "DASHBOARD",
-  "CUSTOMERS",
-  "TICKETS",
-  "EMPLOYEES",
-  "ACTIVITY_LOG",
-  "USERS_ADMIN",
-  "JOB_CARDS",
-  "CALL_TRACKING",
-  "INSPECTION_APPROVALS",
-  "DEPARTMENTS_ADMIN",
-  "ROLES_POLICIES_ADMIN",
-] as const;
 
 const schema = a
   .schema({
+    // -----------------------------
+    // Invite result type (optional)
+    // -----------------------------
     InviteUserResult: a.customType({
       email: a.string().required(),
       userSub: a.string().required(),
@@ -31,108 +15,125 @@ const schema = a
       message: a.string().required(),
     }),
 
+    // -----------------------------
+    // USER PROFILE
+    // -----------------------------
     UserProfile: a
       .model({
         email: a.string().required(),
         fullName: a.string().required(),
-        role: a.enum(["ADMIN", "SALES", "SUPPORT", "SALES_MANAGER"]),
+        role: a.enum(["ADMIN", "SALES", "SALES_MANAGER", "SUPPORT"]),
         isActive: a.boolean().default(true),
         createdAt: a.datetime(),
+
+        // critical for owner-based access
+        // Format: `${sub}::${username}`
         profileOwner: a.string().required(),
+
+        // ✅ inverse for UserDepartment.user
+        departments: a.hasMany("UserDepartment", "userId"),
       })
       .authorization((allow) => [
         allow.ownerDefinedIn("profileOwner"),
         allow.group("ADMIN"),
       ]),
 
-      
-  // =========================
-  // ✅ NEW: Department
-  // =========================
-  Department: a
-    .model({
-      name: a.string().required(),
-      isActive: a.boolean().default(true),
-      createdAt: a.datetime(),
-    })
-    .authorization((allow) => [
-      allow.group("ADMIN"),
-      allow.authenticated().to(["read"]), // users can read department name
-    ]),
+    // -----------------------------
+    // RBAC MODELS (Departments/Roles/Policies)
+    // -----------------------------
 
-      // =========================
-  // ✅ NEW: Role
-  // =========================
-  AppRole: a
-    .model({
-      name: a.string().required(),
-      isActive: a.boolean().default(true),
-      createdAt: a.datetime(),
-    })
-    .authorization((allow) => [
-      allow.group("ADMIN"),
-      allow.authenticated().to(["read"]), // users can read roles
-    ]),
+    Department: a
+      .model({
+        name: a.string().required(),
+        isActive: a.boolean().default(true),
+        createdAt: a.datetime(),
 
+        // ✅ inverse for DepartmentRole.department
+        roles: a.hasMany("DepartmentRole", "departmentId"),
 
-      // =========================
-  // ✅ NEW: Role ↔ Policy
-  // Each row = 1 role + 1 policyKey + action flags
-  // =========================
-  RolePolicy: a
-    .model({
-      roleId: a.id().required(),
-      policyKey: a.enum(POLICY_KEYS as any),
+        // ✅ inverse for UserDepartment.department  <-- THIS FIXES YOUR ERROR
+        users: a.hasMany("UserDepartment", "departmentId"),
+      })
+      .authorization((allow) => [
+        allow.group("ADMIN"),
+        allow.authenticated().to(["read"]),
+      ]),
 
-      canRead: a.boolean().default(false),
-      canCreate: a.boolean().default(false),
-      canUpdate: a.boolean().default(false),
-      canDelete: a.boolean().default(false),
-      canApprove: a.boolean().default(false),
+    // Assign users to departments
+    UserDepartment: a
+      .model({
+        userId: a.id().required(),
+        departmentId: a.id().required(),
+        createdAt: a.datetime(),
 
-      updatedAt: a.datetime(),
-      role: a.belongsTo("AppRole", "roleId"),
-    })
-    .authorization((allow) => [
-      allow.group("ADMIN"),
-      allow.authenticated().to(["read"]), // users must read their role policies
-    ]),
+        // ✅ belongsTo side
+        user: a.belongsTo("UserProfile", "userId"),
+        department: a.belongsTo("Department", "departmentId"),
+      })
+      .authorization((allow) => [
+        allow.group("ADMIN"),
+        allow.authenticated().to(["read"]),
+      ]),
 
+    // AppRole (your business roles like "AccountantRole")
+    AppRole: a
+      .model({
+        name: a.string().required(),
+        description: a.string(),
+        isActive: a.boolean().default(true),
+        createdAt: a.datetime(),
 
-      // =========================
-  // ✅ NEW: Department ↔ Role (many-to-many)
-  // Assign roles to a department
-  // =========================
-  DepartmentRole: a
-    .model({
-      departmentId: a.id().required(),
-      roleId: a.id().required(),
+        // ✅ inverse for RolePolicy.role
+        rolePolicies: a.hasMany("RolePolicy", "roleId"),
 
-      department: a.belongsTo("Department", "departmentId"),
-      role: a.belongsTo("AppRole", "roleId"),
-    })
-    .authorization((allow) => [
-      allow.group("ADMIN"),
-      allow.authenticated().to(["read"]),
-    ]),
+        // ✅ inverse for DepartmentRole.role
+        departments: a.hasMany("DepartmentRole", "roleId"),
+      })
+      .authorization((allow) => [
+        allow.group("ADMIN"),
+        allow.authenticated().to(["read"]),
+      ]),
 
-  // =========================
-  // ✅ NEW: User ↔ Department assignment
-  // Admin sets this; users can read only their own assignment via owner field
-  // =========================
-  UserDepartment: a
-    .model({
-      userEmail: a.string().required(),
-      departmentId: a.id().required(),
+    // Policy for a role (each page = a policyKey)
+    RolePolicy: a
+      .model({
+        roleId: a.id().required(),
+        policyKey: a.string().required(), // ex: "CUSTOMERS"
 
-      assignmentOwner: a.string().required(), // set to user profileOwner (sub::email)
+        canRead: a.boolean().default(false),
+        canCreate: a.boolean().default(false),
+        canUpdate: a.boolean().default(false),
+        canDelete: a.boolean().default(false),
+        canApprove: a.boolean().default(false),
 
-      department: a.belongsTo("Department", "departmentId"),
-    })
-    .authorization((allow) => [
-      allow.ownerDefinedIn("assignmentOwner").to(["read"]),
-      allow.group("ADMIN"),
-    ]),
+        createdAt: a.datetime(),
+
+        // ✅ belongsTo side
+        role: a.belongsTo("AppRole", "roleId"),
+      })
+      .authorization((allow) => [
+        allow.group("ADMIN"),
+        allow.authenticated().to(["read"]),
+      ]),
+
+    // Assign roles to departments
+    DepartmentRole: a
+      .model({
+        departmentId: a.id().required(),
+        roleId: a.id().required(),
+        createdAt: a.datetime(),
+
+        department: a.belongsTo("Department", "departmentId"),
+        role: a.belongsTo("AppRole", "roleId"),
+      })
+      .authorization((allow) => [
+        allow.group("ADMIN"),
+        allow.authenticated().to(["read"]),
+      ]),
+
+    // -----------------------------
+    // CRM MODELS (your existing ones)
+    // -----------------------------
 
     Customer: a
       .model({
@@ -201,14 +202,7 @@ const schema = a
         customerId: a.id().required(),
         title: a.string().required(),
         value: a.float(),
-        stage: a.enum([
-          "LEAD",
-          "QUALIFIED",
-          "PROPOSAL",
-          "NEGOTIATION",
-          "WON",
-          "LOST",
-        ]),
+        stage: a.enum(["LEAD", "QUALIFIED", "PROPOSAL", "NEGOTIATION", "WON", "LOST"]),
         expectedCloseDate: a.date(),
         owner: a.string(),
         createdAt: a.datetime(),
@@ -237,8 +231,8 @@ const schema = a
       .authorization((allow) => [
         allow.group("ADMIN"),
         allow.group("SUPPORT"),
-        allow.group("SALES").to(["read"]),
         allow.group("SALES_MANAGER").to(["read"]),
+        allow.group("SALES").to(["read"]),
       ]),
 
     TicketComment: a
@@ -252,126 +246,22 @@ const schema = a
       })
       .authorization((allow) => [allow.group("ADMIN"), allow.group("SUPPORT")]),
 
-    // =========================
-    // NEW MODELS
-    // =========================
-
-    JobCard: a
-      .model({
-        title: a.string().required(),
-        customerName: a.string().required(),
-        customerPhone: a.string(),
-        vehicle: a.string(),
-        plateNumber: a.string(),
-        serviceType: a.string(),
-        notes: a.string(),
-        status: a.enum(["OPEN", "IN_PROGRESS", "DONE", "CANCELLED"]),
-        createdBy: a.string(),
-        createdAt: a.datetime(),
-      })
-      .authorization((allow) => [
-        allow.group("ADMIN"),
-        allow.group("SALES"),
-        allow.group("SALES_MANAGER"),
-      ]),
-
-    CallTracking: a
-      .model({
-        customerName: a.string().required(),
-        phone: a.string().required(),
-        source: a.string(),
-        outcome: a.enum([
-          "NO_ANSWER",
-          "ANSWERED",
-          "BOOKED",
-          "FOLLOW_UP",
-          "NOT_INTERESTED",
-        ]),
-        followUpAt: a.datetime(),
-        notes: a.string(),
-        createdBy: a.string(),
-        createdAt: a.datetime(),
-      })
-      .authorization((allow) => [
-        allow.group("ADMIN"),
-        allow.group("SALES"),
-        allow.group("SALES_MANAGER"),
-      ]),
-
-InspectionApproval: a
-  .model({
-    jobCardId: a.id(),
-    customerName: a.string().required(),
-    vehicle: a.string(),
-    inspectionNotes: a.string(),
-    amountQuoted: a.float(),
-    status: a.enum(["PENDING", "APPROVED", "REJECTED"]),
-    approvedBy: a.string(),
-    approvedAt: a.datetime(),
-    createdBy: a.string(),
-    createdAt: a.datetime(),
-  })
-  .authorization((allow) => [
-    // ADMIN full access (includes read)
-    allow.group("ADMIN"),
-
-    // SALES_MANAGER full access (includes read)
-    allow.group("SALES_MANAGER"),
-
-    // SALES read-only
-    allow.group("SALES").to(["read"]),
-  ]),
-
-
+    // -----------------------------
+    // MUTATION: inviteUser (ADMIN only)
+    // -----------------------------
     inviteUser: a
       .mutation()
       .arguments({
         email: a.string().required(),
         fullName: a.string().required(),
-      role: a.string().required(),
+        role: a.string().required(),
       })
       .authorization((allow) => [allow.group("ADMIN")])
       .handler(a.handler.function(inviteUser))
       .returns(a.json()),
-
-
-      adminUpdateUserRole: a
-  .mutation()
-  .arguments({
-    email: a.string().required(),
-    role: a.enum(["ADMIN", "SALES", "SALES_MANAGER", "SUPPORT"]),
   })
-  .authorization((allow) => [allow.group("ADMIN")])
-  .handler(a.handler.function(updateUserRole))
-  .returns(a.json()),
-
-adminSetUserActive: a
-  .mutation()
-  .arguments({
-    email: a.string().required(),
-    isActive: a.boolean().required(),
-  })
-  .authorization((allow) => [allow.group("ADMIN")])
-  .handler(a.handler.function(setUserActive))
-  .returns(a.json()),
-
-adminDeleteUser: a
-  .mutation()
-  .arguments({
-    email: a.string().required(),
-  })
-  .authorization((allow) => [allow.group("ADMIN")])
-  .handler(a.handler.function(deleteUser))
-  .returns(a.json()),
-
-  })
-.authorization((allow) => [
-  allow.resource(inviteUser),
-  allow.resource(updateUserRole),
-  allow.resource(setUserActive),
-  allow.resource(deleteUser),
-]);
-
+  // allow lambda to call data
+  .authorization((allow) => [allow.resource(inviteUser)]);
 
 export type Schema = ClientSchema<typeof schema>;
 
