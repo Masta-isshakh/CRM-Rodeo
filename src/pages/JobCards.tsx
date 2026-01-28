@@ -5,12 +5,13 @@ import "@aws-amplify/ui-react/styles.css";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
 import { getCurrentUser } from "aws-amplify/auth";
+import { PageProps } from "../lib/PageProps";
 
 const client = generateClient<Schema>();
 
 type Status = "OPEN" | "IN_PROGRESS" | "DONE" | "CANCELLED";
 
-export default function JobCards() {
+export default function JobCards({ permissions }: PageProps) {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");

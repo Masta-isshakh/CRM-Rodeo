@@ -1,7 +1,8 @@
 import { defineFunction } from "@aws-amplify/backend";
 
 export const customMessage = defineFunction({
-  name: "custom-message",
+  name: "custom-message-lambda",
+  entry: "./handler.ts",
   environment: {
     // IMPORTANT: change this to your production domain (or your Amplify domain)
     // Example:

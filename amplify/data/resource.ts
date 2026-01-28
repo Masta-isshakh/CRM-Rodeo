@@ -5,6 +5,21 @@ import { setUserActive } from "../functions/set-user-active/resource";
 import { deleteUser } from "../functions/delete-user/resource";
 
 
+// ✅ POLICY KEYS = one key per page
+const POLICY_KEYS = [
+  "DASHBOARD",
+  "CUSTOMERS",
+  "TICKETS",
+  "EMPLOYEES",
+  "ACTIVITY_LOG",
+  "USERS_ADMIN",
+  "JOB_CARDS",
+  "CALL_TRACKING",
+  "INSPECTION_APPROVALS",
+  "DEPARTMENTS_ADMIN",
+  "ROLES_POLICIES_ADMIN",
+] as const;
+
 const schema = a
   .schema({
     InviteUserResult: a.customType({
@@ -29,6 +44,95 @@ const schema = a
         allow.ownerDefinedIn("profileOwner"),
         allow.group("ADMIN"),
       ]),
+
+      
+  // =========================
+  // ✅ NEW: Department
+  // =========================
+  Department: a
+    .model({
+      name: a.string().required(),
+      isActive: a.boolean().default(true),
+      createdAt: a.datetime(),
+    })
+    .authorization((allow) => [
+      allow.group("ADMIN"),
+      allow.authenticated().to(["read"]), // users can read department name
+    ]),
+
+      // =========================
+  // ✅ NEW: Role
+  // =========================
+  AppRole: a
+    .model({
+      name: a.string().required(),
+      isActive: a.boolean().default(true),
+      createdAt: a.datetime(),
+    })
+    .authorization((allow) => [
+      allow.group("ADMIN"),
+      allow.authenticated().to(["read"]), // users can read roles
+    ]),
+
+
+      // =========================
+  // ✅ NEW: Role ↔ Policy
+  // Each row = 1 role + 1 policyKey + action flags
+  // =========================
+  RolePolicy: a
+    .model({
+      roleId: a.id().required(),
+      policyKey: a.enum(POLICY_KEYS as any),
+
+      canRead: a.boolean().default(false),
+      canCreate: a.boolean().default(false),
+      canUpdate: a.boolean().default(false),
+      canDelete: a.boolean().default(false),
+      canApprove: a.boolean().default(false),
+
+      updatedAt: a.datetime(),
+      role: a.belongsTo("AppRole", "roleId"),
+    })
+    .authorization((allow) => [
+      allow.group("ADMIN"),
+      allow.authenticated().to(["read"]), // users must read their role policies
+    ]),
+
+
+      // =========================
+  // ✅ NEW: Department ↔ Role (many-to-many)
+  // Assign roles to a department
+  // =========================
+  DepartmentRole: a
+    .model({
+      departmentId: a.id().required(),
+      roleId: a.id().required(),
+
+      department: a.belongsTo("Department", "departmentId"),
+      role: a.belongsTo("AppRole", "roleId"),
+    })
+    .authorization((allow) => [
+      allow.group("ADMIN"),
+      allow.authenticated().to(["read"]),
+    ]),
+
+  // =========================
+  // ✅ NEW: User ↔ Department assignment
+  // Admin sets this; users can read only their own assignment via owner field
+  // =========================
+  UserDepartment: a
+    .model({
+      userEmail: a.string().required(),
+      departmentId: a.id().required(),
+
+      assignmentOwner: a.string().required(), // set to user profileOwner (sub::email)
+
+      department: a.belongsTo("Department", "departmentId"),
+    })
+    .authorization((allow) => [
+      allow.ownerDefinedIn("assignmentOwner").to(["read"]),
+      allow.group("ADMIN"),
+    ]),
 
     Customer: a
       .model({
@@ -224,7 +328,7 @@ InspectionApproval: a
       .arguments({
         email: a.string().required(),
         fullName: a.string().required(),
-    role: a.enum(["ADMIN", "SALES", "SALES_MANAGER", "SUPPORT"]),
+      role: a.string().required(),
       })
       .authorization((allow) => [allow.group("ADMIN")])
       .handler(a.handler.function(inviteUser))

@@ -1,78 +1,66 @@
-import type { CustomMessageTriggerHandler } from "aws-lambda";
-// Replace with direct access to process.env or your environment config
-const env = {
-  APP_ORIGIN: process.env.APP_ORIGIN || ""
-};
+// amplify/auth/custom-message/handler.ts
 
-function buildUrls(email: string) {
-  const origin = (env.APP_ORIGIN || "").replace(/\/+$/, "");
-  const safeEmail = encodeURIComponent(email.trim().toLowerCase());
+// Keep this file dependency-free (no aws-amplify imports).
+// Cognito CustomMessage trigger: return the same event with emailSubject/emailMessage updated.
 
-  const signInUrl = `${origin}/`;
-  const setPasswordUrl = `${origin}/set-password?email=${safeEmail}`;
+type AnyEvent = any;
 
-  return { signInUrl, setPasswordUrl };
+function getAppUrl(event: AnyEvent) {
+  // Best: set APP_URL as an environment variable on the function.
+  // Fallbacks: clientMetadata from Cognito calls, or a safe default.
+  return (
+    process.env.APP_URL ||
+    event?.request?.clientMetadata?.appUrl ||
+    "https://main.d306x3a8sfnpva.amplifyapp.com" // change to your real domain
+  );
 }
 
-export const handler: CustomMessageTriggerHandler = async (event) => {
-  const email = event.request.userAttributes?.email ?? "";
-  const name =
-    event.request.userAttributes?.name ||
-    event.request.userAttributes?.given_name ||
-    event.request.userAttributes?.["custom:fullName"] ||
-    "";
+export const handler = async (event: AnyEvent) => {
+  const appUrl = getAppUrl(event);
 
-  const { signInUrl, setPasswordUrl } = buildUrls(email);
+  const email = (event?.request?.userAttributes?.email || event?.userName || "").toLowerCase();
+  const code = event?.request?.codeParameter || "{####}";
+  const usernameParam = event?.request?.usernameParameter || "{username}";
 
-  // 1) Invitation email sent by AdminCreateUser
-  // Cognito requires you to include the username + code placeholders for this triggerSource. :contentReference[oaicite:3]{index=3}
-  if (event.triggerSource === "CustomMessage_AdminCreateUser") {
-    const usernamePlaceholder = event.request.usernameParameter; // typically {username}
-    const codePlaceholder = event.request.codeParameter;         // typically {####}
+  // Your app routes
+  const signInUrl = `${appUrl}/`; // login page (Authenticator)
+  const setPasswordUrl = email
+    ? `${appUrl}/set-password?email=${encodeURIComponent(email)}`
+    : `${appUrl}/set-password`;
 
-    event.response.emailSubject = "You’ve been invited — Rodeo Drive CRM";
+  // Trigger types: CustomMessage_AdminCreateUser, CustomMessage_ForgotPassword, etc.
+  const src: string = event?.triggerSource || "";
 
-    event.response.emailMessage = [
-      `Hello${name ? " " + name : ""},`,
-      "",
-      "Your account has been created.",
-      "",
-      `1) Set your password: ${setPasswordUrl}`,
-      `2) Sign in here: ${signInUrl}`,
-      "",
-      "If you are asked for a username and temporary code/password, use:",
-      `Username: ${usernamePlaceholder}`,
-      `Temporary code/password: ${codePlaceholder}`,
-      "",
-      "After setting your password, return to the Sign-In link above.",
-      "",
-      "— Rodeo Drive CRM",
-    ].join("\n");
+  // Default subject/message
+  let subject = "Rodeo Drive CRM";
+  let message = `Hello,\n\nSign in: ${signInUrl}\n`;
 
-    return event;
+  // Admin user invite (AdminCreateUser)
+  if (src.includes("AdminCreateUser")) {
+    subject = "You’ve been invited to Rodeo Drive CRM";
+    message =
+      `Hello,\n\n` +
+      `An account has been created for you.\n\n` +
+      `Username: ${usernameParam}\n` +
+      `Set your password here:\n${setPasswordUrl}\n\n` +
+      `After setting your password, sign in here:\n${signInUrl}\n\n` +
+      `Thank you.`;
   }
 
-  // 2) Verification email for resetPassword() (Forgot Password)
-  if (event.triggerSource === "CustomMessage_ForgotPassword") {
-    const codePlaceholder = event.request.codeParameter; // insert where you want the code :contentReference[oaicite:4]{index=4}
-
-    event.response.emailSubject = "Your verification code — Rodeo Drive CRM";
-
-    event.response.emailMessage = [
-      `Hello${name ? " " + name : ""},`,
-      "",
-      "Use the code below to set your password:",
-      `${codePlaceholder}`,
-      "",
-      `Open Set Password page: ${setPasswordUrl}`,
-      `Sign in after update: ${signInUrl}`,
-      "",
-      "— Rodeo Drive CRM",
-    ].join("\n");
-
-    return event;
+  // Forgot password
+  if (src.includes("ForgotPassword")) {
+    subject = "Reset your password";
+    message =
+      `Hello,\n\n` +
+      `Your verification code is: ${code}\n\n` +
+      `Or reset using the app page:\n${setPasswordUrl}\n\n` +
+      `Sign in:\n${signInUrl}\n`;
   }
 
-  // default: do not modify other messages
+  // Assign
+  event.response = event.response || {};
+  event.response.emailSubject = subject;
+  event.response.emailMessage = message;
+
   return event;
 };

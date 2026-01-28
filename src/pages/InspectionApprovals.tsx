@@ -5,13 +5,14 @@ import "@aws-amplify/ui-react/styles.css";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
 import { getCurrentUser } from "aws-amplify/auth";
+import { PageProps } from "../lib/PageProps";
 
 const client = generateClient<Schema>();
 
 type Status = "PENDING" | "APPROVED" | "REJECTED";
 
-export default function InspectionApprovals(props: { canApprove: boolean }) {
-  const { canApprove } = props;
+export default function InspectionApprovals({ permissions }: PageProps) {
+  const canApprove = permissions.canApprove;
 
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);

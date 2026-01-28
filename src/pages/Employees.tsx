@@ -5,6 +5,7 @@ import { Button, TextField } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
 import "./employees.css";
 import { logActivity } from "../utils/activityLogger";
+import { PageProps } from "../lib/PageProps";
 
 const client = generateClient<Schema>();
 
@@ -17,7 +18,7 @@ type EmployeeForm = {
   salary: string;
 };
 
-export default function Employees() {
+export default function Employees({ permissions }: PageProps) {
   const [employees, setEmployees] = useState<any[]>([]);
   const [showModal, setShowModal] = useState(false);
   const [editingEmployee, setEditingEmployee] = useState<any | null>(null);

@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
+import type { PageProps } from "../lib/PageProps";
 
 
 const client = generateClient<Schema>();
 
 
-export default function Tickets() {
+export default function Tickets({ permissions }: PageProps) {
 const [tickets, setTickets] = useState<any[]>([]);
 
 

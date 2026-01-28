@@ -5,6 +5,7 @@ import "@aws-amplify/ui-react/styles.css";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
 import { getCurrentUser } from "aws-amplify/auth";
+import { PageProps } from "../lib/PageProps";
 
 const client = generateClient<Schema>();
 
@@ -15,7 +16,7 @@ type Outcome =
   | "FOLLOW_UP"
   | "NOT_INTERESTED";
 
-export default function CallTracking() {
+export default function CallTracking({ permissions }: PageProps) {
   const [items, setItems] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");

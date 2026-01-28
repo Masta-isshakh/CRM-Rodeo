@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
 import "./activity.css";
+import { PageProps } from "../lib/PageProps";
 
 const client = generateClient<Schema>();
 
-export default function ActivityLog() {
+export default function ActivityLog({ permissions }: PageProps) {
   const [logs, setLogs] = useState<any[]>([]);
 
   useEffect(() => {

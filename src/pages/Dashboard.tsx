@@ -2,10 +2,11 @@ import { useEffect, useState } from "react";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
 import "./dashboard.css";
+import type { PageProps } from "../lib/PageProps";
 
 const client = generateClient<Schema>();
 
-export default function Dashboard() {
+export default function Dashboard({ permissions }: PageProps) {
   const [employeeCount, setEmployeeCount] = useState<number>(0);
   const [customerCount, setCustomerCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);

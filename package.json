@@ -10,15 +10,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@aws-amplify/ui-react": "^6.5.5",
+    "@aws-amplify/ui-react": "^6.13.2",
     "@aws-sdk/client-cognito-identity-provider": "^3.966.0",
-    "aws-amplify": "^6.6.6",
+    "aws-amplify": "^6.16.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
   "devDependencies": {
-    "@aws-amplify/backend": "^1.5.0",
-    "@aws-amplify/backend-cli": "1.8.1",
+    "@aws-amplify/backend": "^1.20.0",
+    "@aws-amplify/backend-cli": "^1.8.2",
     "@types/node": "^25.0.3",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
