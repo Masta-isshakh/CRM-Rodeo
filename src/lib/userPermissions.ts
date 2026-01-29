@@ -6,7 +6,8 @@ import type { PermissionSet } from "./PageProps";
 
 const client = generateClient<Schema>();
 
-const ADMIN_GROUP_NAME = "Admins"; // <-- change if your admin group name is different
+// ✅ MUST MATCH backend ADMIN_GROUP exactly
+const ADMIN_GROUP_NAME = "Admins";
 
 const EMPTY: PermissionSet = {
   canRead: false,
@@ -24,6 +25,13 @@ const FULL: PermissionSet = {
   canApprove: true,
 };
 
+function readGroupsFromTokenPayload(payload: any): string[] {
+  const g = payload?.["cognito:groups"];
+  if (Array.isArray(g)) return g.map(String);
+  if (typeof g === "string") return [g];
+  return [];
+}
+
 export function usePermissions() {
   const [loading, setLoading] = useState(true);
   const [email, setEmail] = useState("");
@@ -34,32 +42,42 @@ export function usePermissions() {
     setLoading(true);
     try {
       const u = await getCurrentUser();
-      const session = await fetchAuthSession();
 
-      const payload = (session.tokens?.idToken?.payload ?? {}) as any;
-      const groups = (payload["cognito:groups"] as string[] | undefined) ?? [];
+      // ✅ forceRefresh so new group membership is included
+      const session = await fetchAuthSession({ forceRefresh: true });
+
+      const idPayload = (session.tokens?.idToken?.payload ?? {}) as any;
+      const accessPayload = (session.tokens?.accessToken?.payload ?? {}) as any;
+
+      const groups = Array.from(
+        new Set([
+          ...readGroupsFromTokenPayload(idPayload),
+          ...readGroupsFromTokenPayload(accessPayload),
+        ])
+      );
 
       const login =
         u.signInDetails?.loginId ||
-        (payload.email as string) ||
-        (payload["cognito:username"] as string) ||
+        (idPayload.email as string) ||
+        (accessPayload.email as string) ||
+        (idPayload["cognito:username"] as string) ||
         u.username;
 
       setEmail(String(login || ""));
+
       const admin = groups.includes(ADMIN_GROUP_NAME);
       setIsAdminGroup(admin);
 
-      // Admin = full permissions for everything
+      // Admin sees everything in UI
       if (admin) {
         setPermMap({});
         return;
       }
 
-      // Non-admin: build permissions from DepartmentRoleLink + RolePolicy
+      // Non-admin: Department(Group) -> Role -> Policy
       const DeptRoleLink = (client.models as any).DepartmentRoleLink as any;
       const RolePolicy = (client.models as any).RolePolicy as any;
 
-      // If your schema uses a different model name, change it here.
       if (!DeptRoleLink || !RolePolicy) {
         setPermMap({});
         return;
@@ -73,29 +91,18 @@ export function usePermissions() {
       const links = (linksRes.data ?? []) as any[];
       const policies = (policyRes.data ?? []) as any[];
 
-      // Which departments the user belongs to = cognito groups
-      const myLinks = links.filter((l) =>
-        groups.includes(String(l.departmentKey ?? ""))
-      );
+      const myLinks = links.filter((l) => groups.includes(String(l.departmentKey ?? "")));
 
       const roleIds = Array.from(
-        new Set(
-          myLinks
-            .map((l) => String(l.roleId ?? ""))
-            .filter((x) => x.trim())
-        )
+        new Set(myLinks.map((l) => String(l.roleId ?? "")).filter((x) => x.trim()))
       );
 
-      const myPolicies = policies.filter((p) =>
-        roleIds.includes(String(p.roleId ?? ""))
-      );
+      const myPolicies = policies.filter((p) => roleIds.includes(String(p.roleId ?? "")));
 
       const map: Record<string, PermissionSet> = {};
 
       for (const p of myPolicies) {
-        const resourceKey = String(
-          p.resourceKey ?? p.key ?? p.pageKey ?? ""
-        ).trim();
+        const resourceKey = String(p.policyKey ?? "").trim();
         if (!resourceKey) continue;
 
         const cur = map[resourceKey] ?? { ...EMPTY };
@@ -113,6 +120,7 @@ export function usePermissions() {
     } catch (e) {
       console.error("usePermissions load error:", e);
       setPermMap({});
+      setIsAdminGroup(false);
     } finally {
       setLoading(false);
     }

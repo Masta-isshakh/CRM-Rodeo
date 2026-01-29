@@ -11,6 +11,9 @@ import { deleteDepartment } from "../functions/departments/delete-department/res
 import { renameDepartment } from "../functions/departments/rename-department/resource";
 import { setUserDepartment } from "../functions/departments/set-user-department/resource";
 
+// ✅ MUST MATCH your Cognito group name EXACTLY
+const ADMIN_GROUP = "Admins";
+
 const schema = a
   .schema({
     // -----------------------------
@@ -26,13 +29,13 @@ const schema = a
         // owner: `${sub}::${email}`
         profileOwner: a.string().required(),
 
-        // ✅ Department = Cognito group key
+        // Department = Cognito group key
         departmentKey: a.string(),
         departmentName: a.string(),
       })
       .authorization((allow) => [
         allow.ownerDefinedIn("profileOwner"),
-        allow.group("ADMIN"),
+        allow.group(ADMIN_GROUP),
       ]),
 
     // -----------------------------
@@ -46,7 +49,7 @@ const schema = a
         createdAt: a.datetime(),
       })
       .authorization((allow) => [
-        allow.group("ADMIN"),
+        allow.group(ADMIN_GROUP),
         allow.authenticated().to(["read"]),
       ]),
 
@@ -64,25 +67,24 @@ const schema = a
         createdAt: a.datetime(),
       })
       .authorization((allow) => [
-        allow.group("ADMIN"),
+        allow.group(ADMIN_GROUP),
         allow.authenticated().to(["read"]),
       ]),
 
-    // ✅ Department(Group) -> AppRole links
     DepartmentRoleLink: a
       .model({
-        departmentKey: a.string().required(), // DEPT_*
-        departmentName: a.string(),           // display label
+        departmentKey: a.string().required(), // Cognito group key
+        departmentName: a.string(),
         roleId: a.id().required(),
         createdAt: a.datetime(),
       })
       .authorization((allow) => [
-        allow.group("ADMIN"),
+        allow.group(ADMIN_GROUP),
         allow.authenticated().to(["read"]),
       ]),
 
     // -----------------------------
-    // CRM MODELS (keep yours)
+    // CRM MODELS
     // -----------------------------
     Customer: a
       .model({
@@ -111,7 +113,7 @@ const schema = a
         salary: a.integer(),
         createdAt: a.datetime(),
       })
-      .authorization((allow) => [allow.owner(), allow.group("ADMIN")]),
+      .authorization((allow) => [allow.authenticated()]),
 
     ActivityLog: a
       .model({
@@ -177,6 +179,52 @@ const schema = a
       .authorization((allow) => [allow.authenticated()]),
 
     // -----------------------------
+    // ✅ MISSING MODELS YOU USE IN FRONTEND
+    // -----------------------------
+    JobCard: a
+      .model({
+        title: a.string().required(),
+        customerName: a.string().required(),
+        customerPhone: a.string(),
+        vehicle: a.string(),
+        plateNumber: a.string(),
+        serviceType: a.string(),
+        notes: a.string(),
+        status: a.enum(["OPEN", "IN_PROGRESS", "DONE", "CANCELLED"]),
+        createdBy: a.string(),
+        createdAt: a.datetime(),
+      })
+      .authorization((allow) => [allow.authenticated()]),
+
+    CallTracking: a
+      .model({
+        customerName: a.string().required(),
+        phone: a.string().required(),
+        source: a.string(),
+        outcome: a.enum(["NO_ANSWER", "ANSWERED", "BOOKED", "FOLLOW_UP", "NOT_INTERESTED"]),
+        followUpAt: a.datetime(),
+        notes: a.string(),
+        createdBy: a.string(),
+        createdAt: a.datetime(),
+      })
+      .authorization((allow) => [allow.authenticated()]),
+
+    InspectionApproval: a
+      .model({
+        jobCardId: a.string(),
+        customerName: a.string().required(),
+        vehicle: a.string(),
+        inspectionNotes: a.string(),
+        amountQuoted: a.float(),
+        status: a.enum(["PENDING", "APPROVED", "REJECTED"]),
+        createdBy: a.string(),
+        createdAt: a.datetime(),
+        approvedBy: a.string(),
+        approvedAt: a.datetime(),
+      })
+      .authorization((allow) => [allow.authenticated()]),
+
+    // -----------------------------
     // ADMIN MUTATIONS / QUERIES
     // -----------------------------
     inviteUser: a
@@ -187,7 +235,7 @@ const schema = a
         departmentKey: a.string().required(),
         departmentName: a.string(),
       })
-      .authorization((allow) => [allow.group("ADMIN")])
+      .authorization((allow) => [allow.group(ADMIN_GROUP)])
       .handler(a.handler.function(inviteUser))
       .returns(a.json()),
 
@@ -197,34 +245,34 @@ const schema = a
         email: a.string().required(),
         isActive: a.boolean().required(),
       })
-      .authorization((allow) => [allow.group("ADMIN")])
+      .authorization((allow) => [allow.group(ADMIN_GROUP)])
       .handler(a.handler.function(setUserActive))
       .returns(a.json()),
 
     adminDeleteUser: a
       .mutation()
       .arguments({ email: a.string().required() })
-      .authorization((allow) => [allow.group("ADMIN")])
+      .authorization((allow) => [allow.group(ADMIN_GROUP)])
       .handler(a.handler.function(deleteUser))
       .returns(a.json()),
 
     adminListDepartments: a
       .query()
-      .authorization((allow) => [allow.group("ADMIN")])
+      .authorization((allow) => [allow.group(ADMIN_GROUP)])
       .handler(a.handler.function(listDepartments))
       .returns(a.json()),
 
     adminCreateDepartment: a
       .mutation()
       .arguments({ departmentName: a.string().required() })
-      .authorization((allow) => [allow.group("ADMIN")])
+      .authorization((allow) => [allow.group(ADMIN_GROUP)])
       .handler(a.handler.function(createDepartment))
       .returns(a.json()),
 
     adminDeleteDepartment: a
       .mutation()
       .arguments({ departmentKey: a.string().required() })
-      .authorization((allow) => [allow.group("ADMIN")])
+      .authorization((allow) => [allow.group(ADMIN_GROUP)])
       .handler(a.handler.function(deleteDepartment))
       .returns(a.json()),
 
@@ -234,7 +282,7 @@ const schema = a
         oldKey: a.string().required(),
         newName: a.string().required(),
       })
-      .authorization((allow) => [allow.group("ADMIN")])
+      .authorization((allow) => [allow.group(ADMIN_GROUP)])
       .handler(a.handler.function(renameDepartment))
       .returns(a.json()),
 
@@ -245,7 +293,7 @@ const schema = a
         departmentKey: a.string().required(),
         departmentName: a.string(),
       })
-      .authorization((allow) => [allow.group("ADMIN")])
+      .authorization((allow) => [allow.group(ADMIN_GROUP)])
       .handler(a.handler.function(setUserDepartment))
       .returns(a.json()),
   })

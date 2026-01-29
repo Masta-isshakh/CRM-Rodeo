@@ -1,3 +1,5 @@
+// src/lib/PageProps.ts
+
 export type PermissionSet = {
   canRead: boolean;
   canCreate: boolean;

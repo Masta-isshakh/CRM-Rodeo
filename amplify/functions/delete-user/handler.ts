@@ -28,23 +28,23 @@ export const handler: Handler = async (event: any) => {
   // 1) Delete from Cognito
   await cognito.send(new AdminDeleteUserCommand({ UserPoolId: userPoolId, Username: e }));
 
-  // 2) Delete UserProfile from Data
+  // 2) Delete Customer from Data
   const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
   Amplify.configure(resourceConfig, libraryOptions);
   const dataClient = generateClient<Schema>();
 
-  const profiles = await dataClient.models.UserProfile.list({
+  const customers = await dataClient.models.Customer.list({
     filter: { email: { eq: e } },
     limit: 10,
   });
 
-  for (const p of profiles.data) {
-    await dataClient.models.UserProfile.delete({ id: p.id });
+  for (const c of customers.data) {
+    await dataClient.models.Customer.delete({ id: c.id });
   }
 
   return {
     ok: true,
     email: e,
-    deletedProfiles: profiles.data.length,
+    deletedProfiles: customers.data.length,
   };
 };

@@ -15,7 +15,8 @@ import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtim
 
 import { DEPT_PREFIX, keyToLabel } from "../departments/_shared/departmentKey";
 
-type Handler = Schema["inviteUser"]["functionHandler"];
+// TODO: Replace this with the correct type from your schema if available
+type Handler = (event: any) => Promise<any>;
 
 const cognito = new CognitoIdentityProviderClient();
 

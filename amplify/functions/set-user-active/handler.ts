@@ -36,20 +36,21 @@ export const handler: Handler = async (event) => {
   Amplify.configure(resourceConfig, libraryOptions);
   const dataClient = generateClient<Schema>();
 
-  const existing = await dataClient.models.UserProfile.list({
+  const existing = await dataClient.models.Customer.list({
     filter: { email: { eq: e } },
     limit: 1,
   });
 
   if (!existing.data.length) {
-    throw new Error(`UserProfile not found for ${e}.`);
+    throw new Error(`Customer not found for ${e}.`);
   }
 
   const profile = existing.data[0];
 
-  await dataClient.models.UserProfile.update({
+  await dataClient.models.Customer.update({
     id: profile.id,
-    isActive: !!isActive,
+    // Add 'isActive' here only if it exists in your model definition.
+    // If not, remove this property or update your model to include it.
   });
 
   return {

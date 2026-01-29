@@ -1,25 +1,42 @@
+// amplify/backend.ts
 import { defineBackend } from "@aws-amplify/backend";
 import { auth } from "./auth/resource";
 import { data } from "./data/resource";
-
-import { CfnUserPool } from "aws-cdk-lib/aws-cognito";
+import { adminCognito } from "./functions/adminCognito/resource";
 
 const backend = defineBackend({
   auth,
   data,
+  adminCognito,
 });
 
-// Lock down Cognito: admin-only user creation
-const cfnUserPool = backend.auth.resources.cfnResources.cfnUserPool as CfnUserPool;
+// Give the function permission to manage Cognito Groups + Users
+import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
 
-cfnUserPool.adminCreateUserConfig = {
-  allowAdminCreateUserOnly: true,
-  // Optional: customize the invite email
-  inviteMessageTemplate: {
-    emailSubject: "Rodeo Drive CRM — Your account invitation",
-    emailMessage:
-      "Hello {username}, you have been invited to Rodeo Drive CRM.\n\n" +
-      "Temporary password: {####}\n\n" +
-      "Sign in with your email and this temporary password, then you will be asked to set your own password.\n",
+backend.adminCognito.resources.lambda.addToRolePolicy(
+  new PolicyStatement({
+    effect: Effect.ALLOW,
+    actions: [
+      "cognito-idp:ListGroups",
+      "cognito-idp:CreateGroup",
+      "cognito-idp:DeleteGroup",
+      "cognito-idp:GetGroup",
+      "cognito-idp:UpdateGroup",
+      "cognito-idp:ListUsers",
+      "cognito-idp:AdminAddUserToGroup",
+      "cognito-idp:AdminRemoveUserFromGroup",
+      "cognito-idp:AdminListGroupsForUser",
+      "cognito-idp:ListUsersInGroup",
+    ],
+    resources: ["*"],
+  })
+);
+
+// Inject USERPOOL_ID into function env
+backend.adminCognito.resources.cfnResources.cfnFunction.environment = {
+  variables: {
+    USERPOOL_ID: backend.auth.resources.userPool.userPoolId,
+    DEPT_PREFIX: "dept_", // your department group prefix
+    ADMINS_GROUP: "Admins",
   },
 };

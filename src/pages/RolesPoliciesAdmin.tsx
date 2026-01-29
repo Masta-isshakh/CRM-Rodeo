@@ -1,8 +1,11 @@
 // src/pages/RolesPoliciesAdmin.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Button, TextField, SelectField } from "@aws-amplify/ui-react";
+import "@aws-amplify/ui-react/styles.css";
+
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
+
 import { POLICY_LABELS, type PolicyKey } from "../lib/policies";
 import type { PageProps } from "../lib/PageProps";
 
@@ -16,7 +19,25 @@ type Actions = {
   canApprove: boolean;
 };
 
-const empty: Actions = { canRead: false, canCreate: false, canUpdate: false, canDelete: false, canApprove: false };
+const EMPTY: Actions = {
+  canRead: false,
+  canCreate: false,
+  canUpdate: false,
+  canDelete: false,
+  canApprove: false,
+};
+
+const FULL: Actions = {
+  canRead: true,
+  canCreate: true,
+  canUpdate: true,
+  canDelete: true,
+  canApprove: true,
+};
+
+function toBool(v: any): boolean {
+  return v === true;
+}
 
 export default function RolesPoliciesAdmin({ permissions }: PageProps) {
   if (!permissions.canRead) {
@@ -30,6 +51,8 @@ export default function RolesPoliciesAdmin({ permissions }: PageProps) {
   const [newRole, setNewRole] = useState("");
   const [roleId, setRoleId] = useState<string>("");
 
+  const allPolicyKeys = useMemo(() => Object.keys(POLICY_LABELS) as PolicyKey[], []);
+
   const load = async () => {
     setStatus("Loading...");
     try {
@@ -37,6 +60,7 @@ export default function RolesPoliciesAdmin({ permissions }: PageProps) {
         client.models.AppRole.list({ limit: 1000 }),
         client.models.RolePolicy.list({ limit: 10000 }),
       ]);
+
       setRoles(r.data ?? []);
       setPolicies(p.data ?? []);
       setStatus("");
@@ -50,6 +74,24 @@ export default function RolesPoliciesAdmin({ permissions }: PageProps) {
     load();
   }, []);
 
+  const selectedRole = useMemo(() => roles.find((r) => r.id === roleId), [roles, roleId]);
+
+  const rolePolicyMap = useMemo(() => {
+    // Map<roleId, Map<policyKey, row>>
+    const map = new Map<string, Map<string, Schema["RolePolicy"]["type"]>>();
+    for (const row of policies) {
+      const rid = String(row.roleId ?? "");
+      const key = String((row as any).policyKey ?? "");
+      if (!rid || !key) continue;
+      const rmap = map.get(rid) ?? new Map<string, Schema["RolePolicy"]["type"]>();
+      rmap.set(key, row);
+      map.set(rid, rmap);
+    }
+    return map;
+  }, [policies]);
+
+  const getRow = (rid: string, key: PolicyKey) => rolePolicyMap.get(rid)?.get(key);
+
   const createRole = async () => {
     if (!permissions.canCreate) return;
     setStatus("");
@@ -59,12 +101,11 @@ export default function RolesPoliciesAdmin({ permissions }: PageProps) {
 
       const res = await client.models.AppRole.create({
         name,
-        isActive: true,
-        createdAt: new Date().toISOString(),
       });
 
       setNewRole("");
       await load();
+
       if (res.data?.id) setRoleId(res.data.id);
     } catch (e: any) {
       console.error(e);
@@ -79,9 +120,12 @@ export default function RolesPoliciesAdmin({ permissions }: PageProps) {
     setStatus("");
     try {
       const toDelete = policies.filter((x) => x.roleId === id);
-      for (const row of toDelete) await client.models.RolePolicy.delete({ id: row.id });
+      for (const row of toDelete) {
+        await client.models.RolePolicy.delete({ id: row.id });
+      }
 
       await client.models.AppRole.delete({ id });
+
       if (roleId === id) setRoleId("");
       await load();
     } catch (e: any) {
@@ -90,19 +134,7 @@ export default function RolesPoliciesAdmin({ permissions }: PageProps) {
     }
   };
 
-  const rolePolicyMap = useMemo(() => {
-    const map = new Map<string, Map<string, Schema["RolePolicy"]["type"]>>();
-    for (const row of policies) {
-      const rmap = map.get(row.roleId) ?? new Map<string, Schema["RolePolicy"]["type"]>();
-      rmap.set(String(row.policyKey), row);
-      map.set(row.roleId, rmap);
-    }
-    return map;
-  }, [policies]);
-
-  const getRow = (rid: string, key: PolicyKey) => rolePolicyMap.get(rid)?.get(key);
-
-  const upsertPolicy = async (rid: string, key: PolicyKey, patch: Partial<Actions>) => {
+  const upsertPolicy = async (rid: string, key: PolicyKey, next: Actions) => {
     if (!permissions.canUpdate) return;
     setStatus("");
     try {
@@ -111,22 +143,23 @@ export default function RolesPoliciesAdmin({ permissions }: PageProps) {
       if (!existing) {
         await client.models.RolePolicy.create({
           roleId: rid,
+          // Most schemas store this as a string/enum. Keep it safe:
           policyKey: key as any,
-          canRead: patch.canRead ?? false,
-          canCreate: patch.canCreate ?? false,
-          canUpdate: patch.canUpdate ?? false,
-          canDelete: patch.canDelete ?? false,
-          canApprove: patch.canApprove ?? false,
+          canRead: next.canRead,
+          canCreate: next.canCreate,
+          canUpdate: next.canUpdate,
+          canDelete: next.canDelete,
+          canApprove: next.canApprove,
           createdAt: new Date().toISOString(),
-        });
+        } as any);
       } else {
         await client.models.RolePolicy.update({
           id: existing.id,
-          canRead: patch.canRead ?? existing.canRead,
-          canCreate: patch.canCreate ?? existing.canCreate,
-          canUpdate: patch.canUpdate ?? existing.canUpdate,
-          canDelete: patch.canDelete ?? existing.canDelete,
-          canApprove: patch.canApprove ?? existing.canApprove,
+          canRead: next.canRead,
+          canCreate: next.canCreate,
+          canUpdate: next.canUpdate,
+          canDelete: next.canDelete,
+          canApprove: next.canApprove,
         });
       }
 
@@ -137,26 +170,43 @@ export default function RolesPoliciesAdmin({ permissions }: PageProps) {
     }
   };
 
-  const selectedRole = roles.find((r) => r.id === roleId);
-  const allPolicyKeys = Object.keys(POLICY_LABELS) as PolicyKey[];
+  const setPreset = async (preset: "NONE" | "READ" | "FULL", policyKey: PolicyKey) => {
+    if (!selectedRole) return;
+    if (!permissions.canUpdate) return;
+
+    const next =
+      preset === "NONE" ? { ...EMPTY } :
+      preset === "READ" ? { ...EMPTY, canRead: true } :
+      { ...FULL };
+
+    await upsertPolicy(selectedRole.id, policyKey, next);
+  };
 
   return (
     <div style={{ padding: 24, width: "100%", maxWidth: "100%" }}>
       <h2>Roles & Policies</h2>
       {status && <p style={{ opacity: 0.8 }}>{status}</p>}
 
+      {/* Create role */}
       <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
         <h3 style={{ marginTop: 0 }}>Create Role</h3>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <TextField label="Role name" value={newRole} onChange={(e) => setNewRole((e.target as HTMLInputElement).value)} />
+          <TextField
+            label="Role name"
+            value={newRole}
+            onChange={(e) => setNewRole((e.target as HTMLInputElement).value)}
+          />
           <Button variation="primary" onClick={createRole} isDisabled={!permissions.canCreate}>
             Create
           </Button>
           <Button onClick={load}>Refresh</Button>
         </div>
-        {!permissions.canCreate && <p style={{ marginTop: 8, opacity: 0.7, fontSize: 12 }}>Create is disabled by policy.</p>}
+        {!permissions.canCreate && (
+          <p style={{ marginTop: 8, opacity: 0.7, fontSize: 12 }}>Create is disabled by policy.</p>
+        )}
       </div>
 
+      {/* Select role */}
       <div style={{ marginTop: 16, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
         <h3 style={{ marginTop: 0 }}>Select Role</h3>
 
@@ -169,11 +219,7 @@ export default function RolesPoliciesAdmin({ permissions }: PageProps) {
           </SelectField>
 
           {selectedRole && (
-            <Button
-              variation="destructive"
-              onClick={() => deleteRole(selectedRole.id)}
-              isDisabled={!permissions.canDelete}
-            >
+            <Button variation="destructive" onClick={() => deleteRole(selectedRole.id)} isDisabled={!permissions.canDelete}>
               Delete role
             </Button>
           )}
@@ -182,6 +228,7 @@ export default function RolesPoliciesAdmin({ permissions }: PageProps) {
         {!selectedRole && <p style={{ opacity: 0.75, marginTop: 10 }}>Select a role to manage its policies.</p>}
       </div>
 
+      {/* Policy matrix */}
       {selectedRole && (
         <div style={{ marginTop: 16, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
           <h3 style={{ marginTop: 0 }}>
@@ -189,7 +236,7 @@ export default function RolesPoliciesAdmin({ permissions }: PageProps) {
           </h3>
 
           <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", minWidth: 1100, borderCollapse: "collapse" }}>
+            <table style={{ width: "100%", minWidth: 1200, borderCollapse: "collapse" }}>
               <thead>
                 <tr style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>
                   <th style={{ padding: 10 }}>Policy (Page)</th>
@@ -198,37 +245,73 @@ export default function RolesPoliciesAdmin({ permissions }: PageProps) {
                   <th style={{ padding: 10 }}>Update</th>
                   <th style={{ padding: 10 }}>Delete</th>
                   <th style={{ padding: 10 }}>Approve</th>
+                  <th style={{ padding: 10 }}>Presets</th>
                 </tr>
               </thead>
+
               <tbody>
                 {allPolicyKeys.map((key) => {
                   const row = getRow(selectedRole.id, key);
+
                   const current: Actions = row
                     ? {
-                        canRead: !!row.canRead,
-                        canCreate: !!row.canCreate,
-                        canUpdate: !!row.canUpdate,
-                        canDelete: !!row.canDelete,
-                        canApprove: !!row.canApprove,
+                        canRead: toBool((row as any).canRead),
+                        canCreate: toBool((row as any).canCreate),
+                        canUpdate: toBool((row as any).canUpdate),
+                        canDelete: toBool((row as any).canDelete),
+                        canApprove: toBool((row as any).canApprove),
                       }
-                    : empty;
+                    : { ...EMPTY };
+
+                  const disabled = !permissions.canUpdate;
 
                   const toggle = (field: keyof Actions) => {
-                    if (!permissions.canUpdate) return;
+                    if (disabled) return;
                     const next = { ...current, [field]: !current[field] };
                     upsertPolicy(selectedRole.id, key, next);
                   };
 
-                  const disabled = !permissions.canUpdate;
-
                   return (
                     <tr key={key} style={{ borderBottom: "1px solid #f1f5f9" }}>
                       <td style={{ padding: 10, fontWeight: 600 }}>{POLICY_LABELS[key]}</td>
-                      <td style={{ padding: 10 }}><Button onClick={() => toggle("canRead")} isDisabled={disabled}>{current.canRead ? "Enabled" : "Disabled"}</Button></td>
-                      <td style={{ padding: 10 }}><Button onClick={() => toggle("canCreate")} isDisabled={disabled}>{current.canCreate ? "Enabled" : "Disabled"}</Button></td>
-                      <td style={{ padding: 10 }}><Button onClick={() => toggle("canUpdate")} isDisabled={disabled}>{current.canUpdate ? "Enabled" : "Disabled"}</Button></td>
-                      <td style={{ padding: 10 }}><Button onClick={() => toggle("canDelete")} isDisabled={disabled}>{current.canDelete ? "Enabled" : "Disabled"}</Button></td>
-                      <td style={{ padding: 10 }}><Button onClick={() => toggle("canApprove")} isDisabled={disabled}>{current.canApprove ? "Enabled" : "Disabled"}</Button></td>
+
+                      <td style={{ padding: 10 }}>
+                        <Button onClick={() => toggle("canRead")} isDisabled={disabled}>
+                          {current.canRead ? "Enabled" : "Disabled"}
+                        </Button>
+                      </td>
+
+                      <td style={{ padding: 10 }}>
+                        <Button onClick={() => toggle("canCreate")} isDisabled={disabled}>
+                          {current.canCreate ? "Enabled" : "Disabled"}
+                        </Button>
+                      </td>
+
+                      <td style={{ padding: 10 }}>
+                        <Button onClick={() => toggle("canUpdate")} isDisabled={disabled}>
+                          {current.canUpdate ? "Enabled" : "Disabled"}
+                        </Button>
+                      </td>
+
+                      <td style={{ padding: 10 }}>
+                        <Button onClick={() => toggle("canDelete")} isDisabled={disabled}>
+                          {current.canDelete ? "Enabled" : "Disabled"}
+                        </Button>
+                      </td>
+
+                      <td style={{ padding: 10 }}>
+                        <Button onClick={() => toggle("canApprove")} isDisabled={disabled}>
+                          {current.canApprove ? "Enabled" : "Disabled"}
+                        </Button>
+                      </td>
+
+                      <td style={{ padding: 10 }}>
+                        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                          <Button onClick={() => setPreset("NONE", key)} isDisabled={disabled}>None</Button>
+                          <Button onClick={() => setPreset("READ", key)} isDisabled={disabled}>Read</Button>
+                          <Button onClick={() => setPreset("FULL", key)} isDisabled={disabled}>Full</Button>
+                        </div>
+                      </td>
                     </tr>
                   );
                 })}
@@ -237,7 +320,7 @@ export default function RolesPoliciesAdmin({ permissions }: PageProps) {
           </div>
 
           <p style={{ marginTop: 10, fontSize: 12, opacity: 0.7 }}>
-            Tip: A page appears for a user only if their effective role policies have <b>Read=Enabled</b>.
+            Tip: A page appears for a user only if their effective role policies have <b>Read = Enabled</b>.
           </p>
         </div>
       )}

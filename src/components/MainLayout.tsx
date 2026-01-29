@@ -1,3 +1,4 @@
+// src/layout/MainLayout.tsx
 import { useEffect, useMemo, useState } from "react";
 
 import Dashboard from "../pages/Dashboard";
@@ -5,12 +6,12 @@ import Customers from "../pages/Customer";
 import Tickets from "../pages/Tickets";
 import Employees from "../pages/Employees";
 import ActivityLog from "../pages/ActivityLogs";
-import Users from "../pages/UserAdmin";
 
 import JobCards from "../pages/JobCards";
 import CallTracking from "../pages/CallTracking";
 import InspectionApprovals from "../pages/InspectionApprovals";
 
+import Users from "../pages/UserAdmin";
 import DepartmentsAdmin from "../pages/DepartmentsAdmin";
 import RolesPoliciesAdmin from "../pages/RolesPoliciesAdmin";
 
@@ -33,15 +34,12 @@ type Page =
   | "rolespolicies";
 
 const EMPTY = { canRead: false, canCreate: false, canUpdate: false, canDelete: false, canApprove: false };
-const FULL  = { canRead: true,  canCreate: true,  canUpdate: true,  canDelete: true,  canApprove: true };
 
 export default function MainLayout({ signOut }: { signOut: () => void }) {
   const [page, setPage] = useState<Page>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const { loading, email, isAdminGroup, can } = usePermissions();
-
-  // allow calling can() with any string key
   const canAny = (key: string) => ((can as any)(key) ?? EMPTY) as typeof EMPTY;
 
   const go = (p: Page) => {
@@ -49,57 +47,33 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     setSidebarOpen(false);
   };
 
-  // show regular pages
+  // SHOW LOGIC:
+  // - Admin sees everything.
+  // - Non-admin sees only canRead pages.
   const show = useMemo(() => {
-    if (isAdminGroup) {
-      return {
-        dashboard: true,
-        customers: true,
-        tickets: true,
-        employees: true,
-        activitylog: true,
-        jobcards: true,
-        calltracking: true,
-        inspection: true,
-      };
-    }
-
-    return {
-      dashboard: canAny("DASHBOARD").canRead,
-      customers: canAny("CUSTOMERS").canRead,
-      tickets: canAny("TICKETS").canRead,
-      employees: canAny("EMPLOYEES").canRead,
-      activitylog: canAny("ACTIVITY_LOG").canRead,
-      jobcards: canAny("JOB_CARDS").canRead,
-      calltracking: canAny("CALL_TRACKING").canRead,
-      inspection: canAny("INSPECTION_APPROVALS").canRead,
+    const r = {
+      dashboard: isAdminGroup || canAny("DASHBOARD").canRead,
+      customers: isAdminGroup || canAny("CUSTOMERS").canRead,
+      tickets: isAdminGroup || canAny("TICKETS").canRead,
+      employees: isAdminGroup || canAny("EMPLOYEES").canRead,
+      activitylog: isAdminGroup || canAny("ACTIVITY_LOG").canRead,
+      jobcards: isAdminGroup || canAny("JOB_CARDS").canRead,
+      calltracking: isAdminGroup || canAny("CALL_TRACKING").canRead,
+      inspection: isAdminGroup || canAny("INSPECTION_APPROVALS").canRead,
     };
+    return r;
   }, [isAdminGroup, can]);
 
-  // admin nav always visible for admin group
   const showAdmin = useMemo(() => {
     return {
-      users: isAdminGroup,
+      users: isAdminGroup,        // admins always see admin pages
       departments: isAdminGroup,
       rolespolicies: isAdminGroup,
     };
   }, [isAdminGroup]);
 
-  // permissions passed to admin pages
-  const adminPerms = useMemo(() => {
-    if (isAdminGroup) return { usersP: FULL, deptP: FULL, rpP: FULL };
-
-    // fallback if you ever want non-admin admin-pages (usually you don’t)
-    const usersP = canAny("USERS_ADMIN").canRead ? canAny("USERS_ADMIN") : canAny("USERS");
-    const deptP = canAny("DEPARTMENTS_ADMIN").canRead ? canAny("DEPARTMENTS_ADMIN") : canAny("DEPARTMENTS");
-    const rpP = canAny("ROLES_POLICIES_ADMIN").canRead ? canAny("ROLES_POLICIES_ADMIN") : canAny("ROLES_POLICIES");
-    return { usersP, deptP, rpP };
-  }, [isAdminGroup, can]);
-
-  // redirect if user lands on forbidden page (non-admin only)
   useEffect(() => {
     if (loading) return;
-    if (isAdminGroup) return; // admin can stay anywhere
 
     const allowedPages: Page[] = [];
     if (show.dashboard) allowedPages.push("dashboard");
@@ -111,6 +85,10 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.employees) allowedPages.push("employees");
     if (show.activitylog) allowedPages.push("activitylog");
 
+    if (showAdmin.users) allowedPages.push("users");
+    if (showAdmin.departments) allowedPages.push("departments");
+    if (showAdmin.rolespolicies) allowedPages.push("rolespolicies");
+
     const isCurrentAllowed =
       (page === "dashboard" && show.dashboard) ||
       (page === "customers" && show.customers) ||
@@ -119,17 +97,19 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       (page === "inspection" && show.inspection) ||
       (page === "tickets" && show.tickets) ||
       (page === "employees" && show.employees) ||
-      (page === "activitylog" && show.activitylog);
+      (page === "activitylog" && show.activitylog) ||
+      (page === "users" && showAdmin.users) ||
+      (page === "departments" && showAdmin.departments) ||
+      (page === "rolespolicies" && showAdmin.rolespolicies);
 
-    if (!isCurrentAllowed) setPage(allowedPages[0] ?? "dashboard");
-  }, [loading, isAdminGroup, page, show]);
+    if (!isCurrentAllowed) {
+      setPage(allowedPages[0] ?? "dashboard");
+    }
+  }, [loading, page, show, showAdmin]);
 
   return (
     <div className="layout-container">
-      <div
-        className={`overlay ${sidebarOpen ? "show" : ""}`}
-        onClick={() => setSidebarOpen(false)}
-      />
+      <div className={`overlay ${sidebarOpen ? "show" : ""}`} onClick={() => setSidebarOpen(false)} />
 
       <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
         <div className="sidebar-logo">
@@ -149,24 +129,19 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
           {(showAdmin.users || showAdmin.departments || showAdmin.rolespolicies) && (
             <>
-              <div style={{ height: 10 }} />
               {showAdmin.users && <button onClick={() => go("users")}>Users</button>}
               {showAdmin.departments && <button onClick={() => go("departments")}>Departments</button>}
               {showAdmin.rolespolicies && <button onClick={() => go("rolespolicies")}>Roles & Policies</button>}
             </>
           )}
 
-          <button className="danger" onClick={signOut}>
-            Sign out
-          </button>
+          <button className="danger" onClick={signOut}>Sign out</button>
         </nav>
       </aside>
 
       <main className="main-content">
         <header className="main-header">
-          <button className="menu-btn" onClick={() => setSidebarOpen(true)}>
-            ☰
-          </button>
+          <button className="menu-btn" onClick={() => setSidebarOpen(true)}>☰</button>
           <div className="header-text">
             <h1>Welcome</h1>
             <p className="sub">{loading ? "Loading..." : `Signed in as: ${email}`}</p>
@@ -177,8 +152,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
           {page === "dashboard" && show.dashboard && (
             <Dashboard
               permissions={canAny("DASHBOARD")}
-              showEmployeesKpi={isAdminGroup ? true : show.employees}
-              showCustomersKpi={isAdminGroup ? true : show.customers}
+              showEmployeesKpi={show.employees}
+              showCustomersKpi={show.customers}
             />
           )}
 
@@ -186,13 +161,14 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
           {page === "jobcards" && show.jobcards && <JobCards permissions={canAny("JOB_CARDS")} />}
           {page === "calltracking" && show.calltracking && <CallTracking permissions={canAny("CALL_TRACKING")} />}
           {page === "inspection" && show.inspection && <InspectionApprovals permissions={canAny("INSPECTION_APPROVALS")} />}
+
           {page === "tickets" && show.tickets && <Tickets permissions={canAny("TICKETS")} />}
           {page === "employees" && show.employees && <Employees permissions={canAny("EMPLOYEES")} />}
           {page === "activitylog" && show.activitylog && <ActivityLog permissions={canAny("ACTIVITY_LOG")} />}
 
-          {page === "users" && showAdmin.users && <Users permissions={adminPerms.usersP} />}
-          {page === "departments" && showAdmin.departments && <DepartmentsAdmin permissions={adminPerms.deptP} />}
-          {page === "rolespolicies" && showAdmin.rolespolicies && <RolesPoliciesAdmin permissions={adminPerms.rpP} />}
+          {page === "users" && showAdmin.users && <Users permissions={{ ...EMPTY, canRead: true, canCreate: true, canUpdate: true, canDelete: true, canApprove: true }} />}
+          {page === "departments" && showAdmin.departments && <DepartmentsAdmin permissions={{ ...EMPTY, canRead: true, canCreate: true, canUpdate: true, canDelete: true, canApprove: true }} />}
+          {page === "rolespolicies" && showAdmin.rolespolicies && <RolesPoliciesAdmin permissions={{ ...EMPTY, canRead: true, canCreate: true, canUpdate: true, canDelete: true, canApprove: true }} />}
         </section>
       </main>
     </div>

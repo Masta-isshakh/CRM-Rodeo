@@ -1,19 +1,3 @@
-export type PolicyActions = {
-  canRead: boolean;
-  canCreate: boolean;
-  canUpdate: boolean;
-  canDelete: boolean;
-  canApprove: boolean;
-};
-
-export const EMPTY_ACTIONS: PolicyActions = {
-  canRead: false,
-  canCreate: false,
-  canUpdate: false,
-  canDelete: false,
-  canApprove: false,
-};
-
 export const POLICY_LABELS = {
   DASHBOARD: "Dashboard",
   CUSTOMERS: "Customers",
