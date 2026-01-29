@@ -1,13 +1,16 @@
-import { useEffect, useState } from "react";
+// src/pages/Employees.tsx
+import { useEffect, useState, type ChangeEvent } from "react";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
 import { Button, TextField } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
 import "./employees.css";
 import { logActivity } from "../utils/activityLogger";
-import { PageProps } from "../lib/PageProps";
+import type { PageProps } from "../lib/PageProps";
 
 const client = generateClient<Schema>();
+
+type EmployeeRow = Schema["Employee"]["type"];
 
 type EmployeeForm = {
   firstName: string;
@@ -19,9 +22,13 @@ type EmployeeForm = {
 };
 
 export default function Employees({ permissions }: PageProps) {
-  const [employees, setEmployees] = useState<any[]>([]);
+  if (!permissions.canRead) {
+    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+  }
+
+  const [employees, setEmployees] = useState<EmployeeRow[]>([]);
   const [showModal, setShowModal] = useState(false);
-  const [editingEmployee, setEditingEmployee] = useState<any | null>(null);
+  const [editingEmployee, setEditingEmployee] = useState<EmployeeRow | null>(null);
 
   const [formData, setFormData] = useState<EmployeeForm>({
     firstName: "",
@@ -36,43 +43,26 @@ export default function Employees({ permissions }: PageProps) {
     fetchEmployees();
   }, []);
 
-  /* =========================
-     DATA
-  ========================= */
-
   const fetchEmployees = async () => {
-    const { data } = await client.models.Employee.list();
-    setEmployees(data);
+    const { data } = await client.models.Employee.list({ limit: 2000 });
+    setEmployees(data ?? []);
   };
 
   const resetForm = () => {
-    setFormData({
-      firstName: "",
-      lastName: "",
-      position: "",
-      email: "",
-      phone: "",
-      salary: "",
-    });
+    setFormData({ firstName: "", lastName: "", position: "", email: "", phone: "", salary: "" });
     setEditingEmployee(null);
   };
 
-  /* =========================
-     FORM
-  ========================= */
-
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData((prev) => ({
-      ...prev,
-      [e.target.name]: e.target.value,
-    }));
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
   };
 
-  /* =========================
-     CREATE / UPDATE
-  ========================= */
-
   const handleSubmit = async () => {
+    const isEdit = !!editingEmployee;
+
+    if (isEdit && !permissions.canUpdate) return;
+    if (!isEdit && !permissions.canCreate) return;
+
     if (!formData.firstName || !formData.lastName || !formData.email) {
       alert("First name, last name and email are required.");
       return;
@@ -84,106 +74,78 @@ export default function Employees({ permissions }: PageProps) {
           id: editingEmployee.id,
           firstName: formData.firstName,
           lastName: formData.lastName,
-          position: formData.position,
+          position: formData.position || undefined,
           email: formData.email,
-          phone: formData.phone,
+          phone: formData.phone || undefined,
           salary: Number(formData.salary) || 0,
         });
 
-        await logActivity(
-          "Employee",
-          editingEmployee.id,
-          "UPDATE",
-          `Employee ${formData.firstName} ${formData.lastName} updated`
-        );
+        await logActivity("Employee", editingEmployee.id, "UPDATE", `Employee ${formData.firstName} ${formData.lastName} updated`);
       } else {
-const result = await client.models.Employee.create({
-  firstName: formData.firstName,
-  lastName: formData.lastName,
-  position: formData.position,
-  email: formData.email,
-  phone: formData.phone,
-  salary: Number(formData.salary) || 0,
-  createdAt: new Date().toISOString(),
-});
+        const result = await client.models.Employee.create({
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          position: formData.position || undefined,
+          email: formData.email,
+          phone: formData.phone || undefined,
+          salary: Number(formData.salary) || 0,
+          createdAt: new Date().toISOString(),
+        });
 
-if (!result.data) {
-  throw new Error("Employee not created");
-}
+        if (!result.data) throw new Error("Employee not created");
 
-await logActivity(
-  "Employee",
-  result.data.id,
-  "CREATE",
-  `Employee ${formData.firstName} ${formData.lastName} created`
-);
-
+        await logActivity("Employee", result.data.id, "CREATE", `Employee ${formData.firstName} ${formData.lastName} created`);
       }
 
       resetForm();
       setShowModal(false);
-      fetchEmployees();
+      await fetchEmployees();
     } catch (error) {
       console.error("Employee operation failed:", error);
       alert("Operation failed. Check console for details.");
     }
   };
 
-  /* =========================
-     EDIT
-  ========================= */
+  const handleEdit = (employee: EmployeeRow) => {
+    if (!permissions.canUpdate) return;
 
-  const handleEdit = (employee: any) => {
     setEditingEmployee(employee);
     setFormData({
-      firstName: employee.firstName,
-      lastName: employee.lastName,
+      firstName: employee.firstName || "",
+      lastName: employee.lastName || "",
       position: employee.position || "",
-      email: employee.email,
+      email: employee.email || "",
       phone: employee.phone || "",
       salary: employee.salary?.toString() || "",
     });
     setShowModal(true);
   };
 
-  /* =========================
-     DELETE
-  ========================= */
-
-  const handleDelete = async (employee: any) => {
+  const handleDelete = async (employee: EmployeeRow) => {
+    if (!permissions.canDelete) return;
     if (!confirm(`Delete ${employee.firstName} ${employee.lastName}?`)) return;
 
     try {
       await client.models.Employee.delete({ id: employee.id });
-
-      await logActivity(
-        "Employee",
-        employee.id,
-        "DELETE",
-        `Employee ${employee.firstName} ${employee.lastName} deleted`
-      );
-
-      fetchEmployees();
+      await logActivity("Employee", employee.id, "DELETE", `Employee ${employee.firstName} ${employee.lastName} deleted`);
+      await fetchEmployees();
     } catch (error) {
       console.error("Delete failed:", error);
       alert("Failed to delete employee.");
     }
   };
 
-  /* =========================
-     UI
-  ========================= */
-
   return (
     <div className="employees-page">
       <div className="employees-header">
         <h2>Employees</h2>
-        <Button variation="primary" onClick={() => setShowModal(true)}>
-          Add Employee
-        </Button>
+        {permissions.canCreate && (
+          <Button variation="primary" onClick={() => setShowModal(true)}>
+            Add Employee
+          </Button>
+        )}
       </div>
 
-      {/* MODAL */}
       {showModal && (
         <div className="modal-overlay">
           <div className="modal">
@@ -202,7 +164,11 @@ await logActivity(
               <Button variation="link" onClick={() => { setShowModal(false); resetForm(); }}>
                 Cancel
               </Button>
-              <Button variation="primary" onClick={handleSubmit}>
+              <Button
+                variation="primary"
+                onClick={handleSubmit}
+                isDisabled={editingEmployee ? !permissions.canUpdate : !permissions.canCreate}
+              >
                 {editingEmployee ? "Update" : "Create"}
               </Button>
             </div>
@@ -210,7 +176,6 @@ await logActivity(
         </div>
       )}
 
-      {/* LIST */}
       <div className="employees-grid">
         {employees.map((e) => (
           <div className="employee-card" key={e.id}>
@@ -221,13 +186,16 @@ await logActivity(
             <p>Salary: {e.salary ?? "N/A"}</p>
 
             <div className="card-actions">
-              <Button size="small" onClick={() => handleEdit(e)}>Edit</Button>
-              <Button size="small" variation="destructive" onClick={() => handleDelete(e)}>
-                Delete
-              </Button>
+              {permissions.canUpdate && <Button size="small" onClick={() => handleEdit(e)}>Edit</Button>}
+              {permissions.canDelete && (
+                <Button size="small" variation="destructive" onClick={() => handleDelete(e)}>
+                  Delete
+                </Button>
+              )}
             </div>
           </div>
         ))}
+        {!employees.length && <div style={{ opacity: 0.8 }}>No employees yet.</div>}
       </div>
     </div>
   );

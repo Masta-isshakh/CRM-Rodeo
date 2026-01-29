@@ -1,38 +1,56 @@
 import { useEffect, useState } from "react";
-import { Button, TextField } from "@aws-amplify/ui-react";
+import { Button, TextField, SelectField } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
 
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
 import { getCurrentUser } from "aws-amplify/auth";
-import { PageProps } from "../lib/PageProps";
+import type { PageProps } from "../lib/PageProps";
 
 const client = generateClient<Schema>();
 
-type Status = "PENDING" | "APPROVED" | "REJECTED";
+// Safe row type (prevents TS errors on row.customerName, row.phone, etc.)
+type CallRow =
+  (Schema extends { CallTracking: { type: infer T } } ? T : any) &
+  Record<string, any>;
 
-export default function InspectionApprovals({ permissions }: PageProps) {
-  const canApprove = permissions.canApprove;
+type Outcome = "NO_ANSWER" | "ANSWERED" | "BOOKED" | "FOLLOW_UP" | "NOT_INTERESTED";
 
-  const [items, setItems] = useState<any[]>([]);
+export default function CallTracking({ permissions }: PageProps) {
+  if (!permissions.canRead) {
+    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+  }
+
+  const Model = (client.models as any).CallTracking as any;
+
+  const [items, setItems] = useState<CallRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
 
-  // Create form (only shown if canApprove)
+  // create / edit form state
   const [customerName, setCustomerName] = useState("");
-  const [vehicle, setVehicle] = useState("");
-  const [inspectionNotes, setInspectionNotes] = useState("");
-  const [amountQuoted, setAmountQuoted] = useState("");
-  const [jobCardId, setJobCardId] = useState("");
+  const [phone, setPhone] = useState("");
+  const [source, setSource] = useState("");
+  const [outcome, setOutcome] = useState<Outcome>("ANSWERED");
+  const [followUpAt, setFollowUpAt] = useState("");
+  const [notes, setNotes] = useState("");
+
+  const [editOpen, setEditOpen] = useState(false);
+  const [editing, setEditing] = useState<CallRow | null>(null);
 
   const load = async () => {
     setLoading(true);
     setStatusMsg("");
     try {
-      const res = await client.models.InspectionApproval.list({ limit: 100 });
-      setItems(res.data ?? []);
+      if (!Model) throw new Error("Model CallTracking not found in Schema. Check your amplify data models.");
+      const res = await Model.list({ limit: 2000 });
+      const sorted = [...(res.data ?? [])].sort((a: any, b: any) =>
+        String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""))
+      );
+      setItems(sorted);
     } catch (e: any) {
-      setStatusMsg(e?.message || "Failed to load inspections.");
+      console.error(e);
+      setStatusMsg(e?.message || "Failed to load call tracking.");
     } finally {
       setLoading(false);
     }
@@ -40,124 +58,141 @@ export default function InspectionApprovals({ permissions }: PageProps) {
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const resetForm = () => {
+    setCustomerName("");
+    setPhone("");
+    setSource("");
+    setOutcome("ANSWERED");
+    setFollowUpAt("");
+    setNotes("");
+  };
+
   const create = async () => {
+    if (!permissions.canCreate) return;
+
     setStatusMsg("");
     try {
-      if (!canApprove) {
-        throw new Error("You do not have permission to create inspections.");
+      if (!customerName.trim() || !phone.trim()) {
+        throw new Error("Customer name and phone are required.");
       }
-      if (!customerName.trim()) throw new Error("Customer name is required.");
 
       const u = await getCurrentUser();
       const createdBy = u.signInDetails?.loginId || u.username;
 
-      const quoted =
-        amountQuoted.trim() === "" ? undefined : Number(amountQuoted);
-
-      if (quoted !== undefined && Number.isNaN(quoted)) {
-        throw new Error("Amount quoted must be a number.");
-      }
-
-      await client.models.InspectionApproval.create({
-        jobCardId: jobCardId.trim() || undefined,
+      await Model.create({
         customerName: customerName.trim(),
-        vehicle: vehicle.trim() || undefined,
-        inspectionNotes: inspectionNotes.trim() || undefined,
-        amountQuoted: quoted,
-        status: "PENDING",
+        phone: phone.trim(),
+        source: source.trim() || undefined,
+        outcome,
+        followUpAt: followUpAt ? new Date(followUpAt).toISOString() : undefined,
+        notes: notes.trim() || undefined,
         createdBy,
         createdAt: new Date().toISOString(),
       });
 
-      setCustomerName("");
-      setVehicle("");
-      setInspectionNotes("");
-      setAmountQuoted("");
-      setJobCardId("");
-
+      resetForm();
       await load();
-      setStatusMsg("Inspection created.");
+      setStatusMsg("Call record saved.");
     } catch (e: any) {
-      setStatusMsg(e?.message || "Failed to create inspection.");
+      console.error(e);
+      setStatusMsg(e?.message || "Failed to save call record.");
     }
   };
 
-  const setDecision = async (id: string, decision: Status) => {
+  const openEdit = (row: CallRow) => {
+    if (!permissions.canUpdate) return;
+
+    setEditing(row);
+    setCustomerName(String(row.customerName ?? ""));
+    setPhone(String(row.phone ?? ""));
+    setSource(String(row.source ?? ""));
+    setOutcome((row.outcome as Outcome) || "ANSWERED");
+
+    // datetime-local expects: YYYY-MM-DDTHH:mm
+    const dt = row.followUpAt ? new Date(String(row.followUpAt)) : null;
+    setFollowUpAt(dt ? dt.toISOString().slice(0, 16) : "");
+
+    setNotes(String(row.notes ?? ""));
+    setEditOpen(true);
+  };
+
+  const closeEdit = () => {
+    setEditOpen(false);
+    setEditing(null);
+    resetForm();
+  };
+
+  const saveEdit = async () => {
+    if (!permissions.canUpdate) return;
+    if (!editing?.id) return;
+
     setStatusMsg("");
     try {
-      if (!canApprove) {
-        throw new Error("You do not have permission to approve/reject.");
+      if (!customerName.trim() || !phone.trim()) {
+        throw new Error("Customer name and phone are required.");
       }
-      const u = await getCurrentUser();
-      const approvedBy = u.signInDetails?.loginId || u.username;
 
-      await client.models.InspectionApproval.update({
-        id,
-        status: decision,
-        approvedBy,
-        approvedAt: new Date().toISOString(),
+      await Model.update({
+        id: editing.id,
+        customerName: customerName.trim(),
+        phone: phone.trim(),
+        source: source.trim() || undefined,
+        outcome,
+        followUpAt: followUpAt ? new Date(followUpAt).toISOString() : undefined,
+        notes: notes.trim() || undefined,
       });
 
+      closeEdit();
       await load();
-      setStatusMsg(`Inspection ${decision.toLowerCase()}.`);
+      setStatusMsg("Call record updated.");
     } catch (e: any) {
+      console.error(e);
       setStatusMsg(e?.message || "Update failed.");
+    }
+  };
+
+  const remove = async (id: string) => {
+    if (!permissions.canDelete) return;
+
+    const ok = confirm("Delete this call record?");
+    if (!ok) return;
+
+    setStatusMsg("");
+    try {
+      await Model.delete({ id });
+      await load();
+      setStatusMsg("Deleted.");
+    } catch (e: any) {
+      console.error(e);
+      setStatusMsg(e?.message || "Delete failed.");
     }
   };
 
   return (
     <div style={{ padding: 16 }}>
-      <h2>Inspection Approval</h2>
-      <p style={{ opacity: 0.8 }}>
-        Sales can view inspections. Only Admin and Sales Manager can approve/reject.
-      </p>
+      <h2>Call Tracking</h2>
 
-      {/* Create (only for approvers) */}
-      {canApprove && (
-        <div
-          style={{
-            display: "grid",
-            gap: 12,
-            maxWidth: 720,
-            padding: 12,
-            border: "1px solid #ddd",
-            borderRadius: 8,
-            background: "#fff",
-          }}
-        >
-          <h3 style={{ margin: 0 }}>Create inspection</h3>
+      {permissions.canCreate && (
+        <div style={{ display: "grid", gap: 12, maxWidth: 720, padding: 12, border: "1px solid #ddd", borderRadius: 8, background: "#fff" }}>
+          <TextField label="Customer name" value={customerName} onChange={(e) => setCustomerName((e.target as HTMLInputElement).value)} />
+          <TextField label="Phone" value={phone} onChange={(e) => setPhone((e.target as HTMLInputElement).value)} />
+          <TextField label="Source (Instagram, WhatsApp, etc.)" value={source} onChange={(e) => setSource((e.target as HTMLInputElement).value)} />
 
-          <TextField
-            label="JobCard ID (optional)"
-            value={jobCardId}
-            onChange={(e) => setJobCardId((e.target as HTMLInputElement).value)}
-          />
-          <TextField
-            label="Customer name"
-            value={customerName}
-            onChange={(e) => setCustomerName((e.target as HTMLInputElement).value)}
-          />
-          <TextField
-            label="Vehicle"
-            value={vehicle}
-            onChange={(e) => setVehicle((e.target as HTMLInputElement).value)}
-          />
-          <TextField
-            label="Inspection notes"
-            value={inspectionNotes}
-            onChange={(e) => setInspectionNotes((e.target as HTMLInputElement).value)}
-          />
-          <TextField
-            label="Amount quoted"
-            value={amountQuoted}
-            onChange={(e) => setAmountQuoted((e.target as HTMLInputElement).value)}
-          />
+          <SelectField label="Outcome" value={outcome} onChange={(e) => setOutcome((e.target as HTMLSelectElement).value as Outcome)}>
+            <option value="NO_ANSWER">NO_ANSWER</option>
+            <option value="ANSWERED">ANSWERED</option>
+            <option value="BOOKED">BOOKED</option>
+            <option value="FOLLOW_UP">FOLLOW_UP</option>
+            <option value="NOT_INTERESTED">NOT_INTERESTED</option>
+          </SelectField>
 
-          <Button variation="primary" onClick={create}>
-            Create inspection
-          </Button>
+          <TextField label="Follow-up date/time (optional)" type="datetime-local" value={followUpAt} onChange={(e) => setFollowUpAt((e.target as HTMLInputElement).value)} />
+          <TextField label="Notes" value={notes} onChange={(e) => setNotes((e.target as HTMLInputElement).value)} />
+
+          <Button variation="primary" onClick={create}>Save call</Button>
         </div>
       )}
 
@@ -167,56 +202,69 @@ export default function InspectionApprovals({ permissions }: PageProps) {
         </div>
       )}
 
+      {/* Edit modal */}
+      {editOpen && (
+        <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "grid", placeItems: "center", zIndex: 50 }}>
+          <div style={{ width: "min(760px, 92vw)", background: "#fff", borderRadius: 10, padding: 16, border: "1px solid #eee" }}>
+            <h3 style={{ marginTop: 0 }}>Edit call record</h3>
+
+            <div style={{ display: "grid", gap: 12 }}>
+              <TextField label="Customer name" value={customerName} onChange={(e) => setCustomerName((e.target as HTMLInputElement).value)} />
+              <TextField label="Phone" value={phone} onChange={(e) => setPhone((e.target as HTMLInputElement).value)} />
+              <TextField label="Source" value={source} onChange={(e) => setSource((e.target as HTMLInputElement).value)} />
+
+              <SelectField label="Outcome" value={outcome} onChange={(e) => setOutcome((e.target as HTMLSelectElement).value as Outcome)}>
+                <option value="NO_ANSWER">NO_ANSWER</option>
+                <option value="ANSWERED">ANSWERED</option>
+                <option value="BOOKED">BOOKED</option>
+                <option value="FOLLOW_UP">FOLLOW_UP</option>
+                <option value="NOT_INTERESTED">NOT_INTERESTED</option>
+              </SelectField>
+
+              <TextField label="Follow-up date/time" type="datetime-local" value={followUpAt} onChange={(e) => setFollowUpAt((e.target as HTMLInputElement).value)} />
+              <TextField label="Notes" value={notes} onChange={(e) => setNotes((e.target as HTMLInputElement).value)} />
+
+              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
+                <Button onClick={closeEdit}>Cancel</Button>
+                <Button variation="primary" onClick={saveEdit} isDisabled={!permissions.canUpdate}>Save changes</Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* List */}
       <div style={{ marginTop: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h3 style={{ margin: 0 }}>Inspections</h3>
-          <Button onClick={load} isLoading={loading}>
-            Refresh
-          </Button>
+          <h3 style={{ margin: 0 }}>Recent calls</h3>
+          <Button onClick={load} isLoading={loading}>Refresh</Button>
         </div>
 
         <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
-          {items.map((x) => (
-            <div
-              key={x.id}
-              style={{
-                padding: 12,
-                border: "1px solid #ddd",
-                borderRadius: 8,
-                background: "#fff",
-              }}
-            >
-              <div style={{ fontWeight: 700 }}>{x.customerName}</div>
-              <div style={{ opacity: 0.85 }}>
-                Status: <b>{x.status}</b>
-                {typeof x.amountQuoted === "number" ? ` • QAR ${x.amountQuoted}` : ""}
+          {items.map((x: any) => (
+            <div key={x.id} style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8, background: "#fff" }}>
+              <div style={{ fontWeight: 700 }}>{x.customerName} • {x.phone}</div>
+              <div style={{ opacity: 0.85, marginTop: 4 }}>
+                Outcome: <b>{String(x.outcome ?? "")}</b>
+                {x.source ? ` • Source: ${x.source}` : ""}
               </div>
-              {x.vehicle && <div style={{ opacity: 0.8, marginTop: 4 }}>Vehicle: {x.vehicle}</div>}
-              {x.inspectionNotes && <div style={{ opacity: 0.8, marginTop: 6 }}>{x.inspectionNotes}</div>}
 
-              {x.approvedBy && (
-                <div style={{ opacity: 0.75, marginTop: 6 }}>
-                  {x.status !== "PENDING" ? `Decision by: ${x.approvedBy}` : ""}
-                  {x.approvedAt ? ` • ${new Date(x.approvedAt).toLocaleString()}` : ""}
+              {x.followUpAt && (
+                <div style={{ opacity: 0.8, marginTop: 4 }}>
+                  Follow-up: {new Date(String(x.followUpAt)).toLocaleString()}
                 </div>
               )}
 
-              {/* Approve/reject buttons only if allowed */}
-              {canApprove && (
-                <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                  <Button onClick={() => setDecision(x.id, "APPROVED")}>
-                    Approve
-                  </Button>
-                  <Button variation="destructive" onClick={() => setDecision(x.id, "REJECTED")}>
-                    Reject
-                  </Button>
-                </div>
-              )}
+              {x.notes && <div style={{ opacity: 0.8, marginTop: 6 }}>{x.notes}</div>}
+
+              <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                {permissions.canUpdate && <Button onClick={() => openEdit(x)}>Edit</Button>}
+                {permissions.canDelete && <Button variation="destructive" onClick={() => remove(x.id)}>Delete</Button>}
+              </div>
             </div>
           ))}
 
-          {!items.length && <div style={{ opacity: 0.8 }}>No inspections yet.</div>}
+          {!items.length && <div style={{ opacity: 0.8 }}>No call records yet.</div>}
         </div>
       </div>
     </div>

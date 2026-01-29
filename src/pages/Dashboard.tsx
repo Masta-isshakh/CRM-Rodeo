@@ -6,24 +6,44 @@ import type { PageProps } from "../lib/PageProps";
 
 const client = generateClient<Schema>();
 
-export default function Dashboard({ permissions }: PageProps) {
+type DashboardProps = PageProps & {
+  showEmployeesKpi: boolean;
+  showCustomersKpi: boolean;
+};
+
+export default function Dashboard({ permissions, showEmployeesKpi, showCustomersKpi }: DashboardProps) {
+  if (!permissions.canRead) {
+    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+  }
+
+  const EmployeeModel = (client.models as any).Employee as any;
+  const CustomerModel = (client.models as any).Customer as any;
+
   const [employeeCount, setEmployeeCount] = useState<number>(0);
   const [customerCount, setCustomerCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     loadStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadStats = async () => {
+    setLoading(true);
     try {
-      const [employeesRes, customersRes] = await Promise.all([
-        client.models.Employee.list(),
-        client.models.Customer.list(),
-      ]);
+      if (showEmployeesKpi && EmployeeModel) {
+        const res = await EmployeeModel.list({ limit: 2000 });
+        setEmployeeCount((res.data ?? []).length);
+      } else {
+        setEmployeeCount(0);
+      }
 
-      setEmployeeCount(employeesRes.data.length);
-      setCustomerCount(customersRes.data.length);
+      if (showCustomersKpi && CustomerModel) {
+        const res = await CustomerModel.list({ limit: 2000 });
+        setCustomerCount((res.data ?? []).length);
+      } else {
+        setCustomerCount(0);
+      }
     } catch (error) {
       console.error("Dashboard stats error:", error);
     } finally {
@@ -40,21 +60,23 @@ export default function Dashboard({ permissions }: PageProps) {
         <p>Loading statistics...</p>
       ) : (
         <div className="kpi-grid">
-          {/* Employees KPI */}
-          <div className="kpi-card">
-            <div className="kpi-circle blue">
-              {employeeCount}
+          {showEmployeesKpi && (
+            <div className="kpi-card">
+              <div className="kpi-circle blue">{employeeCount}</div>
+              <div className="kpi-label">Employees</div>
             </div>
-            <div className="kpi-label">Employees</div>
-          </div>
+          )}
 
-          {/* Customers KPI */}
-          <div className="kpi-card">
-            <div className="kpi-circle green">
-              {customerCount}
+          {showCustomersKpi && (
+            <div className="kpi-card">
+              <div className="kpi-circle green">{customerCount}</div>
+              <div className="kpi-label">Customers</div>
             </div>
-            <div className="kpi-label">Customers</div>
-          </div>
+          )}
+
+          {!showEmployeesKpi && !showCustomersKpi && (
+            <div style={{ opacity: 0.8 }}>No KPIs available for your current role policies.</div>
+          )}
         </div>
       )}
     </div>

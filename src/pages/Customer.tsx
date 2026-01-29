@@ -1,204 +1,202 @@
-import { useEffect, useMemo, useState } from "react";
+// src/pages/Customer.tsx  (or Customers.tsx - match your import in MainLayout)
+import { useEffect, useState, type ChangeEvent } from "react";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
 import { Button, TextField } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
+import "./employees.css";
+import { logActivity } from "../utils/activityLogger";
 import type { PageProps } from "../lib/PageProps";
+import { getCurrentUser } from "aws-amplify/auth";
 
 const client = generateClient<Schema>();
+type CustomerRow = Schema["Customer"]["type"];
+
+type CustomerForm = {
+  name: string;
+  lastname: string;
+  email: string;
+  phone: string;
+  company: string;
+  notes: string;
+};
 
 export default function Customers({ permissions }: PageProps) {
-  const [customers, setCustomers] = useState<Schema["Customer"]["type"][]>([]);
+  if (!permissions.canRead) {
+    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+  }
+
+  const [items, setItems] = useState<CustomerRow[]>([]);
   const [showModal, setShowModal] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [editing, setEditing] = useState<CustomerRow | null>(null);
 
-  const canCreate = permissions.canCreate;
-  const canDelete = permissions.canDelete; // you can add delete UI later
-  const canUpdate = permissions.canUpdate;
-
-  const [formData, setFormData] = useState({
+  const [form, setForm] = useState<CustomerForm>({
     name: "",
     lastname: "",
     email: "",
     phone: "",
+    company: "",
+    notes: "",
   });
 
   useEffect(() => {
-    fetchCustomers();
+    load();
   }, []);
 
-  const fetchCustomers = async () => {
-    setLoading(true);
-    try {
-      const { data } = await client.models.Customer.list();
-      setCustomers(data ?? []);
-    } finally {
-      setLoading(false);
-    }
+  const load = async () => {
+    const res = await client.models.Customer.list({ limit: 2000 });
+    setItems(res.data ?? []);
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({ ...formData, [e.target.name]: e.target.value });
+  const reset = () => {
+    setForm({ name: "", lastname: "", email: "", phone: "", company: "", notes: "" });
+    setEditing(null);
   };
 
-  const handleSubmit = async () => {
-    if (!canCreate) return;
+  const onChange = (e: ChangeEvent<HTMLInputElement>) => {
+    setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
+  };
 
-    if (!formData.name || !formData.lastname) {
-      alert("First name and last name are required");
+  const submit = async () => {
+    const isEdit = !!editing;
+
+    if (isEdit && !permissions.canUpdate) return;
+    if (!isEdit && !permissions.canCreate) return;
+
+    if (!form.name.trim() || !form.lastname.trim()) {
+      alert("First name and last name are required.");
       return;
     }
 
     try {
-      await client.models.Customer.create({
-        name: formData.name,
-        lastname: formData.lastname,
-        email: formData.email,
-        phone: formData.phone,
-        createdAt: new Date().toISOString(),
-      });
+      if (editing) {
+        await client.models.Customer.update({
+          id: editing.id,
+          name: form.name.trim(),
+          lastname: form.lastname.trim(),
+          email: form.email.trim() || undefined,
+          phone: form.phone.trim() || undefined,
+          company: form.company.trim() || undefined,
+          notes: form.notes.trim() || undefined,
+        });
 
-      setFormData({ name: "", lastname: "", email: "", phone: "" });
+        await logActivity("Customer", editing.id, "UPDATE", `Customer ${form.name} ${form.lastname} updated`);
+      } else {
+        const u = await getCurrentUser();
+        const createdBy = (u.signInDetails?.loginId || u.username || "").toLowerCase();
+
+        const created = await client.models.Customer.create({
+          name: form.name.trim(),
+          lastname: form.lastname.trim(),
+          email: form.email.trim() || undefined,
+          phone: form.phone.trim() || undefined,
+          company: form.company.trim() || undefined,
+          notes: form.notes.trim() || undefined,
+          createdBy,
+          createdAt: new Date().toISOString(),
+        });
+
+        if (!created.data) throw new Error("Customer not created");
+
+        await logActivity("Customer", created.data.id, "CREATE", `Customer ${form.name} ${form.lastname} created`);
+      }
+
+      reset();
       setShowModal(false);
-      fetchCustomers();
-    } catch (error) {
-      console.error("Error creating customer:", error);
-      alert("Failed to create customer");
+      await load();
+    } catch (err) {
+      console.error(err);
+      alert("Operation failed. Check console.");
     }
   };
 
-  // optional: future delete example
-  const deleteCustomer = async (id: string) => {
-    if (!canDelete) return;
-    const ok = confirm("Delete customer?");
-    if (!ok) return;
+  const edit = (row: CustomerRow) => {
+    if (!permissions.canUpdate) return;
+    setEditing(row);
+    setForm({
+      name: row.name ?? "",
+      lastname: row.lastname ?? "",
+      email: row.email ?? "",
+      phone: row.phone ?? "",
+      company: row.company ?? "",
+      notes: row.notes ?? "",
+    });
+    setShowModal(true);
+  };
+
+  const remove = async (row: CustomerRow) => {
+    if (!permissions.canDelete) return;
+    if (!confirm(`Delete customer ${row.name} ${row.lastname}?`)) return;
 
     try {
-      await client.models.Customer.delete({ id });
-      fetchCustomers();
-    } catch (e) {
-      console.error(e);
-      alert("Delete failed");
+      await client.models.Customer.delete({ id: row.id });
+      await logActivity("Customer", row.id, "DELETE", `Customer ${row.name} ${row.lastname} deleted`);
+      await load();
+    } catch (err) {
+      console.error(err);
+      alert("Delete failed.");
     }
   };
 
-  const headerNote = useMemo(() => {
-    return `Permissions => Read:${permissions.canRead} Create:${permissions.canCreate} Update:${permissions.canUpdate} Delete:${permissions.canDelete}`;
-  }, [permissions]);
-
   return (
-    <div style={{ padding: 24 }}>
-      <h2>Customers</h2>
-      <p style={{ opacity: 0.7, marginTop: 4 }}>{headerNote}</p>
-
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
-        <Button variation="primary" onClick={() => setShowModal(true)} isDisabled={!canCreate}>
-          Add Customer
-        </Button>
-        <Button onClick={fetchCustomers} isLoading={loading}>
-          Refresh
-        </Button>
+    <div className="employees-page">
+      <div className="employees-header">
+        <h2>Customers</h2>
+        {permissions.canCreate && (
+          <Button variation="primary" onClick={() => setShowModal(true)}>
+            Add Customer
+          </Button>
+        )}
       </div>
 
-      {/* Modal */}
       {showModal && (
-        <div style={modalStyles.overlay}>
-          <div style={modalStyles.modal}>
-            <h3>Create New Customer</h3>
-            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-              <TextField label="First Name" name="name" value={formData.name} onChange={handleInputChange} />
-              <TextField label="Last Name" name="lastname" value={formData.lastname} onChange={handleInputChange} />
-              <TextField label="Email" name="email" type="email" value={formData.email} onChange={handleInputChange} />
-              <TextField label="Phone" name="phone" value={formData.phone} onChange={handleInputChange} />
+        <div className="modal-overlay">
+          <div className="modal">
+            <h3>{editing ? "Edit Customer" : "New Customer"}</h3>
 
-              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-                <Button variation="link" onClick={() => setShowModal(false)}>
-                  Cancel
-                </Button>
-                <Button variation="primary" onClick={handleSubmit} isDisabled={!canCreate}>
-                  Create Customer
-                </Button>
-              </div>
+            <div className="form-grid">
+              <TextField label="First Name" name="name" value={form.name} onChange={onChange} />
+              <TextField label="Last Name" name="lastname" value={form.lastname} onChange={onChange} />
+              <TextField label="Email" name="email" type="email" value={form.email} onChange={onChange} />
+              <TextField label="Phone" name="phone" value={form.phone} onChange={onChange} />
+              <TextField label="Company" name="company" value={form.company} onChange={onChange} />
+              <TextField label="Notes" name="notes" value={form.notes} onChange={onChange} />
+            </div>
+
+            <div className="modal-actions">
+              <Button variation="link" onClick={() => { setShowModal(false); reset(); }}>Cancel</Button>
+              <Button
+                variation="primary"
+                onClick={submit}
+                isDisabled={editing ? !permissions.canUpdate : !permissions.canCreate}
+              >
+                {editing ? "Update" : "Create"}
+              </Button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Customer Grid */}
-      <div style={gridStyles.container}>
-        {customers.map((c) => (
-          <div key={c.id} style={gridStyles.card}>
-            <h3>
-              {c.name} {c.lastname}
-            </h3>
-            <p>
-              <strong>Email:</strong> {c.email || "N/A"}
-            </p>
-            <p>
-              <strong>Phone:</strong> {c.phone || "N/A"}
-            </p>
+      <div className="employees-grid">
+        {items.map((c) => (
+          <div className="employee-card" key={c.id}>
+            <h4>{c.name} {c.lastname}</h4>
+            <p>Email: {c.email || "—"}</p>
+            <p>Phone: {c.phone || "—"}</p>
+            <p>Company: {c.company || "—"}</p>
 
-            {/* Example delete button */}
-            <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Button size="small" isDisabled={!canUpdate}>
-                Edit (later)
-              </Button>
-              <Button
-                size="small"
-                variation="destructive"
-                isDisabled={!canDelete}
-                onClick={() => deleteCustomer(c.id)}
-              >
-                Delete
-              </Button>
+            <div className="card-actions">
+              {permissions.canUpdate && <Button size="small" onClick={() => edit(c)}>Edit</Button>}
+              {permissions.canDelete && (
+                <Button size="small" variation="destructive" onClick={() => remove(c)}>
+                  Delete
+                </Button>
+              )}
             </div>
           </div>
         ))}
+        {!items.length && <div style={{ opacity: 0.8 }}>No customers yet.</div>}
       </div>
-
-      {!customers.length && (
-        <div style={{ marginTop: 20, opacity: 0.7 }}>
-          No customers found.
-        </div>
-      )}
     </div>
   );
 }
-
-const modalStyles = {
-  overlay: {
-    position: "fixed" as const,
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    zIndex: 9999,
-  },
-  modal: {
-    backgroundColor: "#fff",
-    padding: 24,
-    borderRadius: 8,
-    width: 420,
-    maxWidth: "92%",
-  },
-};
-
-const gridStyles = {
-  container: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))",
-    gap: 16,
-    marginTop: 24,
-  },
-  card: {
-    backgroundColor: "#fff",
-    padding: 16,
-    borderRadius: 8,
-    boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
-    transition: "transform 0.2s",
-  },
-};

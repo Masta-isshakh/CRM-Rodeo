@@ -1,38 +1,50 @@
 import { useEffect, useState } from "react";
-import { Button, TextField, SelectField } from "@aws-amplify/ui-react";
+import { Button, TextField } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
 
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
 import { getCurrentUser } from "aws-amplify/auth";
-import { PageProps } from "../lib/PageProps";
+import type { PageProps } from "../lib/PageProps";
 
 const client = generateClient<Schema>();
 
-type Status = "OPEN" | "IN_PROGRESS" | "DONE" | "CANCELLED";
+type Row =
+  (Schema extends { InspectionApproval: { type: infer T } } ? T : any) &
+  Record<string, any>;
 
-export default function JobCards({ permissions }: PageProps) {
-  const [items, setItems] = useState<any[]>([]);
+type Status = "PENDING" | "APPROVED" | "REJECTED";
+
+export default function InspectionApprovals({ permissions }: PageProps) {
+  if (!permissions.canRead) {
+    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+  }
+
+  const Model = (client.models as any).InspectionApproval as any;
+
+  const [items, setItems] = useState<Row[]>([]);
   const [loading, setLoading] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
 
-  const [title, setTitle] = useState("");
   const [customerName, setCustomerName] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
   const [vehicle, setVehicle] = useState("");
-  const [plateNumber, setPlateNumber] = useState("");
-  const [serviceType, setServiceType] = useState("");
-  const [notes, setNotes] = useState("");
-  const [status, setStatus] = useState<Status>("OPEN");
+  const [inspectionNotes, setInspectionNotes] = useState("");
+  const [amountQuoted, setAmountQuoted] = useState("");
+  const [jobCardId, setJobCardId] = useState("");
 
   const load = async () => {
     setLoading(true);
     setStatusMsg("");
     try {
-      const res = await client.models.JobCard.list({ limit: 100 });
-      setItems(res.data ?? []);
+      if (!Model) throw new Error("Model InspectionApproval not found in Schema. Check your amplify data models.");
+      const res = await Model.list({ limit: 2000 });
+      const sorted = [...(res.data ?? [])].sort((a: any, b: any) =>
+        String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""))
+      );
+      setItems(sorted);
     } catch (e: any) {
-      setStatusMsg(e?.message || "Failed to load job cards.");
+      console.error(e);
+      setStatusMsg(e?.message || "Failed to load inspections.");
     } finally {
       setLoading(false);
     }
@@ -40,148 +52,161 @@ export default function JobCards({ permissions }: PageProps) {
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const reset = () => {
+    setCustomerName("");
+    setVehicle("");
+    setInspectionNotes("");
+    setAmountQuoted("");
+    setJobCardId("");
+  };
+
   const create = async () => {
+    if (!permissions.canCreate) return;
+
     setStatusMsg("");
     try {
-      if (!title.trim() || !customerName.trim()) {
-        throw new Error("Title and Customer Name are required.");
-      }
+      if (!customerName.trim()) throw new Error("Customer name is required.");
+
       const u = await getCurrentUser();
       const createdBy = u.signInDetails?.loginId || u.username;
 
-      await client.models.JobCard.create({
-        title: title.trim(),
+      const quoted = amountQuoted.trim() === "" ? undefined : Number(amountQuoted);
+      if (quoted !== undefined && Number.isNaN(quoted)) throw new Error("Amount quoted must be a number.");
+
+      await Model.create({
+        jobCardId: jobCardId.trim() || undefined,
         customerName: customerName.trim(),
-        customerPhone: customerPhone.trim() || undefined,
         vehicle: vehicle.trim() || undefined,
-        plateNumber: plateNumber.trim() || undefined,
-        serviceType: serviceType.trim() || undefined,
-        notes: notes.trim() || undefined,
-        status,
+        inspectionNotes: inspectionNotes.trim() || undefined,
+        amountQuoted: quoted,
+        status: "PENDING",
         createdBy,
         createdAt: new Date().toISOString(),
       });
 
-      setTitle("");
-      setCustomerName("");
-      setCustomerPhone("");
-      setVehicle("");
-      setPlateNumber("");
-      setServiceType("");
-      setNotes("");
-      setStatus("OPEN");
-
+      reset();
       await load();
-      setStatusMsg("Job card created.");
+      setStatusMsg("Inspection created.");
     } catch (e: any) {
-      setStatusMsg(e?.message || "Failed to create job card.");
+      console.error(e);
+      setStatusMsg(e?.message || "Failed to create inspection.");
     }
   };
 
-  const updateStatus = async (id: string, next: Status) => {
+  const setDecision = async (id: string, decision: Status) => {
+    if (!permissions.canApprove) return;
+
     setStatusMsg("");
     try {
-      await client.models.JobCard.update({ id, status: next });
+      const u = await getCurrentUser();
+      const approvedBy = u.signInDetails?.loginId || u.username;
+
+      await Model.update({
+        id,
+        status: decision,
+        approvedBy,
+        approvedAt: new Date().toISOString(),
+      });
+
       await load();
-      setStatusMsg("Status updated.");
+      setStatusMsg(`Inspection ${decision.toLowerCase()}.`);
     } catch (e: any) {
-      setStatusMsg(e?.message || "Failed to update status.");
+      console.error(e);
+      setStatusMsg(e?.message || "Update failed.");
     }
   };
 
   const remove = async (id: string) => {
+    if (!permissions.canDelete) return;
+
+    const ok = confirm("Delete this inspection?");
+    if (!ok) return;
+
     setStatusMsg("");
     try {
-      await client.models.JobCard.delete({ id });
+      await Model.delete({ id });
       await load();
       setStatusMsg("Deleted.");
     } catch (e: any) {
+      console.error(e);
       setStatusMsg(e?.message || "Delete failed.");
     }
   };
 
   return (
     <div style={{ padding: 16 }}>
-      <h2>Job Cards</h2>
+      <h2>Inspection Approvals</h2>
 
-      <div
-        style={{
-          display: "grid",
-          gap: 12,
-          maxWidth: 720,
-          padding: 12,
-          border: "1px solid #ddd",
-          borderRadius: 8,
-          background: "#fff",
-        }}
-      >
-        <TextField label="Title" value={title} onChange={(e) => setTitle((e.target as HTMLInputElement).value)} />
-        <TextField label="Customer name" value={customerName} onChange={(e) => setCustomerName((e.target as HTMLInputElement).value)} />
-        <TextField label="Customer phone" value={customerPhone} onChange={(e) => setCustomerPhone((e.target as HTMLInputElement).value)} />
-        <TextField label="Vehicle" value={vehicle} onChange={(e) => setVehicle((e.target as HTMLInputElement).value)} />
-        <TextField label="Plate number" value={plateNumber} onChange={(e) => setPlateNumber((e.target as HTMLInputElement).value)} />
-        <TextField label="Service type" value={serviceType} onChange={(e) => setServiceType((e.target as HTMLInputElement).value)} />
-        <TextField label="Notes" value={notes} onChange={(e) => setNotes((e.target as HTMLInputElement).value)} />
+      {permissions.canCreate && (
+        <div style={{ display: "grid", gap: 12, maxWidth: 720, padding: 12, border: "1px solid #ddd", borderRadius: 8, background: "#fff" }}>
+          <h3 style={{ margin: 0 }}>Create inspection</h3>
 
-        <SelectField
-          label="Status"
-          value={status}
-          onChange={(e) => setStatus((e.target as HTMLSelectElement).value as Status)}
-        >
-          <option value="OPEN">OPEN</option>
-          <option value="IN_PROGRESS">IN_PROGRESS</option>
-          <option value="DONE">DONE</option>
-          <option value="CANCELLED">CANCELLED</option>
-        </SelectField>
+          <TextField label="JobCard ID (optional)" value={jobCardId} onChange={(e) => setJobCardId((e.target as HTMLInputElement).value)} />
+          <TextField label="Customer name" value={customerName} onChange={(e) => setCustomerName((e.target as HTMLInputElement).value)} />
+          <TextField label="Vehicle" value={vehicle} onChange={(e) => setVehicle((e.target as HTMLInputElement).value)} />
+          <TextField label="Inspection notes" value={inspectionNotes} onChange={(e) => setInspectionNotes((e.target as HTMLInputElement).value)} />
+          <TextField label="Amount quoted" value={amountQuoted} onChange={(e) => setAmountQuoted((e.target as HTMLInputElement).value)} />
 
-        <Button variation="primary" onClick={create}>
-          Create job card
-        </Button>
+          <Button variation="primary" onClick={create}>Create inspection</Button>
+        </div>
+      )}
 
-        {statusMsg && <div style={{ padding: 8 }}>{statusMsg}</div>}
-      </div>
+      {statusMsg && (
+        <div style={{ marginTop: 12, padding: 12, border: "1px solid #ddd", borderRadius: 8, background: "#fff" }}>
+          {statusMsg}
+        </div>
+      )}
 
       <div style={{ marginTop: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h3 style={{ margin: 0 }}>List</h3>
-          <Button onClick={load} isLoading={loading}>
-            Refresh
-          </Button>
+          <h3 style={{ margin: 0 }}>Inspections</h3>
+          <Button onClick={load} isLoading={loading}>Refresh</Button>
         </div>
 
         <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
-          {items.map((x) => (
-            <div
-              key={x.id}
-              style={{
-                padding: 12,
-                border: "1px solid #ddd",
-                borderRadius: 8,
-                background: "#fff",
-              }}
-            >
-              <div style={{ fontWeight: 700 }}>{x.title}</div>
+          {items.map((x: any) => (
+            <div key={x.id} style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8, background: "#fff" }}>
+              <div style={{ fontWeight: 700 }}>{x.customerName}</div>
               <div style={{ opacity: 0.85 }}>
-                {x.customerName} {x.phone ? `• ${x.phone}` : ""}
-              </div>
-              <div style={{ opacity: 0.75, marginTop: 6 }}>
-                Status: <b>{x.status}</b>
+                Status: <b>{String(x.status ?? "")}</b>
+                {typeof x.amountQuoted === "number" ? ` • QAR ${x.amountQuoted}` : ""}
               </div>
 
+              {x.vehicle && <div style={{ opacity: 0.8, marginTop: 4 }}>Vehicle: {x.vehicle}</div>}
+              {x.inspectionNotes && <div style={{ opacity: 0.8, marginTop: 6 }}>{x.inspectionNotes}</div>}
+
+              {x.approvedBy && x.status !== "PENDING" && (
+                <div style={{ opacity: 0.75, marginTop: 6 }}>
+                  Decision by: {x.approvedBy}
+                  {x.approvedAt ? ` • ${new Date(String(x.approvedAt)).toLocaleString()}` : ""}
+                </div>
+              )}
+
               <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                <Button onClick={() => updateStatus(x.id, "OPEN")}>OPEN</Button>
-                <Button onClick={() => updateStatus(x.id, "IN_PROGRESS")}>IN_PROGRESS</Button>
-                <Button onClick={() => updateStatus(x.id, "DONE")}>DONE</Button>
-                <Button onClick={() => updateStatus(x.id, "CANCELLED")}>CANCELLED</Button>
-                <Button variation="destructive" onClick={() => remove(x.id)}>
-                  Delete
-                </Button>
+                {permissions.canApprove && (
+                  <>
+                    <Button onClick={() => setDecision(x.id, "APPROVED")} isDisabled={x.status === "APPROVED"}>
+                      Approve
+                    </Button>
+                    <Button variation="destructive" onClick={() => setDecision(x.id, "REJECTED")} isDisabled={x.status === "REJECTED"}>
+                      Reject
+                    </Button>
+                  </>
+                )}
+
+                {permissions.canDelete && (
+                  <Button variation="destructive" onClick={() => remove(x.id)}>
+                    Delete
+                  </Button>
+                )}
               </div>
             </div>
           ))}
-          {!items.length && <div style={{ opacity: 0.8 }}>No job cards yet.</div>}
+
+          {!items.length && <div style={{ opacity: 0.8 }}>No inspections yet.</div>}
         </div>
       </div>
     </div>

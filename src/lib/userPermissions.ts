@@ -1,11 +1,15 @@
+// src/lib/userPermissions.ts
 import { useEffect, useMemo, useState } from "react";
 import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
 import type { PolicyActions, PolicyKey } from "./policies";
-import { EMPTY_ACTIONS, POLICY_LABELS } from "./policies";
+import { EMPTY_ACTIONS } from "./policies";
 
 const client = generateClient<Schema>();
+
+const DEPT_PREFIX = "DEPT_";
+const isDeptKey = (k?: string) => !!k && k.startsWith(DEPT_PREFIX);
 
 function merge(a: PolicyActions, b: PolicyActions): PolicyActions {
   return {
@@ -17,13 +21,9 @@ function merge(a: PolicyActions, b: PolicyActions): PolicyActions {
   };
 }
 
-const FULL: PolicyActions = {
-  canRead: true,
-  canCreate: true,
-  canUpdate: true,
-  canDelete: true,
-  canApprove: true,
-};
+function fullAccess(): PolicyActions {
+  return { canRead: true, canCreate: true, canUpdate: true, canDelete: true, canApprove: true };
+}
 
 export function usePermissions() {
   const [loading, setLoading] = useState(true);
@@ -38,37 +38,53 @@ export function usePermissions() {
       setLoading(true);
       try {
         const u = await getCurrentUser();
-        const e = (u.signInDetails?.loginId || "").trim().toLowerCase();
+        const e = (u.signInDetails?.loginId || u.username || "").trim().toLowerCase();
         setEmail(e);
 
         const session = await fetchAuthSession();
-        const g = (session.tokens?.idToken?.payload["cognito:groups"] as string[]) ?? [];
+        const g = ((session.tokens?.idToken?.payload["cognito:groups"] as string[]) ?? []).filter(Boolean);
         setGroups(g);
 
-        // ADMIN => everything
+        // If you want ADMIN to always see everything, keep this:
         if (g.includes("ADMIN")) {
-          const all: Record<string, PolicyActions> = {};
-          (Object.keys(POLICY_LABELS) as PolicyKey[]).forEach((k) => (all[k] = FULL));
-          setPermissions(all);
+          // grant full access to all known policy keys at runtime (UI will still ask can("X"))
+          setPermissions(new Proxy({}, { get: () => fullAccess() }) as any);
           return;
         }
 
-        const deptKeys = g.filter((x) => x.startsWith("DEPT_"));
+        // 1) Dept keys from cognito groups
+        const deptKeys = g.filter(isDeptKey);
+        if (!deptKeys.length) {
+          setPermissions({});
+          return;
+        }
 
-        // DepartmentRoleLink -> roleIds
+        // 2) Get roleIds linked to these department keys
         const linksRes = await client.models.DepartmentRoleLink.list({ limit: 5000 });
-        const roleIds = (linksRes.data ?? [])
-          .filter((l) => deptKeys.includes(l.departmentKey))
-          .map((l) => l.roleId);
+        const roleIds = Array.from(
+          new Set(
+            (linksRes.data ?? [])
+              .filter((l) => deptKeys.includes(l.departmentKey || ""))
+              .map((l) => l.roleId)
+              .filter(Boolean) as string[]
+          )
+        );
 
-        // RolePolicy -> merge
+        if (!roleIds.length) {
+          setPermissions({});
+          return;
+        }
+
+        // 3) Get policies for these roles
         const rpRes = await client.models.RolePolicy.list({ limit: 10000 });
 
         const perms: Record<string, PolicyActions> = {};
         for (const row of rpRes.data ?? []) {
-          if (!roleIds.includes(row.roleId)) continue;
+          if (!row.roleId || !roleIds.includes(row.roleId)) continue;
 
-          const key = row.policyKey as string;
+          const key = String(row.policyKey || "");
+          if (!key) continue;
+
           const actions: PolicyActions = {
             canRead: !!row.canRead,
             canCreate: !!row.canCreate,

@@ -1,4 +1,10 @@
-import type { PolicyActions } from "./policies";
+export type PolicyActions = {
+  canRead: boolean;
+  canCreate: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+  canApprove: boolean;
+};
 
 export type PageProps = {
   permissions: PolicyActions;

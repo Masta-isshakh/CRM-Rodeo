@@ -1,14 +1,20 @@
+// src/pages/DepartmentsAdmin.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Button, TextField, SelectField } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
+import type { PageProps } from "../lib/PageProps";
 
 const client = generateClient<Schema>();
 
 type Dept = { key: string; name: string };
 
-export default function DepartmentsAdmin() {
+export default function DepartmentsAdmin({ permissions }: PageProps) {
+  if (!permissions.canRead) {
+    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+  }
+
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -51,14 +57,17 @@ export default function DepartmentsAdmin() {
   const roleIdsByDept = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const l of links) {
-      const arr = map.get(l.departmentKey) ?? [];
-      arr.push(l.roleId);
-      map.set(l.departmentKey, arr);
+      const dk = l.departmentKey || "";
+      if (!dk) continue;
+      const arr = map.get(dk) ?? [];
+      if (l.roleId) arr.push(l.roleId);
+      map.set(dk, arr);
     }
     return map;
   }, [links]);
 
   const createDept = async () => {
+    if (!permissions.canCreate) return;
     setStatus("");
     try {
       const name = newDept.trim();
@@ -73,6 +82,7 @@ export default function DepartmentsAdmin() {
   };
 
   const renameDept = async () => {
+    if (!permissions.canUpdate) return;
     setStatus("");
     try {
       const oldKey = renameFrom.trim();
@@ -89,6 +99,7 @@ export default function DepartmentsAdmin() {
   };
 
   const deleteDept = async (departmentKey: string) => {
+    if (!permissions.canDelete) return;
     const ok = confirm(`Delete department "${departmentKey}"?\n\nIt must have NO users.`);
     if (!ok) return;
 
@@ -103,7 +114,9 @@ export default function DepartmentsAdmin() {
   };
 
   const assignRole = async (department: Dept, roleId: string) => {
+    if (!permissions.canUpdate) return;
     if (!roleId) return;
+
     setStatus("");
     try {
       const exists = links.some((l) => l.departmentKey === department.key && l.roleId === roleId);
@@ -115,6 +128,7 @@ export default function DepartmentsAdmin() {
         roleId,
         createdAt: new Date().toISOString(),
       });
+
       await load();
     } catch (e: any) {
       console.error(e);
@@ -123,10 +137,12 @@ export default function DepartmentsAdmin() {
   };
 
   const removeRole = async (departmentKey: string, roleId: string) => {
+    if (!permissions.canUpdate) return;
     setStatus("");
     try {
       const link = links.find((l) => l.departmentKey === departmentKey && l.roleId === roleId);
       if (!link?.id) return;
+
       await client.models.DepartmentRoleLink.delete({ id: link.id });
       await load();
     } catch (e: any) {
@@ -144,7 +160,9 @@ export default function DepartmentsAdmin() {
         <h3 style={{ marginTop: 0 }}>Create Department</h3>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
           <TextField label="Department name" value={newDept} onChange={(e) => setNewDept((e.target as HTMLInputElement).value)} />
-          <Button variation="primary" onClick={createDept} isLoading={loading}>Create</Button>
+          <Button variation="primary" onClick={createDept} isLoading={loading} isDisabled={!permissions.canCreate}>
+            Create
+          </Button>
           <Button onClick={load} isLoading={loading}>Refresh</Button>
         </div>
       </div>
@@ -158,7 +176,9 @@ export default function DepartmentsAdmin() {
           </SelectField>
 
           <TextField label="New name" value={renameTo} onChange={(e) => setRenameTo((e.target as HTMLInputElement).value)} />
-          <Button variation="primary" onClick={renameDept}>Rename</Button>
+          <Button variation="primary" onClick={renameDept} isDisabled={!permissions.canUpdate}>
+            Rename
+          </Button>
         </div>
         <p style={{ opacity: 0.75, marginTop: 8 }}>
           Renaming creates a new group key, migrates users + mappings, then deletes the old group.
@@ -184,7 +204,8 @@ export default function DepartmentsAdmin() {
                 return (
                   <tr key={d.key} style={{ borderBottom: "1px solid #f1f5f9" }}>
                     <td style={{ padding: 10, fontWeight: 600 }}>
-                      {d.name}<div style={{ fontSize: 12, opacity: 0.7 }}>{d.key}</div>
+                      {d.name}
+                      <div style={{ fontSize: 12, opacity: 0.7 }}>{d.key}</div>
                     </td>
 
                     <td style={{ padding: 10 }}>
@@ -195,8 +216,8 @@ export default function DepartmentsAdmin() {
                             <span key={rid} style={{ border: "1px solid #ddd", borderRadius: 999, padding: "4px 10px" }}>
                               {role?.name ?? rid}
                               <button
-                                style={{ marginLeft: 8, border: "none", background: "transparent", cursor: "pointer" }}
-                                onClick={() => removeRole(d.key, rid)}
+                                style={{ marginLeft: 8, border: "none", background: "transparent", cursor: permissions.canUpdate ? "pointer" : "not-allowed", opacity: permissions.canUpdate ? 1 : 0.5 }}
+                                onClick={() => permissions.canUpdate && removeRole(d.key, rid)}
                                 title="Remove role"
                               >
                                 ✕
@@ -209,7 +230,11 @@ export default function DepartmentsAdmin() {
                     </td>
 
                     <td style={{ padding: 10 }}>
-                      <SelectField label="" onChange={(e) => assignRole(d, (e.target as HTMLSelectElement).value)}>
+                      <SelectField
+                        label=""
+                        onChange={(e) => assignRole(d, (e.target as HTMLSelectElement).value)}
+                        isDisabled={!permissions.canUpdate}
+                      >
                         <option value="">Select role...</option>
                         {roles.map((r) => (
                           <option key={r.id} value={r.id}>{r.name}</option>
@@ -218,7 +243,7 @@ export default function DepartmentsAdmin() {
                     </td>
 
                     <td style={{ padding: 10 }}>
-                      <Button variation="destructive" onClick={() => deleteDept(d.key)}>
+                      <Button variation="destructive" onClick={() => deleteDept(d.key)} isDisabled={!permissions.canDelete}>
                         Delete
                       </Button>
                     </td>

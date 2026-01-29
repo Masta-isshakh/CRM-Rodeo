@@ -1,15 +1,19 @@
+// src/pages/UserAdmin.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Button, TextField, SelectField } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
-
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
+import type { PageProps } from "../lib/PageProps";
 
 const client = generateClient<Schema>();
-
 type Dept = { key: string; name: string };
 
-export default function Users() {
+export default function Users({ permissions }: PageProps) {
+  if (!permissions.canRead) {
+    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+  }
+
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
   const [departmentKey, setDepartmentKey] = useState("");
@@ -36,10 +40,7 @@ export default function Users() {
         client.queries.adminListDepartments({}),
       ]);
 
-      const sorted = [...(up.data ?? [])].sort((a, b) =>
-        (b.createdAt ?? "").localeCompare(a.createdAt ?? "")
-      );
-
+      const sorted = [...(up.data ?? [])].sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
       const deptList = ((deptRes?.data as any)?.departments ?? []) as Dept[];
 
       setUsers(sorted);
@@ -64,6 +65,7 @@ export default function Users() {
   }, [users, search]);
 
   const invite = async () => {
+    if (!permissions.canCreate) return;
     setInviteStatus("Inviting...");
     try {
       const e = email.trim().toLowerCase();
@@ -98,7 +100,9 @@ export default function Users() {
   };
 
   const setDepartmentForUser = async (u: Schema["UserProfile"]["type"], deptKey: string) => {
+    if (!permissions.canUpdate) return;
     if (!u.email) return;
+
     setStatus("");
     try {
       const dept = departments.find((d) => d.key === deptKey);
@@ -115,7 +119,9 @@ export default function Users() {
   };
 
   const toggleActive = async (u: Schema["UserProfile"]["type"]) => {
+    if (!permissions.canUpdate) return;
     if (!u.email) return;
+
     setStatus("");
     try {
       await client.mutations.adminSetUserActive({ email: u.email, isActive: !u.isActive });
@@ -127,7 +133,9 @@ export default function Users() {
   };
 
   const deleteUser = async (u: Schema["UserProfile"]["type"]) => {
+    if (!permissions.canDelete) return;
     if (!u.email) return;
+
     const ok = confirm(`Delete user ${u.email}? This cannot be undone.`);
     if (!ok) return;
 
@@ -143,7 +151,7 @@ export default function Users() {
 
   return (
     <div style={{ padding: 24, width: "100%", maxWidth: "100%" }}>
-      <h2>Users (Admin)</h2>
+      <h2>Users</h2>
 
       <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, marginBottom: 16 }}>
         <h3 style={{ marginTop: 0 }}>Invite user</h3>
@@ -160,7 +168,7 @@ export default function Users() {
           </SelectField>
 
           <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
-            <Button variation="primary" onClick={invite}>Invite</Button>
+            <Button variation="primary" onClick={invite} isDisabled={!permissions.canCreate}>Invite</Button>
             <Button onClick={copyInviteLink} isDisabled={!inviteLink}>Copy set-password link</Button>
             <Button onClick={load} isLoading={loading}>Refresh</Button>
           </div>
@@ -198,11 +206,13 @@ export default function Users() {
                 <tr key={u.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
                   <td style={{ padding: 10 }}>{u.fullName}</td>
                   <td style={{ padding: 10 }}>{u.email}</td>
+
                   <td style={{ padding: 10 }}>
                     <SelectField
                       label=""
                       value={u.departmentKey ?? ""}
                       onChange={(e) => setDepartmentForUser(u, (e.target as HTMLSelectElement).value)}
+                      isDisabled={!permissions.canUpdate}
                     >
                       <option value="">Select…</option>
                       {departments.map((d) => (
@@ -213,13 +223,15 @@ export default function Users() {
                       Current: {u.departmentName ?? "-"}
                     </div>
                   </td>
+
                   <td style={{ padding: 10 }}>{u.isActive ? "Yes" : "No"}</td>
+
                   <td style={{ padding: 10 }}>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <Button size="small" onClick={() => toggleActive(u)}>
+                      <Button size="small" onClick={() => toggleActive(u)} isDisabled={!permissions.canUpdate}>
                         {u.isActive ? "Disable" : "Enable"}
                       </Button>
-                      <Button size="small" variation="destructive" onClick={() => deleteUser(u)}>
+                      <Button size="small" variation="destructive" onClick={() => deleteUser(u)} isDisabled={!permissions.canDelete}>
                         Delete
                       </Button>
                     </div>
