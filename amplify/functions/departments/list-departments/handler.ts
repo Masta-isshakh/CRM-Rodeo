@@ -1,25 +1,23 @@
-import { CognitoIdentityProviderClient, ListGroupsCommand, type ListGroupsCommandOutput } from "@aws-sdk/client-cognito-identity-provider";
-import type { Schema } from "../../../data/resource";
+import {
+  CognitoIdentityProviderClient,
+  ListGroupsCommand,
+} from "@aws-sdk/client-cognito-identity-provider";
 
-type Handler = Schema["adminListDepartments"]["functionHandler"];
 const cognito = new CognitoIdentityProviderClient();
 
-export const handler: Handler = async () => {
+export const handler = async () => {
   const userPoolId = process.env.AMPLIFY_AUTH_USERPOOL_ID;
   if (!userPoolId) throw new Error("Missing AMPLIFY_AUTH_USERPOOL_ID");
 
-  const out: { name: string; description?: string }[] = [];
+  const res = await cognito.send(new ListGroupsCommand({ UserPoolId: userPoolId, Limit: 60 }));
 
-  let token: string | undefined = undefined;
-  do {
-    const res: ListGroupsCommandOutput = await cognito.send(new ListGroupsCommand({ UserPoolId: userPoolId, NextToken: token, Limit: 60 }));
-    for (const g of res.Groups ?? []) {
-      if (g.GroupName) out.push({ name: g.GroupName, description: g.Description ?? undefined });
-    }
-    token = res.NextToken;
-  } while (token);
+  const departments = (res.Groups ?? [])
+    .map((g) => ({
+      key: g.GroupName ?? "",
+      name: g.Description || g.GroupName || "",
+    }))
+    .filter((d) => d.key.startsWith("DEPT_"))
+    .sort((a, b) => a.name.localeCompare(b.name));
 
-  // you can filter internal groups if you want:
-  // const filtered = out.filter(g => g.name !== "ADMIN");
-  return { ok: true, departments: out.sort((a,b)=>a.name.localeCompare(b.name)) };
+  return { departments };
 };

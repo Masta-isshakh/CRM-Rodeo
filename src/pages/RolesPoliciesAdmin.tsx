@@ -95,38 +95,38 @@ export default function RolesPoliciesAdmin() {
 
   const getRow = (rid: string, key: PolicyKey) => rolePolicyMap.get(rid)?.get(key);
 
-  const upsertPolicy = async (rid: string, key: PolicyKey, patch: Partial<Actions>) => {
-    setStatus("");
-    try {
-      const existing = getRow(rid, key);
-      if (!existing) {
-        await client.models.RolePolicy.create({
-          roleId: rid,
-          policyKey: key as any,
-          canRead: patch.canRead ?? false,
-          canCreate: patch.canCreate ?? false,
-          canUpdate: patch.canUpdate ?? false,
-          canDelete: patch.canDelete ?? false,
-          canApprove: patch.canApprove ?? false,
-          updatedAt: new Date().toISOString(),
-        });
-      } else {
-        await client.models.RolePolicy.update({
-          id: existing.id,
-          canRead: patch.canRead ?? existing.canRead,
-          canCreate: patch.canCreate ?? existing.canCreate,
-          canUpdate: patch.canUpdate ?? existing.canUpdate,
-          canDelete: patch.canDelete ?? existing.canDelete,
-          canApprove: patch.canApprove ?? existing.canApprove,
-          updatedAt: new Date().toISOString(),
-        });
-      }
-      await load();
-    } catch (e: any) {
-      console.error(e);
-      setStatus(e?.message ?? "Update policy failed.");
+const upsertPolicy = async (rid: string, key: PolicyKey, patch: Partial<Actions>) => {
+  setStatus("");
+  try {
+    const existing = getRow(rid, key);
+    if (!existing) {
+      await client.models.RolePolicy.create({
+        roleId: rid,
+        policyKey: key as any,
+        canRead: patch.canRead ?? false,
+        canCreate: patch.canCreate ?? false,
+        canUpdate: patch.canUpdate ?? false,
+        canDelete: patch.canDelete ?? false,
+        canApprove: patch.canApprove ?? false,
+        createdAt: new Date().toISOString(),
+      });
+    } else {
+      await client.models.RolePolicy.update({
+        id: existing.id,
+        canRead: patch.canRead ?? existing.canRead,
+        canCreate: patch.canCreate ?? existing.canCreate,
+        canUpdate: patch.canUpdate ?? existing.canUpdate,
+        canDelete: patch.canDelete ?? existing.canDelete,
+        canApprove: patch.canApprove ?? existing.canApprove,
+      });
     }
-  };
+    await load();
+  } catch (e: any) {
+    console.error(e);
+    setStatus(e?.message ?? "Update policy failed.");
+  }
+};
+
 
   const selectedRole = roles.find((r) => r.id === roleId);
 

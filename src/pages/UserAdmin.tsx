@@ -7,21 +7,18 @@ import type { Schema } from "../../amplify/data/resource";
 
 const client = generateClient<Schema>();
 
-type CognitoRole = "ADMIN" | "SALES" | "SALES_MANAGER" | "SUPPORT";
+type Dept = { key: string; name: string };
 
 export default function Users() {
-  // Invite
   const [email, setEmail] = useState("");
   const [fullName, setFullName] = useState("");
-  const [role, setRole] = useState<CognitoRole>("SALES");
+  const [departmentKey, setDepartmentKey] = useState("");
   const [inviteStatus, setInviteStatus] = useState("");
 
-  // Data
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
   const [users, setUsers] = useState<Schema["UserProfile"]["type"][]>([]);
-  const [departments, setDepartments] = useState<Schema["Department"]["type"][]>([]);
-  const [userDepartments, setUserDepartments] = useState<Schema["UserDepartment"]["type"][]>([]);
+  const [departments, setDepartments] = useState<Dept[]>([]);
   const [search, setSearch] = useState("");
 
   const inviteLink = useMemo(() => {
@@ -34,16 +31,19 @@ export default function Users() {
     setLoading(true);
     setStatus("");
     try {
-      const [up, d, ud] = await Promise.all([
+      const [up, deptRes] = await Promise.all([
         client.models.UserProfile.list({ limit: 2000 }),
-        client.models.Department.list({ limit: 2000 }),
-        client.models.UserDepartment.list({ limit: 5000 }), // ADMIN can read all
+        client.queries.adminListDepartments({}),
       ]);
 
-      const sorted = [...(up.data ?? [])].sort((a, b) => (b.createdAt ?? "").localeCompare(a.createdAt ?? ""));
+      const sorted = [...(up.data ?? [])].sort((a, b) =>
+        (b.createdAt ?? "").localeCompare(a.createdAt ?? "")
+      );
+
+      const deptList = ((deptRes?.data as any)?.departments ?? []) as Dept[];
+
       setUsers(sorted);
-      setDepartments(d.data ?? []);
-      setUserDepartments(ud.data ?? []);
+      setDepartments(deptList);
       setStatus(`Loaded ${sorted.length} users.`);
     } catch (e: any) {
       console.error(e);
@@ -60,7 +60,7 @@ export default function Users() {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return users;
-    return users.filter((u) => `${u.email} ${u.fullName} ${u.role}`.toLowerCase().includes(q));
+    return users.filter((u) => `${u.email} ${u.fullName} ${u.departmentName}`.toLowerCase().includes(q));
   }, [users, search]);
 
   const invite = async () => {
@@ -69,12 +69,21 @@ export default function Users() {
       const e = email.trim().toLowerCase();
       const n = fullName.trim();
       if (!e || !n) throw new Error("Email and full name are required.");
+      if (!departmentKey) throw new Error("Select a department.");
 
-      await client.mutations.inviteUser({ email: e, fullName: n, role });
+      const dept = departments.find((d) => d.key === departmentKey);
+
+      await client.mutations.inviteUser({
+        email: e,
+        fullName: n,
+        departmentKey,
+        departmentName: dept?.name ?? "",
+      });
 
       setInviteStatus(`Invitation sent to ${e}.`);
       setEmail("");
       setFullName("");
+      setDepartmentKey("");
       await load();
     } catch (e: any) {
       console.error(e);
@@ -88,30 +97,16 @@ export default function Users() {
     setInviteStatus("Set-password link copied.");
   };
 
-  // Assign department
-  const setDepartmentForUser = async (u: Schema["UserProfile"]["type"], departmentId: string) => {
-    if (!u.email || !u.profileOwner) return;
+  const setDepartmentForUser = async (u: Schema["UserProfile"]["type"], deptKey: string) => {
+    if (!u.email) return;
     setStatus("");
     try {
-      const existing = userDepartments.find((x) => x.userEmail === u.email);
-
-      if (!departmentId) {
-        // remove assignment
-        if (existing) await client.models.UserDepartment.delete({ id: existing.id });
-      } else {
-        if (!existing) {
-          await client.models.UserDepartment.create({
-            userEmail: u.email,
-            departmentId,
-            assignmentOwner: u.profileOwner, // critical
-          });
-        } else {
-          await client.models.UserDepartment.update({
-            id: existing.id,
-            departmentId,
-          });
-        }
-      }
+      const dept = departments.find((d) => d.key === deptKey);
+      await client.mutations.adminSetUserDepartment({
+        email: u.email,
+        departmentKey: deptKey,
+        departmentName: dept?.name ?? "",
+      });
       await load();
     } catch (e: any) {
       console.error(e);
@@ -119,7 +114,6 @@ export default function Users() {
     }
   };
 
-  // Disable/enable + delete are your existing mutations:
   const toggleActive = async (u: Schema["UserProfile"]["type"]) => {
     if (!u.email) return;
     setStatus("");
@@ -147,24 +141,22 @@ export default function Users() {
     }
   };
 
-  const deptNameById = (id?: string) => departments.find((d) => d.id === id)?.name ?? "-";
-
   return (
     <div style={{ padding: 24, width: "100%", maxWidth: "100%" }}>
       <h2>Users (Admin)</h2>
 
-      {/* Invite */}
       <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, marginBottom: 16 }}>
         <h3 style={{ marginTop: 0 }}>Invite user</h3>
 
         <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
           <TextField label="Full name" value={fullName} onChange={(e) => setFullName((e.target as HTMLInputElement).value)} />
           <TextField label="Email" type="email" value={email} onChange={(e) => setEmail((e.target as HTMLInputElement).value)} />
-          <SelectField label="Cognito Group" value={role} onChange={(e) => setRole((e.target as HTMLSelectElement).value as CognitoRole)}>
-            <option value="ADMIN">ADMIN</option>
-            <option value="SALES">SALES</option>
-            <option value="SALES_MANAGER">SALES_MANAGER</option>
-            <option value="SUPPORT">SUPPORT</option>
+
+          <SelectField label="Department" value={departmentKey} onChange={(e) => setDepartmentKey((e.target as HTMLSelectElement).value)}>
+            <option value="">Select…</option>
+            {departments.map((d) => (
+              <option key={d.key} value={d.key}>{d.name}</option>
+            ))}
           </SelectField>
 
           <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
@@ -182,7 +174,6 @@ export default function Users() {
         {inviteStatus && <div style={{ marginTop: 12, padding: 10, border: "1px solid #eee", borderRadius: 8 }}>{inviteStatus}</div>}
       </div>
 
-      {/* List */}
       <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
         <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
           <h3 style={{ margin: 0 }}>Existing users</h3>
@@ -197,61 +188,48 @@ export default function Users() {
               <tr style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>
                 <th style={{ padding: 10 }}>Name</th>
                 <th style={{ padding: 10 }}>Email</th>
-                <th style={{ padding: 10 }}>Cognito Group</th>
                 <th style={{ padding: 10 }}>Department</th>
                 <th style={{ padding: 10 }}>Active</th>
                 <th style={{ padding: 10 }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((u) => {
-                const ud = userDepartments.find((x) => x.userEmail === u.email);
-                return (
-                  <tr key={u.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                    <td style={{ padding: 10 }}>{u.fullName}</td>
-                    <td style={{ padding: 10 }}>{u.email}</td>
-                    <td style={{ padding: 10 }}>{u.role ?? "-"}</td>
-
-                    <td style={{ padding: 10 }}>
-                      <SelectField
-                        label=""
-                        value={ud?.departmentId ?? ""}
-                        onChange={(e) => setDepartmentForUser(u, (e.target as HTMLSelectElement).value)}
-                      >
-                        <option value="">No department</option>
-                        {departments
-                          .filter((d) => d.isActive)
-                          .map((d) => (
-                            <option key={d.id} value={d.id}>
-                              {d.name}
-                            </option>
-                          ))}
-                      </SelectField>
-
-                      <div style={{ fontSize: 12, opacity: 0.65, marginTop: 4 }}>
-                        Current: {deptNameById(ud?.departmentId)}
-                      </div>
-                    </td>
-
-                    <td style={{ padding: 10 }}>{u.isActive ? "Yes" : "No"}</td>
-
-                    <td style={{ padding: 10 }}>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <Button size="small" onClick={() => toggleActive(u)}>
-                          {u.isActive ? "Disable" : "Enable"}
-                        </Button>
-                        <Button size="small" variation="destructive" onClick={() => deleteUser(u)}>
-                          Delete
-                        </Button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
+              {filtered.map((u) => (
+                <tr key={u.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                  <td style={{ padding: 10 }}>{u.fullName}</td>
+                  <td style={{ padding: 10 }}>{u.email}</td>
+                  <td style={{ padding: 10 }}>
+                    <SelectField
+                      label=""
+                      value={u.departmentKey ?? ""}
+                      onChange={(e) => setDepartmentForUser(u, (e.target as HTMLSelectElement).value)}
+                    >
+                      <option value="">Select…</option>
+                      {departments.map((d) => (
+                        <option key={d.key} value={d.key}>{d.name}</option>
+                      ))}
+                    </SelectField>
+                    <div style={{ fontSize: 12, opacity: 0.65, marginTop: 4 }}>
+                      Current: {u.departmentName ?? "-"}
+                    </div>
+                  </td>
+                  <td style={{ padding: 10 }}>{u.isActive ? "Yes" : "No"}</td>
+                  <td style={{ padding: 10 }}>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <Button size="small" onClick={() => toggleActive(u)}>
+                        {u.isActive ? "Disable" : "Enable"}
+                      </Button>
+                      <Button size="small" variation="destructive" onClick={() => deleteUser(u)}>
+                        Delete
+                      </Button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
 
               {!filtered.length && (
                 <tr>
-                  <td colSpan={6} style={{ padding: 12, opacity: 0.7 }}>
+                  <td colSpan={5} style={{ padding: 12, opacity: 0.7 }}>
                     No users found.
                   </td>
                 </tr>
@@ -261,7 +239,7 @@ export default function Users() {
         </div>
 
         <p style={{ marginTop: 10, fontSize: 12, opacity: 0.7 }}>
-          Users get page access from Department → Roles → Policies. Assign department here, then configure department roles and role policies.
+          Users get page access from Department(Group) → Roles → Policies.
         </p>
       </div>
     </div>

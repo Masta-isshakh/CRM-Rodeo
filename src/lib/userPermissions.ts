@@ -3,7 +3,7 @@ import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
 import type { PolicyActions, PolicyKey } from "./policies";
-import { EMPTY_ACTIONS } from "./policies";
+import { EMPTY_ACTIONS, POLICY_LABELS } from "./policies";
 
 const client = generateClient<Schema>();
 
@@ -16,6 +16,14 @@ function merge(a: PolicyActions, b: PolicyActions): PolicyActions {
     canApprove: a.canApprove || b.canApprove,
   };
 }
+
+const FULL: PolicyActions = {
+  canRead: true,
+  canCreate: true,
+  canUpdate: true,
+  canDelete: true,
+  canApprove: true,
+};
 
 export function usePermissions() {
   const [loading, setLoading] = useState(true);
@@ -37,23 +45,23 @@ export function usePermissions() {
         const g = (session.tokens?.idToken?.payload["cognito:groups"] as string[]) ?? [];
         setGroups(g);
 
-        // 1) user department rows (user can read own, admin can read all)
-        const udRes = await client.models.UserDepartment.list({
-          filter: { userEmail: { eq: e } },
-          limit: 50,
-        });
-        const deptIds = (udRes.data ?? []).map((x) => x.departmentId).filter(Boolean);
-
-        // 2) department roles
-        let roleIds: string[] = [];
-        if (deptIds.length) {
-          const drRes = await client.models.DepartmentRole.list({ limit: 5000 });
-          roleIds = (drRes.data ?? [])
-            .filter((x) => deptIds.includes(x.departmentId))
-            .map((x) => x.roleId);
+        // ADMIN => everything
+        if (g.includes("ADMIN")) {
+          const all: Record<string, PolicyActions> = {};
+          (Object.keys(POLICY_LABELS) as PolicyKey[]).forEach((k) => (all[k] = FULL));
+          setPermissions(all);
+          return;
         }
 
-        // 3) role policies
+        const deptKeys = g.filter((x) => x.startsWith("DEPT_"));
+
+        // DepartmentRoleLink -> roleIds
+        const linksRes = await client.models.DepartmentRoleLink.list({ limit: 5000 });
+        const roleIds = (linksRes.data ?? [])
+          .filter((l) => deptKeys.includes(l.departmentKey))
+          .map((l) => l.roleId);
+
+        // RolePolicy -> merge
         const rpRes = await client.models.RolePolicy.list({ limit: 10000 });
 
         const perms: Record<string, PolicyActions> = {};
