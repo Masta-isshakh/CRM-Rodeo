@@ -6,39 +6,38 @@ import type { Schema } from "../../amplify/data/resource";
 
 const client = generateClient<Schema>();
 
+type Dept = { name: string; description?: string };
+
 export default function DepartmentsAdmin() {
-  const [departments, setDepartments] = useState<Schema["Department"]["type"][]>([]);
-  const [roles, setRoles] = useState<Schema["AppRole"]["type"][]>([]);
-  const [deptRoles, setDeptRoles] = useState<Schema["DepartmentRole"]["type"][]>([]);
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const [newDept, setNewDept] = useState("");
+  const [departments, setDepartments] = useState<Dept[]>([]);
+  const [roles, setRoles] = useState<Schema["AppRole"]["type"][]>([]);
+  const [links, setLinks] = useState<Schema["DepartmentRoleLink"]["type"][]>([]);
 
-  // drafts (avoid update on every keystroke)
-  const [nameDraft, setNameDraft] = useState<Record<string, string>>({});
+  const [newDept, setNewDept] = useState("");
+  const [renameFrom, setRenameFrom] = useState("");
+  const [renameTo, setRenameTo] = useState("");
 
   const load = async () => {
     setLoading(true);
-    setStatus("");
+    setStatus("Loading...");
     try {
-      const [d, r, dr] = await Promise.all([
-        client.models.Department.list({ limit: 1000 }),
+      const [deptRes, rolesRes, linksRes] = await Promise.all([
+        client.mutations.adminListDepartments({}),
         client.models.AppRole.list({ limit: 1000 }),
-        client.models.DepartmentRole.list({ limit: 5000 }),
+        client.models.DepartmentRoleLink.list({ limit: 5000 }),
       ]);
 
-      const dList = d.data ?? [];
-      setDepartments(dList);
-      setRoles(r.data ?? []);
-      setDeptRoles(dr.data ?? []);
-
-      const draft: Record<string, string> = {};
-      for (const dep of dList) draft[dep.id] = dep.name ?? "";
-      setNameDraft(draft);
+      const deptList = (deptRes?.data as any)?.departments ?? [];
+      setDepartments(deptList);
+      setRoles(rolesRes.data ?? []);
+      setLinks(linksRes.data ?? []);
+      setStatus("");
     } catch (e: any) {
       console.error(e);
-      setStatus(e?.message ?? "Failed to load.");
+      setStatus(e?.message ?? "Load failed");
     } finally {
       setLoading(false);
     }
@@ -48,143 +47,126 @@ export default function DepartmentsAdmin() {
     load();
   }, []);
 
+  const roleIdsByDept = useMemo(() => {
+    const map = new Map<string, string[]>();
+    for (const l of links) {
+      const arr = map.get(l.departmentName) ?? [];
+      arr.push(l.roleId);
+      map.set(l.departmentName, arr);
+    }
+    return map;
+  }, [links]);
+
   const createDept = async () => {
     setStatus("");
     try {
       const name = newDept.trim();
-      if (!name) throw new Error("Department name required.");
-
-      await client.models.Department.create({
-        name,
-        isActive: true,
-        createdAt: new Date().toISOString(),
-      });
-
+      if (!name) throw new Error("Department name required");
+      await client.mutations.adminCreateDepartment({ departmentName: name });
       setNewDept("");
       await load();
     } catch (e: any) {
       console.error(e);
-      setStatus(e?.message ?? "Create failed.");
+      setStatus(e?.message ?? "Create failed");
     }
   };
 
-  const saveDeptName = async (depId: string) => {
+  const renameDept = async () => {
     setStatus("");
     try {
-      const dep = departments.find((x) => x.id === depId);
-      if (!dep) return;
-
-      const name = (nameDraft[depId] ?? "").trim();
-      if (!name) throw new Error("Name required.");
-
-      await client.models.Department.update({
-        id: depId,
-        name,
-        isActive: !!dep.isActive,
-      });
-
+      const oldName = renameFrom.trim();
+      const newName = renameTo.trim();
+      if (!oldName || !newName) throw new Error("Select old and new name");
+      await client.mutations.adminRenameDepartment({ oldName, newName });
+      setRenameFrom("");
+      setRenameTo("");
       await load();
     } catch (e: any) {
       console.error(e);
-      setStatus(e?.message ?? "Update failed.");
+      setStatus(e?.message ?? "Rename failed");
     }
   };
 
-  const toggleDeptActive = async (depId: string) => {
+  const deleteDept = async (name: string) => {
+    const ok = confirm(`Delete department "${name}"?\n\nIt must have NO users.`);
+    if (!ok) return;
+
     setStatus("");
     try {
-      const dep = departments.find((x) => x.id === depId);
-      if (!dep) return;
-
-      await client.models.Department.update({
-        id: depId,
-        name: dep.name,
-        isActive: !dep.isActive,
-      });
-
+      await client.mutations.adminDeleteDepartment({ departmentName: name });
       await load();
     } catch (e: any) {
       console.error(e);
-      setStatus(e?.message ?? "Update failed.");
+      setStatus(e?.message ?? "Delete failed");
     }
   };
 
-  const deleteDept = async (depId: string) => {
-    if (!confirm("Delete department?")) return;
+  const assignRole = async (departmentName: string, roleId: string) => {
+    if (!roleId) return;
     setStatus("");
     try {
-      const links = deptRoles.filter((x) => x.departmentId === depId);
-      for (const l of links) await client.models.DepartmentRole.delete({ id: l.id });
-
-      await client.models.Department.delete({ id: depId });
-      await load();
-    } catch (e: any) {
-      console.error(e);
-      setStatus(e?.message ?? "Delete failed.");
-    }
-  };
-
-  const rolesForDept = useMemo(() => {
-    const map = new Map<string, string[]>();
-    for (const dr of deptRoles) {
-      const arr = map.get(dr.departmentId) ?? [];
-      arr.push(dr.roleId);
-      map.set(dr.departmentId, arr);
-    }
-    return map;
-  }, [deptRoles]);
-
-  const addRoleToDept = async (departmentId: string, roleId: string) => {
-    setStatus("");
-    try {
-      if (!roleId) return;
-      const exists = deptRoles.some((x) => x.departmentId === departmentId && x.roleId === roleId);
+      // prevent duplicates
+      const exists = links.some((l) => l.departmentName === departmentName && l.roleId === roleId);
       if (exists) return;
 
-      await client.models.DepartmentRole.create({ departmentId, roleId });
+      await client.models.DepartmentRoleLink.create({
+        departmentName,
+        roleId,
+        createdAt: new Date().toISOString(),
+      });
       await load();
     } catch (e: any) {
       console.error(e);
-      setStatus(e?.message ?? "Assign failed.");
+      setStatus(e?.message ?? "Assign failed");
     }
   };
 
-  const removeRoleFromDept = async (departmentId: string, roleId: string) => {
+  const removeRole = async (departmentName: string, roleId: string) => {
     setStatus("");
     try {
-      const link = deptRoles.find((x) => x.departmentId === departmentId && x.roleId === roleId);
-      if (!link) return;
-
-      await client.models.DepartmentRole.delete({ id: link.id });
+      const link = links.find((l) => l.departmentName === departmentName && l.roleId === roleId);
+      if (!link?.id) return;
+      await client.models.DepartmentRoleLink.delete({ id: link.id });
       await load();
     } catch (e: any) {
       console.error(e);
-      setStatus(e?.message ?? "Remove failed.");
+      setStatus(e?.message ?? "Remove failed");
     }
   };
 
   return (
-    <div style={{ padding: 24, width: "100%", maxWidth: "100%" }}>
-      <h2>Departments (Admin)</h2>
-      {status && <p style={{ opacity: 0.85 }}>{status}</p>}
+    <div style={{ padding: 24, width: "100%" }}>
+      <h2>Departments (Cognito Groups)</h2>
+      {status && <p style={{ opacity: 0.8 }}>{status}</p>}
 
+      {/* Create */}
       <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
         <h3 style={{ marginTop: 0 }}>Create Department</h3>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "end" }}>
-          <TextField
-            label="Name"
-            value={newDept}
-            onChange={(e) => setNewDept((e.target as HTMLInputElement).value)}
-          />
-          <Button variation="primary" onClick={createDept}>
-            Create
-          </Button>
-          <Button onClick={load} isLoading={loading}>
-            Refresh
-          </Button>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <TextField label="Department name" value={newDept} onChange={(e) => setNewDept((e.target as HTMLInputElement).value)} />
+          <Button variation="primary" onClick={createDept} isLoading={loading}>Create</Button>
+          <Button onClick={load} isLoading={loading}>Refresh</Button>
         </div>
       </div>
 
+      {/* Rename */}
+      <div style={{ marginTop: 16, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
+        <h3 style={{ marginTop: 0 }}>Rename Department</h3>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <SelectField label="Old name" value={renameFrom} onChange={(e) => setRenameFrom((e.target as HTMLSelectElement).value)}>
+            <option value="">Select...</option>
+            {departments.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
+          </SelectField>
+
+          <TextField label="New name" value={renameTo} onChange={(e) => setRenameTo((e.target as HTMLInputElement).value)} />
+          <Button variation="primary" onClick={renameDept}>Rename</Button>
+        </div>
+        <p style={{ opacity: 0.75, marginTop: 8 }}>
+          Renaming migrates users + updates mappings, then deletes the old group.
+        </p>
+      </div>
+
+      {/* List + Assign Roles */}
       <div style={{ marginTop: 16, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
         <h3 style={{ marginTop: 0 }}>Departments</h3>
 
@@ -192,30 +174,18 @@ export default function DepartmentsAdmin() {
           <table style={{ width: "100%", minWidth: 900, borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>
-                <th style={{ padding: 10 }}>Name</th>
-                <th style={{ padding: 10 }}>Active</th>
-                <th style={{ padding: 10 }}>Roles in Department</th>
-                <th style={{ padding: 10 }}>Add Role</th>
+                <th style={{ padding: 10 }}>Department</th>
+                <th style={{ padding: 10 }}>Roles assigned</th>
+                <th style={{ padding: 10 }}>Add role</th>
                 <th style={{ padding: 10 }}>Actions</th>
               </tr>
             </thead>
-
             <tbody>
               {departments.map((d) => {
-                const currentRoleIds = rolesForDept.get(d.id) ?? [];
+                const currentRoleIds = roleIdsByDept.get(d.name) ?? [];
                 return (
-                  <tr key={d.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                    <td style={{ padding: 10 }}>
-                      <TextField
-                        label=""
-                        value={nameDraft[d.id] ?? ""}
-                        onChange={(e) =>
-                          setNameDraft((prev) => ({ ...prev, [d.id]: (e.target as HTMLInputElement).value }))
-                        }
-                      />
-                    </td>
-
-                    <td style={{ padding: 10 }}>{d.isActive ? "Yes" : "No"}</td>
+                  <tr key={d.name} style={{ borderBottom: "1px solid #f1f5f9" }}>
+                    <td style={{ padding: 10, fontWeight: 600 }}>{d.name}</td>
 
                     <td style={{ padding: 10 }}>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -226,7 +196,7 @@ export default function DepartmentsAdmin() {
                               {role?.name ?? rid}
                               <button
                                 style={{ marginLeft: 8, border: "none", background: "transparent", cursor: "pointer" }}
-                                onClick={() => removeRoleFromDept(d.id, rid)}
+                                onClick={() => removeRole(d.name, rid)}
                                 title="Remove role"
                               >
                                 ✕
@@ -239,44 +209,28 @@ export default function DepartmentsAdmin() {
                     </td>
 
                     <td style={{ padding: 10 }}>
-                      <SelectField label="" onChange={(e) => addRoleToDept(d.id, (e.target as HTMLSelectElement).value)}>
-                        <option value="">Select role…</option>
+                      <SelectField label="" onChange={(e) => assignRole(d.name, (e.target as HTMLSelectElement).value)}>
+                        <option value="">Select role...</option>
                         {roles.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name}
-                          </option>
+                          <option key={r.id} value={r.id}>{r.name}</option>
                         ))}
                       </SelectField>
                     </td>
 
                     <td style={{ padding: 10 }}>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        <Button onClick={() => saveDeptName(d.id)}>Save</Button>
-                        <Button onClick={() => toggleDeptActive(d.id)}>
-                          {d.isActive ? "Disable" : "Enable"}
-                        </Button>
-                        <Button variation="destructive" onClick={() => deleteDept(d.id)}>
-                          Delete
-                        </Button>
-                      </div>
+                      <Button variation="destructive" onClick={() => deleteDept(d.name)} isDisabled={d.name === "ADMIN"}>
+                        Delete
+                      </Button>
                     </td>
                   </tr>
                 );
               })}
 
               {!departments.length && (
-                <tr>
-                  <td colSpan={5} style={{ padding: 12, opacity: 0.7 }}>
-                    No departments yet.
-                  </td>
-                </tr>
+                <tr><td colSpan={4} style={{ padding: 12, opacity: 0.7 }}>No departments yet.</td></tr>
               )}
             </tbody>
           </table>
-        </div>
-
-        <div style={{ marginTop: 10, fontSize: 12, opacity: 0.65 }}>
-          If Department.create is undefined, your backend schema is not deployed yet. Run: npx ampx sandbox and restart Vite.
         </div>
       </div>
     </div>

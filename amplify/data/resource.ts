@@ -1,81 +1,52 @@
 import { a, defineData, type ClientSchema } from "@aws-amplify/backend";
+
 import { inviteUser } from "../functions/invite-user/resource";
+import { setUserActive } from "../functions/set-user-active/resource";
+import { deleteUser } from "../functions/delete-user/resource";
+
+import { listDepartments } from "../functions/departments/list-departments/resource";
+import { createDepartment } from "../functions/departments/create-department/resource";
+import { deleteDepartment } from "../functions/departments/delete-department/resource";
+import { setUserDepartment } from "../functions/departments/set-user-department/resource";
+import { renameDepartment } from "../functions/departments/rename-department/resource";
 
 const schema = a
   .schema({
-    // -----------------------------
-    // Invite result type (optional)
-    // -----------------------------
     InviteUserResult: a.customType({
       email: a.string().required(),
       userSub: a.string().required(),
       username: a.string().required(),
-      role: a.string().required(),
+      departmentName: a.string().required(),
       inviteLink: a.string().required(),
       message: a.string().required(),
     }),
 
     // -----------------------------
-    // USER PROFILE
+    // USER PROFILE (department = group)
     // -----------------------------
     UserProfile: a
       .model({
         email: a.string().required(),
         fullName: a.string().required(),
-        role: a.enum(["ADMIN", "SALES", "SALES_MANAGER", "SUPPORT"]),
+
+        // ✅ department is Cognito Group name (dynamic)
+        departmentName: a.string(),
+
         isActive: a.boolean().default(true),
         createdAt: a.datetime(),
 
-        // critical for owner-based access
-        // Format: `${sub}::${username}`
+        // owner field used by allow.ownerDefinedIn
         profileOwner: a.string().required(),
-
-        // ✅ inverse for UserDepartment.user
-        departments: a.hasMany("UserDepartment", "userId"),
       })
       .authorization((allow) => [
         allow.ownerDefinedIn("profileOwner"),
+        // ✅ Only ADMIN can manage users data
         allow.group("ADMIN"),
       ]),
 
     // -----------------------------
-    // RBAC MODELS (Departments/Roles/Policies)
+    // RBAC MODELS (Roles/Policies)
     // -----------------------------
-
-    Department: a
-      .model({
-        name: a.string().required(),
-        isActive: a.boolean().default(true),
-        createdAt: a.datetime(),
-
-        // ✅ inverse for DepartmentRole.department
-        roles: a.hasMany("DepartmentRole", "departmentId"),
-
-        // ✅ inverse for UserDepartment.department  <-- THIS FIXES YOUR ERROR
-        users: a.hasMany("UserDepartment", "departmentId"),
-      })
-      .authorization((allow) => [
-        allow.group("ADMIN"),
-        allow.authenticated().to(["read"]),
-      ]),
-
-    // Assign users to departments
-    UserDepartment: a
-      .model({
-        userId: a.id().required(),
-        departmentId: a.id().required(),
-        createdAt: a.datetime(),
-
-        // ✅ belongsTo side
-        user: a.belongsTo("UserProfile", "userId"),
-        department: a.belongsTo("Department", "departmentId"),
-      })
-      .authorization((allow) => [
-        allow.group("ADMIN"),
-        allow.authenticated().to(["read"]),
-      ]),
-
-    // AppRole (your business roles like "AccountantRole")
     AppRole: a
       .model({
         name: a.string().required(),
@@ -83,22 +54,18 @@ const schema = a
         isActive: a.boolean().default(true),
         createdAt: a.datetime(),
 
-        // ✅ inverse for RolePolicy.role
         rolePolicies: a.hasMany("RolePolicy", "roleId"),
-
-        // ✅ inverse for DepartmentRole.role
-        departments: a.hasMany("DepartmentRole", "roleId"),
+        deptLinks: a.hasMany("DepartmentRoleLink", "roleId"),
       })
       .authorization((allow) => [
         allow.group("ADMIN"),
         allow.authenticated().to(["read"]),
       ]),
 
-    // Policy for a role (each page = a policyKey)
     RolePolicy: a
       .model({
         roleId: a.id().required(),
-        policyKey: a.string().required(), // ex: "CUSTOMERS"
+        policyKey: a.string().required(),
 
         canRead: a.boolean().default(false),
         canCreate: a.boolean().default(false),
@@ -108,7 +75,6 @@ const schema = a
 
         createdAt: a.datetime(),
 
-        // ✅ belongsTo side
         role: a.belongsTo("AppRole", "roleId"),
       })
       .authorization((allow) => [
@@ -116,14 +82,13 @@ const schema = a
         allow.authenticated().to(["read"]),
       ]),
 
-    // Assign roles to departments
-    DepartmentRole: a
+    // ✅ Maps Department(groupName) -> AppRole
+    DepartmentRoleLink: a
       .model({
-        departmentId: a.id().required(),
+        departmentName: a.string().required(), // Cognito group name
         roleId: a.id().required(),
         createdAt: a.datetime(),
 
-        department: a.belongsTo("Department", "departmentId"),
         role: a.belongsTo("AppRole", "roleId"),
       })
       .authorization((allow) => [
@@ -132,9 +97,10 @@ const schema = a
       ]),
 
     // -----------------------------
-    // CRM MODELS (your existing ones)
+    // CRM MODELS
+    // NOTE: since departments are dynamic, we cannot use allow.group("dept")
+    // Use OWNER for write + authenticated read, and enforce fine-grain in UI/functions.
     // -----------------------------
-
     Customer: a
       .model({
         name: a.string().required(),
@@ -153,9 +119,7 @@ const schema = a
       .authorization((allow) => [
         allow.owner(),
         allow.group("ADMIN"),
-        allow.group("SALES"),
-        allow.group("SALES_MANAGER"),
-        allow.group("SUPPORT").to(["read"]),
+        allow.authenticated().to(["read"]),
       ]),
 
     Employee: a
@@ -168,7 +132,7 @@ const schema = a
         salary: a.integer(),
         createdAt: a.datetime(),
       })
-      .authorization((allow) => [allow.owner(), allow.group("ADMIN")]),
+      .authorization((allow) => [allow.group("ADMIN"), allow.authenticated().to(["read"])]),
 
     ActivityLog: a
       .model({
@@ -192,9 +156,9 @@ const schema = a
         customer: a.belongsTo("Customer", "customerId"),
       })
       .authorization((allow) => [
+        allow.owner(),
         allow.group("ADMIN"),
-        allow.group("SALES"),
-        allow.group("SALES_MANAGER"),
+        allow.authenticated().to(["read"]),
       ]),
 
     Deal: a
@@ -210,9 +174,9 @@ const schema = a
         customer: a.belongsTo("Customer", "customerId"),
       })
       .authorization((allow) => [
+        allow.owner(),
         allow.group("ADMIN"),
-        allow.group("SALES"),
-        allow.group("SALES_MANAGER"),
+        allow.authenticated().to(["read"]),
       ]),
 
     Ticket: a
@@ -229,10 +193,9 @@ const schema = a
         comments: a.hasMany("TicketComment", "ticketId"),
       })
       .authorization((allow) => [
+        allow.owner(),
         allow.group("ADMIN"),
-        allow.group("SUPPORT"),
-        allow.group("SALES_MANAGER").to(["read"]),
-        allow.group("SALES").to(["read"]),
+        allow.authenticated().to(["read"]),
       ]),
 
     TicketComment: a
@@ -244,24 +207,99 @@ const schema = a
 
         ticket: a.belongsTo("Ticket", "ticketId"),
       })
-      .authorization((allow) => [allow.group("ADMIN"), allow.group("SUPPORT")]),
+      .authorization((allow) => [
+        allow.owner(),
+        allow.group("ADMIN"),
+        allow.authenticated().to(["read"]),
+      ]),
 
     // -----------------------------
-    // MUTATION: inviteUser (ADMIN only)
+    // ADMIN MUTATIONS
     // -----------------------------
+
     inviteUser: a
       .mutation()
       .arguments({
         email: a.string().required(),
         fullName: a.string().required(),
-        role: a.string().required(),
+        departmentName: a.string().required(), // ✅ department (dynamic group)
       })
       .authorization((allow) => [allow.group("ADMIN")])
       .handler(a.handler.function(inviteUser))
       .returns(a.json()),
+
+    adminSetUserActive: a
+      .mutation()
+      .arguments({
+        email: a.string().required(),
+        isActive: a.boolean().required(),
+      })
+      .authorization((allow) => [allow.group("ADMIN")])
+      .handler(a.handler.function(setUserActive))
+      .returns(a.json()),
+
+    adminDeleteUser: a
+      .mutation()
+      .arguments({
+        email: a.string().required(),
+      })
+      .authorization((allow) => [allow.group("ADMIN")])
+      .handler(a.handler.function(deleteUser))
+      .returns(a.json()),
+
+    // ✅ Departments (Cognito Groups)
+    adminListDepartments: a
+      .mutation()
+      .authorization((allow) => [allow.group("ADMIN")])
+      .handler(a.handler.function(listDepartments))
+      .returns(a.json()),
+
+    adminCreateDepartment: a
+      .mutation()
+      .arguments({ departmentName: a.string().required() })
+      .authorization((allow) => [allow.group("ADMIN")])
+      .handler(a.handler.function(createDepartment))
+      .returns(a.json()),
+
+    adminRenameDepartment: a
+      .mutation()
+      .arguments({
+        oldName: a.string().required(),
+        newName: a.string().required(),
+      })
+      .authorization((allow) => [allow.group("ADMIN")])
+      .handler(a.handler.function(renameDepartment))
+      .returns(a.json()),
+
+    adminDeleteDepartment: a
+      .mutation()
+      .arguments({ departmentName: a.string().required() })
+      .authorization((allow) => [allow.group("ADMIN")])
+      .handler(a.handler.function(deleteDepartment))
+      .returns(a.json()),
+
+    adminSetUserDepartment: a
+      .mutation()
+      .arguments({
+        email: a.string().required(),
+        departmentName: a.string().required(),
+      })
+      .authorization((allow) => [allow.group("ADMIN")])
+      .handler(a.handler.function(setUserDepartment))
+      .returns(a.json()),
   })
-  // allow lambda to call data
-  .authorization((allow) => [allow.resource(inviteUser)]);
+  .authorization((allow) => [
+    // allow lambdas to call Data
+    allow.resource(inviteUser),
+    allow.resource(setUserActive),
+    allow.resource(deleteUser),
+
+    allow.resource(listDepartments),
+    allow.resource(createDepartment),
+    allow.resource(renameDepartment),
+    allow.resource(deleteDepartment),
+    allow.resource(setUserDepartment),
+  ]);
 
 export type Schema = ClientSchema<typeof schema>;
 
