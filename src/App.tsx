@@ -11,6 +11,6 @@ export default function App() {
 }
 
 function AppContent() {
-  const { user, signOut } = useAuthenticator((context) => [context.user]);
-  return <MainLayout user={user || null} signOut={signOut || (() => {})} />;
+  const { signOut } = useAuthenticator((context) => [context.user]);
+  return <MainLayout signOut={signOut || (() => {})} />;
 }
