@@ -1,4 +1,4 @@
-export type PolicyActions = {
+export type PermissionSet = {
   canRead: boolean;
   canCreate: boolean;
   canUpdate: boolean;
@@ -7,5 +7,5 @@ export type PolicyActions = {
 };
 
 export type PageProps = {
-  permissions: PolicyActions;
+  permissions: PermissionSet;
 };

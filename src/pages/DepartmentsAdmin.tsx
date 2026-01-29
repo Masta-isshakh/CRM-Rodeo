@@ -1,4 +1,3 @@
-// src/pages/DepartmentsAdmin.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Button, TextField, SelectField } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
@@ -9,6 +8,61 @@ import type { PageProps } from "../lib/PageProps";
 const client = generateClient<Schema>();
 
 type Dept = { key: string; name: string };
+type AnyRow = Record<string, any>;
+
+function safeJson(v: any) {
+  if (typeof v !== "string") return v;
+  try {
+    return JSON.parse(v);
+  } catch {
+    return v;
+  }
+}
+
+function normalizeDepartments(rawRes: any): Dept[] {
+  const raw0 = rawRes?.data ?? rawRes;
+  const raw = safeJson(raw0);
+
+  const container =
+    raw?.departments ??
+    raw?.groups ??
+    raw?.items ??
+    raw?.data?.departments ??
+    raw?.data?.groups ??
+    raw?.data?.items ??
+    [];
+
+  const arr = Array.isArray(container) ? container : [];
+  const mapped = arr
+    .map((x: any) => {
+      if (typeof x === "string") return { key: x, name: x };
+
+      // cognito listGroups shape
+      const key =
+        x.key ??
+        x.departmentKey ??
+        x.GroupName ??
+        x.groupName ??
+        x.name ??
+        x.Name ??
+        "";
+
+      const name =
+        x.name ??
+        x.departmentName ??
+        x.Description ??
+        x.description ??
+        key;
+
+      return { key: String(key).trim(), name: String(name).trim() };
+    })
+    .filter((d: Dept) => d.key);
+
+  // de-dup + sort
+  const uniq = new Map<string, Dept>();
+  for (const d of mapped) uniq.set(d.key, d);
+  return Array.from(uniq.values()).sort((a, b) => a.name.localeCompare(b.name));
+}
 
 export default function DepartmentsAdmin({ permissions }: PageProps) {
   if (!permissions.canRead) {
@@ -19,28 +73,37 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
   const [loading, setLoading] = useState(false);
 
   const [departments, setDepartments] = useState<Dept[]>([]);
-  const [roles, setRoles] = useState<Schema["AppRole"]["type"][]>([]);
-  const [links, setLinks] = useState<Schema["DepartmentRoleLink"]["type"][]>([]);
+
+  const AppRoleModel = (client.models as any).AppRole as any;
+  const LinkModel = (client.models as any).DepartmentRoleLink as any;
+
+  const [roles, setRoles] = useState<AnyRow[]>([]);
+  const [links, setLinks] = useState<AnyRow[]>([]);
 
   const [newDept, setNewDept] = useState("");
   const [renameFrom, setRenameFrom] = useState("");
   const [renameTo, setRenameTo] = useState("");
+
+  const adminListDepartments = (client.queries as any)?.adminListDepartments;
+  const adminCreateDepartment = (client.mutations as any)?.adminCreateDepartment;
+  const adminRenameDepartment = (client.mutations as any)?.adminRenameDepartment;
+  const adminDeleteDepartment = (client.mutations as any)?.adminDeleteDepartment;
 
   const load = async () => {
     setLoading(true);
     setStatus("Loading...");
     try {
       const [deptRes, rolesRes, linksRes] = await Promise.all([
-        client.queries.adminListDepartments({}),
-        client.models.AppRole.list({ limit: 1000 }),
-        client.models.DepartmentRoleLink.list({ limit: 5000 }),
+        adminListDepartments ? adminListDepartments({}) : Promise.resolve({ data: { departments: [] } }),
+        AppRoleModel ? AppRoleModel.list({ limit: 1000 }) : Promise.resolve({ data: [] }),
+        LinkModel ? LinkModel.list({ limit: 5000 }) : Promise.resolve({ data: [] }),
       ]);
 
-      const deptList = ((deptRes?.data as any)?.departments ?? []) as Dept[];
+      const deptList = normalizeDepartments(deptRes);
 
       setDepartments(deptList);
-      setRoles(rolesRes.data ?? []);
-      setLinks(linksRes.data ?? []);
+      setRoles((rolesRes.data ?? []) as AnyRow[]);
+      setLinks((linksRes.data ?? []) as AnyRow[]);
       setStatus("");
     } catch (e: any) {
       console.error(e);
@@ -57,10 +120,11 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
   const roleIdsByDept = useMemo(() => {
     const map = new Map<string, string[]>();
     for (const l of links) {
-      const dk = l.departmentKey || "";
+      const dk = String(l.departmentKey ?? "").trim();
       if (!dk) continue;
       const arr = map.get(dk) ?? [];
-      if (l.roleId) arr.push(l.roleId);
+      const rid = String(l.roleId ?? "").trim();
+      if (rid) arr.push(rid);
       map.set(dk, arr);
     }
     return map;
@@ -72,7 +136,26 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     try {
       const name = newDept.trim();
       if (!name) throw new Error("Department name required");
-      await client.mutations.adminCreateDepartment({ departmentName: name });
+      if (!adminCreateDepartment) throw new Error("adminCreateDepartment mutation is missing.");
+
+      const res = await adminCreateDepartment({ departmentName: name });
+
+      // optimistic add (handles eventual consistency + bad list response)
+      const payload = safeJson(res?.data ?? res) as any;
+      const created =
+        payload?.department ??
+        payload?.created ??
+        payload;
+
+      const key = String(created?.key ?? created?.departmentKey ?? created?.GroupName ?? name).trim();
+      const disp = String(created?.name ?? created?.departmentName ?? created?.Description ?? name).trim();
+
+      setDepartments((prev) => {
+        const exists = prev.some((d) => d.key === key);
+        const next = exists ? prev : [...prev, { key, name: disp }];
+        return next.sort((a, b) => a.name.localeCompare(b.name));
+      });
+
       setNewDept("");
       await load();
     } catch (e: any) {
@@ -88,7 +171,9 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
       const oldKey = renameFrom.trim();
       const newName = renameTo.trim();
       if (!oldKey || !newName) throw new Error("Select old and enter new name");
-      await client.mutations.adminRenameDepartment({ oldKey, newName });
+      if (!adminRenameDepartment) throw new Error("adminRenameDepartment mutation is missing.");
+
+      await adminRenameDepartment({ oldKey, newName });
       setRenameFrom("");
       setRenameTo("");
       await load();
@@ -105,7 +190,8 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
 
     setStatus("");
     try {
-      await client.mutations.adminDeleteDepartment({ departmentKey });
+      if (!adminDeleteDepartment) throw new Error("adminDeleteDepartment mutation is missing.");
+      await adminDeleteDepartment({ departmentKey });
       await load();
     } catch (e: any) {
       console.error(e);
@@ -119,10 +205,14 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
 
     setStatus("");
     try {
-      const exists = links.some((l) => l.departmentKey === department.key && l.roleId === roleId);
+      if (!LinkModel) throw new Error("DepartmentRoleLink model missing.");
+
+      const exists = links.some(
+        (l) => String(l.departmentKey) === department.key && String(l.roleId) === roleId
+      );
       if (exists) return;
 
-      await client.models.DepartmentRoleLink.create({
+      await LinkModel.create({
         departmentKey: department.key,
         departmentName: department.name,
         roleId,
@@ -140,10 +230,13 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     if (!permissions.canUpdate) return;
     setStatus("");
     try {
-      const link = links.find((l) => l.departmentKey === departmentKey && l.roleId === roleId);
+      if (!LinkModel) throw new Error("DepartmentRoleLink model missing.");
+      const link = links.find(
+        (l) => String(l.departmentKey) === departmentKey && String(l.roleId) === roleId
+      );
       if (!link?.id) return;
 
-      await client.models.DepartmentRoleLink.delete({ id: link.id });
+      await LinkModel.delete({ id: link.id });
       await load();
     } catch (e: any) {
       console.error(e);
@@ -159,7 +252,11 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
       <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
         <h3 style={{ marginTop: 0 }}>Create Department</h3>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <TextField label="Department name" value={newDept} onChange={(e) => setNewDept((e.target as HTMLInputElement).value)} />
+          <TextField
+            label="Department name"
+            value={newDept}
+            onChange={(e) => setNewDept((e.target as HTMLInputElement).value)}
+          />
           <Button variation="primary" onClick={createDept} isLoading={loading} isDisabled={!permissions.canCreate}>
             Create
           </Button>
@@ -172,7 +269,11 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
           <SelectField label="Old department" value={renameFrom} onChange={(e) => setRenameFrom((e.target as HTMLSelectElement).value)}>
             <option value="">Select...</option>
-            {departments.map((d) => <option key={d.key} value={d.key}>{d.name} ({d.key})</option>)}
+            {departments.map((d) => (
+              <option key={d.key} value={d.key}>
+                {d.name} ({d.key})
+              </option>
+            ))}
           </SelectField>
 
           <TextField label="New name" value={renameTo} onChange={(e) => setRenameTo((e.target as HTMLInputElement).value)} />
@@ -198,6 +299,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                 <th style={{ padding: 10 }}>Actions</th>
               </tr>
             </thead>
+
             <tbody>
               {departments.map((d) => {
                 const currentRoleIds = roleIdsByDept.get(d.key) ?? [];
@@ -211,12 +313,18 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                     <td style={{ padding: 10 }}>
                       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                         {currentRoleIds.map((rid) => {
-                          const role = roles.find((r) => r.id === rid);
+                          const role = roles.find((r) => String(r.id) === String(rid));
                           return (
                             <span key={rid} style={{ border: "1px solid #ddd", borderRadius: 999, padding: "4px 10px" }}>
                               {role?.name ?? rid}
                               <button
-                                style={{ marginLeft: 8, border: "none", background: "transparent", cursor: permissions.canUpdate ? "pointer" : "not-allowed", opacity: permissions.canUpdate ? 1 : 0.5 }}
+                                style={{
+                                  marginLeft: 8,
+                                  border: "none",
+                                  background: "transparent",
+                                  cursor: permissions.canUpdate ? "pointer" : "not-allowed",
+                                  opacity: permissions.canUpdate ? 1 : 0.5,
+                                }}
                                 onClick={() => permissions.canUpdate && removeRole(d.key, rid)}
                                 title="Remove role"
                               >
@@ -252,9 +360,14 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
               })}
 
               {!departments.length && (
-                <tr><td colSpan={4} style={{ padding: 12, opacity: 0.7 }}>No departments yet.</td></tr>
+                <tr>
+                  <td colSpan={4} style={{ padding: 12, opacity: 0.7 }}>
+                    No departments yet.
+                  </td>
+                </tr>
               )}
             </tbody>
+
           </table>
         </div>
       </div>
