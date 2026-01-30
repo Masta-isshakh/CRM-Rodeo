@@ -1,42 +1,32 @@
 // amplify/backend.ts
 import { defineBackend } from "@aws-amplify/backend";
+
 import { auth } from "./auth/resource";
 import { data } from "./data/resource";
-import { adminCognito } from "./functions/adminCognito/resource";
 
-const backend = defineBackend({
+// functions used by auth.access + data handlers
+import { inviteUser } from "./functions/invite-user/resource";
+import { setUserActive } from "./functions/set-user-active/resource";
+import { deleteUser } from "./functions/delete-user/resource";
+
+import { listDepartments } from "./functions/departments/list-departments/resource";
+import { createDepartment } from "./functions/departments/create-department/resource";
+import { deleteDepartment } from "./functions/departments/delete-department/resource";
+import { renameDepartment } from "./functions/departments/rename-department/resource";
+import { setUserDepartment } from "./functions/departments/set-user-department/resource";
+
+// NOTE: customMessage is already referenced by auth triggers; no need to add here.
+defineBackend({
   auth,
   data,
-  adminCognito,
+
+  inviteUser,
+  setUserActive,
+  deleteUser,
+
+  listDepartments,
+  createDepartment,
+  deleteDepartment,
+  renameDepartment,
+  setUserDepartment,
 });
-
-// Give the function permission to manage Cognito Groups + Users
-import { Effect, PolicyStatement } from "aws-cdk-lib/aws-iam";
-
-backend.adminCognito.resources.lambda.addToRolePolicy(
-  new PolicyStatement({
-    effect: Effect.ALLOW,
-    actions: [
-      "cognito-idp:ListGroups",
-      "cognito-idp:CreateGroup",
-      "cognito-idp:DeleteGroup",
-      "cognito-idp:GetGroup",
-      "cognito-idp:UpdateGroup",
-      "cognito-idp:ListUsers",
-      "cognito-idp:AdminAddUserToGroup",
-      "cognito-idp:AdminRemoveUserFromGroup",
-      "cognito-idp:AdminListGroupsForUser",
-      "cognito-idp:ListUsersInGroup",
-    ],
-    resources: ["*"],
-  })
-);
-
-// Inject USERPOOL_ID into function env
-backend.adminCognito.resources.cfnResources.cfnFunction.environment = {
-  variables: {
-    USERPOOL_ID: backend.auth.resources.userPool.userPoolId,
-    DEPT_PREFIX: "dept_", // your department group prefix
-    ADMINS_GROUP: "Admins",
-  },
-};
