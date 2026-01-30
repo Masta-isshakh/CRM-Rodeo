@@ -10,8 +10,25 @@ const client = generateClient<Schema>();
 
 type Dept = { key: string; name: string };
 
+function parseAWSJSON<T>(raw: unknown): T | null {
+  try {
+    if (raw == null) return null;
+    if (typeof raw === "string") {
+      const s = raw.trim();
+      if (!s) return null;
+      return JSON.parse(s) as T;
+    }
+    // already object/array
+    return raw as T;
+  } catch {
+    return null;
+  }
+}
+
 export default function DepartmentsAdmin({ permissions }: PageProps) {
-  if (!permissions.canRead) return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+  if (!permissions.canRead) {
+    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+  }
 
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
@@ -29,17 +46,30 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     setStatus("Loading...");
     try {
       const [deptRes, rolesRes, linksRes] = await Promise.all([
-        client.queries.adminListDepartments({}),
+        // ✅ no args (your query has no parameters)
+        client.queries.adminListDepartments(),
         client.models.AppRole.list({ limit: 1000 }),
         client.models.DepartmentRoleLink.list({ limit: 5000 }),
       ]);
 
-      // deptRes.data should be { departments: Dept[] }
-      const data: any = deptRes?.data;
-      const deptList: Dept[] =
-        (data?.departments as Dept[]) ??
-        (Array.isArray(data) ? (data as Dept[]) : []) ??
-        [];
+      // ✅ show GraphQL errors if any
+      const anyErrors = (deptRes as any)?.errors;
+      if (Array.isArray(anyErrors) && anyErrors.length) {
+        throw new Error(anyErrors.map((e: any) => e.message).join(" | "));
+      }
+
+      // ✅ deptRes.data is AWSJSON -> often a STRING
+      const raw = (deptRes as any)?.data;
+
+      // expected shapes:
+      // 1) { departments: Dept[] }
+      // 2) Dept[]   (if backend returns array)
+      const parsedObj = parseAWSJSON<{ departments?: Dept[] }>(raw);
+      const parsedArr = Array.isArray(raw) ? (raw as Dept[]) : parseAWSJSON<Dept[]>(raw);
+
+      const deptList =
+        (parsedObj?.departments && Array.isArray(parsedObj.departments) ? parsedObj.departments : null) ??
+        (Array.isArray(parsedArr) ? parsedArr : []);
 
       setDepartments(deptList);
       setRoles(rolesRes.data ?? []);
@@ -47,6 +77,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
       setStatus("");
     } catch (e: any) {
       console.error(e);
+      setDepartments([]);
       setStatus(e?.message ?? "Load failed");
     } finally {
       setLoading(false);
@@ -55,6 +86,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const roleIdsByDept = useMemo(() => {
@@ -72,6 +104,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
   const createDept = async () => {
     if (!permissions.canCreate) return;
     setStatus("");
+    setLoading(true);
     try {
       const name = newDept.trim();
       if (!name) throw new Error("Department name required");
@@ -81,12 +114,15 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     } catch (e: any) {
       console.error(e);
       setStatus(e?.message ?? "Create failed");
+    } finally {
+      setLoading(false);
     }
   };
 
   const renameDept = async () => {
     if (!permissions.canUpdate) return;
     setStatus("");
+    setLoading(true);
     try {
       const oldKey = renameFrom.trim();
       const newName = renameTo.trim();
@@ -98,6 +134,8 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     } catch (e: any) {
       console.error(e);
       setStatus(e?.message ?? "Rename failed");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -107,12 +145,15 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     if (!ok) return;
 
     setStatus("");
+    setLoading(true);
     try {
       await client.mutations.adminDeleteDepartment({ departmentKey });
       await load();
     } catch (e: any) {
       console.error(e);
       setStatus(e?.message ?? "Delete failed");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -121,8 +162,11 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     if (!roleId) return;
 
     setStatus("");
+    setLoading(true);
     try {
-      const exists = links.some((l) => l.departmentKey === department.key && String(l.roleId) === String(roleId));
+      const exists = links.some(
+        (l) => l.departmentKey === department.key && String(l.roleId) === String(roleId)
+      );
       if (exists) return;
 
       await client.models.DepartmentRoleLink.create({
@@ -135,14 +179,19 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     } catch (e: any) {
       console.error(e);
       setStatus(e?.message ?? "Assign failed");
+    } finally {
+      setLoading(false);
     }
   };
 
   const removeRole = async (departmentKey: string, roleId: string) => {
     if (!permissions.canUpdate) return;
     setStatus("");
+    setLoading(true);
     try {
-      const link = links.find((l) => l.departmentKey === departmentKey && String(l.roleId) === String(roleId));
+      const link = links.find(
+        (l) => l.departmentKey === departmentKey && String(l.roleId) === String(roleId)
+      );
       if (!link?.id) return;
 
       await client.models.DepartmentRoleLink.delete({ id: link.id });
@@ -150,6 +199,8 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     } catch (e: any) {
       console.error(e);
       setStatus(e?.message ?? "Remove failed");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -161,23 +212,46 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
       <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
         <h3 style={{ marginTop: 0 }}>Create Department</h3>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <TextField label="Department name" value={newDept} onChange={(e) => setNewDept((e.target as HTMLInputElement).value)} />
-          <Button variation="primary" onClick={createDept} isLoading={loading} isDisabled={!permissions.canCreate}>Create</Button>
-          <Button onClick={load} isLoading={loading}>Refresh</Button>
+          <TextField
+            label="Department name"
+            value={newDept}
+            onChange={(e) => setNewDept((e.target as HTMLInputElement).value)}
+          />
+          <Button variation="primary" onClick={createDept} isLoading={loading} isDisabled={!permissions.canCreate}>
+            Create
+          </Button>
+          <Button onClick={load} isLoading={loading}>
+            Refresh
+          </Button>
         </div>
       </div>
 
       <div style={{ marginTop: 16, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
         <h3 style={{ marginTop: 0 }}>Rename Department</h3>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <SelectField label="Old department" value={renameFrom} onChange={(e) => setRenameFrom((e.target as HTMLSelectElement).value)}>
+          <SelectField
+            label="Old department"
+            value={renameFrom}
+            onChange={(e) => setRenameFrom((e.target as HTMLSelectElement).value)}
+          >
             <option value="">Select...</option>
-            {departments.map((d) => <option key={d.key} value={d.key}>{d.name} ({d.key})</option>)}
+            {departments.map((d) => (
+              <option key={d.key} value={d.key}>
+                {d.name} ({d.key})
+              </option>
+            ))}
           </SelectField>
 
-          <TextField label="New name" value={renameTo} onChange={(e) => setRenameTo((e.target as HTMLInputElement).value)} />
-          <Button variation="primary" onClick={renameDept} isDisabled={!permissions.canUpdate}>Rename</Button>
+          <TextField
+            label="New name"
+            value={renameTo}
+            onChange={(e) => setRenameTo((e.target as HTMLInputElement).value)}
+          />
+          <Button variation="primary" onClick={renameDept} isDisabled={!permissions.canUpdate} isLoading={loading}>
+            Rename
+          </Button>
         </div>
+
         <p style={{ opacity: 0.75, marginTop: 8 }}>
           Renaming creates a new group, migrates users, then deletes the old group (Cognito cannot rename GroupName).
         </p>
@@ -234,14 +308,22 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                     </td>
 
                     <td style={{ padding: 10 }}>
-                      <SelectField label="" onChange={(e) => assignRole(d, (e.target as HTMLSelectElement).value)} isDisabled={!permissions.canUpdate}>
+                      <SelectField
+                        label=""
+                        onChange={(e) => assignRole(d, (e.target as HTMLSelectElement).value)}
+                        isDisabled={!permissions.canUpdate || loading}
+                      >
                         <option value="">Select role...</option>
-                        {roles.map((r) => <option key={r.id} value={r.id}>{r.name}</option>)}
+                        {roles.map((r) => (
+                          <option key={r.id} value={r.id}>
+                            {r.name}
+                          </option>
+                        ))}
                       </SelectField>
                     </td>
 
                     <td style={{ padding: 10 }}>
-                      <Button variation="destructive" onClick={() => deleteDept(d.key)} isDisabled={!permissions.canDelete}>
+                      <Button variation="destructive" onClick={() => deleteDept(d.key)} isDisabled={!permissions.canDelete || loading}>
                         Delete
                       </Button>
                     </td>
@@ -250,7 +332,11 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
               })}
 
               {!departments.length && (
-                <tr><td colSpan={4} style={{ padding: 12, opacity: 0.7 }}>No departments yet.</td></tr>
+                <tr>
+                  <td colSpan={4} style={{ padding: 12, opacity: 0.7 }}>
+                    No departments yet.
+                  </td>
+                </tr>
               )}
             </tbody>
           </table>
