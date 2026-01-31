@@ -1,8 +1,9 @@
 // src/lib/userPermissions.ts
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 import type { Schema } from "../../amplify/data/resource";
 import { getDataClient } from "./amplifyClient";
+import { RESOURCE_KEYS, type ResourceKey } from "./permissionKeys";
 
 export type Permission = {
   canRead: boolean;
@@ -15,29 +16,15 @@ export type Permission = {
 const EMPTY: Permission = { canRead: false, canCreate: false, canUpdate: false, canDelete: false, canApprove: false };
 const FULL: Permission = { canRead: true, canCreate: true, canUpdate: true, canDelete: true, canApprove: true };
 
-// Must match your Cognito group name exactly:
+// MUST match Cognito group name exactly
 const ADMIN_GROUP_NAME = "Admins";
 
-// Your departments in Cognito are like: DEPT_ACCOUNTANT, DEPT_MASTA, ...
+// your usual dept prefix (but we also support non-prefixed dept groups)
 const DEPT_PREFIX = "DEPT_";
 
-// These MUST match what MainLayout requests.
-export const POLICY_KEYS = [
-  "DASHBOARD",
-  "CUSTOMERS",
-  "TICKETS",
-  "EMPLOYEES",
-  "ACTIVITY_LOG",
-  "JOB_CARDS",
-  "CALL_TRACKING",
-  "INSPECTION_APPROVALS",
-] as const;
-
+// ---- helpers ----
 function normalizeKey(x: unknown) {
-  return String(x ?? "")
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, "_");
+  return String(x ?? "").trim().toUpperCase().replace(/\s+/g, "_");
 }
 
 function pickGroups(payload: any): string[] {
@@ -65,36 +52,53 @@ async function listAll<T>(
   return out.slice(0, max);
 }
 
+function dedupe(arr: string[]) {
+  return Array.from(new Set(arr.filter(Boolean)));
+}
+
+function resolveDeptCandidates(groups: string[]) {
+  // priority: any DEPT_ group
+  const dept = groups.find((g) => g.startsWith(DEPT_PREFIX));
+  if (dept) return [dept];
+
+  // otherwise: take any non-admin group as dept (common when you used group name "sales")
+  const nonAdmin = groups.filter(
+    (g) => g !== ADMIN_GROUP_NAME && g !== "ADMIN_GROUP" && g !== "ADMIN" && !g.startsWith("ADMIN_")
+  );
+
+  if (!nonAdmin.length) return [];
+
+  // if multiple, just try them all in order
+  const candidates: string[] = [];
+
+  for (const g of nonAdmin) {
+    candidates.push(g); // raw
+    candidates.push(normalizeKey(g)); // SALES
+    candidates.push(`${DEPT_PREFIX}${normalizeKey(g)}`); // DEPT_SALES
+  }
+
+  return dedupe(candidates);
+}
+
 export function usePermissions() {
   const client = getDataClient();
 
   const [loading, setLoading] = useState(true);
-  const [email, setEmail] = useState<string>("");
+  const [email, setEmail] = useState("");
   const [groups, setGroups] = useState<string[]>([]);
-  const [departmentKey, setDepartmentKey] = useState<string>("");
+  const [departmentKey, setDepartmentKey] = useState("");
   const [isAdminGroup, setIsAdminGroup] = useState(false);
 
-  const [permMap, setPermMap] = useState<Record<string, Permission>>({}); // policyKey -> permission
+  // key is normalized policyKey (ex: "TICKETS")
+  const [permMap, setPermMap] = useState<Record<string, Permission>>({});
 
   const can = useCallback(
-    (policyKey: string): Permission => {
+    (policyKey: ResourceKey | string): Permission => {
       if (isAdminGroup) return FULL;
-
       const k = normalizeKey(policyKey);
       return permMap[k] ?? EMPTY;
     },
     [isAdminGroup, permMap]
-  );
-
-  const debugSummary = useMemo(
-    () => ({
-      email,
-      groups,
-      departmentKey,
-      isAdminGroup,
-      permKeys: Object.keys(permMap),
-    }),
-    [email, groups, departmentKey, isAdminGroup, permMap]
   );
 
   useEffect(() => {
@@ -102,86 +106,112 @@ export function usePermissions() {
       setLoading(true);
 
       try {
-        // Force refresh to avoid "group changed but token still old"
+        // 1) session + groups
         const session = await fetchAuthSession({ forceRefresh: true });
         const idPayload: any = session.tokens?.idToken?.payload ?? {};
         const accessPayload: any = session.tokens?.accessToken?.payload ?? {};
 
-        const tokenGroups = pickGroups(idPayload).length ? pickGroups(idPayload) : pickGroups(accessPayload);
-        setGroups(tokenGroups);
+        // prefer access token groups (Cognito sometimes is more consistent there)
+        const gAccess = pickGroups(accessPayload);
+        const gId = pickGroups(idPayload);
+        const tokenGroups = gAccess.length ? gAccess : gId;
 
         const admin = tokenGroups.includes(ADMIN_GROUP_NAME);
+        setGroups(tokenGroups);
         setIsAdminGroup(admin);
 
-        // Email for display
+        // email
         const tokenEmail = String(idPayload?.email ?? "");
         if (tokenEmail) {
           setEmail(tokenEmail);
         } else {
           const u = await getCurrentUser();
-          const maybe = u.signInDetails?.loginId || u.username;
-          setEmail(String(maybe ?? ""));
+          setEmail(String(u.signInDetails?.loginId || u.username || ""));
         }
 
-        // Department group is the first DEPT_ group
-        const dept = tokenGroups.find((g) => g.startsWith(DEPT_PREFIX)) ?? "";
-        setDepartmentKey(dept);
-
-        // Admins get full access; still load map for UI consistency (optional)
+        // Admin => full map (for all keys)
         if (admin) {
-          // Give full access to all known policy keys
           const fullMap: Record<string, Permission> = {};
-          for (const k of POLICY_KEYS) fullMap[k] = FULL;
+          for (const k of RESOURCE_KEYS) fullMap[normalizeKey(k)] = FULL;
+          setDepartmentKey("");
           setPermMap(fullMap);
-          setLoading(false);
+
+          console.log("[PERMS] admin user", { groups: tokenGroups, fullKeys: Object.keys(fullMap) });
           return;
         }
 
-        if (!dept) {
-          // No department group => no policies => sidebar empty
-          setPermMap({});
-          setLoading(false);
-          return;
-        }
+        // 2) resolve departmentKey from groups (robust)
+        const deptCandidates = resolveDeptCandidates(tokenGroups);
 
-        // 1) Dept -> Roles
-        const links = await listAll<Schema["DepartmentRoleLink"]["type"]>(
-          (args) =>
-            client.models.DepartmentRoleLink.list({
-              ...args,
-              filter: { departmentKey: { eq: dept } },
-            } as any),
-          1000,
-          20000
-        );
+        // 3) dept -> roles (try candidates until one works)
+        let chosenDept = "";
+        let roleIds: string[] = [];
 
-        const roleIds = Array.from(
-          new Set(
+        for (const cand of deptCandidates) {
+          const links = await listAll<Schema["DepartmentRoleLink"]["type"]>(
+            (args) =>
+              client.models.DepartmentRoleLink.list({
+                ...args,
+                filter: { departmentKey: { eq: cand } },
+              } as any),
+            1000,
+            20000
+          );
+
+          const ids = dedupe(
             (links ?? [])
               .map((l) => String((l as any).roleId ?? ""))
               .filter(Boolean)
-          )
-        );
+          );
 
-        if (!roleIds.length) {
+          if (ids.length) {
+            chosenDept = cand;
+            roleIds = ids;
+            break;
+          }
+        }
+
+        setDepartmentKey(chosenDept);
+
+        if (!chosenDept || !roleIds.length) {
           setPermMap({});
-          setLoading(false);
+          console.log("[PERMS] no dept roles found", {
+            groups: tokenGroups,
+            deptCandidates,
+            chosenDept,
+            roleIds,
+          });
           return;
         }
 
-        // 2) Roles -> Policies
-        const allPolicies = await listAll<Schema["RolePolicy"]["type"]>(
-          (args) => client.models.RolePolicy.list(args),
-          1000,
-          20000
-        );
+        // 4) policies read
+        const [allPolicies, allRoles] = await Promise.all([
+          listAll<Schema["RolePolicy"]["type"]>((args) => client.models.RolePolicy.list(args), 1000, 20000),
+          listAll<Schema["AppRole"]["type"]>((args) => client.models.AppRole.list(args), 1000, 20000),
+        ]);
+
+        // roleName -> roleId (to handle bad data where RolePolicy.roleId stores name)
+        const roleNameToId = new Map<string, string>();
+        for (const r of allRoles ?? []) {
+          if (!r?.id || !(r as any)?.name) continue;
+          roleNameToId.set(normalizeKey((r as any).name), String(r.id));
+        }
 
         const roleIdSet = new Set(roleIds);
 
+        // 5) aggregate permissions per policyKey
         const map: Record<string, Permission> = {};
+
         for (const rp of allPolicies ?? []) {
-          const rid = String((rp as any).roleId ?? "");
-          if (!roleIdSet.has(rid)) continue;
+          let rid = String((rp as any).roleId ?? "");
+          if (!rid) continue;
+
+          // if not matching by ID, try matching by role NAME (bad data fix)
+          if (!roleIdSet.has(rid)) {
+            const maybe = roleNameToId.get(normalizeKey(rid));
+            if (maybe && roleIdSet.has(maybe)) rid = maybe;
+            else continue;
+          }
 
           const key = normalizeKey((rp as any).policyKey);
           if (!key) continue;
@@ -197,16 +227,23 @@ export function usePermissions() {
         }
 
         setPermMap(map);
+
+        console.log("[PERMS] loaded", {
+          groups: tokenGroups,
+          deptCandidates,
+          chosenDept,
+          roleIds,
+          permKeys: Object.keys(map),
+        });
       } catch (e) {
-        console.error("[PERMS] Failed to load permissions:", e);
+        console.error("[PERMS] failed:", e);
         setPermMap({});
+        setDepartmentKey("");
       } finally {
         setLoading(false);
-        console.log("[PERMS] summary:", debugSummary);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [client]);
 
   return { loading, email, groups, departmentKey, isAdminGroup, can };
 }
