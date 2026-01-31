@@ -2,5 +2,6 @@
 import { Amplify } from "aws-amplify";
 import outputs from "../amplify_outputs.json";
 
-// IMPORTANT: configure once, and as early as possible
-Amplify.configure(outputs);
+// Configure Amplify BEFORE any Auth/Data usage.
+// (AWS examples configure first, then generateClient). 
+Amplify.configure(outputs, { ssr: false });

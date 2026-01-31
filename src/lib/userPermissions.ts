@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 import type { PermissionSet } from "./PageProps";
-import { getClient } from "./amplifyClient";
+import { getDataClient } from "./amplifyClient";
 
 // ✅ MUST MATCH backend ADMIN_GROUP exactly
 const ADMIN_GROUP_NAME = "Admins";
@@ -38,7 +38,7 @@ export function usePermissions() {
   const loadPermissions = async () => {
     setLoading(true);
     try {
-      const client = getClient();
+      const client = getDataClient();
 
       const u = await getCurrentUser();
 
