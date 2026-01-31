@@ -3,51 +3,73 @@ import { useEffect, useMemo, useState } from "react";
 import { Button, TextField, SelectField } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
 
-import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
-
-const client = generateClient<Schema>();
+import { getDataClient } from "../lib/amplifyClient";
 
 type Dept = { key: string; name: string };
 
-function parseDepartments(deptRes: any): Dept[] {
-  // Supports many shapes:
-  // 1) { data: { departments: [{key,name}] } }
-  // 2) { data: { departments: "JSON_STRING" } }
-  // 3) { departments: [...] } or { departments: "JSON_STRING" }
-  // 4) { data: { adminListDepartments: { departments: ... } } } (rare nesting)
-  const root = deptRes?.data ?? deptRes ?? {};
-  const direct = root?.departments ?? root?.adminListDepartments?.departments ?? root?.data?.departments;
-
-  if (Array.isArray(direct)) return direct as Dept[];
-
-  if (typeof direct === "string") {
-    try {
-      const parsed = JSON.parse(direct);
-      if (Array.isArray(parsed)) return parsed as Dept[];
-      if (Array.isArray(parsed?.departments)) return parsed.departments as Dept[];
-    } catch {
-      // ignore
+function safeJsonParse<T>(raw: unknown): T | null {
+  try {
+    if (raw == null) return null;
+    if (typeof raw === "string") {
+      const s = raw.trim();
+      if (!s) return null;
+      return JSON.parse(s) as T;
     }
+    return raw as T;
+  } catch {
+    return null;
+  }
+}
+
+function normalizeDepartmentsFromAdminList(deptRes: any): Dept[] {
+  // adminListDepartments returns AWSJSON in deptRes.data (often STRING)
+  // Possible shapes:
+  // 1) raw = "[{key,name}]"
+  // 2) raw = {"departments":[{key,name}]}
+  // 3) raw = {"departments":"[{key,name}]"}
+  // 4) raw = {departments:[...]} or {departments:"..."} (rare)
+  // 5) raw already array (rare)
+
+  const raw = deptRes?.data ?? deptRes;
+
+  // If it's an array already
+  if (Array.isArray(raw)) return raw as Dept[];
+
+  // Parse top-level AWSJSON string/object
+  const parsedTop = safeJsonParse<any>(raw);
+
+  // If parsing yields array
+  if (Array.isArray(parsedTop)) return parsedTop as Dept[];
+
+  // If parsing yields object with departments
+  const departmentsField = parsedTop?.departments ?? (raw as any)?.departments;
+
+  if (Array.isArray(departmentsField)) return departmentsField as Dept[];
+
+  if (typeof departmentsField === "string") {
+    const parsedDept = safeJsonParse<any>(departmentsField);
+    if (Array.isArray(parsedDept)) return parsedDept as Dept[];
+    if (Array.isArray(parsedDept?.departments)) return parsedDept.departments as Dept[];
   }
 
-  // Sometimes resolvers return: { departmentsJson: "..." }
-  const maybeJson = root?.departmentsJson ?? root?.adminListDepartments?.departmentsJson;
-  if (typeof maybeJson === "string") {
-    try {
-      const parsed = JSON.parse(maybeJson);
-      if (Array.isArray(parsed)) return parsed as Dept[];
-      if (Array.isArray(parsed?.departments)) return parsed.departments as Dept[];
-    } catch {
-      // ignore
-    }
+  // Some resolvers return { departmentsJson: "..." }
+  const departmentsJsonField = parsedTop?.departmentsJson ?? (raw as any)?.departmentsJson;
+  if (typeof departmentsJsonField === "string") {
+    const parsedDept = safeJsonParse<any>(departmentsJsonField);
+    if (Array.isArray(parsedDept)) return parsedDept as Dept[];
+    if (Array.isArray(parsedDept?.departments)) return parsedDept.departments as Dept[];
   }
 
   return [];
 }
 
-async function listAll<T>(listFn: (args: any) => Promise<any>, pageSize = 1000, max = 10000): Promise<T[]> {
+async function listAll<T>(
+  listFn: (args: any) => Promise<any>,
+  pageSize = 1000,
+  max = 10000
+): Promise<T[]> {
   const out: T[] = [];
   let nextToken: string | null | undefined = undefined;
 
@@ -68,16 +90,19 @@ export default function Users({ permissions }: PageProps) {
     return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
   }
 
+  const client = getDataClient();
+
   const [email, setEmail] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [firstName, setFirstName] = useState(""); // UI field
+  const [lastName, setLastName] = useState("");   // UI field
   const [departmentKey, setDepartmentKey] = useState("");
   const [inviteStatus, setInviteStatus] = useState("");
 
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
-  type UserWithActive = Schema["Customer"]["type"] & { isActive?: boolean; departmentKey?: string };
-  const [users, setUsers] = useState<UserWithActive[]>([]);
+
+  type UserRow = Schema["UserProfile"]["type"];
+  const [users, setUsers] = useState<UserRow[]>([]);
   const [departments, setDepartments] = useState<Dept[]>([]);
   const [search, setSearch] = useState("");
 
@@ -89,21 +114,33 @@ export default function Users({ permissions }: PageProps) {
 
   const load = async () => {
     setLoading(true);
-    setStatus("");
+    setStatus("Loading...");
     try {
       const [allUsers, deptRes] = await Promise.all([
-        listAll<Schema["Customer"]["type"]>((args) => client.models.Customer.list(args), 1000, 20000),
-        client.queries.adminListDepartments({}),
+        listAll<UserRow>((args) => client.models.UserProfile.list(args), 1000, 20000),
+        client.queries.adminListDepartments(), // ✅ no args
       ]);
 
-      const sorted = [...(allUsers ?? [])].sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")));
-      const deptList = parseDepartments(deptRes);
+      // show GraphQL errors if any
+      const anyErrors = (deptRes as any)?.errors;
+      if (Array.isArray(anyErrors) && anyErrors.length) {
+        throw new Error(anyErrors.map((e: any) => e.message).join(" | "));
+      }
+
+      const deptList = normalizeDepartmentsFromAdminList(deptRes);
+
+      // sort newest first (createdAt may be null)
+      const sorted = [...(allUsers ?? [])].sort((a, b) =>
+        String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""))
+      );
 
       setUsers(sorted);
       setDepartments(deptList);
       setStatus(`Loaded ${sorted.length} users • ${deptList.length} departments.`);
     } catch (e: any) {
       console.error(e);
+      setUsers([]);
+      setDepartments([]);
       setStatus(e?.message ?? "Failed to load.");
     } finally {
       setLoading(false);
@@ -112,6 +149,7 @@ export default function Users({ permissions }: PageProps) {
 
   useEffect(() => {
     load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const filtered = useMemo(() => {
@@ -119,7 +157,7 @@ export default function Users({ permissions }: PageProps) {
     if (!q) return users;
     return users.filter((u) => {
       const deptName = departments.find((d) => d.key === u.departmentKey)?.name ?? "";
-      return `${u.email ?? ""} ${u.name ?? ""} ${deptName}`.toLowerCase().includes(q);
+      return `${u.email ?? ""} ${u.fullName ?? ""} ${deptName}`.toLowerCase().includes(q);
     });
   }, [users, search, departments]);
 
@@ -128,31 +166,29 @@ export default function Users({ permissions }: PageProps) {
     setInviteStatus("Inviting...");
     try {
       const e = email.trim().toLowerCase();
-      const n = fullName.trim();
+      const fn = firstName.trim();
       const ln = lastName.trim();
-      if (!e || !n || !ln) throw new Error("Email, full name, and last name are required.");
+      if (!e || !fn || !ln) throw new Error("Email, first name, and last name are required.");
       if (!departmentKey) throw new Error("Select a department.");
 
       const dept = departments.find((d) => d.key === departmentKey);
+      const fullName = `${fn} ${ln}`.trim();
 
-      // Use the correct mutation name or a generic create method if inviteUser does not exist.
-      // Example: createUserProfile (adjust to your actual mutation name)
-      const res = await client.models.Customer.create({
+      const res = await client.mutations.inviteUser({
         email: e,
-        name: n,
-        lastname: ln,
-        // Only include departmentKey and departmentName if they exist in the Customer type
-        ...(departmentKey && { departmentKey }),
-        ...(dept?.name && { departmentName: dept.name }),
+        fullName,
+        departmentKey,
+        departmentName: dept?.name ?? "",
       });
 
-      if ((res as any)?.errors?.length) {
-        throw new Error((res as any).errors[0]?.message ?? "Invite failed.");
+      const errs = (res as any)?.errors;
+      if (Array.isArray(errs) && errs.length) {
+        throw new Error(errs.map((x: any) => x.message).join(" | "));
       }
 
-      setInviteStatus(`Invitation sent to ${e}.`);
+      setInviteStatus(`Invitation created for ${e}.`);
       setEmail("");
-      setFullName("");
+      setFirstName("");
       setLastName("");
       setDepartmentKey("");
       await load();
@@ -168,60 +204,64 @@ export default function Users({ permissions }: PageProps) {
     setInviteStatus("Set-password link copied.");
   };
 
-  const setDepartmentForUser = async (u: Schema["Customer"]["type"], deptKey: string) => {
+  const setDepartmentForUser = async (u: UserRow, deptKey: string) => {
     if (!permissions.canUpdate) return;
     if (!u.email) return;
 
     setStatus("");
+    setLoading(true);
     try {
       const dept = departments.find((d) => d.key === deptKey);
 
-      // Replace with the correct mutation or update method for setting a user's department.
-      // Example using a generic update mutation (adjust as needed for your schema):
-            const res = await client.models.Customer.update({
-              id: u.id,
-              // If departmentKey is a valid property, update it instead
-              ...(dept?.key && { departmentKey: dept.key }),
-            });
-      // If you have a custom mutation, use its correct name here.
+      const res = await client.mutations.adminSetUserDepartment({
+        email: u.email,
+        departmentKey: deptKey,
+        departmentName: dept?.name ?? "",
+      });
 
-      if ((res as any)?.errors?.length) {
-        throw new Error((res as any).errors[0]?.message ?? "Failed to set department.");
+      const errs = (res as any)?.errors;
+      if (Array.isArray(errs) && errs.length) {
+        throw new Error(errs.map((x: any) => x.message).join(" | "));
       }
 
       await load();
     } catch (e: any) {
       console.error(e);
       setStatus(e?.message ?? "Failed to set department.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const toggleActive = async (u: Schema["Customer"]["type"]) => {
+  const toggleActive = async (u: UserRow) => {
     if (!permissions.canUpdate) return;
-    if (!u.id) return;
+    if (!u.email) return;
 
     setStatus("");
+    setLoading(true);
     try {
-      // Replace 'isActive' with the correct field name if your schema supports it.
-      // For now, only update the id, or add the correct field if available.
-      const res = await client.models.Customer.update({
-        id: u.id,
-        // Add the correct field here if your schema supports enabling/disabling users.
-        // Example: status: u.status === "ACTIVE" ? "INACTIVE" : "ACTIVE",
+      const next = !Boolean(u.isActive);
+
+      const res = await client.mutations.adminSetUserActive({
+        email: u.email,
+        isActive: next,
       });
 
-      if ((res as any)?.errors?.length) {
-        throw new Error((res as any).errors[0]?.message ?? "Failed to change status.");
+      const errs = (res as any)?.errors;
+      if (Array.isArray(errs) && errs.length) {
+        throw new Error(errs.map((x: any) => x.message).join(" | "));
       }
 
       await load();
     } catch (e: any) {
       console.error(e);
       setStatus(e?.message ?? "Failed to change status.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const deleteUser = async (u: Schema["Customer"]["type"]) => {
+  const deleteUser = async (u: UserRow) => {
     if (!permissions.canDelete) return;
     if (!u.email) return;
 
@@ -229,17 +269,21 @@ export default function Users({ permissions }: PageProps) {
     if (!ok) return;
 
     setStatus("");
+    setLoading(true);
     try {
-      const res = await client.models.Customer.delete({ id: u.id });
+      const res = await client.mutations.adminDeleteUser({ email: u.email });
 
-      if ((res as any)?.errors?.length) {
-        throw new Error((res as any).errors[0]?.message ?? "Failed to delete user.");
+      const errs = (res as any)?.errors;
+      if (Array.isArray(errs) && errs.length) {
+        throw new Error(errs.map((x: any) => x.message).join(" | "));
       }
 
       await load();
     } catch (e: any) {
       console.error(e);
       setStatus(e?.message ?? "Failed to delete user.");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -248,41 +292,86 @@ export default function Users({ permissions }: PageProps) {
       <h2>Users</h2>
 
       {/* Invite user */}
-      <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16, marginBottom: 16 }}>
+      <div
+        style={{
+          background: "#fff",
+          border: "1px solid #e5e7eb",
+          borderRadius: 10,
+          padding: 16,
+          marginBottom: 16,
+        }}
+      >
         <h3 style={{ marginTop: 0 }}>Invite user</h3>
 
         <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr 1fr" }}>
-          <TextField label="Full name" value={fullName} onChange={(e) => setFullName((e.target as HTMLInputElement).value)} />
-          <TextField label="Last name" value={lastName} onChange={(e) => setLastName((e.target as HTMLInputElement).value)} />
-          <TextField label="Email" type="email" value={email} onChange={(e) => setEmail((e.target as HTMLInputElement).value)} />
+          <TextField
+            label="First name"
+            value={firstName}
+            onChange={(e) => setFirstName((e.target as HTMLInputElement).value)}
+          />
+          <TextField
+            label="Last name"
+            value={lastName}
+            onChange={(e) => setLastName((e.target as HTMLInputElement).value)}
+          />
+          <TextField
+            label="Email"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail((e.target as HTMLInputElement).value)}
+          />
 
-          <SelectField label="Department" value={departmentKey} onChange={(e) => setDepartmentKey((e.target as HTMLSelectElement).value)}>
+          <SelectField
+            label="Department"
+            value={departmentKey}
+            onChange={(e) => setDepartmentKey((e.target as HTMLSelectElement).value)}
+            isDisabled={loading}
+          >
             <option value="">Select…</option>
             {departments.map((d) => (
-              <option key={d.key} value={d.key}>{d.name}</option>
+              <option key={d.key} value={d.key}>
+                {d.name}
+              </option>
             ))}
           </SelectField>
 
           <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
-            <Button variation="primary" onClick={invite} isDisabled={!permissions.canCreate}>Invite</Button>
-            <Button onClick={copyInviteLink} isDisabled={!inviteLink}>Copy set-password link</Button>
-            <Button onClick={load} isLoading={loading}>Refresh</Button>
+            <Button variation="primary" onClick={invite} isDisabled={!permissions.canCreate || loading}>
+              Invite
+            </Button>
+            <Button onClick={copyInviteLink} isDisabled={!inviteLink}>
+              Copy set-password link
+            </Button>
+            <Button onClick={load} isLoading={loading}>
+              Refresh
+            </Button>
           </div>
         </div>
 
         <div style={{ marginTop: 10, fontSize: 13, opacity: 0.85 }}>
           <div style={{ fontWeight: 600, marginBottom: 6 }}>Set-password link</div>
-          <div style={{ wordBreak: "break-all" }}>{inviteLink || "Enter an email to generate the link."}</div>
+          <div style={{ wordBreak: "break-all" }}>
+            {inviteLink || "Enter an email to generate the link."}
+          </div>
         </div>
 
-        {inviteStatus && <div style={{ marginTop: 12, padding: 10, border: "1px solid #eee", borderRadius: 8 }}>{inviteStatus}</div>}
+        {inviteStatus && (
+          <div style={{ marginTop: 12, padding: 10, border: "1px solid #eee", borderRadius: 8 }}>
+            {inviteStatus}
+          </div>
+        )}
       </div>
 
       {/* Existing users */}
       <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
         <div style={{ display: "flex", gap: 12, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
           <h3 style={{ margin: 0 }}>Existing users</h3>
-          <TextField label="Search" placeholder="email, name..." value={search} onChange={(e) => setSearch((e.target as HTMLInputElement).value)} />
+          <TextField
+            label="Search"
+            placeholder="email, name..."
+            value={search}
+            onChange={(e) => setSearch((e.target as HTMLInputElement).value)}
+          />
         </div>
 
         {status && <div style={{ marginTop: 10, fontSize: 13, opacity: 0.8 }}>{status}</div>}
@@ -291,7 +380,7 @@ export default function Users({ permissions }: PageProps) {
           <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 1100 }}>
             <thead>
               <tr style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>
-                <th style={{ padding: 10 }}>Name</th>
+                <th style={{ padding: 10 }}>Full name</th>
                 <th style={{ padding: 10 }}>Email</th>
                 <th style={{ padding: 10 }}>Department</th>
                 <th style={{ padding: 10 }}>Active</th>
@@ -301,19 +390,21 @@ export default function Users({ permissions }: PageProps) {
             <tbody>
               {filtered.map((u) => (
                 <tr key={u.id} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                  <td style={{ padding: 10 }}>{u.name}</td>
-                  <td style={{ padding: 10 }}>{u.email}</td>
+                  <td style={{ padding: 10 }}>{u.fullName ?? "-"}</td>
+                  <td style={{ padding: 10 }}>{u.email ?? "-"}</td>
 
                   <td style={{ padding: 10 }}>
                     <SelectField
                       label=""
                       value={u.departmentKey ?? ""}
                       onChange={(e) => setDepartmentForUser(u, (e.target as HTMLSelectElement).value)}
-                      isDisabled={!permissions.canUpdate}
+                      isDisabled={!permissions.canUpdate || loading}
                     >
                       <option value="">Select…</option>
                       {departments.map((d) => (
-                        <option key={d.key} value={d.key}>{d.name}</option>
+                        <option key={d.key} value={d.key}>
+                          {d.name}
+                        </option>
                       ))}
                     </SelectField>
                     <div style={{ fontSize: 12, opacity: 0.65, marginTop: 4 }}>
@@ -325,10 +416,10 @@ export default function Users({ permissions }: PageProps) {
 
                   <td style={{ padding: 10 }}>
                     <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                      <Button size="small" onClick={() => toggleActive(u)} isDisabled={!permissions.canUpdate}>
+                      <Button size="small" onClick={() => toggleActive(u)} isDisabled={!permissions.canUpdate || loading}>
                         {u.isActive ? "Disable" : "Enable"}
                       </Button>
-                      <Button size="small" variation="destructive" onClick={() => deleteUser(u)} isDisabled={!permissions.canDelete}>
+                      <Button size="small" variation="destructive" onClick={() => deleteUser(u)} isDisabled={!permissions.canDelete || loading}>
                         Delete
                       </Button>
                     </div>
