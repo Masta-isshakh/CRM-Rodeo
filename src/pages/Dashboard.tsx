@@ -1,10 +1,7 @@
 import { useEffect, useState } from "react";
-import { generateClient } from "aws-amplify/data";
-import type { Schema } from "../../amplify/data/resource";
 import "./dashboard.css";
 import type { PageProps } from "../lib/PageProps";
-
-const client = generateClient<Schema>();
+import { getDataClient } from "../lib/amplifyClient";
 
 type DashboardProps = PageProps & {
   showEmployeesKpi: boolean;
@@ -12,9 +9,9 @@ type DashboardProps = PageProps & {
 };
 
 export default function Dashboard({ permissions, showEmployeesKpi, showCustomersKpi }: DashboardProps) {
-  if (!permissions.canRead) {
-    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
-  }
+  if (!permissions.canRead) return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+
+  const client = getDataClient();
 
   const EmployeeModel = (client.models as any).Employee as any;
   const CustomerModel = (client.models as any).Customer as any;
@@ -34,16 +31,12 @@ export default function Dashboard({ permissions, showEmployeesKpi, showCustomers
       if (showEmployeesKpi && EmployeeModel) {
         const res = await EmployeeModel.list({ limit: 2000 });
         setEmployeeCount((res.data ?? []).length);
-      } else {
-        setEmployeeCount(0);
-      }
+      } else setEmployeeCount(0);
 
       if (showCustomersKpi && CustomerModel) {
         const res = await CustomerModel.list({ limit: 2000 });
         setCustomerCount((res.data ?? []).length);
-      } else {
-        setCustomerCount(0);
-      }
+      } else setCustomerCount(0);
     } catch (error) {
       console.error("Dashboard stats error:", error);
     } finally {

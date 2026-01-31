@@ -2,12 +2,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Button, TextField, SelectField } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
 
-import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
 import { getCurrentUser } from "aws-amplify/auth";
 
-const client = generateClient<Schema>();
+import { getDataClient } from "../lib/amplifyClient";
+const client = getDataClient();
 
 type TicketRow = Schema["Ticket"]["type"];
 
