@@ -1,10 +1,5 @@
 import { useMemo, useState } from "react";
-import {
-  signIn,
-  confirmSignIn,
-  resetPassword,
-  confirmResetPassword,
-} from "aws-amplify/auth";
+import { signIn, confirmSignIn, resetPassword, confirmResetPassword } from "aws-amplify/auth";
 
 function getParam(name: string) {
   const u = new URL(window.location.href);
@@ -13,17 +8,18 @@ function getParam(name: string) {
 
 export default function SetPasswordPage() {
   const emailFromLink = useMemo(() => getParam("email"), []);
+  const usernameFromLink = useMemo(() => getParam("username"), []);
 
-  // Mode: first time (temp password) OR forgot password (code)
+  // Mode: FIRST_TIME (temp password) OR RESET (code)
   const [mode, setMode] = useState<"FIRST_TIME" | "RESET">("FIRST_TIME");
 
-  // FIRST_TIME fields
-  const [username, setUsername] = useState(emailFromLink); // may be email OR uuid
+  // FIRST_TIME
+  const [username, setUsername] = useState(usernameFromLink || emailFromLink);
   const [tempPassword, setTempPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newPassword2, setNewPassword2] = useState("");
 
-  // RESET fields
+  // RESET
   const [resetUsername, setResetUsername] = useState(emailFromLink);
   const [code, setCode] = useState("");
   const [resetNewPassword, setResetNewPassword] = useState("");
@@ -37,34 +33,30 @@ export default function SetPasswordPage() {
   const doFirstTime = async () => {
     const u = username.trim();
     const t = tempPassword;
-    const p1 = newPassword;
-    const p2 = newPassword2;
 
     if (!u || !t) throw new Error("Username and temporary password are required.");
-    if (!p1 || p1.length < 8) throw new Error("New password must be at least 8 characters.");
-    if (p1 !== p2) throw new Error("New password confirmation does not match.");
+    if (!newPassword || newPassword.length < 8) throw new Error("New password must be at least 8 characters.");
+    if (newPassword !== newPassword2) throw new Error("New password confirmation does not match.");
 
     setStatus("Signing in with temporary password...");
-
     const res = await signIn({ username: u, password: t });
 
-    // In Amplify v6, NEW_PASSWORD_REQUIRED appears as a nextStep
+    // NEW_PASSWORD_REQUIRED
     if (res?.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED") {
       setStatus("Setting your new password...");
-      await confirmSignIn({ challengeResponse: p1 });
+      await confirmSignIn({ challengeResponse: newPassword });
       setStatus("Password set. Redirecting...");
       goHome();
       return;
     }
 
-    // If it’s already DONE, just go home
     if (res?.isSignedIn) {
       setStatus("Signed in. Redirecting...");
       goHome();
       return;
     }
 
-    setStatus("Unexpected sign-in step. Please contact admin.");
+    setStatus("Unexpected sign-in step. Contact admin.");
   };
 
   const startReset = async () => {
@@ -77,16 +69,18 @@ export default function SetPasswordPage() {
 
   const finishReset = async () => {
     const u = resetUsername.trim();
-    const p1 = resetNewPassword;
-    const p2 = resetNewPassword2;
-
     if (!u) throw new Error("Email/username is required.");
     if (!code.trim()) throw new Error("Verification code is required.");
-    if (!p1 || p1.length < 8) throw new Error("New password must be at least 8 characters.");
-    if (p1 !== p2) throw new Error("New password confirmation does not match.");
+    if (!resetNewPassword || resetNewPassword.length < 8) throw new Error("New password must be at least 8 characters.");
+    if (resetNewPassword !== resetNewPassword2) throw new Error("New password confirmation does not match.");
 
     setStatus("Confirming reset...");
-    await confirmResetPassword({ username: u, confirmationCode: code.trim(), newPassword: p1 });
+    await confirmResetPassword({
+      username: u,
+      confirmationCode: code.trim(),
+      newPassword: resetNewPassword,
+    });
+
     setStatus("Password reset. Redirecting...");
     goHome();
   };
@@ -107,7 +101,7 @@ export default function SetPasswordPage() {
 
   return (
     <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 16, background: "#f6f7fb" }}>
-      <div style={{ width: "100%", maxWidth: 520, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 14, padding: 18 }}>
+      <div style={{ width: "100%", maxWidth: 540, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 14, padding: 18 }}>
         <h2 style={{ marginTop: 0 }}>Set your password</h2>
 
         <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
@@ -143,22 +137,21 @@ export default function SetPasswordPage() {
         {mode === "FIRST_TIME" ? (
           <>
             <label style={{ display: "block", marginTop: 10 }}>
-              Username (or Email)
+              Username (from email)
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 style={{ width: "100%", marginTop: 6, padding: 10, borderRadius: 10, border: "1px solid #e5e7eb" }}
-                placeholder="Paste the Username from the email"
+                placeholder="Should already be filled from the invite link"
               />
             </label>
 
             <label style={{ display: "block", marginTop: 10 }}>
-              Temporary password
+              Temporary password (from email)
               <input
                 value={tempPassword}
                 onChange={(e) => setTempPassword(e.target.value)}
                 style={{ width: "100%", marginTop: 6, padding: 10, borderRadius: 10, border: "1px solid #e5e7eb" }}
-                placeholder="Paste the temporary password from the email"
               />
             </label>
 
@@ -190,7 +183,6 @@ export default function SetPasswordPage() {
                 value={resetUsername}
                 onChange={(e) => setResetUsername(e.target.value)}
                 style={{ width: "100%", marginTop: 6, padding: 10, borderRadius: 10, border: "1px solid #e5e7eb" }}
-                placeholder="Email usually works if your pool is email-login"
               />
             </label>
 
@@ -270,7 +262,7 @@ export default function SetPasswordPage() {
         )}
 
         <div style={{ marginTop: 12, fontSize: 12, opacity: 0.75 }}>
-          If login still says “incorrect”, it usually means the **Username is not the email**. Use the Username shown in the invite email.
+          If login says “incorrect”, it usually means the user is still in <b>FORCE_CHANGE_PASSWORD</b>. Use this page first.
         </div>
       </div>
     </div>

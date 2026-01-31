@@ -37,10 +37,10 @@ async function ensureGroup(userPoolId: string, groupName: string, description: s
 }
 
 export const handler: Handler = async (event) => {
-  const email = event.arguments.email.trim().toLowerCase();
-  const fullName = event.arguments.fullName.trim();
-  const departmentKey = event.arguments.departmentKey.trim();
-  const departmentNameFromArgs = (event.arguments.departmentName ?? "").trim();
+  const email = String(event.arguments.email ?? "").trim().toLowerCase();
+  const fullName = String(event.arguments.fullName ?? "").trim();
+  const departmentKey = String(event.arguments.departmentKey ?? "").trim();
+  const departmentNameFromArgs = String(event.arguments.departmentName ?? "").trim();
 
   if (!email || !fullName) throw new Error("email and fullName are required.");
   if (!departmentKey.startsWith(DEPT_PREFIX)) {
@@ -53,14 +53,14 @@ export const handler: Handler = async (event) => {
   const departmentName = departmentNameFromArgs || keyToLabel(departmentKey);
   await ensureGroup(userPoolId, departmentKey, departmentName);
 
-  // 1) Create user (or fetch if exists)
   let sub: string | undefined;
 
+  // 1) Create user OR re-send invite if user already exists
   try {
     const createRes = await cognito.send(
       new AdminCreateUserCommand({
         UserPoolId: userPoolId,
-        Username: email,
+        Username: email, // ✅ Email as username
         UserAttributes: [
           { Name: "email", Value: email },
           { Name: "email_verified", Value: "true" },
@@ -71,8 +71,23 @@ export const handler: Handler = async (event) => {
     );
     sub = getAttr(createRes.User?.Attributes, "sub");
   } catch (e: any) {
-    // If user already exists, continue (we still assign group + update profile)
     if (e?.name !== "UsernameExistsException") throw e;
+
+    // ✅ RESEND invitation to existing FORCE_CHANGE_PASSWORD user
+    // If the user is already CONFIRMED, Cognito may reject RESEND — that’s fine.
+    try {
+      const resendRes = await cognito.send(
+        new AdminCreateUserCommand({
+          UserPoolId: userPoolId,
+          Username: email,
+          MessageAction: "RESEND",
+          DesiredDeliveryMediums: ["EMAIL"],
+        })
+      );
+      sub = getAttr(resendRes.User?.Attributes, "sub");
+    } catch {
+      // If resend fails (user already confirmed), we just continue.
+    }
   }
 
   // 2) Ensure user is in department group
