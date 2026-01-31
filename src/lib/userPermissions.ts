@@ -1,14 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
-import { Amplify } from "aws-amplify";
-import { Hub } from "aws-amplify/utils";
-import { generateClient } from "aws-amplify/data";
-import type { Schema } from "../../amplify/data/resource";
 import type { PermissionSet } from "./PageProps";
+import { getClient } from "./amplifyClient";
 
-const client = generateClient<Schema>();
-
-// MUST match backend group exactly
+// ✅ MUST MATCH backend ADMIN_GROUP exactly
 const ADMIN_GROUP_NAME = "Admins";
 
 const EMPTY: PermissionSet = {
@@ -27,21 +22,11 @@ const FULL: PermissionSet = {
   canApprove: true,
 };
 
-function readGroupsFromPayload(payload: any): string[] {
+function readGroupsFromTokenPayload(payload: any): string[] {
   const g = payload?.["cognito:groups"];
   if (Array.isArray(g)) return g.map(String);
   if (typeof g === "string") return [g];
   return [];
-}
-
-function getRuntimeUserPoolId(): string {
-  // Amplify v6 shape
-  const cfg: any = Amplify.getConfig();
-  return (
-    cfg?.Auth?.Cognito?.userPoolId ||
-    cfg?.Auth?.userPoolId ||
-    ""
-  );
 }
 
 export function usePermissions() {
@@ -49,16 +34,15 @@ export function usePermissions() {
   const [email, setEmail] = useState("");
   const [isAdminGroup, setIsAdminGroup] = useState(false);
   const [permMap, setPermMap] = useState<Record<string, PermissionSet>>({});
-  const [error, setError] = useState<string>("");
 
   const loadPermissions = async () => {
     setLoading(true);
-    setError("");
-
     try {
+      const client = getClient();
+
       const u = await getCurrentUser();
 
-      // forceRefresh ensures new group membership appears after you add user to group
+      // ✅ forceRefresh so new group membership is included
       const session = await fetchAuthSession({ forceRefresh: true });
 
       const idPayload = (session.tokens?.idToken?.payload ?? {}) as any;
@@ -66,10 +50,13 @@ export function usePermissions() {
 
       const groups = Array.from(
         new Set([
-          ...readGroupsFromPayload(idPayload),
-          ...readGroupsFromPayload(accessPayload),
+          ...readGroupsFromTokenPayload(idPayload),
+          ...readGroupsFromTokenPayload(accessPayload),
         ])
       );
+
+      console.log("[PERMS] ADMIN_GROUP_NAME expected:", ADMIN_GROUP_NAME);
+      console.log("[PERMS] Groups from token:", groups);
 
       const login =
         u.signInDetails?.loginId ||
@@ -80,19 +67,12 @@ export function usePermissions() {
 
       setEmail(String(login || ""));
 
-      // ✅ IMPORTANT: verify runtime userpool (this is what differs between local vs hosted)
-      const runtimeUserPoolId = getRuntimeUserPoolId();
-
-      console.log("🔐 Runtime userPoolId:", runtimeUserPoolId);
-      console.log("🔐 ADMIN_GROUP_NAME expected:", ADMIN_GROUP_NAME);
-      console.log("🔐 Groups from token:", groups);
-
       const admin = groups.includes(ADMIN_GROUP_NAME);
-      console.log("🔐 isAdminGroup computed:", admin);
+      console.log("[PERMS] isAdminGroup computed:", admin);
 
       setIsAdminGroup(admin);
 
-      // Admin: full UI access (no RBAC lookup needed)
+      // ✅ Admin sees everything in UI
       if (admin) {
         setPermMap({});
         return;
@@ -103,6 +83,7 @@ export function usePermissions() {
       const RolePolicy = (client.models as any).RolePolicy as any;
 
       if (!DeptRoleLink || !RolePolicy) {
+        console.warn("[PERMS] Missing models from client.models. Check Amplify.configure timing.");
         setPermMap({});
         return;
       }
@@ -115,17 +96,13 @@ export function usePermissions() {
       const links = (linksRes.data ?? []) as any[];
       const policies = (policyRes.data ?? []) as any[];
 
-      const myLinks = links.filter((l) =>
-        groups.includes(String(l.departmentKey ?? ""))
-      );
+      const myLinks = links.filter((l) => groups.includes(String(l.departmentKey ?? "")));
 
       const roleIds = Array.from(
         new Set(myLinks.map((l) => String(l.roleId ?? "")).filter((x) => x.trim()))
       );
 
-      const myPolicies = policies.filter((p) =>
-        roleIds.includes(String(p.roleId ?? ""))
-      );
+      const myPolicies = policies.filter((p) => roleIds.includes(String(p.roleId ?? "")));
 
       const map: Record<string, PermissionSet> = {};
 
@@ -134,6 +111,7 @@ export function usePermissions() {
         if (!resourceKey) continue;
 
         const cur = map[resourceKey] ?? { ...EMPTY };
+
         map[resourceKey] = {
           canRead: cur.canRead || !!p.canRead,
           canCreate: cur.canCreate || !!p.canCreate,
@@ -144,9 +122,8 @@ export function usePermissions() {
       }
 
       setPermMap(map);
-    } catch (e: any) {
-      console.error("usePermissions load error:", e);
-      setError(e?.message ?? "Permissions load failed");
+    } catch (e) {
+      console.error("[PERMS] load error:", e);
       setPermMap({});
       setIsAdminGroup(false);
     } finally {
@@ -154,18 +131,8 @@ export function usePermissions() {
     }
   };
 
-  // initial load
   useEffect(() => {
     loadPermissions();
-    // reload after sign-in/out events (fixes “stuck empty sidebar” cases)
-    const stop = Hub.listen("auth", ({ payload }) => {
-      const ev = payload?.event;
-      if (ev === "signedIn" || ev === "signedOut" || ev === "tokenRefresh") {
-        loadPermissions();
-      }
-    });
-    return () => stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const can = useMemo(() => {
@@ -175,5 +142,5 @@ export function usePermissions() {
     };
   }, [isAdminGroup, permMap]);
 
-  return { loading, email, isAdminGroup, can, error, reloadPermissions: loadPermissions };
+  return { loading, email, isAdminGroup, can, reloadPermissions: loadPermissions };
 }

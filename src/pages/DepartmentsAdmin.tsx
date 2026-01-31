@@ -2,22 +2,23 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, TextField, SelectField } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
-import { generateClient } from "aws-amplify/data";
+
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
-
-const client = generateClient<Schema>();
+import { getClient } from "../lib/amplifyClient";
 
 type Dept = { key: string; name: string };
 
 function parseAWSJSON<T>(raw: unknown): T | null {
   try {
     if (raw == null) return null;
+
     if (typeof raw === "string") {
       const s = raw.trim();
       if (!s) return null;
       return JSON.parse(s) as T;
     }
+
     // already object/array
     return raw as T;
   } catch {
@@ -29,6 +30,8 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
   if (!permissions.canRead) {
     return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
   }
+
+  const client = useMemo(() => getClient(), []);
 
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
@@ -46,8 +49,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     setStatus("Loading...");
     try {
       const [deptRes, rolesRes, linksRes] = await Promise.all([
-        // ✅ no args (your query has no parameters)
-        client.queries.adminListDepartments(),
+        client.queries.adminListDepartments(), // ✅ no args
         client.models.AppRole.list({ limit: 1000 }),
         client.models.DepartmentRoleLink.list({ limit: 5000 }),
       ]);
@@ -58,26 +60,33 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
         throw new Error(anyErrors.map((e: any) => e.message).join(" | "));
       }
 
-      // ✅ deptRes.data is AWSJSON -> often a STRING
+      // ✅ AWSJSON often arrives as a STRING
       const raw = (deptRes as any)?.data;
 
       // expected shapes:
       // 1) { departments: Dept[] }
-      // 2) Dept[]   (if backend returns array)
+      // 2) Dept[]
       const parsedObj = parseAWSJSON<{ departments?: Dept[] }>(raw);
-      const parsedArr = Array.isArray(raw) ? (raw as Dept[]) : parseAWSJSON<Dept[]>(raw);
+      const parsedArr = parseAWSJSON<Dept[]>(raw);
 
       const deptList =
         (parsedObj?.departments && Array.isArray(parsedObj.departments) ? parsedObj.departments : null) ??
         (Array.isArray(parsedArr) ? parsedArr : []);
 
-      setDepartments(deptList);
+      // (optional) remove duplicates by key
+      const unique = Array.from(
+        new Map(deptList.map((d) => [String(d.key), { key: String(d.key), name: String(d.name) }])).values()
+      );
+
+      setDepartments(unique);
       setRoles(rolesRes.data ?? []);
       setLinks(linksRes.data ?? []);
       setStatus("");
     } catch (e: any) {
       console.error(e);
       setDepartments([]);
+      setRoles([]);
+      setLinks([]);
       setStatus(e?.message ?? "Load failed");
     } finally {
       setLoading(false);
@@ -141,6 +150,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
 
   const deleteDept = async (departmentKey: string) => {
     if (!permissions.canDelete) return;
+
     const ok = confirm(`Delete department "${departmentKey}"?\n\nIt must have NO users.`);
     if (!ok) return;
 
@@ -186,6 +196,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
 
   const removeRole = async (departmentKey: string, roleId: string) => {
     if (!permissions.canUpdate) return;
+
     setStatus("");
     setLoading(true);
     try {
@@ -217,10 +228,15 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
             value={newDept}
             onChange={(e) => setNewDept((e.target as HTMLInputElement).value)}
           />
-          <Button variation="primary" onClick={createDept} isLoading={loading} isDisabled={!permissions.canCreate}>
+          <Button
+            variation="primary"
+            onClick={createDept}
+            isLoading={loading}
+            isDisabled={!permissions.canCreate || loading}
+          >
             Create
           </Button>
-          <Button onClick={load} isLoading={loading}>
+          <Button onClick={load} isLoading={loading} isDisabled={loading}>
             Refresh
           </Button>
         </div>
@@ -233,6 +249,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
             label="Old department"
             value={renameFrom}
             onChange={(e) => setRenameFrom((e.target as HTMLSelectElement).value)}
+            isDisabled={loading}
           >
             <option value="">Select...</option>
             {departments.map((d) => (
@@ -247,7 +264,13 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
             value={renameTo}
             onChange={(e) => setRenameTo((e.target as HTMLInputElement).value)}
           />
-          <Button variation="primary" onClick={renameDept} isDisabled={!permissions.canUpdate} isLoading={loading}>
+
+          <Button
+            variation="primary"
+            onClick={renameDept}
+            isDisabled={!permissions.canUpdate || loading}
+            isLoading={loading}
+          >
             Rename
           </Button>
         </div>
@@ -270,9 +293,11 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                 <th style={{ padding: 10 }}>Actions</th>
               </tr>
             </thead>
+
             <tbody>
               {departments.map((d) => {
                 const currentRoleIds = roleIdsByDept.get(d.key) ?? [];
+
                 return (
                   <tr key={d.key} style={{ borderBottom: "1px solid #f1f5f9" }}>
                     <td style={{ padding: 10, fontWeight: 600 }}>
@@ -285,17 +310,20 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                         {currentRoleIds.map((rid) => {
                           const role = roles.find((r) => r.id === rid);
                           return (
-                            <span key={rid} style={{ border: "1px solid #ddd", borderRadius: 999, padding: "4px 10px" }}>
+                            <span
+                              key={rid}
+                              style={{ border: "1px solid #ddd", borderRadius: 999, padding: "4px 10px" }}
+                            >
                               {role?.name ?? rid}
                               <button
                                 style={{
                                   marginLeft: 8,
                                   border: "none",
                                   background: "transparent",
-                                  cursor: permissions.canUpdate ? "pointer" : "not-allowed",
-                                  opacity: permissions.canUpdate ? 1 : 0.5,
+                                  cursor: permissions.canUpdate && !loading ? "pointer" : "not-allowed",
+                                  opacity: permissions.canUpdate && !loading ? 1 : 0.5,
                                 }}
-                                onClick={() => permissions.canUpdate && removeRole(d.key, rid)}
+                                onClick={() => permissions.canUpdate && !loading && removeRole(d.key, rid)}
                                 title="Remove role"
                               >
                                 ✕
@@ -323,7 +351,11 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                     </td>
 
                     <td style={{ padding: 10 }}>
-                      <Button variation="destructive" onClick={() => deleteDept(d.key)} isDisabled={!permissions.canDelete || loading}>
+                      <Button
+                        variation="destructive"
+                        onClick={() => deleteDept(d.key)}
+                        isDisabled={!permissions.canDelete || loading}
+                      >
                         Delete
                       </Button>
                     </td>
