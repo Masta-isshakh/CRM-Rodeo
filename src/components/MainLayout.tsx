@@ -47,11 +47,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     setSidebarOpen(false);
   };
 
-  // SHOW LOGIC:
-  // - Admin sees everything.
-  // - Non-admin sees only canRead pages.
   const show = useMemo(() => {
-    const r = {
+    return {
       dashboard: isAdminGroup || canAny("DASHBOARD").canRead,
       customers: isAdminGroup || canAny("CUSTOMERS").canRead,
       tickets: isAdminGroup || canAny("TICKETS").canRead,
@@ -61,16 +58,29 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       calltracking: isAdminGroup || canAny("CALL_TRACKING").canRead,
       inspection: isAdminGroup || canAny("INSPECTION_APPROVALS").canRead,
     };
-    return r;
   }, [isAdminGroup, can]);
 
   const showAdmin = useMemo(() => {
     return {
-      users: isAdminGroup,        // admins always see admin pages
+      users: isAdminGroup,
       departments: isAdminGroup,
       rolespolicies: isAdminGroup,
     };
   }, [isAdminGroup]);
+
+  const nothingVisible =
+    !loading &&
+    !show.dashboard &&
+    !show.customers &&
+    !show.tickets &&
+    !show.employees &&
+    !show.activitylog &&
+    !show.jobcards &&
+    !show.calltracking &&
+    !show.inspection &&
+    !showAdmin.users &&
+    !showAdmin.departments &&
+    !showAdmin.rolespolicies;
 
   useEffect(() => {
     if (loading) return;
@@ -144,11 +154,21 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
           <button className="menu-btn" onClick={() => setSidebarOpen(true)}>☰</button>
           <div className="header-text">
             <h1>Welcome</h1>
-            <p className="sub">{loading ? "Loading..." : `Signed in as: ${email}`}</p>
+            <p className="sub">{loading ? "Loading..." : `Signed in as: ${email || "-"}`}</p>
           </div>
         </header>
 
         <section className="page-content">
+          {nothingVisible && (
+            <div style={{ padding: 24, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10 }}>
+              <h3 style={{ marginTop: 0 }}>No access configured</h3>
+              <p style={{ margin: 0, opacity: 0.85 }}>
+                You are signed in, but no department → role → policy permissions were resolved for your account.
+                Ask an Admin to assign a Department role + Role policies.
+              </p>
+            </div>
+          )}
+
           {page === "dashboard" && show.dashboard && (
             <Dashboard
               permissions={canAny("DASHBOARD")}
