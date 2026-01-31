@@ -1,4 +1,5 @@
 import { a, defineData, type ClientSchema } from "@aws-amplify/backend";
+import { myGroups } from "../functions/auth/my-groups/resource";
 
 // functions
 import { inviteUser } from "../functions/invite-user/resource";
@@ -296,6 +297,13 @@ const schema = a
       .authorization((allow) => [allow.group(ADMIN_GROUP)])
       .handler(a.handler.function(setUserDepartment))
       .returns(a.json()),
+
+      myGroups: a
+  .query()
+  .authorization((allow) => [allow.authenticated()])
+  .handler(a.handler.function(myGroups))
+  .returns(a.json()),
+
   })
   .authorization((allow) => [
     allow.resource(inviteUser),
@@ -306,6 +314,8 @@ const schema = a
     allow.resource(deleteDepartment),
     allow.resource(renameDepartment),
     allow.resource(setUserDepartment),
+      allow.resource(myGroups),
+
   ]);
 
 export type Schema = ClientSchema<typeof schema>;

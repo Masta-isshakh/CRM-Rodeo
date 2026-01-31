@@ -1,10 +1,11 @@
 // amplify/backend.ts
 import { defineBackend } from "@aws-amplify/backend";
+import { PolicyStatement } from "aws-cdk-lib/aws-iam";
 
 import { auth } from "./auth/resource";
 import { data } from "./data/resource";
 
-// functions used by auth.access + data handlers
+// existing functions
 import { inviteUser } from "./functions/invite-user/resource";
 import { setUserActive } from "./functions/set-user-active/resource";
 import { deleteUser } from "./functions/delete-user/resource";
@@ -15,8 +16,10 @@ import { deleteDepartment } from "./functions/departments/delete-department/reso
 import { renameDepartment } from "./functions/departments/rename-department/resource";
 import { setUserDepartment } from "./functions/departments/set-user-department/resource";
 
-// NOTE: customMessage is already referenced by auth triggers; no need to add here.
-defineBackend({
+// ✅ new function
+import { myGroups } from "./functions/auth/my-groups/resource";
+
+const backend = defineBackend({
   auth,
   data,
 
@@ -29,4 +32,24 @@ defineBackend({
   deleteDepartment,
   renameDepartment,
   setUserDepartment,
+
+  myGroups,
 });
+
+// ✅ IAM permission for Cognito group lookup (safe typing)
+const myGroupsLambda = (backend as any)?.myGroups?.resources?.lambda;
+if (myGroupsLambda?.addToRolePolicy) {
+  myGroupsLambda.addToRolePolicy(
+    new PolicyStatement({
+      actions: ["cognito-idp:AdminListGroupsForUser"],
+      resources: ["*"],
+    })
+  );
+} else if (myGroupsLambda?.role?.addToPrincipalPolicy) {
+  myGroupsLambda.role.addToPrincipalPolicy(
+    new PolicyStatement({
+      actions: ["cognito-idp:AdminListGroupsForUser"],
+      resources: ["*"],
+    })
+  );
+}
