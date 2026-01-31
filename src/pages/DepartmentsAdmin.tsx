@@ -354,3 +354,6 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     </div>
   );
 }
+
+
+
