@@ -1,9 +1,7 @@
-// src/lib/userPermissions.ts
-import { useCallback, useEffect, useState } from "react";
-import { fetchAuthSession, getCurrentUser, fetchUserAttributes } from "aws-amplify/auth";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 import type { Schema } from "../../amplify/data/resource";
 import { getDataClient } from "./amplifyClient";
-import { RESOURCE_KEYS } from "./permissionKeys";
 
 export type Permission = {
   canRead: boolean;
@@ -13,17 +11,52 @@ export type Permission = {
   canApprove: boolean;
 };
 
-const EMPTY: Permission = { canRead: false, canCreate: false, canUpdate: false, canDelete: false, canApprove: false };
-const FULL: Permission  = { canRead: true,  canCreate: true,  canUpdate: true,  canDelete: true,  canApprove: true  };
+const EMPTY: Permission = {
+  canRead: false,
+  canCreate: false,
+  canUpdate: false,
+  canDelete: false,
+  canApprove: false,
+};
 
+const FULL: Permission = {
+  canRead: true,
+  canCreate: true,
+  canUpdate: true,
+  canDelete: true,
+  canApprove: true,
+};
+
+// Must match your Cognito group name exactly:
 const ADMIN_GROUP_NAME = "Admins";
 const DEPT_PREFIX = "DEPT_";
 
+export const POLICY_KEYS = [
+  "DASHBOARD",
+  "CUSTOMERS",
+  "TICKETS",
+  "EMPLOYEES",
+  "ACTIVITY_LOG",
+  "JOB_CARDS",
+  "CALL_TRACKING",
+  "INSPECTION_APPROVALS",
+] as const;
+
 function normalizeKey(x: unknown) {
-  return String(x ?? "").trim().toUpperCase().replace(/\s+/g, "_");
+  return String(x ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "_");
 }
 
-function parseAWSJSON<T>(raw: unknown): T | null {
+function pickGroups(payload: any): string[] {
+  const g = payload?.["cognito:groups"];
+  if (Array.isArray(g)) return g.map(String);
+  if (typeof g === "string" && g.trim()) return [g.trim()];
+  return [];
+}
+
+function safeJsonParse<T>(raw: unknown): T | null {
   try {
     if (raw == null) return null;
     if (typeof raw === "string") {
@@ -37,28 +70,11 @@ function parseAWSJSON<T>(raw: unknown): T | null {
   }
 }
 
-function pickGroups(payload: any): string[] {
-  const g = payload?.["cognito:groups"];
-  if (Array.isArray(g)) return g.map(String);
-  if (typeof g === "string" && g.trim()) return [g.trim()];
-  return [];
-}
-
-function dedupe(arr: string[]) {
-  return Array.from(new Set(arr.filter(Boolean)));
-}
-
-function resolveDepartmentKeyFromGroups(groups: string[]) {
-  // Prefer DEPT_*
-  const dept = groups.find((g) => g.startsWith(DEPT_PREFIX));
-  if (dept) return dept;
-
-  // Otherwise any non-admin group acts as department
-  const nonAdmin = groups.filter((g) => g !== ADMIN_GROUP_NAME);
-  return nonAdmin[0] ?? "";
-}
-
-async function listAll<T>(listFn: (args: any) => Promise<any>, pageSize = 1000, max = 20000): Promise<T[]> {
+async function listAll<T>(
+  listFn: (args: any) => Promise<any>,
+  pageSize = 1000,
+  max = 20000
+): Promise<T[]> {
   const out: T[] = [];
   let nextToken: string | null | undefined = undefined;
 
@@ -75,10 +91,11 @@ export function usePermissions() {
   const client = getDataClient();
 
   const [loading, setLoading] = useState(true);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState<string>("");
   const [groups, setGroups] = useState<string[]>([]);
-  const [departmentKey, setDepartmentKey] = useState("");
+  const [departmentKey, setDepartmentKey] = useState<string>("");
   const [isAdminGroup, setIsAdminGroup] = useState(false);
+
   const [permMap, setPermMap] = useState<Record<string, Permission>>({});
 
   const can = useCallback(
@@ -90,117 +107,139 @@ export function usePermissions() {
     [isAdminGroup, permMap]
   );
 
+  const debugSummary = useMemo(
+    () => ({
+      email,
+      groups,
+      departmentKey,
+      isAdminGroup,
+      permKeys: Object.keys(permMap),
+    }),
+    [email, groups, departmentKey, isAdminGroup, permMap]
+  );
+
+  const fetchGroupsFallback = useCallback(async (): Promise<string[]> => {
+    try {
+      // Data query returns AWSJSON (often string)
+      const res = await (client.queries as any).myGroups?.();
+      const raw = (res as any)?.data;
+
+      const parsed = safeJsonParse<any>(raw) ?? raw;
+      const g =
+        Array.isArray(parsed) ? parsed :
+        Array.isArray(parsed?.groups) ? parsed.groups :
+        [];
+
+      return (g ?? []).map(String).filter(Boolean);
+    } catch (e) {
+      console.warn("[PERMS] myGroups fallback failed:", e);
+      return [];
+    }
+  }, [client]);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
 
       try {
-        // ---------- email ----------
-        try {
-          const attrs = await fetchUserAttributes();
-          if (attrs?.email) setEmail(String(attrs.email));
-        } catch {}
-
-        try {
-          const u = await getCurrentUser();
-          if (!email) setEmail(String(u.signInDetails?.loginId || u.username || ""));
-        } catch {}
-
-        // ---------- token groups ----------
         const session = await fetchAuthSession({ forceRefresh: true });
         const idPayload: any = session.tokens?.idToken?.payload ?? {};
         const accessPayload: any = session.tokens?.accessToken?.payload ?? {};
 
-        let tokenGroups = pickGroups(accessPayload);
-        if (!tokenGroups.length) tokenGroups = pickGroups(idPayload);
+        // 1) Try token groups first
+        let resolvedGroups =
+          pickGroups(idPayload).length ? pickGroups(idPayload) : pickGroups(accessPayload);
 
-        // ---------- fallback: ask backend (Cognito) ----------
-        if (!tokenGroups.length) {
-          try {
-            const res = await (client.queries as any).myGroups();
-            const raw = (res as any)?.data;
-
-            const parsedObj = parseAWSJSON<{ groups?: string[] }>(raw);
-            const parsedArr = parseAWSJSON<string[]>(raw);
-
-            const fallbackGroups = Array.isArray(parsedArr)
-              ? parsedArr
-              : Array.isArray(parsedObj?.groups)
-              ? parsedObj!.groups!
-              : [];
-
-            tokenGroups = fallbackGroups.map(String);
-          } catch (e) {
-            console.error("[PERMS] myGroups fallback failed:", e);
-          }
+        // 2) If token groups empty, fallback to server-side Cognito lookup
+        if (!resolvedGroups.length) {
+          const fb = await fetchGroupsFallback();
+          if (fb.length) resolvedGroups = fb;
         }
 
-        tokenGroups = dedupe(tokenGroups);
-        setGroups(tokenGroups);
+        setGroups(resolvedGroups);
 
-        const admin = tokenGroups.includes(ADMIN_GROUP_NAME);
+        const admin = resolvedGroups.includes(ADMIN_GROUP_NAME);
         setIsAdminGroup(admin);
 
-        // ---------- admin full access ----------
+        // Email for display
+        const tokenEmail = String(idPayload?.email ?? "");
+        if (tokenEmail) {
+          setEmail(tokenEmail);
+        } else {
+          const u = await getCurrentUser();
+          const maybe = u.signInDetails?.loginId || u.username;
+          setEmail(String(maybe ?? ""));
+        }
+
+        // Department = first DEPT_ group
+        const dept = resolvedGroups.find((g) => g.startsWith(DEPT_PREFIX)) ?? "";
+        setDepartmentKey(dept);
+
+        // Admin => full map
         if (admin) {
           const fullMap: Record<string, Permission> = {};
-          for (const k of RESOURCE_KEYS) fullMap[normalizeKey(k)] = FULL;
-          setDepartmentKey("");
+          for (const k of POLICY_KEYS) fullMap[k] = FULL;
           setPermMap(fullMap);
 
           console.log("[PERMS] loaded (admin)", {
-            email: String(idPayload?.email ?? email),
-            groups: tokenGroups,
-            departmentKey: "",
+            ...debugSummary,
+            groups: resolvedGroups,
+            departmentKey: dept,
+            isAdminGroup: true,
             permKeys: Object.keys(fullMap),
           });
           return;
         }
 
-        // ---------- department ----------
-        const deptKey = resolveDepartmentKeyFromGroups(tokenGroups);
-        setDepartmentKey(deptKey);
-
-        if (!deptKey) {
+        // No dept => no permissions
+        if (!dept) {
           setPermMap({});
           console.log("[PERMS] loaded (no dept)", {
-            email: String(idPayload?.email ?? email),
-            groups: tokenGroups,
+            ...debugSummary,
+            groups: resolvedGroups,
             departmentKey: "",
+            isAdminGroup: false,
             permKeys: [],
           });
           return;
         }
 
-        // Dept -> Roles
+        // 1) Dept -> Roles
         const links = await listAll<Schema["DepartmentRoleLink"]["type"]>(
           (args) =>
             client.models.DepartmentRoleLink.list({
               ...args,
-              filter: { departmentKey: { eq: deptKey } },
-            } as any)
+              filter: { departmentKey: { eq: dept } },
+            } as any),
+          1000,
+          20000
         );
 
-        const roleIds = dedupe(
-          (links ?? [])
-            .map((l) => String((l as any).roleId ?? ""))
-            .filter(Boolean)
+        const roleIds = Array.from(
+          new Set(
+            (links ?? [])
+              .map((l) => String((l as any).roleId ?? ""))
+              .filter(Boolean)
+          )
         );
 
         if (!roleIds.length) {
           setPermMap({});
           console.log("[PERMS] loaded (dept has no roles)", {
-            email: String(idPayload?.email ?? email),
-            groups: tokenGroups,
-            departmentKey: deptKey,
-            roleIds,
-            permKeys: [],
+            groups: resolvedGroups,
+            departmentKey: dept,
+            roleIds: [],
           });
           return;
         }
 
-        // Roles -> Policies
-        const allPolicies = await listAll<Schema["RolePolicy"]["type"]>((args) => client.models.RolePolicy.list(args));
+        // 2) Roles -> Policies (load all then filter in-memory)
+        const allPolicies = await listAll<Schema["RolePolicy"]["type"]>(
+          (args) => client.models.RolePolicy.list(args),
+          1000,
+          20000
+        );
+
         const roleIdSet = new Set(roleIds);
 
         const map: Record<string, Permission> = {};
@@ -223,25 +262,21 @@ export function usePermissions() {
 
         setPermMap(map);
 
-        console.log("[PERMS] loaded", {
-          email: String(idPayload?.email ?? email),
-          groups: tokenGroups,
-          departmentKey: deptKey,
+        console.log("[PERMS] loaded (dept)", {
+          groups: resolvedGroups,
+          departmentKey: dept,
           roleIds,
           permKeys: Object.keys(map),
         });
       } catch (e) {
-        console.error("[PERMS] failed:", e);
-        setGroups([]);
-        setDepartmentKey("");
-        setIsAdminGroup(false);
+        console.error("[PERMS] Failed to load permissions:", e);
         setPermMap({});
       } finally {
         setLoading(false);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client]);
+  }, []);
 
   return { loading, email, groups, departmentKey, isAdminGroup, can };
 }

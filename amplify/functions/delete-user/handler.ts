@@ -9,42 +9,42 @@ import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtime";
 
-// TODO: Replace 'adminDeleteUser' with the correct property name from your Schema type
-// For example, if your schema has 'deleteUser', use:
-// type Handler = Schema["deleteUser"]["functionHandler"];
-type Handler = any; // Temporary fix: use 'any' until the correct type is known
+type Handler = (event: any) => Promise<any>;
 
 const cognito = new CognitoIdentityProviderClient();
 
 export const handler: Handler = async (event: any) => {
-  const { email } = event.arguments;
-
-  const e = email.trim().toLowerCase();
-  if (!e) throw new Error("Email is required.");
+  const email = String(event.arguments?.email ?? "").trim().toLowerCase();
+  if (!email) throw new Error("Email is required.");
 
   const userPoolId = process.env.AMPLIFY_AUTH_USERPOOL_ID;
   if (!userPoolId) throw new Error("Missing AMPLIFY_AUTH_USERPOOL_ID env var.");
 
-  // 1) Delete from Cognito
-  await cognito.send(new AdminDeleteUserCommand({ UserPoolId: userPoolId, Username: e }));
+  // 1) Delete Cognito user
+  await cognito.send(
+    new AdminDeleteUserCommand({
+      UserPoolId: userPoolId,
+      Username: email, // because you create users with Username=email in invite-user
+    })
+  );
 
-  // 2) Delete Customer from Data
+  // 2) Delete UserProfile records (NOT Customer)
   const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
   Amplify.configure(resourceConfig, libraryOptions);
   const dataClient = generateClient<Schema>();
 
-  const customers = await dataClient.models.Customer.list({
-    filter: { email: { eq: e } },
-    limit: 10,
+  const profiles = await dataClient.models.UserProfile.list({
+    filter: { email: { eq: email } },
+    limit: 50,
   });
 
-  for (const c of customers.data) {
-    await dataClient.models.Customer.delete({ id: c.id });
+  for (const p of profiles.data ?? []) {
+    await dataClient.models.UserProfile.delete({ id: p.id });
   }
 
   return {
     ok: true,
-    email: e,
-    deletedProfiles: customers.data.length,
+    email,
+    deletedProfiles: (profiles.data ?? []).length,
   };
 };

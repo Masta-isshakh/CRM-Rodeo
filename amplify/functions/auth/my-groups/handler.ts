@@ -1,55 +1,40 @@
-// amplify/functions/auth/my-groups/handler.ts
 import {
   CognitoIdentityProviderClient,
   AdminListGroupsForUserCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 
-function getUserPoolIdFromIssuer(issuer?: string): string | null {
-  // issuer example: https://cognito-idp.ap-southeast-1.amazonaws.com/ap-southeast-1_XXXXXXX
-  if (!issuer) return null;
-  const parts = String(issuer).split("/");
-  const last = parts[parts.length - 1];
-  return last ? String(last) : null;
-}
+const cognito = new CognitoIdentityProviderClient();
 
 export const handler = async (event: any) => {
-  const claims = event?.identity?.claims ?? {};
+  // Prefer explicit USER_POOL_ID if you set it; fallback to Gen2-provided env var
+  const userPoolId =
+    process.env.USER_POOL_ID || process.env.AMPLIFY_AUTH_USERPOOL_ID;
 
-  const issuer =
-    claims?.iss ||
-    claims?.issuer ||
-    event?.identity?.issuer ||
-    event?.requestContext?.authorizer?.claims?.iss;
-
-  const userPoolId = getUserPoolIdFromIssuer(issuer);
-
-  // prefer Cognito username
-  const username =
-    claims["cognito:username"] ||
-    claims["username"] ||
-    event?.identity?.username ||
-    claims["sub"];
-
-  if (!userPoolId || !username) {
-    return {
-      username: username ?? null,
-      groups: [],
-      reason: !userPoolId ? "missing userPoolId (iss)" : "missing username",
-    };
+  if (!userPoolId) {
+    throw new Error("Missing USER_POOL_ID / AMPLIFY_AUTH_USERPOOL_ID");
   }
 
-  const client = new CognitoIdentityProviderClient({});
+  // AppSync/Lambda identity shape varies; support common fields
+  const username =
+    event?.identity?.username ||
+    event?.identity?.claims?.["cognito:username"] ||
+    event?.identity?.claims?.email ||
+    "";
 
-  const res = await client.send(
+  if (!username) {
+    throw new Error("Could not resolve username from event.identity");
+  }
+
+  const res = await cognito.send(
     new AdminListGroupsForUserCommand({
-      UserPoolId: String(userPoolId),
-      Username: String(username),
+      UserPoolId: userPoolId,
+      Username: username,
     })
   );
 
   const groups = (res.Groups ?? [])
     .map((g) => g.GroupName)
-    .filter((x): x is string => Boolean(x));
+    .filter(Boolean);
 
-  return { username: String(username), userPoolId: String(userPoolId), groups };
+  return { groups };
 };
