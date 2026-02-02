@@ -51,6 +51,8 @@ export const auth = defineAuth({
         "listUsersInGroup",
         "addUserToGroup",
         "removeUserFromGroup",
+            "resetUserPassword", // ✅ add this
+
       ]),
   ],
 });

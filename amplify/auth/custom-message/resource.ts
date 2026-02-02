@@ -5,10 +5,10 @@ export const customMessage = defineFunction({
   name: "custom-message",
   entry: "./handler.ts",
 
-  // ✅ put trigger lambda in auth stack
+  // put trigger lambda in auth stack
   resourceGroupName: "auth",
 
   environment: {
-    APP_ORIGIN: "https://main.d306x3a8sfnpva.amplifyapp.com",
+    APP_ORIGIN: "https://main.d1vjb07p2rami9.amplifyapp.com",
   },
 });

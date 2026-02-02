@@ -1,5 +1,10 @@
 import { useMemo, useState } from "react";
-import { signIn, confirmSignIn, resetPassword, confirmResetPassword } from "aws-amplify/auth";
+import {
+  signIn,
+  confirmSignIn,
+  resetPassword,
+  confirmResetPassword,
+} from "aws-amplify/auth";
 
 function getParam(name: string) {
   const u = new URL(window.location.href);
@@ -9,18 +14,23 @@ function getParam(name: string) {
 export default function SetPasswordPage() {
   const emailFromLink = useMemo(() => getParam("email"), []);
   const usernameFromLink = useMemo(() => getParam("username"), []);
+  const modeFromLink = useMemo(() => (getParam("mode") || "").toLowerCase(), []);
 
-  // Mode: FIRST_TIME (temp password) OR RESET (code)
-  const [mode, setMode] = useState<"FIRST_TIME" | "RESET">("FIRST_TIME");
+  const initialMode =
+    modeFromLink === "reset" ? "RESET" :
+    modeFromLink === "first" ? "FIRST_TIME" :
+    "FIRST_TIME";
 
-  // FIRST_TIME
+  const [mode, setMode] = useState<"FIRST_TIME" | "RESET">(initialMode);
+
+  // FIRST_TIME (temp password)
   const [username, setUsername] = useState(usernameFromLink || emailFromLink);
   const [tempPassword, setTempPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newPassword2, setNewPassword2] = useState("");
 
-  // RESET
-  const [resetUsername, setResetUsername] = useState(emailFromLink);
+  // RESET (code)
+  const [resetUsername, setResetUsername] = useState(usernameFromLink || emailFromLink);
   const [code, setCode] = useState("");
   const [resetNewPassword, setResetNewPassword] = useState("");
   const [resetNewPassword2, setResetNewPassword2] = useState("");
@@ -41,8 +51,9 @@ export default function SetPasswordPage() {
     setStatus("Signing in with temporary password...");
     const res = await signIn({ username: u, password: t });
 
-    // NEW_PASSWORD_REQUIRED
-    if (res?.nextStep?.signInStep === "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED") {
+    const step = res?.nextStep?.signInStep;
+
+    if (step === "CONFIRM_SIGN_IN_WITH_NEW_PASSWORD_REQUIRED") {
       setStatus("Setting your new password...");
       await confirmSignIn({ challengeResponse: newPassword });
       setStatus("Password set. Redirecting...");
@@ -56,7 +67,7 @@ export default function SetPasswordPage() {
       return;
     }
 
-    setStatus("Unexpected sign-in step. Contact admin.");
+    setStatus(`Unexpected sign-in step: ${String(step || "unknown")}`);
   };
 
   const startReset = async () => {
@@ -137,12 +148,11 @@ export default function SetPasswordPage() {
         {mode === "FIRST_TIME" ? (
           <>
             <label style={{ display: "block", marginTop: 10 }}>
-              Username (from email)
+              Username
               <input
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
                 style={{ width: "100%", marginTop: 6, padding: 10, borderRadius: 10, border: "1px solid #e5e7eb" }}
-                placeholder="Should already be filled from the invite link"
               />
             </label>
 
@@ -260,10 +270,6 @@ export default function SetPasswordPage() {
             {status}
           </div>
         )}
-
-        <div style={{ marginTop: 12, fontSize: 12, opacity: 0.75 }}>
-          If login says “incorrect”, it usually means the user is still in <b>FORCE_CHANGE_PASSWORD</b>. Use this page first.
-        </div>
       </div>
     </div>
   );
