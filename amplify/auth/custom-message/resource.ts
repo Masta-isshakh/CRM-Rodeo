@@ -9,6 +9,6 @@ export const customMessage = defineFunction({
   resourceGroupName: "auth",
 
   environment: {
-    APP_ORIGIN: "https://main.d1vjb07p2rami9.amplifyapp.com",
+    APP_ORIGIN: "https://main.d2plnbwjgshmb2.amplifyapp.com",
   },
 });
