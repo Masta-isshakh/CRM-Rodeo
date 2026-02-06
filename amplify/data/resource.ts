@@ -27,6 +27,7 @@ const schema = a
         fullName: a.string().required(),
         isActive: a.boolean().default(true),
         createdAt: a.datetime(),
+        mobileNumber: a.string(),
 
         // owner: `${sub}::${email}`
         profileOwner: a.string().required(),

@@ -6,7 +6,6 @@ import {
   AdminAddUserToGroupCommand,
   AdminCreateUserCommand,
   AdminGetUserCommand,
-  AdminResetUserPasswordCommand,
   GetGroupCommand,
   CreateGroupCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
@@ -32,9 +31,7 @@ async function ensureGroup(userPoolId: string, groupName: string, description: s
   } catch (e: any) {
     if (e?.name !== "ResourceNotFoundException") throw e;
   }
-  await cognito.send(
-    new CreateGroupCommand({ UserPoolId: userPoolId, GroupName: groupName, Description: description })
-  );
+  await cognito.send(new CreateGroupCommand({ UserPoolId: userPoolId, GroupName: groupName, Description: description }));
 }
 
 export const handler: Handler = async (event) => {
@@ -43,7 +40,11 @@ export const handler: Handler = async (event) => {
   const departmentKey = String(event.arguments.departmentKey ?? "").trim();
   const departmentNameFromArgs = String(event.arguments.departmentName ?? "").trim();
 
+  // ✅ NEW
+  const mobileNumber = String(event.arguments.mobileNumber ?? "").trim();
+
   if (!email || !fullName) throw new Error("email and fullName are required.");
+  if (!mobileNumber) throw new Error("mobileNumber is required.");
   if (!departmentKey.startsWith(DEPT_PREFIX)) throw new Error(`departmentKey must start with ${DEPT_PREFIX}`);
 
   const userPoolId = process.env.AMPLIFY_AUTH_USERPOOL_ID;
@@ -54,16 +55,20 @@ export const handler: Handler = async (event) => {
 
   let sub: string | undefined;
 
-  // 1) Create user or handle existing user
   try {
     const createRes = await cognito.send(
       new AdminCreateUserCommand({
         UserPoolId: userPoolId,
-        Username: email, // email as username
+        Username: email,
         UserAttributes: [
           { Name: "email", Value: email },
           { Name: "email_verified", Value: "true" },
           { Name: "name", Value: fullName },
+
+          // OPTIONAL: store phone in Cognito standard attribute (must be E.164 to be valid)
+          // If this fails validation in your pool, remove these two lines.
+          // { Name: "phone_number", Value: mobileNumber },
+          // { Name: "phone_number_verified", Value: "false" },
         ],
         DesiredDeliveryMediums: ["EMAIL"],
       })
@@ -72,33 +77,21 @@ export const handler: Handler = async (event) => {
   } catch (e: any) {
     if (e?.name !== "UsernameExistsException") throw e;
 
-    // User exists -> check status
-    const existing = await cognito.send(new AdminGetUserCommand({ UserPoolId: userPoolId, Username: email }));
-    const status = String(existing.UserStatus ?? "");
-
-    if (status === "FORCE_CHANGE_PASSWORD") {
-      // RESEND invite (temp password email)
-      try {
-        const resendRes = await cognito.send(
-          new AdminCreateUserCommand({
-            UserPoolId: userPoolId,
-            Username: email,
-            MessageAction: "RESEND",
-            DesiredDeliveryMediums: ["EMAIL"],
-          })
-        );
-        sub = getAttr(resendRes.User?.Attributes, "sub") || getAttr(existing.UserAttributes, "sub");
-      } catch {
-        sub = getAttr(existing.UserAttributes, "sub");
-      }
-    } else {
-      // CONFIRMED (or other) -> send admin reset code email
-      await cognito.send(new AdminResetUserPasswordCommand({ UserPoolId: userPoolId, Username: email }));
-      sub = getAttr(existing.UserAttributes, "sub");
+    try {
+      const resendRes = await cognito.send(
+        new AdminCreateUserCommand({
+          UserPoolId: userPoolId,
+          Username: email,
+          MessageAction: "RESEND",
+          DesiredDeliveryMediums: ["EMAIL"],
+        })
+      );
+      sub = getAttr(resendRes.User?.Attributes, "sub");
+    } catch {
+      // ignore
     }
   }
 
-  // 2) Ensure user is in department group
   await cognito.send(
     new AdminAddUserToGroupCommand({
       UserPoolId: userPoolId,
@@ -107,35 +100,36 @@ export const handler: Handler = async (event) => {
     })
   );
 
-  // 3) Resolve sub if still missing
   if (!sub) {
     const getRes = await cognito.send(new AdminGetUserCommand({ UserPoolId: userPoolId, Username: email }));
     sub = getAttr(getRes.UserAttributes, "sub");
   }
   if (!sub) throw new Error("Could not resolve user sub.");
 
-  // 4) Write UserProfile
   const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
   Amplify.configure(resourceConfig, libraryOptions);
   const dataClient = generateClient<Schema>();
 
   const profileOwner = `${sub}::${email}`;
 
-  const existingProfile = await dataClient.models.UserProfile.list({
+  const existing = await dataClient.models.UserProfile.list({
     filter: { email: { eq: email } },
     limit: 1,
   });
 
-  if (existingProfile.data.length && existingProfile.data[0]?.id) {
+  if (existing.data.length && existing.data[0]?.id) {
     await dataClient.models.UserProfile.update({
-      id: existingProfile.data[0].id,
+      id: existing.data[0].id,
       email,
       fullName,
       departmentKey,
       departmentName,
       isActive: true,
       profileOwner,
-      createdAt: existingProfile.data[0].createdAt ?? new Date().toISOString(),
+      createdAt: existing.data[0].createdAt ?? new Date().toISOString(),
+
+      // ✅ NEW
+      mobileNumber,
     } as any);
   } else {
     await dataClient.models.UserProfile.create({
@@ -146,8 +140,11 @@ export const handler: Handler = async (event) => {
       isActive: true,
       profileOwner,
       createdAt: new Date().toISOString(),
+
+      // ✅ NEW
+      mobileNumber,
     } as any);
   }
 
-  return { ok: true, invitedEmail: email, departmentKey, departmentName, sub };
+  return { ok: true, invitedEmail: email, departmentKey, departmentName, sub, mobileNumber };
 };
