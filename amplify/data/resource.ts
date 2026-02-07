@@ -235,6 +235,8 @@ const schema = a
       .arguments({
         email: a.string().required(),
         fullName: a.string().required(),
+        mobileNumber: a.string(),
+
         departmentKey: a.string().required(),
         departmentName: a.string(),
       })

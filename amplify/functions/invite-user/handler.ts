@@ -17,7 +17,6 @@ import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtim
 import { DEPT_PREFIX, keyToLabel } from "../departments/_shared/departmentKey";
 
 type Handler = (event: any) => Promise<any>;
-
 const cognito = new CognitoIdentityProviderClient();
 
 function getAttr(attrs: { Name?: string; Value?: string }[] | undefined, name: string) {
@@ -31,21 +30,33 @@ async function ensureGroup(userPoolId: string, groupName: string, description: s
   } catch (e: any) {
     if (e?.name !== "ResourceNotFoundException") throw e;
   }
-  await cognito.send(new CreateGroupCommand({ UserPoolId: userPoolId, GroupName: groupName, Description: description }));
+  await cognito.send(
+    new CreateGroupCommand({ UserPoolId: userPoolId, GroupName: groupName, Description: description })
+  );
 }
 
 export const handler: Handler = async (event) => {
-  const email = String(event.arguments.email ?? "").trim().toLowerCase();
-  const fullName = String(event.arguments.fullName ?? "").trim();
-  const departmentKey = String(event.arguments.departmentKey ?? "").trim();
-  const departmentNameFromArgs = String(event.arguments.departmentName ?? "").trim();
+  const email = String(event.arguments?.email ?? "").trim().toLowerCase();
+  const fullName = String(event.arguments?.fullName ?? "").trim();
+  const departmentKey = String(event.arguments?.departmentKey ?? "").trim();
+  const departmentNameFromArgs = String(event.arguments?.departmentName ?? "").trim();
 
-  // ✅ NEW
-  const mobileNumber = String(event.arguments.mobileNumber ?? "").trim();
+  // ✅ NEW (backward-compatible)
+  const mobileNumberRaw = (event.arguments as any)?.mobileNumber;
+  const mobileNumber = String(mobileNumberRaw ?? "").trim(); // may be empty if schema didn't send it
 
   if (!email || !fullName) throw new Error("email and fullName are required.");
-  if (!mobileNumber) throw new Error("mobileNumber is required.");
-  if (!departmentKey.startsWith(DEPT_PREFIX)) throw new Error(`departmentKey must start with ${DEPT_PREFIX}`);
+  if (!departmentKey.startsWith(DEPT_PREFIX)) {
+    throw new Error(`departmentKey must start with ${DEPT_PREFIX}`);
+  }
+
+  // IMPORTANT: don't hard fail if schema/client didn't send it yet
+  // You can enforce "required" on the UI, and AFTER schema update it'll always come.
+  if (!mobileNumber) {
+    console.warn(
+      "invite-user: mobileNumber missing from event.arguments. Update amplify/data/resource.ts mutation args + regenerate client."
+    );
+  }
 
   const userPoolId = process.env.AMPLIFY_AUTH_USERPOOL_ID;
   if (!userPoolId) throw new Error("Missing AMPLIFY_AUTH_USERPOOL_ID env var.");
@@ -55,6 +66,7 @@ export const handler: Handler = async (event) => {
 
   let sub: string | undefined;
 
+  // 1) Create user OR re-send invite if exists
   try {
     const createRes = await cognito.send(
       new AdminCreateUserCommand({
@@ -64,11 +76,6 @@ export const handler: Handler = async (event) => {
           { Name: "email", Value: email },
           { Name: "email_verified", Value: "true" },
           { Name: "name", Value: fullName },
-
-          // OPTIONAL: store phone in Cognito standard attribute (must be E.164 to be valid)
-          // If this fails validation in your pool, remove these two lines.
-          // { Name: "phone_number", Value: mobileNumber },
-          // { Name: "phone_number_verified", Value: "false" },
         ],
         DesiredDeliveryMediums: ["EMAIL"],
       })
@@ -92,6 +99,7 @@ export const handler: Handler = async (event) => {
     }
   }
 
+  // 2) Ensure user is in department group
   await cognito.send(
     new AdminAddUserToGroupCommand({
       UserPoolId: userPoolId,
@@ -100,12 +108,14 @@ export const handler: Handler = async (event) => {
     })
   );
 
+  // 3) Resolve sub if missing
   if (!sub) {
     const getRes = await cognito.send(new AdminGetUserCommand({ UserPoolId: userPoolId, Username: email }));
     sub = getAttr(getRes.UserAttributes, "sub");
   }
   if (!sub) throw new Error("Could not resolve user sub.");
 
+  // 4) Write UserProfile (Data)
   const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
   Amplify.configure(resourceConfig, libraryOptions);
   const dataClient = generateClient<Schema>();
@@ -117,34 +127,28 @@ export const handler: Handler = async (event) => {
     limit: 1,
   });
 
+  const payload: any = {
+    email,
+    fullName,
+    departmentKey,
+    departmentName,
+    isActive: true,
+    profileOwner,
+    mobileNumber: mobileNumber || undefined, // ✅ save only if present
+  };
+
   if (existing.data.length && existing.data[0]?.id) {
     await dataClient.models.UserProfile.update({
       id: existing.data[0].id,
-      email,
-      fullName,
-      departmentKey,
-      departmentName,
-      isActive: true,
-      profileOwner,
       createdAt: existing.data[0].createdAt ?? new Date().toISOString(),
-
-      // ✅ NEW
-      mobileNumber,
+      ...payload,
     } as any);
   } else {
     await dataClient.models.UserProfile.create({
-      email,
-      fullName,
-      departmentKey,
-      departmentName,
-      isActive: true,
-      profileOwner,
       createdAt: new Date().toISOString(),
-
-      // ✅ NEW
-      mobileNumber,
+      ...payload,
     } as any);
   }
 
-  return { ok: true, invitedEmail: email, departmentKey, departmentName, sub, mobileNumber };
+  return { ok: true, invitedEmail: email, departmentKey, departmentName, sub, mobileNumber: mobileNumber || null };
 };
