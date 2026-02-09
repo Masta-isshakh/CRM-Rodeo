@@ -82,6 +82,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !showAdmin.departments &&
     !showAdmin.rolespolicies;
 
+  // If user lands on a page they don't have access to, redirect to first allowed page
   useEffect(() => {
     if (loading) return;
 
@@ -117,52 +118,167 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     }
   }, [loading, page, show, showAdmin]);
 
-  return (
-    <div className="layout-container">
-      <div className={`overlay ${sidebarOpen ? "show" : ""}`} onClick={() => setSidebarOpen(false)} />
+  // ESC closes sidebar
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setSidebarOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
 
-      <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
-        <div className="sidebar-logo">
-          <img src={logo} alt="Rodeo Drive CRM Logo" className="logo-img" />
-          <span className="logo-text">Rodeo Drive CRM</span>
+  // Lock body scroll while drawer open
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    if (sidebarOpen) document.body.style.overflow = "hidden";
+    else document.body.style.overflow = prev || "";
+    return () => {
+      document.body.style.overflow = prev || "";
+    };
+  }, [sidebarOpen]);
+
+  const title = "Rodeo Drive CRM";
+
+  const initials = useMemo(() => {
+    const e = (email || "").trim();
+    if (!e) return "R";
+    return e[0].toUpperCase();
+  }, [email]);
+
+  return (
+    <div className="layout-root">
+      {/* Overlay */}
+      <div
+        className={`drawer-overlay ${sidebarOpen ? "show" : ""}`}
+        onClick={() => setSidebarOpen(false)}
+      />
+
+      {/* Drawer Sidebar (always a toggle) */}
+      <aside className={`drawer ${sidebarOpen ? "open" : ""}`} aria-hidden={!sidebarOpen}>
+        <div className="drawer-head">
+          <div className="drawer-brand">
+            <img src={logo} alt="Rodeo Drive CRM Logo" className="brand-logo" />
+            <div className="brand-text">
+              <div className="brand-title">Rodeo Drive</div>
+              <div className="brand-sub">CRM Console</div>
+            </div>
+          </div>
+
+          <button className="drawer-close" onClick={() => setSidebarOpen(false)} aria-label="Close menu">
+            ✕
+          </button>
         </div>
 
-        <nav className="sidebar-nav">
-          {show.dashboard && <button onClick={() => go("dashboard")}>Dashboard</button>}
-          {show.customers && <button onClick={() => go("customers")}>Customers</button>}
-          {show.jobcards && <button onClick={() => go("jobcards")}>Job Cards</button>}
-          {show.calltracking && <button onClick={() => go("calltracking")}>Call Tracking</button>}
-          {show.inspection && <button onClick={() => go("inspection")}>Inspection Approvals</button>}
-          {show.tickets && <button onClick={() => go("tickets")}>Tickets</button>}
-          {show.employees && <button onClick={() => go("employees")}>Employees</button>}
-          {show.activitylog && <button onClick={() => go("activitylog")}>Activity Log</button>}
-
-          {(showAdmin.users || showAdmin.departments || showAdmin.rolespolicies) && (
-            <>
-              {showAdmin.users && <button onClick={() => go("users")}>Users</button>}
-              {showAdmin.departments && <button onClick={() => go("departments")}>Departments</button>}
-              {showAdmin.rolespolicies && <button onClick={() => go("rolespolicies")}>Roles & Policies</button>}
-            </>
+        <nav className="drawer-nav">
+          {show.dashboard && (
+            <button className={page === "dashboard" ? "active" : ""} onClick={() => go("dashboard")}>
+              Dashboard
+            </button>
+          )}
+          {show.customers && (
+            <button className={page === "customers" ? "active" : ""} onClick={() => go("customers")}>
+              Customers
+            </button>
+          )}
+          {show.jobcards && (
+            <button className={page === "jobcards" ? "active" : ""} onClick={() => go("jobcards")}>
+              Job Cards
+            </button>
+          )}
+          {show.calltracking && (
+            <button className={page === "calltracking" ? "active" : ""} onClick={() => go("calltracking")}>
+              Call Tracking
+            </button>
+          )}
+          {show.inspection && (
+            <button className={page === "inspection" ? "active" : ""} onClick={() => go("inspection")}>
+              Inspection Approvals
+            </button>
+          )}
+          {show.tickets && (
+            <button className={page === "tickets" ? "active" : ""} onClick={() => go("tickets")}>
+              Tickets
+            </button>
+          )}
+          {show.employees && (
+            <button className={page === "employees" ? "active" : ""} onClick={() => go("employees")}>
+              Employees
+            </button>
+          )}
+          {show.activitylog && (
+            <button className={page === "activitylog" ? "active" : ""} onClick={() => go("activitylog")}>
+              Activity Log
+            </button>
           )}
 
-          <button className="danger" onClick={signOut}>Sign out</button>
+          {(showAdmin.users || showAdmin.departments || showAdmin.rolespolicies) && (
+            <div className="drawer-section">
+              <div className="drawer-section-label">Admin</div>
+
+              {showAdmin.users && (
+                <button className={page === "users" ? "active" : ""} onClick={() => go("users")}>
+                  Users
+                </button>
+              )}
+              {showAdmin.departments && (
+                <button className={page === "departments" ? "active" : ""} onClick={() => go("departments")}>
+                  Departments
+                </button>
+              )}
+              {showAdmin.rolespolicies && (
+                <button className={page === "rolespolicies" ? "active" : ""} onClick={() => go("rolespolicies")}>
+                  Roles & Policies
+                </button>
+              )}
+            </div>
+          )}
+
+          <div className="drawer-spacer" />
+
+          <button className="danger" onClick={signOut}>
+            Sign out
+          </button>
         </nav>
       </aside>
 
-      <main className="main-content">
-        <header className="main-header">
-          <button className="menu-btn" onClick={() => setSidebarOpen(true)}>☰</button>
-          <div className="header-text">
-            <h1>Welcome</h1>
-            <p className="sub">{loading ? "Loading..." : `Signed in as: ${email || "-"}`}</p>
+      {/* Main */}
+      <div className="layout-main">
+        <header className="topbar">
+          <div className="topbar-inner">
+            {/* Left: Toggle */}
+            <button
+              className="menu-toggle"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open menu"
+              type="button"
+            >
+              <span className="menu-toggle-icon" aria-hidden>
+                <span />
+                <span />
+                <span />
+              </span>
+            </button>
+
+            {/* Center: Title */}
+            <div className="topbar-center">
+              <div className="topbar-title">{title}</div>
+              <div className="topbar-sub">
+                {loading ? "Loading..." : `Signed in as: ${email || "-"}`}
+              </div>
+            </div>
+
+            {/* Right: Avatar */}
+            <div className="topbar-right">
+              <div className="avatar" title={email || ""}>{initials}</div>
+            </div>
           </div>
         </header>
 
-        <section className="page-content">
+        <main className="content">
           {nothingVisible && (
-            <div style={{ padding: 24, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10 }}>
-              <h3 style={{ marginTop: 0 }}>No access configured</h3>
-              <p style={{ margin: 0, opacity: 0.85 }}>
+            <div className="no-access">
+              <h3>No access configured</h3>
+              <p>
                 You are signed in, but no department → role → policy permissions were resolved for your account.
                 Ask an Admin to assign a Department role + Role policies.
               </p>
@@ -180,17 +296,25 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
           {page === "customers" && show.customers && <Customers permissions={canAny("CUSTOMERS")} />}
           {page === "jobcards" && show.jobcards && <JobCards permissions={canAny("JOB_CARDS")} />}
           {page === "calltracking" && show.calltracking && <CallTracking permissions={canAny("CALL_TRACKING")} />}
-          {page === "inspection" && show.inspection && <InspectionApprovals permissions={canAny("INSPECTION_APPROVALS")} />}
+          {page === "inspection" && show.inspection && (
+            <InspectionApprovals permissions={canAny("INSPECTION_APPROVALS")} />
+          )}
 
           {page === "tickets" && show.tickets && <Tickets permissions={canAny("TICKETS")} />}
           {page === "employees" && show.employees && <Employees permissions={canAny("EMPLOYEES")} />}
           {page === "activitylog" && show.activitylog && <ActivityLog permissions={canAny("ACTIVITY_LOG")} />}
 
-          {page === "users" && showAdmin.users && <Users permissions={{ ...EMPTY, canRead: true, canCreate: true, canUpdate: true, canDelete: true, canApprove: true }} />}
-          {page === "departments" && showAdmin.departments && <DepartmentsAdmin permissions={{ ...EMPTY, canRead: true, canCreate: true, canUpdate: true, canDelete: true, canApprove: true }} />}
-          {page === "rolespolicies" && showAdmin.rolespolicies && <RolesPoliciesAdmin permissions={{ ...EMPTY, canRead: true, canCreate: true, canUpdate: true, canDelete: true, canApprove: true }} />}
-        </section>
-      </main>
+          {page === "users" && showAdmin.users && (
+            <Users permissions={{ ...EMPTY, canRead: true, canCreate: true, canUpdate: true, canDelete: true, canApprove: true }} />
+          )}
+          {page === "departments" && showAdmin.departments && (
+            <DepartmentsAdmin permissions={{ ...EMPTY, canRead: true, canCreate: true, canUpdate: true, canDelete: true, canApprove: true }} />
+          )}
+          {page === "rolespolicies" && showAdmin.rolespolicies && (
+            <RolesPoliciesAdmin permissions={{ ...EMPTY, canRead: true, canCreate: true, canUpdate: true, canDelete: true, canApprove: true }} />
+          )}
+        </main>
+      </div>
     </div>
   );
 }

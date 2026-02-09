@@ -4,7 +4,7 @@ import type { Schema } from "../../amplify/data/resource";
 const client = generateClient<Schema>();
 
 export async function logActivity(
-  entityType: "Employee" | "Customer",
+  entityType: "Customer" | "Employee" | "Ticket" | "JobOrder",
   entityId: string,
   action: "CREATE" | "UPDATE" | "DELETE",
   message: string

@@ -12,12 +12,15 @@ import { deleteDepartment } from "../functions/departments/delete-department/res
 import { renameDepartment } from "../functions/departments/rename-department/resource";
 import { setUserDepartment } from "../functions/departments/set-user-department/resource";
 
+// ✅ Job Orders (Job Cards) module
+import { jobOrderSave } from "../functions/job-orders/save-job-order/resource";
+import { jobOrderDelete } from "../functions/job-orders/delete-job-order/resource";
+
 // ✅ MUST MATCH your Cognito group name EXACTLY
 const ADMIN_GROUP = "Admins";
 
 const schema = a
   .schema({
-    
     // -----------------------------
     // USER PROFILE
     // -----------------------------
@@ -182,7 +185,52 @@ const schema = a
       .authorization((allow) => [allow.authenticated()]),
 
     // -----------------------------
-    // ✅ MISSING MODELS YOU USE IN FRONTEND
+    // Job Orders (Job Cards) — Read-only for users; mutations go through functions (RBAC enforced server-side)
+    // -----------------------------
+    JobOrder: a
+      .model({
+        orderNumber: a.string().required(),
+        orderType: a.string(),
+        status: a.enum(["DRAFT", "OPEN", "IN_PROGRESS", "READY", "COMPLETED", "CANCELLED"]),
+        paymentStatus: a.enum(["UNPAID", "PARTIAL", "PAID"]),
+
+        customerId: a.id(),
+        customerName: a.string().required(),
+        customerPhone: a.string(),
+        customerEmail: a.string(),
+
+        vehicleType: a.enum(["SEDAN", "SUV_4X4", "TRUCK", "MOTORBIKE", "OTHER"]),
+        vehicleMake: a.string(),
+        vehicleModel: a.string(),
+        plateNumber: a.string(),
+        vin: a.string(),
+        mileage: a.string(),
+        color: a.string(),
+
+        subtotal: a.float(),
+        discount: a.float(),
+        vatRate: a.float(),
+        vatAmount: a.float(),
+        totalAmount: a.float(),
+        amountPaid: a.float(),
+        balanceDue: a.float(),
+
+        notes: a.string(),
+
+        // stores the entire module payload (services, payments, docs, inspection, etc.)
+        dataJson: a.string(),
+
+        createdBy: a.string(),
+        createdAt: a.datetime(),
+        updatedAt: a.datetime(),
+      })
+      .authorization((allow) => [
+        allow.group(ADMIN_GROUP),
+        allow.authenticated().to(["read"]),
+      ]),
+
+    // -----------------------------
+    // Call Tracking / Inspection (existing)
     // -----------------------------
     JobCard: a
       .model({
@@ -236,7 +284,6 @@ const schema = a
         email: a.string().required(),
         fullName: a.string().required(),
         mobileNumber: a.string(),
-
         departmentKey: a.string().required(),
         departmentName: a.string(),
       })
@@ -302,12 +349,33 @@ const schema = a
       .handler(a.handler.function(setUserDepartment))
       .returns(a.json()),
 
-      myGroups: a
-  .query()
-  .authorization((allow) => [allow.authenticated()])
-  .handler(a.handler.function(myGroups))
-  .returns(a.json()),
+    myGroups: a
+      .query()
+      .authorization((allow) => [allow.authenticated()])
+      .handler(a.handler.function(myGroups))
+      .returns(a.json()),
 
+    // -----------------------------
+    // ✅ Job Orders mutations (RBAC enforced inside Lambda)
+    // Policy key expected in RolePolicy.policyKey: "JOB_CARDS"
+    // -----------------------------
+    jobOrderSave: a
+      .mutation()
+      .arguments({
+        input: a.json().required(), // AWSJSON (string or object)
+      })
+      .authorization((allow) => [allow.authenticated()])
+      .handler(a.handler.function(jobOrderSave))
+      .returns(a.json()),
+
+    jobOrderDelete: a
+      .mutation()
+      .arguments({
+        id: a.string().required(),
+      })
+      .authorization((allow) => [allow.authenticated()])
+      .handler(a.handler.function(jobOrderDelete))
+      .returns(a.json()),
   })
   .authorization((allow) => [
     allow.resource(inviteUser),
@@ -318,8 +386,11 @@ const schema = a
     allow.resource(deleteDepartment),
     allow.resource(renameDepartment),
     allow.resource(setUserDepartment),
-      allow.resource(myGroups),
+    allow.resource(myGroups),
 
+    // job orders functions need data access
+    allow.resource(jobOrderSave),
+    allow.resource(jobOrderDelete),
   ]);
 
 export type Schema = ClientSchema<typeof schema>;
