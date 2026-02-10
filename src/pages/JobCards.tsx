@@ -163,6 +163,24 @@ function toNum(x: unknown) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function getRowBalance(o: any) {
+  // Prefer backend-calculated balanceDue (best + fast)
+  const raw = o?.balanceDue;
+
+  const hasBalanceDue =
+    raw !== null && raw !== undefined && String(raw).trim() !== "";
+
+  if (hasBalanceDue) {
+    return Math.max(0, toNum(raw));
+  }
+
+  // Fallback if balanceDue is not stored on the JobOrder row
+  const total = toNum(o?.totalAmount);
+  const paid = toNum(o?.amountPaid);
+  return Math.max(0, total - paid);
+}
+
+
 function computeTotalsFromServices(d: OrderPayload) {
   const subtotal = (d.services ?? []).reduce(
     (sum, s) => sum + toNum(s.qty) * toNum(s.unitPrice),
@@ -1059,11 +1077,19 @@ export default function JobCards({ permissions }: PageProps) {
                       {String((o as any).paymentStatus ?? "—")}
                     </span>
                   </td>
-                  <td className="right">
-                    {typeof (o as any).totalAmount === "number"
-                      ? (o as any).totalAmount.toFixed(2)
-                      : "—"}
-                  </td>
+<td className="right">
+  {(() => {
+    const bal = getRowBalance(o);
+    // If nothing exists yet (new orders sometimes), show dash
+    const hasAnyMoneyField =
+      (o as any).balanceDue !== undefined ||
+      (o as any).totalAmount !== undefined ||
+      (o as any).amountPaid !== undefined;
+
+    return hasAnyMoneyField ? bal.toFixed(2) : "—";
+  })()}
+</td>
+
                   <td className="right">
                     <button
                       className="jom-actions-btn"

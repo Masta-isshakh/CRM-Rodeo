@@ -285,13 +285,29 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             </div>
           )}
 
-          {page === "dashboard" && show.dashboard && (
-            <Dashboard
-              permissions={canAny("DASHBOARD")}
-              showEmployeesKpi={show.employees}
-              showCustomersKpi={show.customers}
-            />
-          )}
+{page === "dashboard" && show.dashboard && (
+  <Dashboard
+    permissions={canAny("DASHBOARD")}
+    email={email}
+    onNavigate={go}
+    visibility={{
+      dashboard: show.dashboard,
+      customers: show.customers,
+      tickets: show.tickets,
+      employees: show.employees,
+      activitylog: show.activitylog,
+      jobcards: show.jobcards,
+      calltracking: show.calltracking,
+      inspection: show.inspection,
+      admin: {
+        users: showAdmin.users,
+        departments: showAdmin.departments,
+        rolespolicies: showAdmin.rolespolicies,
+      },
+    }}
+  />
+)}
+
 
           {page === "customers" && show.customers && <Customers permissions={canAny("CUSTOMERS")} />}
           {page === "jobcards" && show.jobcards && <JobCards permissions={canAny("JOB_CARDS")} />}

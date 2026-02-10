@@ -21,7 +21,7 @@ import { myGroups } from "./functions/auth/my-groups/resource";
 const backend = defineBackend({
   auth,
   data,
-    storage,
+  storage,
 
 
   inviteUser,
