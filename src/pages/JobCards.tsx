@@ -3,6 +3,8 @@ import { Button } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
 import { createPortal } from "react-dom";
 
+import { uploadData, getUrl } from "aws-amplify/storage";
+
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
 import { getDataClient } from "../lib/amplifyClient";
@@ -14,7 +16,13 @@ type JobOrderRow = Schema["JobOrder"]["type"];
 type CustomerRow = Schema["Customer"]["type"];
 type PaymentRow = Schema["JobOrderPayment"]["type"];
 
-type OrderStatus = "DRAFT" | "OPEN" | "IN_PROGRESS" | "READY" | "COMPLETED" | "CANCELLED";
+type OrderStatus =
+  | "DRAFT"
+  | "OPEN"
+  | "IN_PROGRESS"
+  | "READY"
+  | "COMPLETED"
+  | "CANCELLED";
 type PaymentStatus = "UNPAID" | "PARTIAL" | "PAID";
 type VehicleType = "SEDAN" | "SUV_4X4" | "TRUCK" | "MOTORBIKE" | "OTHER";
 
@@ -32,9 +40,19 @@ type ServiceLine = {
 type DocLine = {
   id: string;
   title: string;
-  url: string;
+  url: string; // external URL OR legacy string
   type?: string;
   addedAt: string;
+
+  // NEW (for Storage uploads)
+  storagePath?: string; // e.g. "job-orders/<orderId>/documents/<file>"
+  fileName?: string;
+  contentType?: string;
+  size?: number;
+
+  // Optional linkage metadata
+  linkedPaymentId?: string;
+  paymentMethod?: string;
 };
 
 type OrderPayload = {
@@ -76,7 +94,6 @@ type OrderPayload = {
     paymentStatus: PaymentStatus;
   };
 
-  // room for future features
   [k: string]: any;
 };
 
@@ -147,19 +164,43 @@ function toNum(x: unknown) {
 }
 
 function computeTotalsFromServices(d: OrderPayload) {
-  const subtotal = (d.services ?? []).reduce((sum, s) => sum + toNum(s.qty) * toNum(s.unitPrice), 0);
+  const subtotal = (d.services ?? []).reduce(
+    (sum, s) => sum + toNum(s.qty) * toNum(s.unitPrice),
+    0
+  );
   const discount = Math.max(0, toNum(d.discount));
   const vatRate = Math.max(0, toNum(d.vatRate));
   const taxable = Math.max(0, subtotal - discount);
   const vatAmount = taxable * vatRate;
   const totalAmount = taxable + vatAmount;
 
-  // Draft screen: payments are added only after save
   const amountPaid = 0;
   const balanceDue = Math.max(0, totalAmount - amountPaid);
-  const paymentStatus: PaymentStatus = balanceDue <= 0.00001 ? "PAID" : amountPaid > 0 ? "PARTIAL" : "UNPAID";
+  const paymentStatus: PaymentStatus =
+    balanceDue <= 0.00001 ? "PAID" : amountPaid > 0 ? "PARTIAL" : "UNPAID";
 
-  return { subtotal, discount, vatRate, vatAmount, totalAmount, amountPaid, balanceDue, paymentStatus };
+  return {
+    subtotal,
+    discount,
+    vatRate,
+    vatAmount,
+    totalAmount,
+    amountPaid,
+    balanceDue,
+    paymentStatus,
+  };
+}
+
+function isHttpUrl(s: string) {
+  return /^https?:\/\//i.test(String(s ?? "").trim());
+}
+
+function sanitizeFileName(name: string) {
+  const base = String(name || "file")
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9._-]/g, "");
+  return base || `file_${Date.now()}`;
 }
 
 type MenuState =
@@ -181,12 +222,10 @@ export default function JobCards({ permissions }: PageProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<OrderStatus | "ALL">("ALL");
 
-  // details & editor
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [activePayload, setActivePayload] = useState<OrderPayload | null>(null);
 
-  // payments (separate model)
   const [activePayments, setActivePayments] = useState<PaymentRow[]>([]);
   const [paymentsLoading, setPaymentsLoading] = useState(false);
 
@@ -203,9 +242,30 @@ export default function JobCards({ permissions }: PageProps) {
     documents: [],
   }));
 
-  // actions dropdown (portal)
   const [menu, setMenu] = useState<MenuState>({ open: false });
   const portalMenuRef = useRef<HTMLDivElement | null>(null);
+
+  // Documents UI state (Details screen)
+  const [docTitle, setDocTitle] = useState("");
+  const [docUrl, setDocUrl] = useState("");
+  const [docFile, setDocFile] = useState<File | null>(null);
+  const [docUploading, setDocUploading] = useState(false);
+
+  // Payment quick-add state (Details screen)
+  const [payAmount, setPayAmount] = useState<string>("");
+  const [payMethod, setPayMethod] = useState<string>("Cash");
+  const [payRef, setPayRef] = useState<string>("");
+  const [payNotes, setPayNotes] = useState<string>("");
+  const [payFile, setPayFile] = useState<File | null>(null);
+  const [payAttaching, setPayAttaching] = useState(false);
+
+  // Payment edit state
+  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
+  const [editPayAmount, setEditPayAmount] = useState<string>("");
+  const [editPayMethod, setEditPayMethod] = useState<string>("Cash");
+  const [editPayRef, setEditPayRef] = useState<string>("");
+  const [editPayNotes, setEditPayNotes] = useState<string>("");
+  const [editPayAt, setEditPayAt] = useState<string>("");
 
   const load = async () => {
     setLoading(true);
@@ -216,7 +276,9 @@ export default function JobCards({ permissions }: PageProps) {
         client.models.Customer.list({ limit: 2000 }),
       ]);
       const sorted = [...(oRes.data ?? [])].sort((a, b) =>
-        String((b as any).updatedAt ?? (b as any).createdAt ?? "").localeCompare(String((a as any).updatedAt ?? (a as any).createdAt ?? ""))
+        String((b as any).updatedAt ?? (b as any).createdAt ?? "").localeCompare(
+          String((a as any).updatedAt ?? (a as any).createdAt ?? "")
+        )
       );
       setOrders(sorted);
       setCustomers(cRes.data ?? []);
@@ -235,15 +297,20 @@ export default function JobCards({ permissions }: PageProps) {
     if (!jobOrderId) return;
     setPaymentsLoading(true);
     try {
-      // Prefer secondary-index query if available
       let res: any;
       try {
-        res = await (client.models.JobOrderPayment as any).listPaymentsByJobOrder?.({ jobOrderId, limit: 2000 });
+        res = await (client.models.JobOrderPayment as any).listPaymentsByJobOrder?.({
+          jobOrderId,
+          limit: 2000,
+        });
       } catch {
         res = null;
       }
       if (!res) {
-        res = await client.models.JobOrderPayment.list({ filter: { jobOrderId: { eq: jobOrderId } } as any, limit: 2000 });
+        res = await client.models.JobOrderPayment.list({
+          filter: { jobOrderId: { eq: jobOrderId } } as any,
+          limit: 2000,
+        });
       }
       const sorted = [...(res.data ?? [])].sort((a: any, b: any) =>
         String(b.paidAt ?? "").localeCompare(String(a.paidAt ?? ""))
@@ -257,57 +324,61 @@ export default function JobCards({ permissions }: PageProps) {
     }
   };
 
+  const rowToPayload = (row: JobOrderRow): OrderPayload => {
+    const payload =
+      safeJsonParse<Partial<OrderPayload>>((row as any).dataJson) ??
+      ({} as Partial<OrderPayload>);
+
+    const merged: OrderPayload = {
+      id: (row as any).id,
+      orderNumber: (row as any).orderNumber,
+      orderType: String((row as any).orderType ?? "Job Order"),
+      status: ((row as any).status as any) ?? "OPEN",
+      paymentStatus: ((row as any).paymentStatus as any) ?? "UNPAID",
+
+      customerId: (row as any).customerId ?? undefined,
+      customerName: (row as any).customerName ?? "",
+      customerPhone: (row as any).customerPhone ?? undefined,
+      customerEmail: (row as any).customerEmail ?? undefined,
+
+      vehicleType: ((row as any).vehicleType as any) ?? "SUV_4X4",
+      vehicleMake: (row as any).vehicleMake ?? undefined,
+      vehicleModel: (row as any).vehicleModel ?? undefined,
+      plateNumber: (row as any).plateNumber ?? undefined,
+      vin: (row as any).vin ?? undefined,
+      mileage: (row as any).mileage ?? undefined,
+      color: (row as any).color ?? undefined,
+
+      notes: (row as any).notes ?? undefined,
+
+      vatRate: toNum((row as any).vatRate ?? (payload as any).vatRate ?? 0),
+      discount: toNum((row as any).discount ?? (payload as any).discount ?? 0),
+
+      services: (payload as any).services ?? [],
+      documents: (payload as any).documents ?? [],
+      ...payload,
+    };
+
+    merged.totals = {
+      subtotal: toNum((row as any).subtotal),
+      discount: toNum((row as any).discount),
+      vatRate: toNum((row as any).vatRate),
+      vatAmount: toNum((row as any).vatAmount),
+      totalAmount: toNum((row as any).totalAmount),
+      amountPaid: toNum((row as any).amountPaid),
+      balanceDue: toNum((row as any).balanceDue),
+      paymentStatus: ((row as any).paymentStatus as any) ?? "UNPAID",
+    };
+
+    return merged;
+  };
+
   const refreshActiveOrder = async (id: string) => {
     try {
       const res = await client.models.JobOrder.get({ id } as any);
       const row = (res as any)?.data as JobOrderRow | undefined;
       if (!row) return;
-
-      const payload =
-        safeJsonParse<Partial<OrderPayload>>((row as any).dataJson) ??
-        ({} as Partial<OrderPayload>);
-
-      const merged: OrderPayload = {
-        id: (row as any).id,
-        orderNumber: (row as any).orderNumber,
-        orderType: String((row as any).orderType ?? "Job Order"),
-        status: ((row as any).status as any) ?? "OPEN",
-        paymentStatus: ((row as any).paymentStatus as any) ?? "UNPAID",
-
-        customerId: (row as any).customerId ?? undefined,
-        customerName: (row as any).customerName ?? "",
-        customerPhone: (row as any).customerPhone ?? undefined,
-        customerEmail: (row as any).customerEmail ?? undefined,
-
-        vehicleType: ((row as any).vehicleType as any) ?? "SUV_4X4",
-        vehicleMake: (row as any).vehicleMake ?? undefined,
-        vehicleModel: (row as any).vehicleModel ?? undefined,
-        plateNumber: (row as any).plateNumber ?? undefined,
-        vin: (row as any).vin ?? undefined,
-        mileage: (row as any).mileage ?? undefined,
-        color: (row as any).color ?? undefined,
-
-        notes: (row as any).notes ?? undefined,
-
-        vatRate: toNum((row as any).vatRate ?? (payload as any).vatRate ?? 0),
-        discount: toNum((row as any).discount ?? (payload as any).discount ?? 0),
-
-        services: (payload as any).services ?? [],
-        documents: (payload as any).documents ?? [],
-        ...payload,
-      };
-
-      merged.totals = {
-        subtotal: toNum((row as any).subtotal),
-        discount: toNum((row as any).discount),
-        vatRate: toNum((row as any).vatRate),
-        vatAmount: toNum((row as any).vatAmount),
-        totalAmount: toNum((row as any).totalAmount),
-        amountPaid: toNum((row as any).amountPaid),
-        balanceDue: toNum((row as any).balanceDue),
-        paymentStatus: ((row as any).paymentStatus as any) ?? "UNPAID",
-      };
-
+      const merged = rowToPayload(row);
       setActiveOrderId(id);
       setActivePayload(merged);
     } catch (e) {
@@ -320,7 +391,6 @@ export default function JobCards({ permissions }: PageProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Close menu on outside click / ESC / scroll / resize
   useEffect(() => {
     if (!menu.open) return;
 
@@ -356,7 +426,8 @@ export default function JobCards({ permissions }: PageProps) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (orders ?? []).filter((o) => {
-      if (statusFilter !== "ALL" && String((o as any).status) !== statusFilter) return false;
+      if (statusFilter !== "ALL" && String((o as any).status) !== statusFilter)
+        return false;
 
       if (!q) return true;
       const hay = [
@@ -384,7 +455,8 @@ export default function JobCards({ permissions }: PageProps) {
 
     let left = rect.right - menuWidth;
     if (left < 12) left = 12;
-    if (left + menuWidth > window.innerWidth - 12) left = window.innerWidth - 12 - menuWidth;
+    if (left + menuWidth > window.innerWidth - 12)
+      left = window.innerWidth - 12 - menuWidth;
 
     let top = rect.bottom + 8;
     if (top + menuHeight > window.innerHeight - 12) {
@@ -398,7 +470,11 @@ export default function JobCards({ permissions }: PageProps) {
   const portalDropdown =
     menu.open &&
     createPortal(
-      <div className="jom-menu" ref={portalMenuRef} style={{ top: menu.top, left: menu.left, width: 200 }}>
+      <div
+        className="jom-menu"
+        ref={portalMenuRef}
+        style={{ top: menu.top, left: menu.left, width: 200 }}
+      >
         <button
           className="jom-menu-item"
           onClick={() => {
@@ -450,54 +526,25 @@ export default function JobCards({ permissions }: PageProps) {
     const row = orders.find((x) => (x as any).id === id);
     if (!row) return;
 
-    const payload =
-      safeJsonParse<Partial<OrderPayload>>((row as any).dataJson) ??
-      ({} as Partial<OrderPayload>);
-
-    const merged: OrderPayload = {
-      id: (row as any).id,
-      orderNumber: (row as any).orderNumber,
-      orderType: String((row as any).orderType ?? "Job Order"),
-      status: ((row as any).status as any) ?? "OPEN",
-      paymentStatus: ((row as any).paymentStatus as any) ?? "UNPAID",
-
-      customerId: (row as any).customerId ?? undefined,
-      customerName: (row as any).customerName ?? "",
-      customerPhone: (row as any).customerPhone ?? undefined,
-      customerEmail: (row as any).customerEmail ?? undefined,
-
-      vehicleType: ((row as any).vehicleType as any) ?? "SUV_4X4",
-      vehicleMake: (row as any).vehicleMake ?? undefined,
-      vehicleModel: (row as any).vehicleModel ?? undefined,
-      plateNumber: (row as any).plateNumber ?? undefined,
-      vin: (row as any).vin ?? undefined,
-      mileage: (row as any).mileage ?? undefined,
-      color: (row as any).color ?? undefined,
-
-      notes: (row as any).notes ?? undefined,
-
-      vatRate: toNum((row as any).vatRate ?? payload.vatRate ?? 0),
-      discount: toNum((row as any).discount ?? payload.discount ?? 0),
-
-      services: payload.services ?? [],
-      documents: payload.documents ?? [],
-      ...payload,
-    };
-
-    merged.totals = {
-      subtotal: toNum((row as any).subtotal),
-      discount: toNum((row as any).discount),
-      vatRate: toNum((row as any).vatRate),
-      vatAmount: toNum((row as any).vatAmount),
-      totalAmount: toNum((row as any).totalAmount),
-      amountPaid: toNum((row as any).amountPaid),
-      balanceDue: toNum((row as any).balanceDue),
-      paymentStatus: ((row as any).paymentStatus as any) ?? "UNPAID",
-    };
+    const merged = rowToPayload(row);
 
     setActiveOrderId(id);
     setActivePayload(merged);
     setDetailsOpen(true);
+
+    // reset inline UI fields
+    setDocTitle("");
+    setDocUrl("");
+    setDocFile(null);
+
+    setPayAmount("");
+    setPayMethod("Cash");
+    setPayRef("");
+    setPayNotes("");
+    setPayFile(null);
+
+    setEditingPaymentId(null);
+
     await loadPaymentsFor(id);
   };
 
@@ -519,34 +566,8 @@ export default function JobCards({ permissions }: PageProps) {
   const startEdit = (id: string) => {
     const row = orders.find((x) => (x as any).id === id);
     if (!row) return;
-    const payload =
-      safeJsonParse<Partial<OrderPayload>>((row as any).dataJson) ??
-      ({} as Partial<OrderPayload>);
 
-    const d: OrderPayload = {
-      id: (row as any).id,
-      orderNumber: (row as any).orderNumber,
-      orderType: String((row as any).orderType ?? "Job Order"),
-      status: ((row as any).status as any) ?? "OPEN",
-      paymentStatus: ((row as any).paymentStatus as any) ?? "UNPAID",
-      customerId: (row as any).customerId ?? undefined,
-      customerName: (row as any).customerName ?? "",
-      customerPhone: (row as any).customerPhone ?? undefined,
-      customerEmail: (row as any).customerEmail ?? undefined,
-      vehicleType: ((row as any).vehicleType as any) ?? "SUV_4X4",
-      vehicleMake: (row as any).vehicleMake ?? undefined,
-      vehicleModel: (row as any).vehicleModel ?? undefined,
-      plateNumber: (row as any).plateNumber ?? undefined,
-      vin: (row as any).vin ?? undefined,
-      mileage: (row as any).mileage ?? undefined,
-      color: (row as any).color ?? undefined,
-      notes: (row as any).notes ?? undefined,
-      vatRate: toNum((row as any).vatRate ?? payload.vatRate ?? 0),
-      discount: toNum((row as any).discount ?? payload.discount ?? 0),
-      services: payload.services ?? [],
-      documents: payload.documents ?? [],
-      ...payload,
-    };
+    const d = rowToPayload(row);
 
     setDraft(d);
     setWizardStep(1);
@@ -585,6 +606,12 @@ export default function JobCards({ permissions }: PageProps) {
           url: String(d.url ?? "").trim(),
           type: String(d.type ?? "").trim() || undefined,
           addedAt: String(d.addedAt ?? "").trim() || new Date().toISOString(),
+          storagePath: String(d.storagePath ?? "").trim() || undefined,
+          fileName: String(d.fileName ?? "").trim() || undefined,
+          contentType: String(d.contentType ?? "").trim() || undefined,
+          size: typeof d.size === "number" ? d.size : undefined,
+          linkedPaymentId: String(d.linkedPaymentId ?? "").trim() || undefined,
+          paymentMethod: String(d.paymentMethod ?? "").trim() || undefined,
         })),
         vatRate: Math.max(0, toNum(payload.vatRate)),
         discount: Math.max(0, toNum(payload.discount)),
@@ -605,19 +632,21 @@ export default function JobCards({ permissions }: PageProps) {
       const savedId = String(out?.id || clean.id || "");
       const orderNumber = String(out?.orderNumber || clean.orderNumber || "");
 
-      // Activity log (best-effort)
       const action = clean.id ? "UPDATE" : "CREATE";
       if (savedId) {
-        await logActivity("JobOrder", savedId, action, `Job order ${orderNumber} ${action.toLowerCase()}`);
+        await logActivity(
+          "JobOrder",
+          savedId,
+          action,
+          `Job order ${orderNumber} ${action.toLowerCase()}`
+        );
       }
 
       setWizardOpen(false);
 
       await load();
-
       setStatus(clean.id ? "Job order updated." : "Job order created.");
 
-      // If details is open for this order, refresh it
       if (detailsOpen && activeOrderId && activeOrderId === savedId) {
         await refreshActiveOrder(savedId);
       }
@@ -649,7 +678,8 @@ export default function JobCards({ permissions }: PageProps) {
     try {
       const res = await (client.mutations as any).jobOrderDelete({ id });
 
-      if (res?.errors?.length) throw new Error(res.errors.map((e: any) => e.message).join(" | "));
+      if (res?.errors?.length)
+        throw new Error(res.errors.map((e: any) => e.message).join(" | "));
 
       await logActivity("JobOrder", id, "DELETE", `Job order deleted`);
       await load();
@@ -668,8 +698,76 @@ export default function JobCards({ permissions }: PageProps) {
     }
   };
 
-  // Payments actions
-  const addPayment = async (jobOrderId: string, amount: number, method: string, reference: string, paidAt: string) => {
+  // -------- Storage helpers --------
+  const uploadFileToStorage = async (opts: {
+    orderId: string;
+    file: File;
+    folder: "documents" | "payments";
+  }) => {
+    const safe = sanitizeFileName(opts.file.name);
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
+    const storagePath = `job-orders/${opts.orderId}/${opts.folder}/${ts}_${safe}`;
+
+    // Upload to S3 via Amplify Storage
+    const task = uploadData({
+      path: storagePath,
+      data: opts.file,
+      options: {
+        contentType: opts.file.type || "application/octet-stream",
+      },
+    });
+    await task.result;
+
+    return {
+      storagePath,
+      fileName: opts.file.name,
+      contentType: opts.file.type || undefined,
+      size: opts.file.size,
+    };
+  };
+
+  const openStoragePathInNewTab = async (storagePath: string) => {
+    const link = await getUrl({
+      path: storagePath,
+      options: {
+        expiresIn: 60 * 30, // 30 minutes
+        validateObjectExistence: true,
+      },
+    });
+
+    const signed = String((link as any)?.url ?? "");
+    if (!signed) throw new Error("Could not create download URL.");
+
+    window.open(signed, "_blank", "noopener,noreferrer");
+  };
+
+  const openDoc = async (d: DocLine) => {
+    const external = String(d.url ?? "").trim();
+    if (d.storagePath) {
+      await openStoragePathInNewTab(d.storagePath);
+      return;
+    }
+    // legacy support: if url is not http, treat it as storage path
+    if (external && !isHttpUrl(external)) {
+      await openStoragePathInNewTab(external);
+      return;
+    }
+    if (external && isHttpUrl(external)) {
+      window.open(external, "_blank", "noopener,noreferrer");
+      return;
+    }
+    throw new Error("Document has no URL/path.");
+  };
+
+  // -------- Payments actions --------
+  const addPayment = async (
+    jobOrderId: string,
+    amount: number,
+    method: string,
+    reference: string,
+    paidAt: string,
+    notes?: string
+  ) => {
     if (!permissions.canUpdate) return;
 
     setStatus("");
@@ -681,10 +779,17 @@ export default function JobCards({ permissions }: PageProps) {
         method,
         reference,
         paidAt,
+        notes: notes || "",
       });
-      if (res?.errors?.length) throw new Error(res.errors.map((e: any) => e.message).join(" | "));
+      if (res?.errors?.length)
+        throw new Error(res.errors.map((e: any) => e.message).join(" | "));
 
-      await logActivity("JobOrder", String(res?.data?.jobOrderId ?? activeOrderId ?? ""), "CREATE", `Payment added: ${amount.toFixed(2)} QAR`);
+      await logActivity(
+        "JobOrder",
+        String(res?.data?.jobOrderId ?? activeOrderId ?? ""),
+        "CREATE",
+        `Payment added: ${amount.toFixed(2)} QAR`
+      );
 
       await loadPaymentsFor(jobOrderId);
       await refreshActiveOrder(jobOrderId);
@@ -693,6 +798,54 @@ export default function JobCards({ permissions }: PageProps) {
     } catch (e: any) {
       console.error(e);
       setStatus(e?.message ?? "Failed to add payment.");
+      throw e;
+    } finally {
+      setPaymentsLoading(false);
+    }
+  };
+
+  const updatePayment = async (payload: {
+    id: string;
+    amount: number;
+    method?: string;
+    reference?: string;
+    paidAt?: string;
+    notes?: string;
+  }) => {
+    if (!permissions.canUpdate) return;
+
+    setStatus("");
+    setPaymentsLoading(true);
+    try {
+      const res = await (client.mutations as any).jobOrderPaymentUpdate({
+        id: payload.id,
+        amount: payload.amount,
+        method: payload.method ?? "",
+        reference: payload.reference ?? "",
+        paidAt: payload.paidAt ?? "",
+        notes: payload.notes ?? "",
+      });
+      if (res?.errors?.length)
+        throw new Error(res.errors.map((e: any) => e.message).join(" | "));
+
+      const jobOrderId = String(res?.data?.jobOrderId ?? activeOrderId ?? "");
+      await logActivity(
+        "JobOrder",
+        jobOrderId,
+        "UPDATE",
+        `Payment updated`
+      );
+
+      if (jobOrderId) {
+        await loadPaymentsFor(jobOrderId);
+        await refreshActiveOrder(jobOrderId);
+        await load();
+      }
+
+      setStatus("Payment updated.");
+    } catch (e: any) {
+      console.error(e);
+      setStatus(e?.message ?? "Failed to update payment.");
     } finally {
       setPaymentsLoading(false);
     }
@@ -705,12 +858,20 @@ export default function JobCards({ permissions }: PageProps) {
     setStatus("");
     setPaymentsLoading(true);
     try {
-      const res = await (client.mutations as any).jobOrderPaymentDelete({ id: paymentId });
-      if (res?.errors?.length) throw new Error(res.errors.map((e: any) => e.message).join(" | "));
+      const res = await (client.mutations as any).jobOrderPaymentDelete({
+        id: paymentId,
+      });
+      if (res?.errors?.length)
+        throw new Error(res.errors.map((e: any) => e.message).join(" | "));
 
       const jobOrderId = String(res?.data?.jobOrderId ?? activeOrderId ?? "");
 
-      await logActivity("JobOrder", String(activeOrderId ?? ""), "DELETE", `Payment deleted`);
+      await logActivity(
+        "JobOrder",
+        String(activeOrderId ?? ""),
+        "DELETE",
+        `Payment deleted`
+      );
 
       if (jobOrderId) {
         await loadPaymentsFor(jobOrderId);
@@ -729,16 +890,79 @@ export default function JobCards({ permissions }: PageProps) {
 
   const totalsPreview = useMemo(() => computeTotalsFromServices(draft), [draft]);
 
-  // Payment quick-add state
-  const [payAmount, setPayAmount] = useState<string>("");
-  const [payMethod, setPayMethod] = useState<string>("Cash");
-  const [payRef, setPayRef] = useState<string>("");
+  // -------- Documents actions (Details screen) --------
+  const addDocumentLink = async (title: string, url: string) => {
+    if (!permissions.canUpdate || !activePayload?.id) return;
+    const nextDocs: DocLine[] = [
+      ...(activePayload.documents ?? []),
+      {
+        id: uid("doc"),
+        title,
+        url,
+        type: "Link",
+        addedAt: new Date().toISOString(),
+      },
+    ];
+    const next = { ...activePayload, documents: nextDocs };
+    await saveFromDetails(next);
+  };
 
+  const addDocumentUpload = async (title: string, file: File) => {
+    if (!permissions.canUpdate || !activePayload?.id) return;
+
+    setDocUploading(true);
+    try {
+      const meta = await uploadFileToStorage({
+        orderId: activePayload.id,
+        file,
+        folder: "documents",
+      });
+
+      const nextDocs: DocLine[] = [
+        ...(activePayload.documents ?? []),
+        {
+          id: uid("doc"),
+          title: title || file.name,
+          url: meta.storagePath, // keep legacy compatibility
+          storagePath: meta.storagePath,
+          type: "File",
+          addedAt: new Date().toISOString(),
+          fileName: meta.fileName,
+          contentType: meta.contentType,
+          size: meta.size,
+        },
+      ];
+
+      const next = { ...activePayload, documents: nextDocs };
+      await saveFromDetails(next);
+
+      setDocTitle("");
+      setDocUrl("");
+      setDocFile(null);
+      setStatus("Document uploaded.");
+    } catch (e: any) {
+      console.error(e);
+      setStatus(e?.message ?? "Failed to upload document.");
+    } finally {
+      setDocUploading(false);
+    }
+  };
+
+  const removeDocument = async (docId: string) => {
+    if (!permissions.canUpdate || !activePayload?.id) return;
+    if (!confirm("Remove this document from the job order?")) return;
+
+    const nextDocs = (activePayload.documents ?? []).filter((d) => d.id !== docId);
+    const next = { ...activePayload, documents: nextDocs };
+    await saveFromDetails(next);
+    setStatus("Document removed.");
+  };
+
+  // ---------- UI ----------
   return (
     <div className="jom-page">
       {portalDropdown}
 
-      {/* Header */}
       <div className="jom-header">
         <div className="jom-title">
           <div className="jom-badge">≡</div>
@@ -749,7 +973,11 @@ export default function JobCards({ permissions }: PageProps) {
         </div>
 
         <div className="jom-header-actions">
-          <select className="jom-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}>
+          <select
+            className="jom-select"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value as any)}
+          >
             <option value="ALL">All statuses</option>
             <option value="DRAFT">Draft</option>
             <option value="OPEN">Open</option>
@@ -785,7 +1013,6 @@ export default function JobCards({ permissions }: PageProps) {
 
       {status && <div className="jom-status">{status}</div>}
 
-      {/* Table */}
       <div className="jom-card">
         <div className="jom-table-scroll">
           <table className="jom-table">
@@ -812,20 +1039,30 @@ export default function JobCards({ permissions }: PageProps) {
                   <td className="mono">{(o as any).orderNumber}</td>
                   <td className="strong">{(o as any).customerName}</td>
                   <td>{(o as any).customerPhone ?? "—"}</td>
-                  <td>{[(o as any).vehicleMake, (o as any).vehicleModel].filter(Boolean).join(" ") || "—"}</td>
+                  <td>
+                    {[(o as any).vehicleMake, (o as any).vehicleModel]
+                      .filter(Boolean)
+                      .join(" ") || "—"}
+                  </td>
                   <td>{(o as any).plateNumber ?? "—"}</td>
                   <td>
-                    <span className={`pill st-${String((o as any).status ?? "").toLowerCase()}`}>
+                    <span
+                      className={`pill st-${String((o as any).status ?? "").toLowerCase()}`}
+                    >
                       {String((o as any).status ?? "—")}
                     </span>
                   </td>
                   <td>
-                    <span className={`pill pay-${String((o as any).paymentStatus ?? "").toLowerCase()}`}>
+                    <span
+                      className={`pill pay-${String((o as any).paymentStatus ?? "").toLowerCase()}`}
+                    >
                       {String((o as any).paymentStatus ?? "—")}
                     </span>
                   </td>
                   <td className="right">
-                    {typeof (o as any).totalAmount === "number" ? (o as any).totalAmount.toFixed(2) : "—"}
+                    {typeof (o as any).totalAmount === "number"
+                      ? (o as any).totalAmount.toFixed(2)
+                      : "—"}
                   </td>
                   <td className="right">
                     <button
@@ -834,11 +1071,13 @@ export default function JobCards({ permissions }: PageProps) {
                       data-jom-menu-btn={String((o as any).id)}
                       onClick={(e) => {
                         const el = e.currentTarget as HTMLElement;
-                        if (menu.open && menu.orderId === String((o as any).id)) setMenu({ open: false });
+                        if (menu.open && menu.orderId === String((o as any).id))
+                          setMenu({ open: false });
                         else openActionsMenu(String((o as any).id), el);
                       }}
                     >
-                      Actions <span className="caret" aria-hidden>
+                      Actions{" "}
+                      <span className="caret" aria-hidden>
                         ▾
                       </span>
                     </button>
@@ -857,8 +1096,9 @@ export default function JobCards({ permissions }: PageProps) {
         </div>
 
         <div className="jom-footnote">
-          Permissions are enforced in UI and also server-side for Create/Update/Delete through the <b>jobOrderSave</b> /{" "}
-          <b>jobOrderDelete</b> functions (RBAC policy key: <b>JOB_CARDS</b>). Payments are stored in a separate model (<b>JobOrderPayment</b>) for reporting/audits.
+          Permissions are enforced in UI and also server-side for Create/Update/Delete through the{" "}
+          <b>jobOrderSave</b> / <b>jobOrderDelete</b> functions (RBAC policy key: <b>JOB_CARDS</b>). Payments are stored in a separate model (
+          <b>JobOrderPayment</b>) for reporting/audits.
         </div>
       </div>
 
@@ -873,6 +1113,7 @@ export default function JobCards({ permissions }: PageProps) {
                   onClick={() => {
                     setDetailsOpen(false);
                     setActivePayments([]);
+                    setEditingPaymentId(null);
                   }}
                   aria-label="Close"
                 >
@@ -882,11 +1123,21 @@ export default function JobCards({ permissions }: PageProps) {
                   <div className="kicker">Job Order</div>
                   <div className="headline">{activePayload.orderNumber || "—"}</div>
                   <div className="subline">
-                    <span className={`pill st-${activePayload.status.toLowerCase()}`}>{activePayload.status}</span>
+                    <span className={`pill st-${activePayload.status.toLowerCase()}`}>
+                      {activePayload.status}
+                    </span>
                     <span
-                      className={`pill pay-${String(activePayload.totals?.paymentStatus ?? activePayload.paymentStatus ?? "UNPAID").toLowerCase()}`}
+                      className={`pill pay-${String(
+                        activePayload.totals?.paymentStatus ??
+                          activePayload.paymentStatus ??
+                          "UNPAID"
+                      ).toLowerCase()}`}
                     >
-                      {String(activePayload.totals?.paymentStatus ?? activePayload.paymentStatus ?? "UNPAID")}
+                      {String(
+                        activePayload.totals?.paymentStatus ??
+                          activePayload.paymentStatus ??
+                          "UNPAID"
+                      )}
                     </span>
                   </div>
                 </div>
@@ -905,7 +1156,10 @@ export default function JobCards({ permissions }: PageProps) {
                   </button>
                 )}
                 {permissions.canDelete && (
-                  <button className="danger" onClick={() => void removeOrder(activePayload.id!)}>
+                  <button
+                    className="danger"
+                    onClick={() => void removeOrder(activePayload.id!)}
+                  >
                     Delete
                   </button>
                 )}
@@ -913,7 +1167,6 @@ export default function JobCards({ permissions }: PageProps) {
             </div>
 
             <div className="jom-details-body">
-              {/* Summary cards */}
               <div className="grid">
                 <div className="card">
                   <div className="card-title">Customer</div>
@@ -934,7 +1187,8 @@ export default function JobCards({ permissions }: PageProps) {
 
                   {activePayload.customerId && (
                     <div className="hint">
-                      Linked to customer record: <span className="mono">{activePayload.customerId}</span>
+                      Linked to customer record:{" "}
+                      <span className="mono">{activePayload.customerId}</span>
                     </div>
                   )}
                 </div>
@@ -948,7 +1202,11 @@ export default function JobCards({ permissions }: PageProps) {
                     </div>
                     <div className="row">
                       <span>Make / Model</span>
-                      <b>{[activePayload.vehicleMake, activePayload.vehicleModel].filter(Boolean).join(" ") || "—"}</b>
+                      <b>
+                        {[activePayload.vehicleMake, activePayload.vehicleModel]
+                          .filter(Boolean)
+                          .join(" ") || "—"}
+                      </b>
                     </div>
                     <div className="row">
                       <span>Plate</span>
@@ -1010,7 +1268,10 @@ export default function JobCards({ permissions }: PageProps) {
                             <select
                               value={activePayload.status}
                               onChange={(e) => {
-                                const next = { ...activePayload, status: e.target.value as OrderStatus };
+                                const next = {
+                                  ...activePayload,
+                                  status: e.target.value as OrderStatus,
+                                };
                                 void saveFromDetails(next);
                               }}
                             >
@@ -1057,8 +1318,14 @@ export default function JobCards({ permissions }: PageProps) {
                             value={s.status}
                             onChange={(e) => {
                               const nextServices = [...activePayload.services];
-                              nextServices[idx] = { ...s, status: e.target.value as any };
-                              const next = { ...activePayload, services: nextServices };
+                              nextServices[idx] = {
+                                ...s,
+                                status: e.target.value as any,
+                              };
+                              const next = {
+                                ...activePayload,
+                                services: nextServices,
+                              };
                               void saveFromDetails(next);
                             }}
                           >
@@ -1071,14 +1338,21 @@ export default function JobCards({ permissions }: PageProps) {
                           <span className="pill">{s.status}</span>
                         )}
                       </div>
-                      <div className="right">{(toNum(s.qty) * toNum(s.unitPrice)).toFixed(2)}</div>
+                      <div className="right">
+                        {(toNum(s.qty) * toNum(s.unitPrice)).toFixed(2)}
+                      </div>
                       <div className="right">
                         {permissions.canUpdate && (
                           <button
                             className="link danger"
                             onClick={() => {
-                              const nextServices = activePayload.services.filter((_, i) => i !== idx);
-                              const next = { ...activePayload, services: nextServices };
+                              const nextServices = activePayload.services.filter(
+                                (_, i) => i !== idx
+                              );
+                              const next = {
+                                ...activePayload,
+                                services: nextServices,
+                              };
                               void saveFromDetails(next);
                             }}
                           >
@@ -1089,7 +1363,9 @@ export default function JobCards({ permissions }: PageProps) {
                     </div>
                   ))}
 
-                  {!activePayload.services?.length && <div className="empty-mini">No services yet.</div>}
+                  {!activePayload.services?.length && (
+                    <div className="empty-mini">No services yet.</div>
+                  )}
                 </div>
 
                 {permissions.canUpdate && (
@@ -1102,11 +1378,21 @@ export default function JobCards({ permissions }: PageProps) {
                         if (!name) return;
                         const p = YOUR_PRODUCTS.find((x) => x.name === name);
                         const isSUV = activePayload.vehicleType !== "SEDAN";
-                        const unitPrice = p ? (isSUV ? p.suvPrice : p.sedanPrice) : 0;
+                        const unitPrice = p
+                          ? isSUV
+                            ? p.suvPrice
+                            : p.sedanPrice
+                          : 0;
 
                         const nextServices = [
                           ...(activePayload.services ?? []),
-                          { id: uid("svc"), name, qty: 1, unitPrice, status: "PENDING" as const },
+                          {
+                            id: uid("svc"),
+                            name,
+                            qty: 1,
+                            unitPrice,
+                            status: "PENDING" as const,
+                          },
                         ];
                         const next = { ...activePayload, services: nextServices };
                         void saveFromDetails(next);
@@ -1126,7 +1412,13 @@ export default function JobCards({ permissions }: PageProps) {
                       onClick={() => {
                         const nextServices = [
                           ...(activePayload.services ?? []),
-                          { id: uid("svc"), name: "Custom Service", qty: 1, unitPrice: 0, status: "PENDING" as const },
+                          {
+                            id: uid("svc"),
+                            name: "Custom Service",
+                            qty: 1,
+                            unitPrice: 0,
+                            status: "PENDING" as const,
+                          },
                         ];
                         const next = { ...activePayload, services: nextServices };
                         void saveFromDetails(next);
@@ -1138,33 +1430,146 @@ export default function JobCards({ permissions }: PageProps) {
                 )}
               </div>
 
-              {/* Payments (separate model) */}
+              {/* Payments */}
               <div className="card wide">
                 <div className="card-title">Payments</div>
 
                 <div className="payments">
                   {paymentsLoading && <div className="muted">Loading payments…</div>}
 
-                  {(activePayments ?? []).map((p) => (
-                    <div className="pay" key={(p as any).id}>
-                      <div className="strong">{toNum((p as any).amount).toFixed(2)} QAR</div>
-                      <div className="muted">
-                        {(p as any).method || "—"} • {(p as any).reference || "—"}
-                      </div>
-                      <div className="muted">
-                        {(p as any).paidAt ? new Date(String((p as any).paidAt)).toLocaleString() : "—"}
-                      </div>
-                      {permissions.canDelete && (
-                        <button className="link danger" onClick={() => void deletePayment(String((p as any).id))}>
-                          Remove
-                        </button>
-                      )}
-                    </div>
-                  ))}
+                  {(activePayments ?? []).map((p) => {
+                    const pid = String((p as any).id);
+                    const isEditing = editingPaymentId === pid;
 
-                  {!paymentsLoading && !activePayments?.length && <div className="muted">No payments recorded.</div>}
+                    return (
+                      <div className="pay" key={pid}>
+                        {!isEditing ? (
+                          <>
+                            <div className="strong">
+                              {toNum((p as any).amount).toFixed(2)} QAR
+                            </div>
+                            <div className="muted">
+                              {(p as any).method || "—"} • {(p as any).reference || "—"}
+                            </div>
+                            <div className="muted">
+                              {(p as any).paidAt
+                                ? new Date(String((p as any).paidAt)).toLocaleString()
+                                : "—"}
+                              {(p as any).notes ? ` • ${(p as any).notes}` : ""}
+                            </div>
+
+                            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+                              {permissions.canUpdate && (
+                                <button
+                                  className="link"
+                                  onClick={() => {
+                                    setEditingPaymentId(pid);
+                                    setEditPayAmount(String(toNum((p as any).amount)));
+                                    setEditPayMethod(String((p as any).method ?? "Cash") || "Cash");
+                                    setEditPayRef(String((p as any).reference ?? ""));
+                                    setEditPayNotes(String((p as any).notes ?? ""));
+                                    setEditPayAt(String((p as any).paidAt ?? ""));
+                                  }}
+                                >
+                                  Edit
+                                </button>
+                              )}
+                              {permissions.canDelete && (
+                                <button
+                                  className="link danger"
+                                  onClick={() => void deletePayment(pid)}
+                                >
+                                  Remove
+                                </button>
+                              )}
+                            </div>
+                          </>
+                        ) : (
+                          <>
+                            <div style={{ display: "grid", gridTemplateColumns: "160px 180px 1fr", gap: 10, width: "100%" }}>
+                              <input
+                                className="input"
+                                type="number"
+                                value={editPayAmount}
+                                onChange={(e) => setEditPayAmount(e.target.value)}
+                                placeholder="Amount"
+                              />
+                              <select
+                                className="input"
+                                value={editPayMethod}
+                                onChange={(e) => setEditPayMethod(e.target.value)}
+                              >
+                                {METHODS.map((m) => (
+                                  <option key={m} value={m}>
+                                    {m}
+                                  </option>
+                                ))}
+                              </select>
+                              <input
+                                className="input"
+                                value={editPayRef}
+                                onChange={(e) => setEditPayRef(e.target.value)}
+                                placeholder="Reference"
+                              />
+                            </div>
+
+                            <div style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 10, width: "100%", marginTop: 10 }}>
+                              <input
+                                className="input"
+                                value={editPayNotes}
+                                onChange={(e) => setEditPayNotes(e.target.value)}
+                                placeholder="Notes (optional)"
+                              />
+                              <input
+                                className="input"
+                                value={editPayAt}
+                                onChange={(e) => setEditPayAt(e.target.value)}
+                                placeholder="paidAt (ISO or leave)"
+                              />
+                            </div>
+
+                            <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
+                              <button
+                                className="secondary"
+                                disabled={paymentsLoading}
+                                onClick={() => {
+                                  const amt = Math.max(0, toNum(editPayAmount));
+                                  if (!amt) {
+                                    setStatus("Payment amount must be > 0.");
+                                    return;
+                                  }
+                                  void updatePayment({
+                                    id: pid,
+                                    amount: amt,
+                                    method: editPayMethod,
+                                    reference: editPayRef,
+                                    notes: editPayNotes,
+                                    paidAt: editPayAt,
+                                  });
+                                  setEditingPaymentId(null);
+                                }}
+                              >
+                                Save
+                              </button>
+                              <button
+                                className="link"
+                                onClick={() => setEditingPaymentId(null)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {!paymentsLoading && !activePayments?.length && (
+                    <div className="muted">No payments recorded.</div>
+                  )}
                 </div>
 
+                {/* Add payment */}
                 {permissions.canUpdate && activePayload.id && (
                   <div className="add-payment">
                     <div style={{ display: "grid", gridTemplateColumns: "1fr 160px 180px", gap: 10, width: "100%" }}>
@@ -1175,7 +1580,14 @@ export default function JobCards({ permissions }: PageProps) {
                         value={payAmount}
                         onChange={(e) => setPayAmount(e.target.value)}
                       />
-                      <select className="input" value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
+                      <select
+                        className="input"
+                        value={payMethod}
+                        onChange={(e) => {
+                          setPayMethod(e.target.value);
+                          // if method changes away from bank transfer, keep file optional (do not clear)
+                        }}
+                      >
                         {METHODS.map((m) => (
                           <option key={m} value={m}>
                             {m}
@@ -1190,21 +1602,104 @@ export default function JobCards({ permissions }: PageProps) {
                       />
                     </div>
 
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, width: "100%", marginTop: 10 }}>
+                      <input
+                        className="input"
+                        placeholder="Notes (optional)"
+                        value={payNotes}
+                        onChange={(e) => setPayNotes(e.target.value)}
+                      />
+
+                      <input
+                        className="input"
+                        type="file"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0] ?? null;
+                          setPayFile(f);
+                        }}
+                      />
+                    </div>
+
                     <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 10 }}>
                       <button
                         className="secondary"
-                        onClick={() => {
+                        disabled={!payAmount || paymentsLoading || payAttaching}
+                        onClick={async () => {
                           const amt = Math.max(0, toNum(payAmount));
                           if (!amt || !activePayload.id) return;
-                          void addPayment(activePayload.id, amt, payMethod, payRef, new Date().toISOString());
-                          setPayAmount("");
-                          setPayRef("");
+
+                          // RULE: Bank Transfer requires receipt file
+                          if (payMethod === "Bank Transfer" && !payFile) {
+                            setStatus("Bank Transfer requires uploading a receipt file before submitting.");
+                            return;
+                          }
+
+                          setPayAttaching(true);
+                          try {
+                            // Upload optional/required receipt file first (if provided)
+                            let receiptDoc: DocLine | null = null;
+
+                            if (payFile) {
+                              const meta = await uploadFileToStorage({
+                                orderId: activePayload.id,
+                                file: payFile,
+                                folder: "payments",
+                              });
+
+                              receiptDoc = {
+                                id: uid("doc"),
+                                title:
+                                  (payMethod === "Bank Transfer"
+                                    ? "Bank Transfer Receipt"
+                                    : "Payment Attachment") + ` • ${amt.toFixed(2)} QAR`,
+                                url: meta.storagePath,
+                                storagePath: meta.storagePath,
+                                type: "Payment Receipt",
+                                addedAt: new Date().toISOString(),
+                                fileName: meta.fileName,
+                                contentType: meta.contentType,
+                                size: meta.size,
+                                paymentMethod: payMethod,
+                              };
+                            }
+
+                            // Create payment record
+                            await addPayment(
+                              activePayload.id,
+                              amt,
+                              payMethod,
+                              payRef,
+                              new Date().toISOString(),
+                              payNotes
+                            );
+
+                            // If we uploaded a receipt, store it in JobOrder documents
+                            if (receiptDoc) {
+                              const nextDocs = [
+                                ...(activePayload.documents ?? []),
+                                receiptDoc,
+                              ];
+                              const next = { ...activePayload, documents: nextDocs };
+                              await saveFromDetails(next);
+                            }
+
+                            setPayAmount("");
+                            setPayRef("");
+                            setPayNotes("");
+                            setPayFile(null);
+                          } finally {
+                            setPayAttaching(false);
+                          }
                         }}
-                        disabled={!payAmount || paymentsLoading}
                       >
                         Add payment
                       </button>
-                      <span className="hint">Payments are saved as separate records for audits & reporting.</span>
+
+                      <span className="hint">
+                        {payMethod === "Bank Transfer"
+                          ? "Receipt file is required for Bank Transfer."
+                          : "Attachment is optional for other methods."}
+                      </span>
                     </div>
                   </div>
                 )}
@@ -1215,41 +1710,104 @@ export default function JobCards({ permissions }: PageProps) {
                 <div className="card-title">Documents</div>
 
                 <div className="docs">
-                  {(activePayload.documents ?? []).map((d, idx) => (
-                    <a key={d.id || idx} className="doc" href={d.url} target="_blank" rel="noreferrer">
-                      <div className="strong">{d.title}</div>
-                      <div className="muted">{d.type || "Link"} • {new Date(d.addedAt).toLocaleDateString()}</div>
-                    </a>
+                  {(activePayload.documents ?? []).map((d) => (
+                    <div key={d.id} className="doc" style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                      <div style={{ minWidth: 0 }}>
+                        <div className="strong" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {d.title}
+                        </div>
+                        <div className="muted">
+                          {d.type || "Link"} •{" "}
+                          {d.addedAt ? new Date(d.addedAt).toLocaleDateString() : "—"}
+                          {d.fileName ? ` • ${d.fileName}` : ""}
+                        </div>
+                      </div>
+
+                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                        <button
+                          className="link"
+                          onClick={async () => {
+                            try {
+                              await openDoc(d);
+                            } catch (e: any) {
+                              setStatus(e?.message ?? "Failed to open document.");
+                            }
+                          }}
+                        >
+                          Open
+                        </button>
+
+                        {permissions.canUpdate && (
+                          <button className="link danger" onClick={() => void removeDocument(d.id)}>
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                    </div>
                   ))}
-                  {!activePayload.documents?.length && <div className="muted">No documents added.</div>}
+
+                  {!activePayload.documents?.length && (
+                    <div className="muted">No documents added.</div>
+                  )}
                 </div>
 
                 {permissions.canUpdate && (
-                  <div className="add-doc">
-                    <input className="input" placeholder="Document title" id="docTitle" />
-                    <input className="input" placeholder="URL (https://...)" id="docUrl" />
-                    <button
-                      className="secondary"
-                      onClick={() => {
-                        const tEl = document.getElementById("docTitle") as HTMLInputElement | null;
-                        const uEl = document.getElementById("docUrl") as HTMLInputElement | null;
-                        const title = String(tEl?.value ?? "").trim();
-                        const url = String(uEl?.value ?? "").trim();
-                        if (!title || !url) return;
+                  <div className="add-doc" style={{ display: "grid", gap: 10 }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                      <input
+                        className="input"
+                        placeholder="Document title (optional)"
+                        value={docTitle}
+                        onChange={(e) => setDocTitle(e.target.value)}
+                      />
+                      <input
+                        className="input"
+                        type="file"
+                        onChange={(e) => {
+                          const f = e.target.files?.[0] ?? null;
+                          setDocFile(f);
+                        }}
+                      />
+                    </div>
 
-                        const nextDocs = [
-                          ...(activePayload.documents ?? []),
-                          { id: uid("doc"), title, url, type: "Link", addedAt: new Date().toISOString() },
-                        ];
-                        const next = { ...activePayload, documents: nextDocs };
-                        void saveFromDetails(next);
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 180px", gap: 10 }}>
+                      <input
+                        className="input"
+                        placeholder="OR paste a link (https://...)"
+                        value={docUrl}
+                        onChange={(e) => setDocUrl(e.target.value)}
+                      />
+                      <button
+                        className="secondary"
+                        disabled={docUploading || !activePayload.id}
+                        onClick={async () => {
+                          const title = String(docTitle ?? "").trim();
+                          const url = String(docUrl ?? "").trim();
+                          const file = docFile;
 
-                        if (tEl) tEl.value = "";
-                        if (uEl) uEl.value = "";
-                      }}
-                    >
-                      Add
-                    </button>
+                          if (file) {
+                            await addDocumentUpload(title, file);
+                            return;
+                          }
+                          if (title && url) {
+                            await addDocumentLink(title, url);
+                            setDocTitle("");
+                            setDocUrl("");
+                            setDocFile(null);
+                            setStatus("Document link added.");
+                            return;
+                          }
+
+                          setStatus("Upload a file OR provide Title + URL.");
+                        }}
+                      >
+                        {docUploading ? "Uploading..." : "Add"}
+                      </button>
+                    </div>
+
+                    <div className="hint">
+                      Upload a file to Storage (recommended) or add an external link. Stored files open via signed URL.
+                    </div>
                   </div>
                 )}
               </div>
@@ -1298,7 +1856,9 @@ export default function JobCards({ permissions }: PageProps) {
                           setDraft((p) => ({
                             ...p,
                             customerId: id,
-                            customerName: c ? `${(c as any).name ?? ""} ${(c as any).lastname ?? ""}`.trim() : p.customerName,
+                            customerName: c
+                              ? `${(c as any).name ?? ""} ${(c as any).lastname ?? ""}`.trim()
+                              : p.customerName,
                             customerPhone: (c as any)?.phone ?? p.customerPhone,
                             customerEmail: (c as any)?.email ?? p.customerEmail,
                           }));
@@ -1307,10 +1867,13 @@ export default function JobCards({ permissions }: PageProps) {
                         <option value="">— Select customer —</option>
                         {customers
                           .slice()
-                          .sort((a, b) => String((a as any).name ?? "").localeCompare(String((b as any).name ?? "")))
+                          .sort((a, b) =>
+                            String((a as any).name ?? "").localeCompare(String((b as any).name ?? ""))
+                          )
                           .map((c) => (
                             <option key={(c as any).id} value={(c as any).id}>
-                              {((c as any).name ?? "") + " " + ((c as any).lastname ?? "")} • {(c as any).phone ?? "—"}
+                              {((c as any).name ?? "") + " " + ((c as any).lastname ?? "")} •{" "}
+                              {(c as any).phone ?? "—"}
                             </option>
                           ))}
                       </select>
@@ -1463,7 +2026,10 @@ export default function JobCards({ permissions }: PageProps) {
 
                         setDraft((prev) => ({
                           ...prev,
-                          services: [...prev.services, { id: uid("svc"), name, qty: 1, unitPrice, status: "PENDING" as const }],
+                          services: [
+                            ...prev.services,
+                            { id: uid("svc"), name, qty: 1, unitPrice, status: "PENDING" as const },
+                          ],
                         }));
                         e.currentTarget.value = "";
                       }}
@@ -1481,7 +2047,10 @@ export default function JobCards({ permissions }: PageProps) {
                       onClick={() =>
                         setDraft((prev) => ({
                           ...prev,
-                          services: [...prev.services, { id: uid("svc"), name: "Custom Service", qty: 1, unitPrice: 0, status: "PENDING" as const }],
+                          services: [
+                            ...prev.services,
+                            { id: uid("svc"), name: "Custom Service", qty: 1, unitPrice: 0, status: "PENDING" as const },
+                          ],
                         }))
                       }
                     >

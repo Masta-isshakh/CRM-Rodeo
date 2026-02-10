@@ -4,6 +4,7 @@ import * as lambda from "aws-cdk-lib/aws-lambda";
 
 import { auth } from "./auth/resource";
 import { data } from "./data/resource";
+import { storage } from "./storage/resource";
 
 import { inviteUser } from "./functions/invite-user/resource";
 import { setUserActive } from "./functions/set-user-active/resource";
@@ -20,6 +21,8 @@ import { myGroups } from "./functions/auth/my-groups/resource";
 const backend = defineBackend({
   auth,
   data,
+    storage,
+
 
   inviteUser,
   setUserActive,
