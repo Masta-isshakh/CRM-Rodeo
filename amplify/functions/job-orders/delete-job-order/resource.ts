@@ -1,7 +1,6 @@
 import { defineFunction } from "@aws-amplify/backend";
 
 export const jobOrderDelete = defineFunction({
-  name: "job-order-delete",
+  name: "jobOrderDelete",
   entry: "./handler.ts",
-  timeoutSeconds: 30,
 });

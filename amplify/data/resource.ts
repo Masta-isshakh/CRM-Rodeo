@@ -16,6 +16,11 @@ import { setUserDepartment } from "../functions/departments/set-user-department/
 import { jobOrderSave } from "../functions/job-orders/save-job-order/resource";
 import { jobOrderDelete } from "../functions/job-orders/delete-job-order/resource";
 
+// ✅ Payments module (separate model + audited mutations)
+import { jobOrderPaymentCreate } from "../functions/job-orders/create-payment/resource";
+import { jobOrderPaymentUpdate } from "../functions/job-orders/update-payment/resource";
+import { jobOrderPaymentDelete } from "../functions/job-orders/delete-payment/resource";
+
 // ✅ MUST MATCH your Cognito group name EXACTLY
 const ADMIN_GROUP = "Admins";
 
@@ -185,7 +190,8 @@ const schema = a
       .authorization((allow) => [allow.authenticated()]),
 
     // -----------------------------
-    // Job Orders (Job Cards) — Read-only for users; mutations go through functions (RBAC enforced server-side)
+    // Job Orders (Job Cards)
+    // - Read-only for users; mutations go through functions (RBAC enforced server-side)
     // -----------------------------
     JobOrder: a
       .model({
@@ -212,18 +218,50 @@ const schema = a
         vatRate: a.float(),
         vatAmount: a.float(),
         totalAmount: a.float(),
+
+        // payments summary maintained by payment mutations
         amountPaid: a.float(),
         balanceDue: a.float(),
 
         notes: a.string(),
 
-        // stores the entire module payload (services, payments, docs, inspection, etc.)
+        // stores the module payload (services, docs, inspection, etc.) — payments are stored in JobOrderPayment model
         dataJson: a.string(),
+
+        // relation
+        payments: a.hasMany("JobOrderPayment", "jobOrderId"),
 
         createdBy: a.string(),
         createdAt: a.datetime(),
         updatedAt: a.datetime(),
       })
+      .authorization((allow) => [
+        allow.group(ADMIN_GROUP),
+        allow.authenticated().to(["read"]),
+      ]),
+
+    // -----------------------------
+    // ✅ Separate Payments model (better reporting + audit)
+    // -----------------------------
+    JobOrderPayment: a
+      .model({
+        jobOrderId: a.id().required(),
+        amount: a.float().required(),
+        method: a.string(),
+        reference: a.string(),
+        paidAt: a.datetime().required(),
+        notes: a.string(),
+
+        // audit fields
+        createdBy: a.string(),
+        createdAt: a.datetime(),
+        updatedAt: a.datetime(),
+
+        jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
+      })
+      .secondaryIndexes((index) => [
+        index("jobOrderId").queryField("listPaymentsByJobOrder"),
+      ])
       .authorization((allow) => [
         allow.group(ADMIN_GROUP),
         allow.authenticated().to(["read"]),
@@ -376,6 +414,48 @@ const schema = a
       .authorization((allow) => [allow.authenticated()])
       .handler(a.handler.function(jobOrderDelete))
       .returns(a.json()),
+
+    // -----------------------------
+    // ✅ Payments mutations (RBAC enforced inside Lambda)
+    // - Create/Update require JOB_CARDS.canUpdate
+    // - Delete requires JOB_CARDS.canDelete
+    // -----------------------------
+    jobOrderPaymentCreate: a
+      .mutation()
+      .arguments({
+        jobOrderId: a.string().required(),
+        amount: a.float().required(),
+        method: a.string(),
+        reference: a.string(),
+        paidAt: a.datetime(),
+        notes: a.string(),
+      })
+      .authorization((allow) => [allow.authenticated()])
+      .handler(a.handler.function(jobOrderPaymentCreate))
+      .returns(a.json()),
+
+    jobOrderPaymentUpdate: a
+      .mutation()
+      .arguments({
+        id: a.string().required(),
+        amount: a.float().required(),
+        method: a.string(),
+        reference: a.string(),
+        paidAt: a.datetime(),
+        notes: a.string(),
+      })
+      .authorization((allow) => [allow.authenticated()])
+      .handler(a.handler.function(jobOrderPaymentUpdate))
+      .returns(a.json()),
+
+    jobOrderPaymentDelete: a
+      .mutation()
+      .arguments({
+        id: a.string().required(),
+      })
+      .authorization((allow) => [allow.authenticated()])
+      .handler(a.handler.function(jobOrderPaymentDelete))
+      .returns(a.json()),
   })
   .authorization((allow) => [
     allow.resource(inviteUser),
@@ -391,6 +471,11 @@ const schema = a
     // job orders functions need data access
     allow.resource(jobOrderSave),
     allow.resource(jobOrderDelete),
+
+    // payments functions need data access
+    allow.resource(jobOrderPaymentCreate),
+    allow.resource(jobOrderPaymentUpdate),
+    allow.resource(jobOrderPaymentDelete),
   ]);
 
 export type Schema = ClientSchema<typeof schema>;

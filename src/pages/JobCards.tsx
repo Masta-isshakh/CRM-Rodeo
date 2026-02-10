@@ -12,6 +12,7 @@ import "./JobCards.css";
 
 type JobOrderRow = Schema["JobOrder"]["type"];
 type CustomerRow = Schema["Customer"]["type"];
+type PaymentRow = Schema["JobOrderPayment"]["type"];
 
 type OrderStatus = "DRAFT" | "OPEN" | "IN_PROGRESS" | "READY" | "COMPLETED" | "CANCELLED";
 type PaymentStatus = "UNPAID" | "PARTIAL" | "PAID";
@@ -26,14 +27,6 @@ type ServiceLine = {
   status: "PENDING" | "IN_PROGRESS" | "DONE" | "CANCELLED";
   technician?: string;
   notes?: string;
-};
-
-type PaymentLine = {
-  id: string;
-  amount: number;
-  method?: string;
-  reference?: string;
-  paidAt: string;
 };
 
 type DocLine = {
@@ -70,7 +63,6 @@ type OrderPayload = {
   discount: number;
 
   services: ServiceLine[];
-  payments: PaymentLine[];
   documents: DocLine[];
 
   totals?: {
@@ -81,9 +73,10 @@ type OrderPayload = {
     totalAmount: number;
     amountPaid: number;
     balanceDue: number;
+    paymentStatus: PaymentStatus;
   };
 
-  // room for future features from the HTML module
+  // room for future features
   [k: string]: any;
 };
 
@@ -95,7 +88,7 @@ const VEHICLE_TYPES: { key: VehicleType; label: string }[] = [
   { key: "OTHER", label: "Other" },
 ];
 
-//const METHODS = ["Cash", "Card", "Bank Transfer", "Online", "Other"];
+const METHODS = ["Cash", "Card", "Bank Transfer", "Online", "Other"];
 
 const YOUR_PRODUCTS = [
   { name: "Extra Cool Tint", suvPrice: 3200, sedanPrice: 2900 },
@@ -153,7 +146,7 @@ function toNum(x: unknown) {
   return Number.isFinite(n) ? n : 0;
 }
 
-function computeTotals(d: OrderPayload) {
+function computeTotalsFromServices(d: OrderPayload) {
   const subtotal = (d.services ?? []).reduce((sum, s) => sum + toNum(s.qty) * toNum(s.unitPrice), 0);
   const discount = Math.max(0, toNum(d.discount));
   const vatRate = Math.max(0, toNum(d.vatRate));
@@ -161,10 +154,11 @@ function computeTotals(d: OrderPayload) {
   const vatAmount = taxable * vatRate;
   const totalAmount = taxable + vatAmount;
 
-  const amountPaid = (d.payments ?? []).reduce((sum, p) => sum + Math.max(0, toNum(p.amount)), 0);
+  // Draft screen: payments are added only after save
+  const amountPaid = 0;
   const balanceDue = Math.max(0, totalAmount - amountPaid);
-
   const paymentStatus: PaymentStatus = balanceDue <= 0.00001 ? "PAID" : amountPaid > 0 ? "PARTIAL" : "UNPAID";
+
   return { subtotal, discount, vatRate, vatAmount, totalAmount, amountPaid, balanceDue, paymentStatus };
 }
 
@@ -192,6 +186,10 @@ export default function JobCards({ permissions }: PageProps) {
   const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
   const [activePayload, setActivePayload] = useState<OrderPayload | null>(null);
 
+  // payments (separate model)
+  const [activePayments, setActivePayments] = useState<PaymentRow[]>([]);
+  const [paymentsLoading, setPaymentsLoading] = useState(false);
+
   const [wizardOpen, setWizardOpen] = useState(false);
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(1);
   const [draft, setDraft] = useState<OrderPayload>(() => ({
@@ -202,7 +200,6 @@ export default function JobCards({ permissions }: PageProps) {
     vatRate: 0,
     discount: 0,
     services: [],
-    payments: [],
     documents: [],
   }));
 
@@ -219,7 +216,7 @@ export default function JobCards({ permissions }: PageProps) {
         client.models.Customer.list({ limit: 2000 }),
       ]);
       const sorted = [...(oRes.data ?? [])].sort((a, b) =>
-        String(b.updatedAt ?? b.createdAt ?? "").localeCompare(String(a.updatedAt ?? a.createdAt ?? ""))
+        String((b as any).updatedAt ?? (b as any).createdAt ?? "").localeCompare(String((a as any).updatedAt ?? (a as any).createdAt ?? ""))
       );
       setOrders(sorted);
       setCustomers(cRes.data ?? []);
@@ -231,6 +228,90 @@ export default function JobCards({ permissions }: PageProps) {
       setStatus(e?.message ?? "Failed to load.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPaymentsFor = async (jobOrderId: string) => {
+    if (!jobOrderId) return;
+    setPaymentsLoading(true);
+    try {
+      // Prefer secondary-index query if available
+      let res: any;
+      try {
+        res = await (client.models.JobOrderPayment as any).listPaymentsByJobOrder?.({ jobOrderId, limit: 2000 });
+      } catch {
+        res = null;
+      }
+      if (!res) {
+        res = await client.models.JobOrderPayment.list({ filter: { jobOrderId: { eq: jobOrderId } } as any, limit: 2000 });
+      }
+      const sorted = [...(res.data ?? [])].sort((a: any, b: any) =>
+        String(b.paidAt ?? "").localeCompare(String(a.paidAt ?? ""))
+      );
+      setActivePayments(sorted);
+    } catch (e) {
+      console.warn("Failed to load payments", e);
+      setActivePayments([]);
+    } finally {
+      setPaymentsLoading(false);
+    }
+  };
+
+  const refreshActiveOrder = async (id: string) => {
+    try {
+      const res = await client.models.JobOrder.get({ id } as any);
+      const row = (res as any)?.data as JobOrderRow | undefined;
+      if (!row) return;
+
+      const payload =
+        safeJsonParse<Partial<OrderPayload>>((row as any).dataJson) ??
+        ({} as Partial<OrderPayload>);
+
+      const merged: OrderPayload = {
+        id: (row as any).id,
+        orderNumber: (row as any).orderNumber,
+        orderType: String((row as any).orderType ?? "Job Order"),
+        status: ((row as any).status as any) ?? "OPEN",
+        paymentStatus: ((row as any).paymentStatus as any) ?? "UNPAID",
+
+        customerId: (row as any).customerId ?? undefined,
+        customerName: (row as any).customerName ?? "",
+        customerPhone: (row as any).customerPhone ?? undefined,
+        customerEmail: (row as any).customerEmail ?? undefined,
+
+        vehicleType: ((row as any).vehicleType as any) ?? "SUV_4X4",
+        vehicleMake: (row as any).vehicleMake ?? undefined,
+        vehicleModel: (row as any).vehicleModel ?? undefined,
+        plateNumber: (row as any).plateNumber ?? undefined,
+        vin: (row as any).vin ?? undefined,
+        mileage: (row as any).mileage ?? undefined,
+        color: (row as any).color ?? undefined,
+
+        notes: (row as any).notes ?? undefined,
+
+        vatRate: toNum((row as any).vatRate ?? (payload as any).vatRate ?? 0),
+        discount: toNum((row as any).discount ?? (payload as any).discount ?? 0),
+
+        services: (payload as any).services ?? [],
+        documents: (payload as any).documents ?? [],
+        ...payload,
+      };
+
+      merged.totals = {
+        subtotal: toNum((row as any).subtotal),
+        discount: toNum((row as any).discount),
+        vatRate: toNum((row as any).vatRate),
+        vatAmount: toNum((row as any).vatAmount),
+        totalAmount: toNum((row as any).totalAmount),
+        amountPaid: toNum((row as any).amountPaid),
+        balanceDue: toNum((row as any).balanceDue),
+        paymentStatus: ((row as any).paymentStatus as any) ?? "UNPAID",
+      };
+
+      setActiveOrderId(id);
+      setActivePayload(merged);
+    } catch (e) {
+      console.warn("Failed to refresh active order", e);
     }
   };
 
@@ -275,18 +356,18 @@ export default function JobCards({ permissions }: PageProps) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (orders ?? []).filter((o) => {
-      if (statusFilter !== "ALL" && String(o.status) !== statusFilter) return false;
+      if (statusFilter !== "ALL" && String((o as any).status) !== statusFilter) return false;
 
       if (!q) return true;
       const hay = [
-        o.orderNumber,
-        o.customerName,
-        o.customerPhone,
-        o.plateNumber,
-        o.vehicleMake,
-        o.vehicleModel,
-        o.status,
-        o.paymentStatus,
+        (o as any).orderNumber,
+        (o as any).customerName,
+        (o as any).customerPhone,
+        (o as any).plateNumber,
+        (o as any).vehicleMake,
+        (o as any).vehicleModel,
+        (o as any).status,
+        (o as any).paymentStatus,
       ]
         .map((x) => String(x ?? ""))
         .join(" ")
@@ -365,47 +446,59 @@ export default function JobCards({ permissions }: PageProps) {
       document.body
     );
 
-  const openDetails = (id: string) => {
-    const row = orders.find((x) => x.id === id);
+  const openDetails = async (id: string) => {
+    const row = orders.find((x) => (x as any).id === id);
     if (!row) return;
 
-const payload = safeJsonParse<Partial<OrderPayload>>(row.dataJson) ?? {};
+    const payload =
+      safeJsonParse<Partial<OrderPayload>>((row as any).dataJson) ??
+      ({} as Partial<OrderPayload>);
 
     const merged: OrderPayload = {
-      id: row.id,
-      orderNumber: row.orderNumber,
-      orderType: String(row.orderType ?? "Job Order"),
-      status: (row.status as any) ?? "OPEN",
-      paymentStatus: (row.paymentStatus as any) ?? "UNPAID",
+      id: (row as any).id,
+      orderNumber: (row as any).orderNumber,
+      orderType: String((row as any).orderType ?? "Job Order"),
+      status: ((row as any).status as any) ?? "OPEN",
+      paymentStatus: ((row as any).paymentStatus as any) ?? "UNPAID",
 
-      customerId: row.customerId ?? undefined,
-      customerName: row.customerName ?? "",
-      customerPhone: row.customerPhone ?? undefined,
-      customerEmail: row.customerEmail ?? undefined,
+      customerId: (row as any).customerId ?? undefined,
+      customerName: (row as any).customerName ?? "",
+      customerPhone: (row as any).customerPhone ?? undefined,
+      customerEmail: (row as any).customerEmail ?? undefined,
 
-      vehicleType: (row.vehicleType as any) ?? "SUV_4X4",
-      vehicleMake: row.vehicleMake ?? undefined,
-      vehicleModel: row.vehicleModel ?? undefined,
-      plateNumber: row.plateNumber ?? undefined,
-      vin: row.vin ?? undefined,
-      mileage: row.mileage ?? undefined,
-      color: row.color ?? undefined,
+      vehicleType: ((row as any).vehicleType as any) ?? "SUV_4X4",
+      vehicleMake: (row as any).vehicleMake ?? undefined,
+      vehicleModel: (row as any).vehicleModel ?? undefined,
+      plateNumber: (row as any).plateNumber ?? undefined,
+      vin: (row as any).vin ?? undefined,
+      mileage: (row as any).mileage ?? undefined,
+      color: (row as any).color ?? undefined,
 
-      notes: row.notes ?? undefined,
+      notes: (row as any).notes ?? undefined,
 
-      vatRate: toNum(row.vatRate ?? payload?.vatRate ?? 0),
-      discount: toNum(row.discount ?? payload?.discount ?? 0),
+      vatRate: toNum((row as any).vatRate ?? payload.vatRate ?? 0),
+      discount: toNum((row as any).discount ?? payload.discount ?? 0),
 
-      services: payload?.services ?? [],
-      payments: payload?.payments ?? [],
-      documents: payload?.documents ?? [],
+      services: payload.services ?? [],
+      documents: payload.documents ?? [],
       ...payload,
     };
 
-    merged.totals = computeTotals(merged);
+    merged.totals = {
+      subtotal: toNum((row as any).subtotal),
+      discount: toNum((row as any).discount),
+      vatRate: toNum((row as any).vatRate),
+      vatAmount: toNum((row as any).vatAmount),
+      totalAmount: toNum((row as any).totalAmount),
+      amountPaid: toNum((row as any).amountPaid),
+      balanceDue: toNum((row as any).balanceDue),
+      paymentStatus: ((row as any).paymentStatus as any) ?? "UNPAID",
+    };
+
     setActiveOrderId(id);
     setActivePayload(merged);
     setDetailsOpen(true);
+    await loadPaymentsFor(id);
   };
 
   const startCreate = () => {
@@ -418,55 +511,47 @@ const payload = safeJsonParse<Partial<OrderPayload>>(row.dataJson) ?? {};
       vatRate: 0,
       discount: 0,
       services: [],
-      payments: [],
       documents: [],
     });
     setWizardOpen(true);
   };
 
-const startEdit = (id: string) => {
-  const row = orders.find((x) => x.id === id);
-  if (!row) return;
+  const startEdit = (id: string) => {
+    const row = orders.find((x) => (x as any).id === id);
+    if (!row) return;
+    const payload =
+      safeJsonParse<Partial<OrderPayload>>((row as any).dataJson) ??
+      ({} as Partial<OrderPayload>);
 
-  const payload = safeJsonParse<Partial<OrderPayload>>(row.dataJson) ?? {};
+    const d: OrderPayload = {
+      id: (row as any).id,
+      orderNumber: (row as any).orderNumber,
+      orderType: String((row as any).orderType ?? "Job Order"),
+      status: ((row as any).status as any) ?? "OPEN",
+      paymentStatus: ((row as any).paymentStatus as any) ?? "UNPAID",
+      customerId: (row as any).customerId ?? undefined,
+      customerName: (row as any).customerName ?? "",
+      customerPhone: (row as any).customerPhone ?? undefined,
+      customerEmail: (row as any).customerEmail ?? undefined,
+      vehicleType: ((row as any).vehicleType as any) ?? "SUV_4X4",
+      vehicleMake: (row as any).vehicleMake ?? undefined,
+      vehicleModel: (row as any).vehicleModel ?? undefined,
+      plateNumber: (row as any).plateNumber ?? undefined,
+      vin: (row as any).vin ?? undefined,
+      mileage: (row as any).mileage ?? undefined,
+      color: (row as any).color ?? undefined,
+      notes: (row as any).notes ?? undefined,
+      vatRate: toNum((row as any).vatRate ?? payload.vatRate ?? 0),
+      discount: toNum((row as any).discount ?? payload.discount ?? 0),
+      services: payload.services ?? [],
+      documents: payload.documents ?? [],
+      ...payload,
+    };
 
-  const d: OrderPayload = {
-    id: row.id,
-    orderNumber: row.orderNumber,
-    orderType: String(row.orderType ?? "Job Order"),
-    status: (row.status as any) ?? "OPEN",
-    paymentStatus: (row.paymentStatus as any) ?? "UNPAID",
-
-    customerId: row.customerId ?? undefined,
-    customerName: row.customerName ?? "",
-    customerPhone: row.customerPhone ?? undefined,
-    customerEmail: row.customerEmail ?? undefined,
-
-    vehicleType: (row.vehicleType as any) ?? "SUV_4X4",
-    vehicleMake: row.vehicleMake ?? undefined,
-    vehicleModel: row.vehicleModel ?? undefined,
-    plateNumber: row.plateNumber ?? undefined,
-    vin: row.vin ?? undefined,
-    mileage: row.mileage ?? undefined,
-    color: row.color ?? undefined,
-
-    notes: row.notes ?? undefined,
-
-    vatRate: toNum((row as any).vatRate ?? payload.vatRate ?? 0),
-    discount: toNum((row as any).discount ?? payload.discount ?? 0),
-
-    services: (payload.services as ServiceLine[] | undefined) ?? [],
-    payments: (payload.payments as PaymentLine[] | undefined) ?? [],
-    documents: (payload.documents as DocLine[] | undefined) ?? [],
-
-    ...payload,
+    setDraft(d);
+    setWizardStep(1);
+    setWizardOpen(true);
   };
-
-  setDraft(d);
-  setWizardStep(1);
-  setWizardOpen(true);
-};
-
 
   const savePayload = async (payload: OrderPayload) => {
     setStatus("");
@@ -494,13 +579,6 @@ const startEdit = (id: string) => {
           qty: Math.max(1, toNum(s.qty)),
           unitPrice: Math.max(0, toNum(s.unitPrice)),
         })),
-        payments: (payload.payments ?? []).map((p) => ({
-          ...p,
-          amount: Math.max(0, toNum(p.amount)),
-          method: String(p.method ?? "").trim() || undefined,
-          reference: String(p.reference ?? "").trim() || undefined,
-          paidAt: String(p.paidAt ?? "").trim() || new Date().toISOString(),
-        })),
         documents: (payload.documents ?? []).map((d) => ({
           ...d,
           title: String(d.title ?? "").trim(),
@@ -514,9 +592,6 @@ const startEdit = (id: string) => {
 
       if (!clean.customerName) throw new Error("Customer name is required.");
       if (!clean.services.length) throw new Error("Add at least one service.");
-
-      const totals = computeTotals(clean);
-      clean.totals = totals;
 
       const res = await (client.mutations as any).jobOrderSave({
         input: JSON.stringify(clean),
@@ -538,10 +613,14 @@ const startEdit = (id: string) => {
 
       setWizardOpen(false);
 
-      // if we were in details view, keep it open and reload list (to get updated computed fields)
       await load();
 
       setStatus(clean.id ? "Job order updated." : "Job order created.");
+
+      // If details is open for this order, refresh it
+      if (detailsOpen && activeOrderId && activeOrderId === savedId) {
+        await refreshActiveOrder(savedId);
+      }
     } catch (e: any) {
       console.error(e);
       setStatus(e?.message ?? "Save failed.");
@@ -552,7 +631,6 @@ const startEdit = (id: string) => {
   };
 
   const saveDraft = async () => {
-    // keep draft & wizard state consistent
     await savePayload(draft);
   };
 
@@ -580,6 +658,7 @@ const startEdit = (id: string) => {
         setDetailsOpen(false);
         setActiveOrderId(null);
         setActivePayload(null);
+        setActivePayments([]);
       }
     } catch (e: any) {
       console.error(e);
@@ -589,7 +668,71 @@ const startEdit = (id: string) => {
     }
   };
 
-  const totalsPreview = useMemo(() => computeTotals(draft), [draft]);
+  // Payments actions
+  const addPayment = async (jobOrderId: string, amount: number, method: string, reference: string, paidAt: string) => {
+    if (!permissions.canUpdate) return;
+
+    setStatus("");
+    setPaymentsLoading(true);
+    try {
+      const res = await (client.mutations as any).jobOrderPaymentCreate({
+        jobOrderId,
+        amount,
+        method,
+        reference,
+        paidAt,
+      });
+      if (res?.errors?.length) throw new Error(res.errors.map((e: any) => e.message).join(" | "));
+
+      await logActivity("JobOrder", String(res?.data?.jobOrderId ?? activeOrderId ?? ""), "CREATE", `Payment added: ${amount.toFixed(2)} QAR`);
+
+      await loadPaymentsFor(jobOrderId);
+      await refreshActiveOrder(jobOrderId);
+      await load();
+      setStatus("Payment added.");
+    } catch (e: any) {
+      console.error(e);
+      setStatus(e?.message ?? "Failed to add payment.");
+    } finally {
+      setPaymentsLoading(false);
+    }
+  };
+
+  const deletePayment = async (paymentId: string) => {
+    if (!permissions.canDelete) return;
+    if (!confirm("Delete this payment entry?")) return;
+
+    setStatus("");
+    setPaymentsLoading(true);
+    try {
+      const res = await (client.mutations as any).jobOrderPaymentDelete({ id: paymentId });
+      if (res?.errors?.length) throw new Error(res.errors.map((e: any) => e.message).join(" | "));
+
+      const jobOrderId = String(res?.data?.jobOrderId ?? activeOrderId ?? "");
+
+      await logActivity("JobOrder", String(activeOrderId ?? ""), "DELETE", `Payment deleted`);
+
+      if (jobOrderId) {
+        await loadPaymentsFor(jobOrderId);
+        await refreshActiveOrder(jobOrderId);
+        await load();
+      }
+
+      setStatus("Payment deleted.");
+    } catch (e: any) {
+      console.error(e);
+      setStatus(e?.message ?? "Failed to delete payment.");
+    } finally {
+      setPaymentsLoading(false);
+    }
+  };
+
+  const totalsPreview = useMemo(() => computeTotalsFromServices(draft), [draft]);
+
+  // Payment quick-add state
+  const [payAmount, setPayAmount] = useState<string>("");
+  const [payMethod, setPayMethod] = useState<string>("Cash");
+  const [payRef, setPayRef] = useState<string>("");
 
   return (
     <div className="jom-page">
@@ -617,8 +760,15 @@ const startEdit = (id: string) => {
           </select>
 
           <div className="jom-search-wrap">
-            <span className="jom-search-ico" aria-hidden>🔎</span>
-            <input className="jom-search" value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search order no, customer, phone, plate..." />
+            <span className="jom-search-ico" aria-hidden>
+              🔎
+            </span>
+            <input
+              className="jom-search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search order no, customer, phone, plate..."
+            />
           </div>
 
           {permissions.canCreate && (
@@ -627,7 +777,9 @@ const startEdit = (id: string) => {
             </button>
           )}
 
-          <Button onClick={load} isLoading={loading}>Refresh</Button>
+          <Button onClick={load} isLoading={loading}>
+            Refresh
+          </Button>
         </div>
       </div>
 
@@ -652,31 +804,43 @@ const startEdit = (id: string) => {
             </thead>
             <tbody>
               {filtered.map((o) => (
-                <tr key={o.id} onDoubleClick={() => openDetails(o.id)} title="Double-click to view details">
-                  <td className="mono">{o.orderNumber}</td>
-                  <td className="strong">{o.customerName}</td>
-                  <td>{o.customerPhone ?? "—"}</td>
-                  <td>{[o.vehicleMake, o.vehicleModel].filter(Boolean).join(" ") || "—"}</td>
-                  <td>{o.plateNumber ?? "—"}</td>
+                <tr
+                  key={(o as any).id}
+                  onDoubleClick={() => openDetails(String((o as any).id))}
+                  title="Double-click to view details"
+                >
+                  <td className="mono">{(o as any).orderNumber}</td>
+                  <td className="strong">{(o as any).customerName}</td>
+                  <td>{(o as any).customerPhone ?? "—"}</td>
+                  <td>{[(o as any).vehicleMake, (o as any).vehicleModel].filter(Boolean).join(" ") || "—"}</td>
+                  <td>{(o as any).plateNumber ?? "—"}</td>
                   <td>
-                    <span className={`pill st-${String(o.status ?? "").toLowerCase()}`}>{String(o.status ?? "—")}</span>
+                    <span className={`pill st-${String((o as any).status ?? "").toLowerCase()}`}>
+                      {String((o as any).status ?? "—")}
+                    </span>
                   </td>
                   <td>
-                    <span className={`pill pay-${String(o.paymentStatus ?? "").toLowerCase()}`}>{String(o.paymentStatus ?? "—")}</span>
+                    <span className={`pill pay-${String((o as any).paymentStatus ?? "").toLowerCase()}`}>
+                      {String((o as any).paymentStatus ?? "—")}
+                    </span>
                   </td>
-                  <td className="right">{typeof o.totalAmount === "number" ? o.totalAmount.toFixed(2) : "—"}</td>
+                  <td className="right">
+                    {typeof (o as any).totalAmount === "number" ? (o as any).totalAmount.toFixed(2) : "—"}
+                  </td>
                   <td className="right">
                     <button
                       className="jom-actions-btn"
                       type="button"
-                      data-jom-menu-btn={o.id}
+                      data-jom-menu-btn={String((o as any).id)}
                       onClick={(e) => {
                         const el = e.currentTarget as HTMLElement;
-                        if (menu.open && menu.orderId === o.id) setMenu({ open: false });
-                        else openActionsMenu(o.id, el);
+                        if (menu.open && menu.orderId === String((o as any).id)) setMenu({ open: false });
+                        else openActionsMenu(String((o as any).id), el);
                       }}
                     >
-                      Actions <span className="caret" aria-hidden>▾</span>
+                      Actions <span className="caret" aria-hidden>
+                        ▾
+                      </span>
                     </button>
                   </td>
                 </tr>
@@ -693,7 +857,8 @@ const startEdit = (id: string) => {
         </div>
 
         <div className="jom-footnote">
-          Permissions are enforced in UI and also server-side for Create/Update/Delete through the <b>jobOrderSave</b> / <b>jobOrderDelete</b> functions (RBAC policy key: <b>JOB_CARDS</b>).
+          Permissions are enforced in UI and also server-side for Create/Update/Delete through the <b>jobOrderSave</b> /{" "}
+          <b>jobOrderDelete</b> functions (RBAC policy key: <b>JOB_CARDS</b>). Payments are stored in a separate model (<b>JobOrderPayment</b>) for reporting/audits.
         </div>
       </div>
 
@@ -703,25 +868,46 @@ const startEdit = (id: string) => {
           <div className="jom-details">
             <div className="jom-details-head">
               <div className="left">
-                <button className="icon-btn" onClick={() => setDetailsOpen(false)} aria-label="Close">✕</button>
+                <button
+                  className="icon-btn"
+                  onClick={() => {
+                    setDetailsOpen(false);
+                    setActivePayments([]);
+                  }}
+                  aria-label="Close"
+                >
+                  ✕
+                </button>
                 <div>
                   <div className="kicker">Job Order</div>
                   <div className="headline">{activePayload.orderNumber || "—"}</div>
                   <div className="subline">
                     <span className={`pill st-${activePayload.status.toLowerCase()}`}>{activePayload.status}</span>
-                    <span className={`pill pay-${computeTotals(activePayload).paymentStatus.toLowerCase()}`}>{computeTotals(activePayload).paymentStatus}</span>
+                    <span
+                      className={`pill pay-${String(activePayload.totals?.paymentStatus ?? activePayload.paymentStatus ?? "UNPAID").toLowerCase()}`}
+                    >
+                      {String(activePayload.totals?.paymentStatus ?? activePayload.paymentStatus ?? "UNPAID")}
+                    </span>
                   </div>
                 </div>
               </div>
 
               <div className="right">
                 {permissions.canUpdate && (
-                  <button className="primary" onClick={() => { setDetailsOpen(false); startEdit(activePayload.id!); }}>
+                  <button
+                    className="primary"
+                    onClick={() => {
+                      setDetailsOpen(false);
+                      startEdit(activePayload.id!);
+                    }}
+                  >
                     Edit
                   </button>
                 )}
                 {permissions.canDelete && (
-                  <button className="danger" onClick={() => void removeOrder(activePayload.id!)}>Delete</button>
+                  <button className="danger" onClick={() => void removeOrder(activePayload.id!)}>
+                    Delete
+                  </button>
                 )}
               </div>
             </div>
@@ -732,9 +918,18 @@ const startEdit = (id: string) => {
                 <div className="card">
                   <div className="card-title">Customer</div>
                   <div className="rows">
-                    <div className="row"><span>Name</span><b>{activePayload.customerName}</b></div>
-                    <div className="row"><span>Phone</span><b>{activePayload.customerPhone || "—"}</b></div>
-                    <div className="row"><span>Email</span><b>{activePayload.customerEmail || "—"}</b></div>
+                    <div className="row">
+                      <span>Name</span>
+                      <b>{activePayload.customerName}</b>
+                    </div>
+                    <div className="row">
+                      <span>Phone</span>
+                      <b>{activePayload.customerPhone || "—"}</b>
+                    </div>
+                    <div className="row">
+                      <span>Email</span>
+                      <b>{activePayload.customerEmail || "—"}</b>
+                    </div>
                   </div>
 
                   {activePayload.customerId && (
@@ -747,28 +942,67 @@ const startEdit = (id: string) => {
                 <div className="card">
                   <div className="card-title">Vehicle</div>
                   <div className="rows">
-                    <div className="row"><span>Type</span><b>{activePayload.vehicleType}</b></div>
-                    <div className="row"><span>Make / Model</span><b>{[activePayload.vehicleMake, activePayload.vehicleModel].filter(Boolean).join(" ") || "—"}</b></div>
-                    <div className="row"><span>Plate</span><b>{activePayload.plateNumber || "—"}</b></div>
-                    <div className="row"><span>VIN</span><b>{activePayload.vin || "—"}</b></div>
-                    <div className="row"><span>Mileage</span><b>{activePayload.mileage || "—"}</b></div>
-                    <div className="row"><span>Color</span><b>{activePayload.color || "—"}</b></div>
+                    <div className="row">
+                      <span>Type</span>
+                      <b>{activePayload.vehicleType}</b>
+                    </div>
+                    <div className="row">
+                      <span>Make / Model</span>
+                      <b>{[activePayload.vehicleMake, activePayload.vehicleModel].filter(Boolean).join(" ") || "—"}</b>
+                    </div>
+                    <div className="row">
+                      <span>Plate</span>
+                      <b>{activePayload.plateNumber || "—"}</b>
+                    </div>
+                    <div className="row">
+                      <span>VIN</span>
+                      <b>{activePayload.vin || "—"}</b>
+                    </div>
+                    <div className="row">
+                      <span>Mileage</span>
+                      <b>{activePayload.mileage || "—"}</b>
+                    </div>
+                    <div className="row">
+                      <span>Color</span>
+                      <b>{activePayload.color || "—"}</b>
+                    </div>
                   </div>
                 </div>
 
                 <div className="card">
                   <div className="card-title">Billing</div>
                   {(() => {
-                    const t = computeTotals(activePayload);
+                    const t = activePayload.totals;
+                    const total = t?.totalAmount ?? 0;
+                    const amountPaid = t?.amountPaid ?? 0;
+                    const balance = t?.balanceDue ?? 0;
                     return (
                       <>
                         <div className="rows">
-                          <div className="row"><span>Subtotal</span><b>{t.subtotal.toFixed(2)} QAR</b></div>
-                          <div className="row"><span>Discount</span><b>{t.discount.toFixed(2)} QAR</b></div>
-                          <div className="row"><span>VAT</span><b>{(t.vatAmount).toFixed(2)} QAR</b></div>
-                          <div className="row"><span>Total</span><b>{t.totalAmount.toFixed(2)} QAR</b></div>
-                          <div className="row"><span>Paid</span><b>{t.amountPaid.toFixed(2)} QAR</b></div>
-                          <div className="row"><span>Balance</span><b>{t.balanceDue.toFixed(2)} QAR</b></div>
+                          <div className="row">
+                            <span>Subtotal</span>
+                            <b>{toNum(t?.subtotal).toFixed(2)} QAR</b>
+                          </div>
+                          <div className="row">
+                            <span>Discount</span>
+                            <b>{toNum(t?.discount).toFixed(2)} QAR</b>
+                          </div>
+                          <div className="row">
+                            <span>VAT</span>
+                            <b>{toNum(t?.vatAmount).toFixed(2)} QAR</b>
+                          </div>
+                          <div className="row">
+                            <span>Total</span>
+                            <b>{toNum(total).toFixed(2)} QAR</b>
+                          </div>
+                          <div className="row">
+                            <span>Paid</span>
+                            <b>{toNum(amountPaid).toFixed(2)} QAR</b>
+                          </div>
+                          <div className="row">
+                            <span>Balance</span>
+                            <b>{toNum(balance).toFixed(2)} QAR</b>
+                          </div>
                         </div>
                         {permissions.canUpdate && (
                           <div className="inline">
@@ -904,54 +1138,74 @@ const startEdit = (id: string) => {
                 )}
               </div>
 
-              {/* Payments */}
+              {/* Payments (separate model) */}
               <div className="card wide">
                 <div className="card-title">Payments</div>
 
                 <div className="payments">
-                  {(activePayload.payments ?? []).map((p, idx) => (
-                    <div className="pay" key={p.id || idx}>
-                      <div className="strong">{toNum(p.amount).toFixed(2)} QAR</div>
-                      <div className="muted">{p.method || "—"} • {p.reference || "—"}</div>
-                      <div className="muted">{p.paidAt ? new Date(p.paidAt).toLocaleString() : "—"}</div>
-                      {permissions.canUpdate && (
-                        <button
-                          className="link danger"
-                          onClick={() => {
-                            const nextPayments = activePayload.payments.filter((_, i) => i !== idx);
-                            const next = { ...activePayload, payments: nextPayments };
-                            void saveFromDetails(next);
-                          }}
-                        >
+                  {paymentsLoading && <div className="muted">Loading payments…</div>}
+
+                  {(activePayments ?? []).map((p) => (
+                    <div className="pay" key={(p as any).id}>
+                      <div className="strong">{toNum((p as any).amount).toFixed(2)} QAR</div>
+                      <div className="muted">
+                        {(p as any).method || "—"} • {(p as any).reference || "—"}
+                      </div>
+                      <div className="muted">
+                        {(p as any).paidAt ? new Date(String((p as any).paidAt)).toLocaleString() : "—"}
+                      </div>
+                      {permissions.canDelete && (
+                        <button className="link danger" onClick={() => void deletePayment(String((p as any).id))}>
                           Remove
                         </button>
                       )}
                     </div>
                   ))}
-                  {!activePayload.payments?.length && <div className="muted">No payments recorded.</div>}
+
+                  {!paymentsLoading && !activePayments?.length && <div className="muted">No payments recorded.</div>}
                 </div>
 
-                {permissions.canUpdate && (
+                {permissions.canUpdate && activePayload.id && (
                   <div className="add-payment">
-                    <input
-                      className="input"
-                      type="number"
-                      placeholder="Amount (QAR)"
-                      onKeyDown={(e) => {
-                        if (e.key !== "Enter") return;
-                        const amount = Math.max(0, toNum((e.target as HTMLInputElement).value));
-                        if (!amount) return;
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 160px 180px", gap: 10, width: "100%" }}>
+                      <input
+                        className="input"
+                        type="number"
+                        placeholder="Amount (QAR)"
+                        value={payAmount}
+                        onChange={(e) => setPayAmount(e.target.value)}
+                      />
+                      <select className="input" value={payMethod} onChange={(e) => setPayMethod(e.target.value)}>
+                        {METHODS.map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        className="input"
+                        placeholder="Reference (optional)"
+                        value={payRef}
+                        onChange={(e) => setPayRef(e.target.value)}
+                      />
+                    </div>
 
-                        const nextPayments = [
-                          ...(activePayload.payments ?? []),
-                          { id: uid("pay"), amount, method: "Cash", reference: "", paidAt: new Date().toISOString() },
-                        ];
-                        const next = { ...activePayload, payments: nextPayments };
-                        void saveFromDetails(next);
-                        (e.target as HTMLInputElement).value = "";
-                      }}
-                    />
-                    <span className="hint">Press Enter to add quick cash payment.</span>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 10 }}>
+                      <button
+                        className="secondary"
+                        onClick={() => {
+                          const amt = Math.max(0, toNum(payAmount));
+                          if (!amt || !activePayload.id) return;
+                          void addPayment(activePayload.id, amt, payMethod, payRef, new Date().toISOString());
+                          setPayAmount("");
+                          setPayRef("");
+                        }}
+                        disabled={!payAmount || paymentsLoading}
+                      >
+                        Add payment
+                      </button>
+                      <span className="hint">Payments are saved as separate records for audits & reporting.</span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -972,16 +1226,8 @@ const startEdit = (id: string) => {
 
                 {permissions.canUpdate && (
                   <div className="add-doc">
-                    <input
-                      className="input"
-                      placeholder="Document title"
-                      id="docTitle"
-                    />
-                    <input
-                      className="input"
-                      placeholder="URL (https://...)"
-                      id="docUrl"
-                    />
+                    <input className="input" placeholder="Document title" id="docTitle" />
+                    <input className="input" placeholder="URL (https://...)" id="docUrl" />
                     <button
                       className="secondary"
                       onClick={() => {
@@ -1018,7 +1264,9 @@ const startEdit = (id: string) => {
           <div className="jom-wizard">
             <div className="jom-wizard-head">
               <div className="left">
-                <button className="icon-btn" onClick={() => setWizardOpen(false)} aria-label="Close">✕</button>
+                <button className="icon-btn" onClick={() => setWizardOpen(false)} aria-label="Close">
+                  ✕
+                </button>
                 <div>
                   <div className="headline">{draft.id ? "Edit Job Order" : "New Job Order"}</div>
                   <div className="muted">Step {wizardStep} of 4</div>
@@ -1046,23 +1294,23 @@ const startEdit = (id: string) => {
                         value={draft.customerId ?? ""}
                         onChange={(e) => {
                           const id = e.target.value || undefined;
-                          const c = customers.find((x) => x.id === id);
+                          const c = customers.find((x) => (x as any).id === id);
                           setDraft((p) => ({
                             ...p,
                             customerId: id,
-                            customerName: c ? `${c.name ?? ""} ${c.lastname ?? ""}`.trim() : p.customerName,
-                            customerPhone: c?.phone ?? p.customerPhone,
-                            customerEmail: c?.email ?? p.customerEmail,
+                            customerName: c ? `${(c as any).name ?? ""} ${(c as any).lastname ?? ""}`.trim() : p.customerName,
+                            customerPhone: (c as any)?.phone ?? p.customerPhone,
+                            customerEmail: (c as any)?.email ?? p.customerEmail,
                           }));
                         }}
                       >
                         <option value="">— Select customer —</option>
                         {customers
                           .slice()
-                          .sort((a, b) => String(a.name ?? "").localeCompare(String(b.name ?? "")))
+                          .sort((a, b) => String((a as any).name ?? "").localeCompare(String((b as any).name ?? "")))
                           .map((c) => (
-                            <option key={c.id} value={c.id}>
-                              {(c.name ?? "") + " " + (c.lastname ?? "")} • {c.phone ?? "—"}
+                            <option key={(c as any).id} value={(c as any).id}>
+                              {((c as any).name ?? "") + " " + ((c as any).lastname ?? "")} • {(c as any).phone ?? "—"}
                             </option>
                           ))}
                       </select>
@@ -1073,17 +1321,32 @@ const startEdit = (id: string) => {
 
                     <div>
                       <label>Customer name</label>
-                      <input className="input" value={draft.customerName} onChange={(e) => setDraft((p) => ({ ...p, customerName: e.target.value }))} placeholder="Full name" />
+                      <input
+                        className="input"
+                        value={draft.customerName}
+                        onChange={(e) => setDraft((p) => ({ ...p, customerName: e.target.value }))}
+                        placeholder="Full name"
+                      />
                     </div>
 
                     <div>
                       <label>Phone</label>
-                      <input className="input" value={draft.customerPhone ?? ""} onChange={(e) => setDraft((p) => ({ ...p, customerPhone: e.target.value }))} placeholder="+974 XXXXXXXX" />
+                      <input
+                        className="input"
+                        value={draft.customerPhone ?? ""}
+                        onChange={(e) => setDraft((p) => ({ ...p, customerPhone: e.target.value }))}
+                        placeholder="+974 XXXXXXXX"
+                      />
                     </div>
 
                     <div>
                       <label>Email</label>
-                      <input className="input" value={draft.customerEmail ?? ""} onChange={(e) => setDraft((p) => ({ ...p, customerEmail: e.target.value }))} placeholder="email@domain.com" />
+                      <input
+                        className="input"
+                        value={draft.customerEmail ?? ""}
+                        onChange={(e) => setDraft((p) => ({ ...p, customerEmail: e.target.value }))}
+                        placeholder="email@domain.com"
+                      />
                     </div>
                   </div>
                 </div>
@@ -1096,46 +1359,87 @@ const startEdit = (id: string) => {
                   <div className="grid2">
                     <div>
                       <label>Vehicle type</label>
-                      <select className="input" value={draft.vehicleType} onChange={(e) => setDraft((p) => ({ ...p, vehicleType: e.target.value as VehicleType }))}>
+                      <select
+                        className="input"
+                        value={draft.vehicleType}
+                        onChange={(e) => setDraft((p) => ({ ...p, vehicleType: e.target.value as VehicleType }))}
+                      >
                         {VEHICLE_TYPES.map((v) => (
-                          <option key={v.key} value={v.key}>{v.label}</option>
+                          <option key={v.key} value={v.key}>
+                            {v.label}
+                          </option>
                         ))}
                       </select>
                     </div>
 
                     <div>
                       <label>Make</label>
-                      <input className="input" value={draft.vehicleMake ?? ""} onChange={(e) => setDraft((p) => ({ ...p, vehicleMake: e.target.value }))} placeholder="BMW" />
+                      <input
+                        className="input"
+                        value={draft.vehicleMake ?? ""}
+                        onChange={(e) => setDraft((p) => ({ ...p, vehicleMake: e.target.value }))}
+                        placeholder="BMW"
+                      />
                     </div>
 
                     <div>
                       <label>Model</label>
-                      <input className="input" value={draft.vehicleModel ?? ""} onChange={(e) => setDraft((p) => ({ ...p, vehicleModel: e.target.value }))} placeholder="X5" />
+                      <input
+                        className="input"
+                        value={draft.vehicleModel ?? ""}
+                        onChange={(e) => setDraft((p) => ({ ...p, vehicleModel: e.target.value }))}
+                        placeholder="X5"
+                      />
                     </div>
 
                     <div>
                       <label>Plate number</label>
-                      <input className="input" value={draft.plateNumber ?? ""} onChange={(e) => setDraft((p) => ({ ...p, plateNumber: e.target.value }))} placeholder="123456" />
+                      <input
+                        className="input"
+                        value={draft.plateNumber ?? ""}
+                        onChange={(e) => setDraft((p) => ({ ...p, plateNumber: e.target.value }))}
+                        placeholder="123456"
+                      />
                     </div>
 
                     <div>
                       <label>VIN</label>
-                      <input className="input" value={draft.vin ?? ""} onChange={(e) => setDraft((p) => ({ ...p, vin: e.target.value }))} placeholder="(optional)" />
+                      <input
+                        className="input"
+                        value={draft.vin ?? ""}
+                        onChange={(e) => setDraft((p) => ({ ...p, vin: e.target.value }))}
+                        placeholder="(optional)"
+                      />
                     </div>
 
                     <div>
                       <label>Mileage</label>
-                      <input className="input" value={draft.mileage ?? ""} onChange={(e) => setDraft((p) => ({ ...p, mileage: e.target.value }))} placeholder="(optional)" />
+                      <input
+                        className="input"
+                        value={draft.mileage ?? ""}
+                        onChange={(e) => setDraft((p) => ({ ...p, mileage: e.target.value }))}
+                        placeholder="(optional)"
+                      />
                     </div>
 
                     <div>
                       <label>Color</label>
-                      <input className="input" value={draft.color ?? ""} onChange={(e) => setDraft((p) => ({ ...p, color: e.target.value }))} placeholder="(optional)" />
+                      <input
+                        className="input"
+                        value={draft.color ?? ""}
+                        onChange={(e) => setDraft((p) => ({ ...p, color: e.target.value }))}
+                        placeholder="(optional)"
+                      />
                     </div>
 
                     <div>
                       <label>Notes</label>
-                      <input className="input" value={draft.notes ?? ""} onChange={(e) => setDraft((p) => ({ ...p, notes: e.target.value }))} placeholder="(optional)" />
+                      <input
+                        className="input"
+                        value={draft.notes ?? ""}
+                        onChange={(e) => setDraft((p) => ({ ...p, notes: e.target.value }))}
+                        placeholder="(optional)"
+                      />
                     </div>
                   </div>
                 </div>
@@ -1159,10 +1463,7 @@ const startEdit = (id: string) => {
 
                         setDraft((prev) => ({
                           ...prev,
-                          services: [
-                            ...prev.services,
-                            { id: uid("svc"), name, qty: 1, unitPrice, status: "PENDING" as const },
-                          ],
+                          services: [...prev.services, { id: uid("svc"), name, qty: 1, unitPrice, status: "PENDING" as const }],
                         }));
                         e.currentTarget.value = "";
                       }}
@@ -1320,25 +1621,52 @@ const startEdit = (id: string) => {
 
                   <div className="grid2">
                     <div className="summary">
-                      <div className="row"><span>Subtotal</span><b>{totalsPreview.subtotal.toFixed(2)} QAR</b></div>
-                      <div className="row"><span>Discount</span><b>{totalsPreview.discount.toFixed(2)} QAR</b></div>
-                      <div className="row"><span>VAT rate</span><b>{(totalsPreview.vatRate * 100).toFixed(2)}%</b></div>
-                      <div className="row"><span>VAT</span><b>{totalsPreview.vatAmount.toFixed(2)} QAR</b></div>
-                      <div className="row"><span>Total</span><b>{totalsPreview.totalAmount.toFixed(2)} QAR</b></div>
-                      <div className="row"><span>Paid</span><b>{totalsPreview.amountPaid.toFixed(2)} QAR</b></div>
-                      <div className="row"><span>Balance</span><b>{totalsPreview.balanceDue.toFixed(2)} QAR</b></div>
-                      <div className="row"><span>Payment status</span><b>{totalsPreview.paymentStatus}</b></div>
+                      <div className="row">
+                        <span>Subtotal</span>
+                        <b>{totalsPreview.subtotal.toFixed(2)} QAR</b>
+                      </div>
+                      <div className="row">
+                        <span>Discount</span>
+                        <b>{totalsPreview.discount.toFixed(2)} QAR</b>
+                      </div>
+                      <div className="row">
+                        <span>VAT rate</span>
+                        <b>{(totalsPreview.vatRate * 100).toFixed(2)}%</b>
+                      </div>
+                      <div className="row">
+                        <span>VAT</span>
+                        <b>{totalsPreview.vatAmount.toFixed(2)} QAR</b>
+                      </div>
+                      <div className="row">
+                        <span>Total</span>
+                        <b>{totalsPreview.totalAmount.toFixed(2)} QAR</b>
+                      </div>
                     </div>
 
                     <div>
                       <label>Discount (QAR)</label>
-                      <input className="input" type="number" value={draft.discount} onChange={(e) => setDraft((p) => ({ ...p, discount: toNum(e.target.value) }))} />
+                      <input
+                        className="input"
+                        type="number"
+                        value={draft.discount}
+                        onChange={(e) => setDraft((p) => ({ ...p, discount: toNum(e.target.value) }))}
+                      />
 
                       <label style={{ marginTop: 10 }}>VAT rate (e.g., 0.05 for 5%)</label>
-                      <input className="input" type="number" step="0.01" value={draft.vatRate} onChange={(e) => setDraft((p) => ({ ...p, vatRate: toNum(e.target.value) }))} />
+                      <input
+                        className="input"
+                        type="number"
+                        step="0.01"
+                        value={draft.vatRate}
+                        onChange={(e) => setDraft((p) => ({ ...p, vatRate: toNum(e.target.value) }))}
+                      />
 
                       <label style={{ marginTop: 10 }}>Order status</label>
-                      <select className="input" value={draft.status} onChange={(e) => setDraft((p) => ({ ...p, status: e.target.value as OrderStatus }))}>
+                      <select
+                        className="input"
+                        value={draft.status}
+                        onChange={(e) => setDraft((p) => ({ ...p, status: e.target.value as OrderStatus }))}
+                      >
                         <option value="DRAFT">DRAFT</option>
                         <option value="OPEN">OPEN</option>
                         <option value="IN_PROGRESS">IN_PROGRESS</option>
@@ -1349,29 +1677,37 @@ const startEdit = (id: string) => {
                     </div>
                   </div>
 
-                  <div className="hint">
-                    Tip: Payments & documents can be added in the details screen after saving the job order.
-                  </div>
+                  <div className="hint">Tip: Payments can be added in the details screen after saving the job order.</div>
                 </div>
               )}
             </div>
 
             <div className="jom-wizard-foot">
               <div className="left">
-                <button className="secondary" onClick={() => setWizardOpen(false)}>Cancel</button>
+                <button className="secondary" onClick={() => setWizardOpen(false)}>
+                  Cancel
+                </button>
               </div>
 
               <div className="right">
-                <button className="secondary" disabled={wizardStep === 1} onClick={() => setWizardStep((s) => (s > 1 ? ((s - 1) as any) : s))}>
+                <button
+                  className="secondary"
+                  disabled={wizardStep === 1}
+                  onClick={() => setWizardStep((s) => (s > 1 ? ((s - 1) as any) : s))}
+                >
                   Back
                 </button>
 
                 {wizardStep < 4 ? (
-                  <button className="primary" onClick={() => setWizardStep((s) => ((s + 1) as any))}>
+                  <button className="primary" onClick={() => setWizardStep((s) => (s + 1) as any)}>
                     Next
                   </button>
                 ) : (
-                  <button className="primary" disabled={draft.id ? !permissions.canUpdate : !permissions.canCreate} onClick={() => void saveDraft()}>
+                  <button
+                    className="primary"
+                    disabled={draft.id ? !permissions.canUpdate : !permissions.canCreate}
+                    onClick={() => void saveDraft()}
+                  >
                     {draft.id ? "Update Job Order" : "Create Job Order"}
                   </button>
                 )}

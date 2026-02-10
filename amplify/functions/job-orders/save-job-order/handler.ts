@@ -1,134 +1,26 @@
-import type { Schema } from "../../../data/resource";
-
 import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtime";
+import type { AppSyncResolverHandler } from "aws-lambda";
 
-type Handler = (event: any) => Promise<any>;
+import type { Schema } from "../../../data/resource";
 
-const ADMIN_GROUP = "Admins";
-const POLICY_KEY = "JOB_CARDS";
+import { requirePermissionFromEvent } from "../_shared/rbac";
+import { computePaymentStatus, toNum } from "../_shared/finance";
+import { recomputeJobOrderPaymentSummary } from "../_shared/payments";
 
-function safeJsonParse<T>(raw: unknown): T | null {
-  try {
-    if (raw == null) return null;
-    if (typeof raw === "string") {
-      const s = raw.trim();
-      if (!s) return null;
-      return JSON.parse(s) as T;
-    }
-    return raw as T;
-  } catch {
-    return null;
-  }
-}
+type Args = { input: any };
 
-function normalizeGroupsFromClaims(claims: any): string[] {
-  const g = claims?.["cognito:groups"];
-  if (!g) return [];
-  if (Array.isArray(g)) return g.map(String);
-  // sometimes it's a string like '["A","B"]' or 'A,B'
-  const parsed = safeJsonParse<any>(g);
-  if (Array.isArray(parsed)) return parsed.map(String);
-  return String(g)
-    .split(",")
-    .map((x) => x.trim())
-    .filter(Boolean);
-}
+type ServiceLine = { qty: number; unitPrice: number };
 
-type EffectivePerms = { canRead: boolean; canCreate: boolean; canUpdate: boolean; canDelete: boolean; canApprove: boolean };
-
-function emptyPerms(): EffectivePerms {
-  return { canRead: false, canCreate: false, canUpdate: false, canDelete: false, canApprove: false };
-}
-
-async function resolvePermissions(dataClient: ReturnType<typeof generateClient<Schema>>, groups: string[]): Promise<EffectivePerms> {
-  const perms = emptyPerms();
-
-  const normGroups = (groups ?? []).map((x) => String(x || "").trim()).filter(Boolean);
-  if (normGroups.includes(ADMIN_GROUP)) {
-    return { canRead: true, canCreate: true, canUpdate: true, canDelete: true, canApprove: true };
-  }
-
-  // DepartmentRoleLink and RolePolicy are readable to authenticated in your schema, but the Lambda uses IAM anyway.
-  const linksRes = await dataClient.models.DepartmentRoleLink.list({ limit: 5000 });
-  const roleIds = new Set<string>();
-
-  for (const l of linksRes.data ?? []) {
-    const dk = String((l as any).departmentKey ?? "");
-    if (dk && normGroups.includes(dk)) {
-      const rid = String((l as any).roleId ?? "");
-      if (rid) roleIds.add(rid);
-    }
-  }
-
-  if (!roleIds.size) return perms;
-
-  const polRes = await dataClient.models.RolePolicy.list({ limit: 8000 });
-  for (const p of polRes.data ?? []) {
-    const rid = String((p as any).roleId ?? "");
-    const key = String((p as any).policyKey ?? "");
-    if (!rid || !key) continue;
-    if (!roleIds.has(rid)) continue;
-    if (key !== POLICY_KEY) continue;
-
-    perms.canRead = perms.canRead || Boolean((p as any).canRead);
-    perms.canCreate = perms.canCreate || Boolean((p as any).canCreate);
-    perms.canUpdate = perms.canUpdate || Boolean((p as any).canUpdate);
-    perms.canDelete = perms.canDelete || Boolean((p as any).canDelete);
-    perms.canApprove = perms.canApprove || Boolean((p as any).canApprove);
-  }
-
-  return perms;
-}
-
-function generateOrderNumber(now = new Date()) {
-  const y = now.getFullYear();
-  const m = String(now.getMonth() + 1).padStart(2, "0");
-  const d = String(now.getDate()).padStart(2, "0");
-  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
-  return `JO-${y}${m}${d}-${rand}`;
-}
-
-function toNum(x: unknown): number {
-  const n = typeof x === "number" ? x : Number(String(x ?? "").trim());
-  return Number.isFinite(n) ? n : 0;
-}
-
-type ServiceLine = {
-  id?: string;
-  name: string;
-  category?: string;
-  qty?: number;
-  unitPrice?: number;
-  status?: string;
-  technician?: string;
-  notes?: string;
-};
-
-type PaymentLine = {
-  id?: string;
-  amount: number;
-  method?: string;
-  reference?: string;
-  paidAt?: string;
-};
-
-type DocLine = {
-  id?: string;
-  title: string;
-  url: string;
-  type?: string;
-  addedAt?: string;
-};
-
-type InputShape = {
+type Payload = {
   id?: string;
   orderNumber?: string;
   orderType?: string;
   status?: string;
+
   customerId?: string;
-  customerName?: string;
+  customerName: string;
   customerPhone?: string;
   customerEmail?: string;
 
@@ -146,180 +38,102 @@ type InputShape = {
   discount?: number;
 
   services?: ServiceLine[];
-  payments?: PaymentLine[];
-  documents?: DocLine[];
+  documents?: any[];
 
-  // additional module data
+  // allow extra future fields
   [k: string]: any;
 };
 
-export const handler: Handler = async (event) => {
-  const rawInput = (event?.arguments as any)?.input;
-  const input = safeJsonParse<InputShape>(rawInput) ?? (rawInput as InputShape) ?? {};
+function safeParseInput(raw: any): Payload {
+  if (raw == null) throw new Error("Missing input");
+  if (typeof raw === "string") {
+    const s = raw.trim();
+    if (!s) throw new Error("Empty input");
+    return JSON.parse(s) as Payload;
+  }
+  return raw as Payload;
+}
 
-  const isUpdate = Boolean(input.id);
+function nowIso() {
+  return new Date().toISOString();
+}
 
-  // identify caller
-  const claims = event?.identity?.claims ?? {};
-  const username = String(event?.identity?.username ?? claims?.username ?? claims?.email ?? "").toLowerCase();
-  const login = String(claims?.email ?? username ?? "").toLowerCase();
+function makeOrderNumber(prefix = "JO") {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+  return `${prefix}-${y}${m}${day}-${rand}`;
+}
 
-  const groups = normalizeGroupsFromClaims(claims);
+export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
   const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
   Amplify.configure(resourceConfig, libraryOptions);
-  const dataClient = generateClient<Schema>();
 
-  const perms = await resolvePermissions(dataClient, groups);
-  if (isUpdate && !perms.canUpdate) throw new Error("Not authorized: missing JOB_CARDS canUpdate.");
-  if (!isUpdate && !perms.canCreate) throw new Error("Not authorized: missing JOB_CARDS canCreate.");
+  const client = generateClient<Schema>();
 
-  const customerName = String(input.customerName ?? "").trim();
-  if (!customerName) throw new Error("customerName is required.");
+  const payload = safeParseInput(event.arguments?.input);
+  const isUpdate = Boolean(payload.id);
 
-  const nowIso = new Date().toISOString();
+  // RBAC
+  await requirePermissionFromEvent(client as any, event, "JOB_CARDS", isUpdate ? "UPDATE" : "CREATE");
 
-  // normalize services
-  const services: ServiceLine[] = Array.isArray(input.services) ? input.services : [];
-  const normServices = services
-    .map((s) => ({
-      id: String(s.id ?? "").trim() || undefined,
-      name: String(s.name ?? "").trim(),
-      category: String(s.category ?? "").trim() || undefined,
-      qty: toNum(s.qty ?? 1) || 1,
-      unitPrice: toNum(s.unitPrice ?? 0),
-      status: String(s.status ?? "PENDING").trim() || "PENDING",
-      technician: String(s.technician ?? "").trim() || undefined,
-      notes: String(s.notes ?? "").trim() || undefined,
-    }))
-    .filter((s) => s.name);
+  const customerName = String(payload.customerName ?? "").trim();
+  if (!customerName) throw new Error("Customer name is required.");
 
-  const subtotal = normServices.reduce((sum, s) => sum + (toNum(s.qty) * toNum(s.unitPrice)), 0);
+  const services = Array.isArray(payload.services) ? payload.services : [];
+  if (!services.length) throw new Error("Add at least one service.");
 
-  const discount = Math.max(0, toNum(input.discount));
-  const vatRate = Math.max(0, toNum(input.vatRate));
+  const vatRate = Math.max(0, toNum(payload.vatRate));
+  const discount = Math.max(0, toNum(payload.discount));
+
+  const subtotal = services.reduce((sum, s) => sum + Math.max(1, toNum(s.qty)) * Math.max(0, toNum(s.unitPrice)), 0);
   const taxable = Math.max(0, subtotal - discount);
   const vatAmount = taxable * vatRate;
   const totalAmount = taxable + vatAmount;
 
-  const payments: PaymentLine[] = Array.isArray(input.payments) ? input.payments : [];
-  const normPayments = payments
-    .map((p) => ({
-      id: String(p.id ?? "").trim() || undefined,
-      amount: Math.max(0, toNum(p.amount)),
-      method: String(p.method ?? "").trim() || undefined,
-      reference: String(p.reference ?? "").trim() || undefined,
-      paidAt: String(p.paidAt ?? "").trim() || nowIso,
-    }))
-    .filter((p) => p.amount > 0);
+  // Amount paid is sourced from Payment model for accuracy.
+  // If this is an update, we will compute it from payments; for create it is 0.
+  let amountPaid = 0;
 
-  const amountPaid = normPayments.reduce((sum, p) => sum + toNum(p.amount), 0);
-  const balanceDue = Math.max(0, totalAmount - amountPaid);
-  const paymentStatus = balanceDue <= 0.00001 ? "PAID" : amountPaid > 0 ? "PARTIAL" : "UNPAID";
-
-  const status = String(input.status ?? (isUpdate ? "" : "OPEN")).trim() || "OPEN";
-  const orderType = String(input.orderType ?? "").trim() || "Job Order";
-
-  const orderNumber = String(input.orderNumber ?? "").trim() || generateOrderNumber();
-
-  // store full payload (including services/payments/documents + any extra module fields)
-  const documents: DocLine[] = Array.isArray(input.documents) ? input.documents : [];
-  const normDocs = documents
-    .map((d) => ({
-      id: String(d.id ?? "").trim() || undefined,
-      title: String(d.title ?? "").trim(),
-      url: String(d.url ?? "").trim(),
-      type: String(d.type ?? "").trim() || undefined,
-      addedAt: String(d.addedAt ?? "").trim() || nowIso,
-    }))
-    .filter((d) => d.title && d.url);
-
-  const payloadToStore: any = {
-    ...input,
-    id: input.id,
-    orderNumber,
-    orderType,
-    status,
-    paymentStatus,
-    customerName,
-    customerPhone: String(input.customerPhone ?? "").trim() || undefined,
-    customerEmail: String(input.customerEmail ?? "").trim() || undefined,
-    vehicleType: String(input.vehicleType ?? "").trim() || undefined,
-    vehicleMake: String(input.vehicleMake ?? "").trim() || undefined,
-    vehicleModel: String(input.vehicleModel ?? "").trim() || undefined,
-    plateNumber: String(input.plateNumber ?? "").trim() || undefined,
-    vin: String(input.vin ?? "").trim() || undefined,
-    mileage: String(input.mileage ?? "").trim() || undefined,
-    color: String(input.color ?? "").trim() || undefined,
-    notes: String(input.notes ?? "").trim() || undefined,
-    services: normServices,
-    payments: normPayments,
-    documents: normDocs,
-    totals: { subtotal, discount, vatRate, vatAmount, totalAmount, amountPaid, balanceDue },
-    updatedAt: nowIso,
-  };
-
-  if (!isUpdate) {
-    payloadToStore.createdAt = nowIso;
-    payloadToStore.createdBy = login || username || "unknown";
+  if (isUpdate && payload.id) {
+    // Ensure any out-of-sync order has its payment summary recomputed first (best-effort).
+    // This is safe and keeps amountPaid/balanceDue/paymentStatus correct.
+    await recomputeJobOrderPaymentSummary(client as any, payload.id);
+    const existing = await (client.models as any).JobOrder.get({ id: payload.id });
+    amountPaid = Math.max(0, toNum(existing?.data?.amountPaid));
   }
 
-  // persist
-  if (isUpdate) {
-    const res = await dataClient.models.JobOrder.update({
-      id: String(input.id),
-      orderNumber,
-      orderType,
-      status: status as any,
-      paymentStatus: paymentStatus as any,
+  const { paymentStatus, balanceDue } = computePaymentStatus(totalAmount, amountPaid);
 
-      customerId: String(input.customerId ?? "").trim() || undefined,
-      customerName,
-      customerPhone: String(input.customerPhone ?? "").trim() || undefined,
-      customerEmail: String(input.customerEmail ?? "").trim() || undefined,
-
-      vehicleType: (String(input.vehicleType ?? "").trim() || undefined) as any,
-      vehicleMake: String(input.vehicleMake ?? "").trim() || undefined,
-      vehicleModel: String(input.vehicleModel ?? "").trim() || undefined,
-      plateNumber: String(input.plateNumber ?? "").trim() || undefined,
-      vin: String(input.vin ?? "").trim() || undefined,
-      mileage: String(input.mileage ?? "").trim() || undefined,
-      color: String(input.color ?? "").trim() || undefined,
-
-      subtotal,
-      discount,
-      vatRate,
-      vatAmount,
-      totalAmount,
-      amountPaid,
-      balanceDue,
-
-      notes: String(input.notes ?? "").trim() || undefined,
-      dataJson: JSON.stringify(payloadToStore),
-
-      updatedAt: nowIso,
-    } as any);
-
-    return { ok: true, mode: "update", id: res.data?.id ?? input.id, orderNumber, status, paymentStatus, totals: payloadToStore.totals };
-  }
-
-  const createRes = await dataClient.models.JobOrder.create({
-    orderNumber,
-    orderType,
-    status: status as any,
-    paymentStatus: paymentStatus as any,
-
-    customerId: String(input.customerId ?? "").trim() || undefined,
+  // Persist full module payload (excluding any legacy 'payments' array)
+  const { payments, ...payloadNoPayments } = payload as any;
+  const dataJson = JSON.stringify({
+    ...payloadNoPayments,
     customerName,
-    customerPhone: String(input.customerPhone ?? "").trim() || undefined,
-    customerEmail: String(input.customerEmail ?? "").trim() || undefined,
+    services,
+    documents: Array.isArray(payload.documents) ? payload.documents : [],
+    vatRate,
+    discount,
+  });
 
-    vehicleType: (String(input.vehicleType ?? "").trim() || undefined) as any,
-    vehicleMake: String(input.vehicleMake ?? "").trim() || undefined,
-    vehicleModel: String(input.vehicleModel ?? "").trim() || undefined,
-    plateNumber: String(input.plateNumber ?? "").trim() || undefined,
-    vin: String(input.vin ?? "").trim() || undefined,
-    mileage: String(input.mileage ?? "").trim() || undefined,
-    color: String(input.color ?? "").trim() || undefined,
+  const common = {
+    orderType: String(payload.orderType ?? "Job Order"),
+    status: (payload.status as any) ?? "OPEN",
+
+    customerId: payload.customerId ?? undefined,
+    customerName,
+    customerPhone: String(payload.customerPhone ?? "").trim() || undefined,
+    customerEmail: String(payload.customerEmail ?? "").trim() || undefined,
+
+    vehicleType: (payload.vehicleType as any) ?? "SUV_4X4",
+    vehicleMake: String(payload.vehicleMake ?? "").trim() || undefined,
+    vehicleModel: String(payload.vehicleModel ?? "").trim() || undefined,
+    plateNumber: String(payload.plateNumber ?? "").trim() || undefined,
+    vin: String(payload.vin ?? "").trim() || undefined,
+    mileage: String(payload.mileage ?? "").trim() || undefined,
+    color: String(payload.color ?? "").trim() || undefined,
 
     subtotal,
     discount,
@@ -328,14 +142,35 @@ export const handler: Handler = async (event) => {
     totalAmount,
     amountPaid,
     balanceDue,
+    paymentStatus,
 
-    notes: String(input.notes ?? "").trim() || undefined,
-    dataJson: JSON.stringify(payloadToStore),
+    notes: String(payload.notes ?? "").trim() || undefined,
+    dataJson,
 
-    createdBy: login || username || "unknown",
-    createdAt: nowIso,
-    updatedAt: nowIso,
-  } as any);
+    updatedAt: nowIso(),
+  };
 
-  return { ok: true, mode: "create", id: createRes.data?.id, orderNumber, status, paymentStatus, totals: payloadToStore.totals };
+  if (!isUpdate) {
+    const out = await (client.models as any).JobOrder.create({
+      ...common,
+      orderNumber: String(payload.orderNumber ?? "").trim() || makeOrderNumber(),
+      createdAt: nowIso(),
+      createdBy: String((event.identity as any)?.claims?.email ?? (event.identity as any)?.username ?? "").toLowerCase() || undefined,
+    });
+
+    return {
+      id: out?.data?.id,
+      orderNumber: out?.data?.orderNumber,
+    };
+  }
+
+  const out = await (client.models as any).JobOrder.update({
+    id: payload.id,
+    ...common,
+  });
+
+  return {
+    id: out?.data?.id,
+    orderNumber: out?.data?.orderNumber,
+  };
 };
