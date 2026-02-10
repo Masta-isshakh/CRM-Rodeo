@@ -139,39 +139,6 @@ export function assertAllowed(op: "read" | "create" | "update" | "delete" | "app
 type OpInput = "READ" | "CREATE" | "UPDATE" | "DELETE" | "APPROVE" | "read" | "create" | "update" | "delete" | "approve";
 
 function normalizeOp(op: OpInput): "read" | "create" | "update" | "delete" | "approve" {
-  const s = String(op ?? "").trim().toLowerCase();
-  if (s === "read") return "read";
-  if (s === "create") return "create";
-  if (s === "update") return "update";
-  if (s === "delete") return "delete";
-  if (s === "approve") return "approve";
-  // fall back
-  return "read";
-}
-
-/**
- * Require a permission for a given policy key based on the caller's Cognito groups.
- * Throws FORBIDDEN if not allowed.
- */
-export async function requirePermissionFromEvent(
-  client: any,
-  event: any,
-  policyKey: string,
-  op: OpInput
-): Promise<Permission> {
-  const groups = extractGroups(event);
-  const perm = await resolvePolicyPermission(client, groups, policyKey);
-  assertAllowed(normalizeOp(op), perm);
-  return perm;
-}
-
-// ------------------------------------------------------------
-// Convenience helpers for AppSync resolvers
-// ------------------------------------------------------------
-
-type OpInput = "READ" | "CREATE" | "UPDATE" | "DELETE" | "APPROVE" | "read" | "create" | "update" | "delete" | "approve";
-
-function normalizeOp(op: OpInput): "read" | "create" | "update" | "delete" | "approve" {
   const s = String(op).trim().toLowerCase();
   if (s === "read") return "read";
   if (s === "create") return "create";
