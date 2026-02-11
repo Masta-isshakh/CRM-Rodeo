@@ -1,6 +1,7 @@
 /* src/layout/mainLayout.css
-   Premium “luxury CRM” layout skin (full replacement)
-   Works with your existing MainLayout.tsx class names (no JSX changes needed).
+   ✅ FINAL: Header is FULL WIDTH (100%), content centered, fully responsive
+   ✅ Header fixed + content offset (no overlap)
+   ✅ Body container is 98% width on ALL screens
 */
 
 :root {
@@ -23,23 +24,27 @@
   --shadow: 0 18px 55px rgba(2, 6, 23, 0.16);
   --shadow-xl: 0 28px 80px rgba(2, 6, 23, 0.22);
 
-  /* Accent gradients (luxury + tech) */
-  --a1: #2f7de1;   /* electric blue */
-  --a2: #22c55e;   /* emerald */
-  --a3: #a855f7;   /* violet */
-  --a4: #06b6d4;   /* cyan */
+  /* Accent gradients */
+  --a1: #2f7de1;
+  --a2: #22c55e;
+  --a3: #a855f7;
+  --a4: #06b6d4;
 
   --grad-accent: linear-gradient(135deg, var(--a1), var(--a4) 45%, var(--a3));
-  --grad-success: linear-gradient(135deg, #10b981, #22c55e);
-  --grad-warm: linear-gradient(135deg, #f59e0b, #ef4444);
 
   /* Layout */
   --drawer-w: 308px;
   --radius: 18px;
   --radius-lg: 22px;
 
-  --pad: 16px;
-  --pad-lg: 18px;
+  /* ✅ 98% container requirement */
+  --container-w: 98%;
+
+  /* Header sizing + spacing */
+  --topbar-pad-y: 8px;       /* reduced */
+  --topbar-inner-pad-y: 8px; /* reduced */
+  --topbar-min-h: 66px;      /* stable header card height */
+  --content-gap: 8px;        /* reduced gap under header */
 
   /* Motion */
   --ease: cubic-bezier(.22, 1, .36, 1);
@@ -47,7 +52,7 @@
   --t-med: 220ms var(--ease);
 }
 
-/* ===== Global polish ===== */
+/* ===== Global ===== */
 * { box-sizing: border-box; }
 html, body { height: 100%; }
 body {
@@ -56,9 +61,10 @@ body {
   background: #f6f8ff;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
-/* Better focus */
+/* Focus */
 :where(button, a, input, select, textarea):focus-visible {
   outline: 0;
   box-shadow:
@@ -67,18 +73,11 @@ body {
   border-radius: 12px;
 }
 
-/* Smooth scroll (optional) */
-@media (prefers-reduced-motion: no-preference) {
-  html { scroll-behavior: smooth; }
-}
-
-/* ===== Layout root with premium background ===== */
+/* ===== Layout root background ===== */
 .layout-root {
   min-height: 100vh;
   position: relative;
-  overflow-x: hidden;
 
-  /* layered premium background */
   background:
     radial-gradient(1200px 700px at 18% 12%, rgba(47,125,225,0.16), transparent 55%),
     radial-gradient(900px 600px at 82% 18%, rgba(168,85,247,0.14), transparent 58%),
@@ -86,7 +85,7 @@ body {
     linear-gradient(180deg, #f8fbff 0%, #f3f6ff 35%, #f6f7fb 100%);
 }
 
-/* subtle “grid gloss” overlay */
+/* subtle grid gloss */
 .layout-root::before {
   content: "";
   position: fixed;
@@ -100,32 +99,48 @@ body {
   mask-image: radial-gradient(closest-side at 50% 10%, rgba(0,0,0,0.95), transparent 70%);
 }
 
-/* ===== Main container ===== */
+/* ===== Main container (98% width always) ===== */
 .layout-main {
+  width: var(--container-w);      /* ✅ EXACT 98% */
   max-width: 1440px;
   margin: 0 auto;
-  padding-bottom: 28px;
+  padding-bottom: 18px;
+
+  /* ✅ offset main content under fixed header (no overlap) */
+  padding-top: calc(
+    (var(--topbar-pad-y) * 2) +
+    var(--topbar-min-h) +
+    var(--content-gap)
+  );
 }
 
-.content {
-  padding: 14px var(--pad) 26px;
-}
-
-/* ===== Topbar ===== */
+/* ===== Topbar (FULL WIDTH) ===== */
 .topbar {
-  position: sticky;
+  position: fixed;
   top: 0;
+  left: 0;
+  right: 0;
+
+  width: 100%;                    /* ✅ FULL WIDTH */
   z-index: 30;
-  padding: 14px var(--pad);
+
+  /* ✅ NO horizontal padding here (prevents off-center shift) */
+  padding: var(--topbar-pad-y) 0;
+
+  /* optional safe area */
+  padding-top: calc(var(--topbar-pad-y) + env(safe-area-inset-top));
 }
 
-/* glass + gradient-border card */
+/* ✅ Header inner: centered + same width as body (98%) */
 .topbar-inner {
+  width: var(--container-w);      /* ✅ EXACT 98% */
   max-width: 1440px;
   margin: 0 auto;
+
+  min-height: var(--topbar-min-h);
 
   display: grid;
-  grid-template-columns: 56px 1fr 56px;
+  grid-template-columns: 56px minmax(0, 1fr) 56px;
   align-items: center;
   gap: 12px;
 
@@ -145,7 +160,7 @@ body {
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
 
-  padding: 10px 12px;
+  padding: var(--topbar-inner-pad-y) 12px;
   position: relative;
   overflow: hidden;
 }
@@ -163,7 +178,7 @@ body {
   opacity: 0.55;
 }
 
-/* ===== Menu toggle ===== */
+/* ===== Header Controls ===== */
 .menu-toggle {
   width: 46px;
   height: 46px;
@@ -173,8 +188,7 @@ body {
   display: grid;
   place-items: center;
 
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.74));
+  background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.74));
   box-shadow: 0 10px 20px rgba(2, 6, 23, 0.10);
 
   transition: transform var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast);
@@ -186,9 +200,7 @@ body {
   box-shadow: 0 16px 36px rgba(47,125,225,0.16);
 }
 
-.menu-toggle:active {
-  transform: translateY(0px) scale(0.98);
-}
+.menu-toggle:active { transform: translateY(0px) scale(0.98); }
 
 .menu-toggle-icon {
   display: inline-flex;
@@ -204,7 +216,7 @@ body {
   box-shadow: 0 2px 10px rgba(47,125,225,0.22);
 }
 
-/* ===== Center title ===== */
+/* Center title */
 .topbar-center {
   text-align: center;
   min-width: 0;
@@ -219,7 +231,6 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 
-  /* subtle “premium ink” gradient */
   background: linear-gradient(90deg, #0b1224 0%, #0b1224 35%, rgba(11,18,36,0.86) 100%);
   -webkit-background-clip: text;
   background-clip: text;
@@ -227,7 +238,7 @@ body {
 }
 
 .topbar-sub {
-  margin-top: 4px;
+  margin-top: 3px;
   font-size: 12.5px;
   color: var(--muted);
   white-space: nowrap;
@@ -235,7 +246,7 @@ body {
   text-overflow: ellipsis;
 }
 
-/* ===== Right avatar ===== */
+/* Right avatar */
 .topbar-right {
   display: flex;
   justify-content: flex-end;
@@ -252,8 +263,7 @@ body {
   font-weight: 950;
 
   color: #0b1224;
-  background:
-    linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.72));
+  background: linear-gradient(180deg, rgba(255,255,255,0.92), rgba(255,255,255,0.72));
 
   border: 1px solid rgba(15, 23, 42, 0.10);
   box-shadow: 0 14px 26px rgba(2, 6, 23, 0.12);
@@ -261,7 +271,6 @@ body {
   overflow: hidden;
 }
 
-/* gradient ring */
 .avatar::before {
   content: "";
   position: absolute;
@@ -273,7 +282,12 @@ body {
   pointer-events: none;
 }
 
-/* ===== Optional “no access” card ===== */
+/* ===== Body ===== */
+.content {
+  padding: 10px 12px 18px; /* reduced top padding */
+}
+
+/* Optional no access */
 .no-access {
   border-radius: var(--radius-lg);
   border: 1px solid transparent;
@@ -282,19 +296,7 @@ body {
     linear-gradient(135deg, rgba(47,125,225,0.32), rgba(168,85,247,0.20), rgba(34,197,94,0.16)) border-box;
   box-shadow: var(--shadow);
   padding: 18px;
-}
-
-.no-access h3 {
-  margin: 0 0 8px 0;
-  font-size: 16px;
-  font-weight: 950;
-  color: var(--text);
-}
-
-.no-access p {
-  margin: 0;
-  color: var(--muted);
-  line-height: 1.6;
+  width: 100%;
 }
 
 /* ===== Drawer overlay ===== */
@@ -315,7 +317,7 @@ body {
   pointer-events: auto;
 }
 
-/* ===== Drawer (premium dark) ===== */
+/* ===== Drawer ===== */
 .drawer {
   position: fixed;
   inset: 0 auto 0 0;
@@ -326,7 +328,6 @@ body {
   color: rgba(255,255,255,0.92);
   border-right: 1px solid rgba(255,255,255,0.10);
 
-  /* multi-layer dark + accent glow */
   background:
     radial-gradient(520px 320px at 18% 12%, rgba(47,125,225,0.35), transparent 58%),
     radial-gradient(520px 320px at 82% 18%, rgba(168,85,247,0.26), transparent 60%),
@@ -339,11 +340,8 @@ body {
   transition: transform var(--t-med);
 }
 
-.drawer.open {
-  transform: translateX(0);
-}
+.drawer.open { transform: translateX(0); }
 
-/* drawer head */
 .drawer-head {
   display: flex;
   align-items: center;
@@ -365,14 +363,11 @@ body {
   height: 48px;
   border-radius: 16px;
   object-fit: cover;
-
   border: 1px solid rgba(255,255,255,0.18);
   box-shadow: 0 16px 30px rgba(0,0,0,0.28);
 }
 
-.brand-text {
-  min-width: 0;
-}
+.brand-text { min-width: 0; }
 
 .brand-title {
   font-weight: 950;
@@ -408,12 +403,8 @@ body {
   border-color: rgba(255,255,255,0.24);
   transform: translateY(-1px);
 }
+.drawer-close:active { transform: translateY(0px) scale(0.98); }
 
-.drawer-close:active {
-  transform: translateY(0px) scale(0.98);
-}
-
-/* drawer nav */
 .drawer-nav {
   display: flex;
   flex-direction: column;
@@ -423,7 +414,6 @@ body {
   overflow: auto;
 }
 
-/* scrollbar */
 .drawer-nav::-webkit-scrollbar { width: 10px; }
 .drawer-nav::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 999px; }
 .drawer-nav::-webkit-scrollbar-thumb {
@@ -446,23 +436,9 @@ body {
   font-size: 14px;
   font-weight: 800;
   letter-spacing: 0.1px;
-
   transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
   position: relative;
   overflow: hidden;
-}
-
-/* subtle hover sheen */
-.drawer-nav button::after {
-  content: "";
-  position: absolute;
-  inset: -30px -60px auto -60px;
-  height: 80px;
-  background: radial-gradient(closest-side, rgba(255,255,255,0.16), transparent 72%);
-  opacity: 0;
-  transform: translateY(6px);
-  transition: opacity var(--t-fast), transform var(--t-fast);
-  pointer-events: none;
 }
 
 .drawer-nav button:hover {
@@ -472,34 +448,14 @@ body {
   box-shadow: 0 14px 26px rgba(0,0,0,0.24);
 }
 
-.drawer-nav button:hover::after {
-  opacity: 1;
-  transform: translateY(0px);
-}
-
-/* active = premium gradient + left indicator */
 .drawer-nav button.active {
-  background:
-    linear-gradient(180deg, rgba(47,125,225,0.18), rgba(6,182,212,0.10));
+  background: linear-gradient(180deg, rgba(47,125,225,0.18), rgba(6,182,212,0.10));
   border-color: rgba(47,125,225,0.30);
   box-shadow:
     0 18px 38px rgba(0,0,0,0.28),
     0 0 0 1px rgba(47,125,225,0.16) inset;
 }
 
-.drawer-nav button.active::before {
-  content: "";
-  position: absolute;
-  left: 10px;
-  top: 10px;
-  bottom: 10px;
-  width: 4px;
-  border-radius: 999px;
-  background: var(--grad-accent);
-  box-shadow: 0 0 18px rgba(47,125,225,0.40);
-}
-
-/* Admin section */
 .drawer-section {
   margin-top: 10px;
   padding-top: 12px;
@@ -517,36 +473,43 @@ body {
 
 .drawer-spacer { flex: 1; }
 
-/* Sign out */
 .drawer-nav button.danger {
   background: rgba(239, 68, 68, 0.14);
   border: 1px solid rgba(239, 68, 68, 0.18);
 }
-
 .drawer-nav button.danger:hover {
   background: rgba(239, 68, 68, 0.20);
   border-color: rgba(239, 68, 68, 0.26);
 }
 
-/* ===== Responsive tuning ===== */
+/* ===== Responsive ===== */
 @media (max-width: 900px) {
   .topbar-inner {
-    grid-template-columns: 54px 1fr 52px;
+    grid-template-columns: 54px minmax(0, 1fr) 54px;
     border-radius: 18px;
   }
 }
 
 @media (max-width: 768px) {
-  .topbar { padding: 12px 12px; }
-  .topbar-inner {
-    grid-template-columns: 52px 1fr 48px;
-    padding: 10px 10px;
+  :root{
+    --topbar-pad-y: 7px;
+    --topbar-inner-pad-y: 7px;
+    --topbar-min-h: 62px;
+    --content-gap: 6px;
   }
+
+  .topbar-inner {
+    grid-template-columns: 52px minmax(0, 1fr) 52px;
+    padding: var(--topbar-inner-pad-y) 10px;
+  }
+
   .topbar-title { font-size: 16px; }
   .topbar-sub { font-size: 12px; }
-  .content { padding: 12px 12px 18px; }
+
   .menu-toggle { width: 44px; height: 44px; border-radius: 14px; }
   .avatar { width: 40px; height: 40px; border-radius: 14px; }
+
+  .content { padding: 8px 10px 16px; }
 }
 
 @media (max-width: 420px) {
@@ -554,7 +517,7 @@ body {
   .topbar-sub { font-size: 11.5px; }
 }
 
-/* ===== Reduced motion ===== */
+/* Reduced motion */
 @media (prefers-reduced-motion: reduce) {
   * {
     transition-duration: 0.001ms !important;

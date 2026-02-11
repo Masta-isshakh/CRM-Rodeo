@@ -167,8 +167,7 @@ function getRowBalance(o: any) {
   // Prefer backend-calculated balanceDue (best + fast)
   const raw = o?.balanceDue;
 
-  const hasBalanceDue =
-    raw !== null && raw !== undefined && String(raw).trim() !== "";
+  const hasBalanceDue = raw !== null && raw !== undefined && String(raw).trim() !== "";
 
   if (hasBalanceDue) {
     return Math.max(0, toNum(raw));
@@ -180,12 +179,8 @@ function getRowBalance(o: any) {
   return Math.max(0, total - paid);
 }
 
-
 function computeTotalsFromServices(d: OrderPayload) {
-  const subtotal = (d.services ?? []).reduce(
-    (sum, s) => sum + toNum(s.qty) * toNum(s.unitPrice),
-    0
-  );
+  const subtotal = (d.services ?? []).reduce((sum, s) => sum + toNum(s.qty) * toNum(s.unitPrice), 0);
   const discount = Math.max(0, toNum(d.discount));
   const vatRate = Math.max(0, toNum(d.vatRate));
   const taxable = Math.max(0, subtotal - discount);
@@ -194,8 +189,7 @@ function computeTotalsFromServices(d: OrderPayload) {
 
   const amountPaid = 0;
   const balanceDue = Math.max(0, totalAmount - amountPaid);
-  const paymentStatus: PaymentStatus =
-    balanceDue <= 0.00001 ? "PAID" : amountPaid > 0 ? "PARTIAL" : "UNPAID";
+  const paymentStatus: PaymentStatus = balanceDue <= 0.00001 ? "PAID" : amountPaid > 0 ? "PARTIAL" : "UNPAID";
 
   return {
     subtotal,
@@ -221,9 +215,7 @@ function sanitizeFileName(name: string) {
   return base || `file_${Date.now()}`;
 }
 
-type MenuState =
-  | { open: false }
-  | { open: true; orderId: string; top: number; left: number };
+type MenuState = { open: false } | { open: true; orderId: string; top: number; left: number };
 
 export default function JobCards({ permissions }: PageProps) {
   if (!permissions.canRead) {
@@ -343,9 +335,7 @@ export default function JobCards({ permissions }: PageProps) {
   };
 
   const rowToPayload = (row: JobOrderRow): OrderPayload => {
-    const payload =
-      safeJsonParse<Partial<OrderPayload>>((row as any).dataJson) ??
-      ({} as Partial<OrderPayload>);
+    const payload = safeJsonParse<Partial<OrderPayload>>((row as any).dataJson) ?? ({} as Partial<OrderPayload>);
 
     const merged: OrderPayload = {
       id: (row as any).id,
@@ -444,8 +434,7 @@ export default function JobCards({ permissions }: PageProps) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     return (orders ?? []).filter((o) => {
-      if (statusFilter !== "ALL" && String((o as any).status) !== statusFilter)
-        return false;
+      if (statusFilter !== "ALL" && String((o as any).status) !== statusFilter) return false;
 
       if (!q) return true;
       const hay = [
@@ -473,8 +462,7 @@ export default function JobCards({ permissions }: PageProps) {
 
     let left = rect.right - menuWidth;
     if (left < 12) left = 12;
-    if (left + menuWidth > window.innerWidth - 12)
-      left = window.innerWidth - 12 - menuWidth;
+    if (left + menuWidth > window.innerWidth - 12) left = window.innerWidth - 12 - menuWidth;
 
     let top = rect.bottom + 8;
     if (top + menuHeight > window.innerHeight - 12) {
@@ -488,11 +476,7 @@ export default function JobCards({ permissions }: PageProps) {
   const portalDropdown =
     menu.open &&
     createPortal(
-      <div
-        className="jom-menu"
-        ref={portalMenuRef}
-        style={{ top: menu.top, left: menu.left, width: 200 }}
-      >
+      <div className="jom-menu" ref={portalMenuRef} style={{ top: menu.top, left: menu.left, width: 200 }}>
         <button
           className="jom-menu-item"
           onClick={() => {
@@ -652,12 +636,7 @@ export default function JobCards({ permissions }: PageProps) {
 
       const action = clean.id ? "UPDATE" : "CREATE";
       if (savedId) {
-        await logActivity(
-          "JobOrder",
-          savedId,
-          action,
-          `Job order ${orderNumber} ${action.toLowerCase()}`
-        );
+        await logActivity("JobOrder", savedId, action, `Job order ${orderNumber} ${action.toLowerCase()}`);
       }
 
       setWizardOpen(false);
@@ -696,8 +675,7 @@ export default function JobCards({ permissions }: PageProps) {
     try {
       const res = await (client.mutations as any).jobOrderDelete({ id });
 
-      if (res?.errors?.length)
-        throw new Error(res.errors.map((e: any) => e.message).join(" | "));
+      if (res?.errors?.length) throw new Error(res.errors.map((e: any) => e.message).join(" | "));
 
       await logActivity("JobOrder", id, "DELETE", `Job order deleted`);
       await load();
@@ -717,11 +695,7 @@ export default function JobCards({ permissions }: PageProps) {
   };
 
   // -------- Storage helpers --------
-  const uploadFileToStorage = async (opts: {
-    orderId: string;
-    file: File;
-    folder: "documents" | "payments";
-  }) => {
+  const uploadFileToStorage = async (opts: { orderId: string; file: File; folder: "documents" | "payments" }) => {
     const safe = sanitizeFileName(opts.file.name);
     const ts = new Date().toISOString().replace(/[:.]/g, "-");
     const storagePath = `job-orders/${opts.orderId}/${opts.folder}/${ts}_${safe}`;
@@ -799,8 +773,7 @@ export default function JobCards({ permissions }: PageProps) {
         paidAt,
         notes: notes || "",
       });
-      if (res?.errors?.length)
-        throw new Error(res.errors.map((e: any) => e.message).join(" | "));
+      if (res?.errors?.length) throw new Error(res.errors.map((e: any) => e.message).join(" | "));
 
       await logActivity(
         "JobOrder",
@@ -843,16 +816,10 @@ export default function JobCards({ permissions }: PageProps) {
         paidAt: payload.paidAt ?? "",
         notes: payload.notes ?? "",
       });
-      if (res?.errors?.length)
-        throw new Error(res.errors.map((e: any) => e.message).join(" | "));
+      if (res?.errors?.length) throw new Error(res.errors.map((e: any) => e.message).join(" | "));
 
       const jobOrderId = String(res?.data?.jobOrderId ?? activeOrderId ?? "");
-      await logActivity(
-        "JobOrder",
-        jobOrderId,
-        "UPDATE",
-        `Payment updated`
-      );
+      await logActivity("JobOrder", jobOrderId, "UPDATE", `Payment updated`);
 
       if (jobOrderId) {
         await loadPaymentsFor(jobOrderId);
@@ -879,17 +846,11 @@ export default function JobCards({ permissions }: PageProps) {
       const res = await (client.mutations as any).jobOrderPaymentDelete({
         id: paymentId,
       });
-      if (res?.errors?.length)
-        throw new Error(res.errors.map((e: any) => e.message).join(" | "));
+      if (res?.errors?.length) throw new Error(res.errors.map((e: any) => e.message).join(" | "));
 
       const jobOrderId = String(res?.data?.jobOrderId ?? activeOrderId ?? "");
 
-      await logActivity(
-        "JobOrder",
-        String(activeOrderId ?? ""),
-        "DELETE",
-        `Payment deleted`
-      );
+      await logActivity("JobOrder", String(activeOrderId ?? ""), "DELETE", `Payment deleted`);
 
       if (jobOrderId) {
         await loadPaymentsFor(jobOrderId);
@@ -991,11 +952,7 @@ export default function JobCards({ permissions }: PageProps) {
         </div>
 
         <div className="jom-header-actions">
-          <select
-            className="jom-select"
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value as any)}
-          >
+          <select className="jom-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}>
             <option value="ALL">All statuses</option>
             <option value="DRAFT">Draft</option>
             <option value="OPEN">Open</option>
@@ -1032,6 +989,7 @@ export default function JobCards({ permissions }: PageProps) {
       {status && <div className="jom-status">{status}</div>}
 
       <div className="jom-card">
+        {/* Desktop table */}
         <div className="jom-table-scroll">
           <table className="jom-table">
             <thead>
@@ -1058,37 +1016,30 @@ export default function JobCards({ permissions }: PageProps) {
                   <td className="strong">{(o as any).customerName}</td>
                   <td>{(o as any).customerPhone ?? "—"}</td>
                   <td>
-                    {[(o as any).vehicleMake, (o as any).vehicleModel]
-                      .filter(Boolean)
-                      .join(" ") || "—"}
+                    {[(o as any).vehicleMake, (o as any).vehicleModel].filter(Boolean).join(" ") || "—"}
                   </td>
                   <td>{(o as any).plateNumber ?? "—"}</td>
                   <td>
-                    <span
-                      className={`pill st-${String((o as any).status ?? "").toLowerCase()}`}
-                    >
+                    <span className={`pill st-${String((o as any).status ?? "").toLowerCase()}`}>
                       {String((o as any).status ?? "—")}
                     </span>
                   </td>
                   <td>
-                    <span
-                      className={`pill pay-${String((o as any).paymentStatus ?? "").toLowerCase()}`}
-                    >
+                    <span className={`pill pay-${String((o as any).paymentStatus ?? "").toLowerCase()}`}>
                       {String((o as any).paymentStatus ?? "—")}
                     </span>
                   </td>
-<td className="right">
-  {(() => {
-    const bal = getRowBalance(o);
-    // If nothing exists yet (new orders sometimes), show dash
-    const hasAnyMoneyField =
-      (o as any).balanceDue !== undefined ||
-      (o as any).totalAmount !== undefined ||
-      (o as any).amountPaid !== undefined;
+                  <td className="right">
+                    {(() => {
+                      const bal = getRowBalance(o);
+                      const hasAnyMoneyField =
+                        (o as any).balanceDue !== undefined ||
+                        (o as any).totalAmount !== undefined ||
+                        (o as any).amountPaid !== undefined;
 
-    return hasAnyMoneyField ? bal.toFixed(2) : "—";
-  })()}
-</td>
+                      return hasAnyMoneyField ? bal.toFixed(2) : "—";
+                    })()}
+                  </td>
 
                   <td className="right">
                     <button
@@ -1097,8 +1048,7 @@ export default function JobCards({ permissions }: PageProps) {
                       data-jom-menu-btn={String((o as any).id)}
                       onClick={(e) => {
                         const el = e.currentTarget as HTMLElement;
-                        if (menu.open && menu.orderId === String((o as any).id))
-                          setMenu({ open: false });
+                        if (menu.open && menu.orderId === String((o as any).id)) setMenu({ open: false });
                         else openActionsMenu(String((o as any).id), el);
                       }}
                     >
@@ -1121,10 +1071,80 @@ export default function JobCards({ permissions }: PageProps) {
           </table>
         </div>
 
+        {/* Mobile list (design-only alternative layout) */}
+        <div className="jom-mobile-list">
+          {filtered.map((o) => {
+            const id = String((o as any).id);
+            const orderNumber = String((o as any).orderNumber ?? "—");
+            const customerName = String((o as any).customerName ?? "—");
+            const phone = String((o as any).customerPhone ?? "—");
+            const plate = String((o as any).plateNumber ?? "—");
+            const vehicle =
+              [String((o as any).vehicleMake ?? ""), String((o as any).vehicleModel ?? "")]
+                .filter(Boolean)
+                .join(" ")
+                .trim() || "—";
+
+            const st = String((o as any).status ?? "").toLowerCase();
+            const pay = String((o as any).paymentStatus ?? "").toLowerCase();
+
+            const bal = getRowBalance(o);
+            const hasAnyMoneyField =
+              (o as any).balanceDue !== undefined ||
+              (o as any).totalAmount !== undefined ||
+              (o as any).amountPaid !== undefined;
+
+            return (
+              <div key={id} className="jom-mcard">
+                <div className="jom-mtop">
+                  <div className="jom-mleft">
+                    <div className="jom-morder mono">{orderNumber}</div>
+                    <div className="jom-mname">{customerName}</div>
+                    <div className="jom-mmeta">
+                      {phone} • {vehicle} • Plate: {plate}
+                    </div>
+                  </div>
+
+                  <div className="jom-mright">
+                    <button className="jom-mview" onClick={() => openDetails(id)}>
+                      View
+                    </button>
+
+                    <button
+                      className="jom-actions-btn"
+                      type="button"
+                      data-jom-menu-btn={id}
+                      onClick={(e) => {
+                        const el = e.currentTarget as HTMLElement;
+                        if (menu.open && menu.orderId === id) setMenu({ open: false });
+                        else openActionsMenu(id, el);
+                      }}
+                    >
+                      ⋯
+                    </button>
+                  </div>
+                </div>
+
+                <div className="jom-mpills">
+                  <span className={`pill st-${st}`}>{String((o as any).status ?? "—")}</span>
+                  <span className={`pill pay-${pay}`}>{String((o as any).paymentStatus ?? "—")}</span>
+                </div>
+
+                <div className="jom-mmoney">
+                  <span>Balance</span>
+                  <b>{hasAnyMoneyField ? `${bal.toFixed(2)} QAR` : "—"}</b>
+                </div>
+              </div>
+            );
+          })}
+
+          {!filtered.length && <div className="muted">No job orders found.</div>}
+        </div>
+
         <div className="jom-footnote">
           Permissions are enforced in UI and also server-side for Create/Update/Delete through the{" "}
-          <b>jobOrderSave</b> / <b>jobOrderDelete</b> functions (RBAC policy key: <b>JOB_CARDS</b>). Payments are stored in a separate model (
-          <b>JobOrderPayment</b>) for reporting/audits.
+          <b>jobOrderSave</b> / <b>jobOrderDelete</b> functions (RBAC policy key: <b>JOB_CARDS</b>). Payments are stored
+          in a separate model (<b>JobOrderPayment</b>) for reporting/audits.
         </div>
       </div>
 
@@ -1149,21 +1169,13 @@ export default function JobCards({ permissions }: PageProps) {
                   <div className="kicker">Job Order</div>
                   <div className="headline">{activePayload.orderNumber || "—"}</div>
                   <div className="subline">
-                    <span className={`pill st-${activePayload.status.toLowerCase()}`}>
-                      {activePayload.status}
-                    </span>
+                    <span className={`pill st-${activePayload.status.toLowerCase()}`}>{activePayload.status}</span>
                     <span
                       className={`pill pay-${String(
-                        activePayload.totals?.paymentStatus ??
-                          activePayload.paymentStatus ??
-                          "UNPAID"
+                        activePayload.totals?.paymentStatus ?? activePayload.paymentStatus ?? "UNPAID"
                       ).toLowerCase()}`}
                     >
-                      {String(
-                        activePayload.totals?.paymentStatus ??
-                          activePayload.paymentStatus ??
-                          "UNPAID"
-                      )}
+                      {String(activePayload.totals?.paymentStatus ?? activePayload.paymentStatus ?? "UNPAID")}
                     </span>
                   </div>
                 </div>
@@ -1182,10 +1194,7 @@ export default function JobCards({ permissions }: PageProps) {
                   </button>
                 )}
                 {permissions.canDelete && (
-                  <button
-                    className="danger"
-                    onClick={() => void removeOrder(activePayload.id!)}
-                  >
+                  <button className="danger" onClick={() => void removeOrder(activePayload.id!)}>
                     Delete
                   </button>
                 )}
@@ -1213,8 +1222,7 @@ export default function JobCards({ permissions }: PageProps) {
 
                   {activePayload.customerId && (
                     <div className="hint">
-                      Linked to customer record:{" "}
-                      <span className="mono">{activePayload.customerId}</span>
+                      Linked to customer record: <span className="mono">{activePayload.customerId}</span>
                     </div>
                   )}
                 </div>
@@ -1229,9 +1237,7 @@ export default function JobCards({ permissions }: PageProps) {
                     <div className="row">
                       <span>Make / Model</span>
                       <b>
-                        {[activePayload.vehicleMake, activePayload.vehicleModel]
-                          .filter(Boolean)
-                          .join(" ") || "—"}
+                        {[activePayload.vehicleMake, activePayload.vehicleModel].filter(Boolean).join(" ") || "—"}
                       </b>
                     </div>
                     <div className="row">
@@ -1294,10 +1300,7 @@ export default function JobCards({ permissions }: PageProps) {
                             <select
                               value={activePayload.status}
                               onChange={(e) => {
-                                const next = {
-                                  ...activePayload,
-                                  status: e.target.value as OrderStatus,
-                                };
+                                const next = { ...activePayload, status: e.target.value as OrderStatus };
                                 void saveFromDetails(next);
                               }}
                             >
@@ -1344,14 +1347,8 @@ export default function JobCards({ permissions }: PageProps) {
                             value={s.status}
                             onChange={(e) => {
                               const nextServices = [...activePayload.services];
-                              nextServices[idx] = {
-                                ...s,
-                                status: e.target.value as any,
-                              };
-                              const next = {
-                                ...activePayload,
-                                services: nextServices,
-                              };
+                              nextServices[idx] = { ...s, status: e.target.value as any };
+                              const next = { ...activePayload, services: nextServices };
                               void saveFromDetails(next);
                             }}
                           >
@@ -1364,21 +1361,14 @@ export default function JobCards({ permissions }: PageProps) {
                           <span className="pill">{s.status}</span>
                         )}
                       </div>
-                      <div className="right">
-                        {(toNum(s.qty) * toNum(s.unitPrice)).toFixed(2)}
-                      </div>
+                      <div className="right">{(toNum(s.qty) * toNum(s.unitPrice)).toFixed(2)}</div>
                       <div className="right">
                         {permissions.canUpdate && (
                           <button
                             className="link danger"
                             onClick={() => {
-                              const nextServices = activePayload.services.filter(
-                                (_, i) => i !== idx
-                              );
-                              const next = {
-                                ...activePayload,
-                                services: nextServices,
-                              };
+                              const nextServices = activePayload.services.filter((_, i) => i !== idx);
+                              const next = { ...activePayload, services: nextServices };
                               void saveFromDetails(next);
                             }}
                           >
@@ -1389,9 +1379,7 @@ export default function JobCards({ permissions }: PageProps) {
                     </div>
                   ))}
 
-                  {!activePayload.services?.length && (
-                    <div className="empty-mini">No services yet.</div>
-                  )}
+                  {!activePayload.services?.length && <div className="empty-mini">No services yet.</div>}
                 </div>
 
                 {permissions.canUpdate && (
@@ -1404,11 +1392,7 @@ export default function JobCards({ permissions }: PageProps) {
                         if (!name) return;
                         const p = YOUR_PRODUCTS.find((x) => x.name === name);
                         const isSUV = activePayload.vehicleType !== "SEDAN";
-                        const unitPrice = p
-                          ? isSUV
-                            ? p.suvPrice
-                            : p.sedanPrice
-                          : 0;
+                        const unitPrice = p ? (isSUV ? p.suvPrice : p.sedanPrice) : 0;
 
                         const nextServices = [
                           ...(activePayload.services ?? []),
@@ -1471,16 +1455,12 @@ export default function JobCards({ permissions }: PageProps) {
                       <div className="pay" key={pid}>
                         {!isEditing ? (
                           <>
-                            <div className="strong">
-                              {toNum((p as any).amount).toFixed(2)} QAR
-                            </div>
+                            <div className="strong">{toNum((p as any).amount).toFixed(2)} QAR</div>
                             <div className="muted">
                               {(p as any).method || "—"} • {(p as any).reference || "—"}
                             </div>
                             <div className="muted">
-                              {(p as any).paidAt
-                                ? new Date(String((p as any).paidAt)).toLocaleString()
-                                : "—"}
+                              {(p as any).paidAt ? new Date(String((p as any).paidAt)).toLocaleString() : "—"}
                               {(p as any).notes ? ` • ${(p as any).notes}` : ""}
                             </div>
 
@@ -1501,10 +1481,7 @@ export default function JobCards({ permissions }: PageProps) {
                                 </button>
                               )}
                               {permissions.canDelete && (
-                                <button
-                                  className="link danger"
-                                  onClick={() => void deletePayment(pid)}
-                                >
+                                <button className="link danger" onClick={() => void deletePayment(pid)}>
                                   Remove
                                 </button>
                               )}
@@ -1512,7 +1489,8 @@ export default function JobCards({ permissions }: PageProps) {
                           </>
                         ) : (
                           <>
-                            <div style={{ display: "grid", gridTemplateColumns: "160px 180px 1fr", gap: 10, width: "100%" }}>
+                            {/* design-only: replaced fixed inline grid with responsive class grids */}
+                            <div className="pay-edit-grid1">
                               <input
                                 className="input"
                                 type="number"
@@ -1539,7 +1517,7 @@ export default function JobCards({ permissions }: PageProps) {
                               />
                             </div>
 
-                            <div style={{ display: "grid", gridTemplateColumns: "1fr 260px", gap: 10, width: "100%", marginTop: 10 }}>
+                            <div className="pay-edit-grid2">
                               <input
                                 className="input"
                                 value={editPayNotes}
@@ -1554,7 +1532,7 @@ export default function JobCards({ permissions }: PageProps) {
                               />
                             </div>
 
-                            <div style={{ display: "flex", gap: 12, marginTop: 10 }}>
+                            <div className="pay-actions">
                               <button
                                 className="secondary"
                                 disabled={paymentsLoading}
@@ -1577,10 +1555,7 @@ export default function JobCards({ permissions }: PageProps) {
                               >
                                 Save
                               </button>
-                              <button
-                                className="link"
-                                onClick={() => setEditingPaymentId(null)}
-                              >
+                              <button className="link" onClick={() => setEditingPaymentId(null)}>
                                 Cancel
                               </button>
                             </div>
@@ -1590,15 +1565,14 @@ export default function JobCards({ permissions }: PageProps) {
                     );
                   })}
 
-                  {!paymentsLoading && !activePayments?.length && (
-                    <div className="muted">No payments recorded.</div>
-                  )}
+                  {!paymentsLoading && !activePayments?.length && <div className="muted">No payments recorded.</div>}
                 </div>
 
                 {/* Add payment */}
                 {permissions.canUpdate && activePayload.id && (
                   <div className="add-payment">
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 160px 180px", gap: 10, width: "100%" }}>
+                    {/* design-only: replaced fixed inline grid with responsive class grids */}
+                    <div className="pay-add-grid1">
                       <input
                         className="input"
                         type="number"
@@ -1611,7 +1585,6 @@ export default function JobCards({ permissions }: PageProps) {
                         value={payMethod}
                         onChange={(e) => {
                           setPayMethod(e.target.value);
-                          // if method changes away from bank transfer, keep file optional (do not clear)
                         }}
                       >
                         {METHODS.map((m) => (
@@ -1628,7 +1601,7 @@ export default function JobCards({ permissions }: PageProps) {
                       />
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, width: "100%", marginTop: 10 }}>
+                    <div className="pay-add-grid2">
                       <input
                         className="input"
                         placeholder="Notes (optional)"
@@ -1646,7 +1619,7 @@ export default function JobCards({ permissions }: PageProps) {
                       />
                     </div>
 
-                    <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 10 }}>
+                    <div className="pay-add-foot">
                       <button
                         className="secondary"
                         disabled={!payAmount || paymentsLoading || payAttaching}
@@ -1675,9 +1648,8 @@ export default function JobCards({ permissions }: PageProps) {
                               receiptDoc = {
                                 id: uid("doc"),
                                 title:
-                                  (payMethod === "Bank Transfer"
-                                    ? "Bank Transfer Receipt"
-                                    : "Payment Attachment") + ` • ${amt.toFixed(2)} QAR`,
+                                  (payMethod === "Bank Transfer" ? "Bank Transfer Receipt" : "Payment Attachment") +
+                                  ` • ${amt.toFixed(2)} QAR`,
                                 url: meta.storagePath,
                                 storagePath: meta.storagePath,
                                 type: "Payment Receipt",
@@ -1690,21 +1662,11 @@ export default function JobCards({ permissions }: PageProps) {
                             }
 
                             // Create payment record
-                            await addPayment(
-                              activePayload.id,
-                              amt,
-                              payMethod,
-                              payRef,
-                              new Date().toISOString(),
-                              payNotes
-                            );
+                            await addPayment(activePayload.id, amt, payMethod, payRef, new Date().toISOString(), payNotes);
 
                             // If we uploaded a receipt, store it in JobOrder documents
                             if (receiptDoc) {
-                              const nextDocs = [
-                                ...(activePayload.documents ?? []),
-                                receiptDoc,
-                              ];
+                              const nextDocs = [...(activePayload.documents ?? []), receiptDoc];
                               const next = { ...activePayload, documents: nextDocs };
                               await saveFromDetails(next);
                             }
@@ -1737,14 +1699,11 @@ export default function JobCards({ permissions }: PageProps) {
 
                 <div className="docs">
                   {(activePayload.documents ?? []).map((d) => (
-                    <div key={d.id} className="doc" style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
-                      <div style={{ minWidth: 0 }}>
-                        <div className="strong" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                          {d.title}
-                        </div>
+                    <div key={d.id} className="doc doc-row">
+                      <div className="doc-left">
+                        <div className="strong doc-title">{d.title}</div>
                         <div className="muted">
-                          {d.type || "Link"} •{" "}
-                          {d.addedAt ? new Date(d.addedAt).toLocaleDateString() : "—"}
+                          {d.type || "Link"} • {d.addedAt ? new Date(d.addedAt).toLocaleDateString() : "—"}
                           {d.fileName ? ` • ${d.fileName}` : ""}
                         </div>
                       </div>
@@ -1772,14 +1731,12 @@ export default function JobCards({ permissions }: PageProps) {
                     </div>
                   ))}
 
-                  {!activePayload.documents?.length && (
-                    <div className="muted">No documents added.</div>
-                  )}
+                  {!activePayload.documents?.length && <div className="muted">No documents added.</div>}
                 </div>
 
                 {permissions.canUpdate && (
-                  <div className="add-doc" style={{ display: "grid", gap: 10 }}>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div className="add-doc">
+                    <div className="add-doc-grid1">
                       <input
                         className="input"
                         placeholder="Document title (optional)"
@@ -1796,7 +1753,7 @@ export default function JobCards({ permissions }: PageProps) {
                       />
                     </div>
 
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 180px", gap: 10 }}>
+                    <div className="add-doc-grid2">
                       <input
                         className="input"
                         placeholder="OR paste a link (https://...)"

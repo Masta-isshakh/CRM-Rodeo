@@ -1,10 +1,20 @@
 /* src/pages/JobCards.css */
 
-.jom-page{
-  padding: 14px;
-  background: #f9fafb;
+/* ✅ make everything inside JobCards obey sizing */
+.jom-page, .jom-page *{
+  box-sizing: border-box;
 }
 
+/* page */
+.jom-page{
+  width: 100%;
+  max-width: 100%;
+  padding: 10px 12px 14px;     /* ✅ reduced + consistent */
+  background: #f9fafb;
+  overflow-x: hidden;          /* ✅ prevents tiny sideways scroll */
+}
+
+/* header */
 .jom-header{
   display:flex;
   align-items:flex-start;
@@ -18,6 +28,7 @@
   display:flex;
   gap: 12px;
   align-items:center;
+  min-width: 0;
 }
 
 .jom-badge{
@@ -31,6 +42,7 @@
   justify-content:center;
   font-weight: 900;
   box-shadow: 0 10px 18px rgba(15,23,42,0.15);
+  flex: 0 0 auto;
 }
 
 .jom-title h2{
@@ -51,11 +63,13 @@
   align-items:center;
   gap: 10px;
   flex-wrap: wrap;
+  min-width: 0;
 }
 
 .jom-search-wrap{
   position: relative;
   min-width: 280px;
+  flex: 1 1 280px;
 }
 
 .jom-search-ico{
@@ -74,6 +88,7 @@
   background: #fff;
   outline: none;
   font-size: 14px;
+  min-width: 0;
 }
 
 .jom-select{
@@ -83,6 +98,7 @@
   background: #fff;
   outline: none;
   font-size: 14px;
+  min-width: 0;
 }
 
 .jom-add{
@@ -97,6 +113,7 @@
   gap: 8px;
   align-items:center;
   box-shadow: 0 10px 18px rgba(22,163,74,0.18);
+  white-space: nowrap;
 }
 
 .jom-status{
@@ -106,9 +123,12 @@
   padding: 10px 12px;
   color:#374151;
   margin-bottom: 12px;
+  width: 100%;
 }
 
+/* card */
 .jom-card{
+  width: 100%;
   background:#fff;
   border: 1px solid #e5e7eb;
   border-radius: 14px;
@@ -116,8 +136,10 @@
   overflow: hidden;
 }
 
+/* desktop table */
 .jom-table-scroll{
   overflow-x:auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 .jom-table{
@@ -155,7 +177,6 @@
 }
 
 .strong{ font-weight: 800; }
-
 .right{ text-align:right; }
 
 .empty{
@@ -171,6 +192,87 @@
   background:#fff;
 }
 
+/* ✅ Mobile cards list (hidden on desktop) */
+.jom-mobile-list{
+  display:none;
+  padding: 12px;
+  gap: 10px;
+}
+
+.jom-mcard{
+  border: 1px solid #e5e7eb;
+  border-radius: 14px;
+  background:#fff;
+  padding: 12px;
+  box-shadow: 0 10px 18px rgba(15,23,42,0.06);
+  display: grid;
+  gap: 10px;
+}
+
+.jom-mtop{
+  display:flex;
+  justify-content: space-between;
+  gap: 10px;
+  align-items:flex-start;
+}
+
+.jom-mleft{
+  min-width: 0;
+}
+
+.jom-morder{
+  font-weight: 1000;
+  color:#111827;
+}
+
+.jom-mname{
+  margin-top: 2px;
+  font-weight: 900;
+  color:#111827;
+}
+
+.jom-mmeta{
+  margin-top: 4px;
+  font-size: 12px;
+  color:#6b7280;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jom-mright{
+  display:flex;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.jom-mview{
+  border:none;
+  background:#111827;
+  color:#fff;
+  font-weight: 900;
+  padding: 9px 10px;
+  border-radius: 12px;
+  cursor:pointer;
+  white-space: nowrap;
+}
+
+.jom-mpills{
+  display:flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.jom-mmoney{
+  display:flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+  color:#374151;
+}
+.jom-mmoney b{ font-weight: 1000; color:#111827; }
+
+/* pills */
 .pill{
   display:inline-flex;
   align-items:center;
@@ -202,6 +304,7 @@
   border-radius: 12px;
   cursor:pointer;
   box-shadow: 0 10px 18px rgba(37,99,235,0.18);
+  white-space: nowrap;
 }
 
 .caret{ opacity: 0.9; }
@@ -227,7 +330,6 @@
   font-weight: 800;
   color:#111827;
 }
-
 .jom-menu-item:hover{ background:#f9fafb; }
 .jom-menu-item:disabled{ opacity: .55; cursor:not-allowed; }
 .jom-menu-item.danger{ color:#b91c1c; }
@@ -240,7 +342,7 @@
   background: rgba(15,23,42,0.55);
   display: grid;
   place-items: center;
-  padding: 18px;
+  padding: 14px;
   z-index: 9999;
 }
 
@@ -254,7 +356,7 @@
 }
 .icon-btn:hover{ background: rgba(15,23,42,0.08); }
 
-/* details */
+/* details modal */
 .jom-details{
   width: 100%;
   max-width: 1180px;
@@ -276,12 +378,14 @@
   justify-content: space-between;
   gap: 12px;
   align-items:center;
+  flex-wrap: wrap;
 }
 
 .jom-details-head .left{
   display:flex;
   gap: 12px;
   align-items:center;
+  min-width: 0;
 }
 
 .kicker{
@@ -302,11 +406,13 @@
   display:flex;
   gap: 8px;
   margin-top: 6px;
+  flex-wrap: wrap;
 }
 
 .jom-details-head .right{
   display:flex;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 .primary, .secondary, .danger{
@@ -315,6 +421,7 @@
   padding: 10px 12px;
   font-weight: 900;
   cursor:pointer;
+  white-space: nowrap;
 }
 .primary{ background:#2563eb; color:#fff; box-shadow: 0 10px 18px rgba(37,99,235,0.18); }
 .secondary{ background:#e5e7eb; color:#111827; }
@@ -339,6 +446,7 @@
   border-radius: 14px;
   padding: 12px;
   box-shadow: 0 10px 22px rgba(15,23,42,0.06);
+  min-width: 0;
 }
 
 .card.wide{ grid-column: 1/-1; }
@@ -362,11 +470,17 @@
 
 .hint{ margin-top: 8px; font-size: 12px; color:#6b7280; }
 
-.inline{ margin-top: 10px; display:flex; gap: 10px; align-items:center; }
+.inline{ margin-top: 10px; display:flex; gap: 10px; align-items:center; flex-wrap: wrap; }
 .inline label{ font-size: 12px; font-weight: 900; color:#374151; }
 .inline select{ padding: 8px 10px; border-radius: 12px; border: 1px solid #e5e7eb; background:#fff; }
 
-.table-mini{ border: 1px solid #e5e7eb; border-radius: 12px; overflow:hidden; }
+/* services mini table */
+.table-mini{
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
 .thead, .trow{
   display:grid;
   grid-template-columns: 2fr .6fr .7fr 1fr .9fr .7fr;
@@ -374,16 +488,20 @@
   padding: 10px 12px;
   align-items:center;
 }
+
 .thead{ background:#f3f4f6; font-weight: 900; font-size: 12px; color:#374151; }
 .trow{ background:#fff; border-top: 1px solid #f1f5f9; font-size: 13px; }
+
 .muted{ color:#6b7280; font-size: 12px; }
 .empty-mini{ padding: 12px; color:#6b7280; background:#fff; }
 
 .add-line{ margin-top: 10px; display:flex; gap: 10px; flex-wrap:wrap; }
 .add-line .input{ min-width: 280px; }
 
+/* ✅ shared input */
 .input{
   width: 100%;
+  min-width: 0;
   border: 1px solid #e5e7eb;
   background:#fff;
   border-radius: 12px;
@@ -392,6 +510,7 @@
   font-size: 14px;
 }
 
+/* links */
 .link{
   border:none;
   background: transparent;
@@ -403,10 +522,8 @@
 .link:hover{ background: rgba(15,23,42,0.06); }
 .link.danger{ color:#b91c1c; }
 
-.payments{
-  display:grid;
-  gap: 10px;
-}
+/* payments list */
+.payments{ display:grid; gap: 10px; }
 
 .pay{
   display:grid;
@@ -419,14 +536,53 @@
   background:#fff;
 }
 
+/* ✅ payment edit/add grids (replaces inline styles) */
+.pay-edit-grid1,
+.pay-add-grid1{
+  display:grid;
+  grid-template-columns: minmax(0,1fr) 180px 220px;
+  gap: 10px;
+  width: 100%;
+}
+
+.pay-edit-grid2{
+  display:grid;
+  grid-template-columns: minmax(0,1fr) 280px;
+  gap: 10px;
+  width: 100%;
+  margin-top: 10px;
+}
+
+.pay-actions{
+  display:flex;
+  gap: 12px;
+  align-items:center;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+/* add payment wrapper */
 .add-payment{
   margin-top: 10px;
+  display:grid;
+  gap: 10px;
+}
+
+.pay-add-grid2{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  width: 100%;
+}
+
+.pay-add-foot{
   display:flex;
   gap: 10px;
   align-items:center;
-  flex-wrap:wrap;
+  flex-wrap: wrap;
 }
 
+/* docs */
 .docs{
   display:grid;
   gap: 10px;
@@ -444,177 +600,100 @@
 }
 .doc:hover{ box-shadow: 0 10px 22px rgba(15,23,42,0.08); }
 
+.doc-row{
+  display:flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items:flex-start;
+}
+
+.doc-left{ min-width: 0; }
+.doc-title{
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ✅ add doc grids */
 .add-doc{
   margin-top: 10px;
   display:grid;
-  grid-template-columns: 1fr 2fr auto;
   gap: 10px;
-  align-items:center;
 }
 
+.add-doc-grid1{
+  display:grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.add-doc-grid2{
+  display:grid;
+  grid-template-columns: 1fr 180px;
+  gap: 10px;
+}
+
+/* -------- responsive breakpoints -------- */
+
+/* tablets */
 @media (max-width: 1024px){
   .grid{ grid-template-columns: 1fr; }
   .docs{ grid-template-columns: 1fr; }
   .pay{ grid-template-columns: 1fr; }
 }
 
-/* Wizard */
-.jom-wizard{
-  width: 100%;
-  max-width: 1080px;
-  max-height: 92vh;
-  overflow:hidden;
-  background:#fff;
-  border-radius: 16px;
-  border: 1px solid #e5e7eb;
-  box-shadow: 0 30px 60px rgba(15,23,42,0.25);
-  display:flex;
-  flex-direction: column;
+/* ✅ switch to mobile list instead of table */
+@media (max-width: 860px){
+  .jom-table-scroll{ display:none; }
+  .jom-mobile-list{ display:grid; }
 }
 
-.jom-wizard-head{
-  padding: 14px 14px;
-  background:#111827;
-  color:#fff;
-  display:flex;
-  gap: 14px;
-  justify-content: space-between;
-  align-items:center;
-  flex-wrap: wrap;
-}
+/* phones */
+@media (max-width: 640px){
+  .jom-page{ padding: 8px 10px 12px; }
 
-.jom-wizard-head .left{
-  display:flex;
-  gap: 12px;
-  align-items:center;
-}
+  .jom-overlay{ padding: 0; }                 /* ✅ full-screen modal */
+  .jom-details{
+    max-width: 100%;
+    max-height: 100vh;
+    height: 100vh;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+  }
 
-.jom-wizard-head .headline{
-  color:#fff;
-  font-size: 18px;
-  font-weight: 1000;
-}
+  .jom-details-body{ padding: 12px; }
 
-.steps{
-  display:flex;
-  gap: 8px;
-  flex-wrap: wrap;
-}
+  /* ✅ payment inputs stack on mobile -> fixes amount field */
+  .pay-edit-grid1,
+  .pay-add-grid1{
+    grid-template-columns: 1fr;
+  }
 
-.step{
-  padding: 6px 10px;
-  border-radius: 999px;
-  background: rgba(255,255,255,0.14);
-  font-weight: 900;
-  font-size: 12px;
-  opacity: .8;
-}
+  .pay-edit-grid2{
+    grid-template-columns: 1fr;
+  }
 
-.step.on{
-  background: #fbbf24;
-  color:#111827;
-  opacity: 1;
-}
+  .pay-add-grid2{
+    grid-template-columns: 1fr;
+  }
 
-.jom-wizard-body{
-  padding: 14px;
-  overflow:auto;
-  background:#f9fafb;
-}
+  /* Services table-mini becomes stacked cards */
+  .thead{ display:none; }
+  .trow{
+    grid-template-columns: 1fr 1fr;
+    row-gap: 8px;
+  }
+  .trow > :nth-child(1){ grid-column: 1 / -1; }
+  .trow > :nth-child(2){ grid-column: 1 / 2; }
+  .trow > :nth-child(3){ grid-column: 2 / 3; }
+  .trow > :nth-child(4){ grid-column: 1 / 2; }
+  .trow > :nth-child(5){ grid-column: 2 / 3; text-align:right; }
+  .trow > :nth-child(6){ grid-column: 1 / -1; text-align:right; }
 
-.panel{
-  background:#fff;
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
-  padding: 14px;
-  box-shadow: 0 10px 22px rgba(15,23,42,0.06);
-}
+  .add-line .input{ min-width: 0; width: 100%; }
+  .add-doc-grid1{ grid-template-columns: 1fr; }
+  .add-doc-grid2{ grid-template-columns: 1fr; }
 
-.panel h3{
-  margin: 0 0 12px;
-  font-size: 18px;
-  font-weight: 1000;
-  color:#111827;
-}
-
-.grid2{
-  display:grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.grid2 label{
-  display:block;
-  font-size: 12px;
-  font-weight: 900;
-  color:#374151;
-  margin-bottom: 6px;
-}
-
-.summary .row{
-  display:flex;
-  justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px dashed #f1f5f9;
-}
-.summary .row:last-child{ border-bottom:none; }
-
-.service-add{
-  display:flex;
-  gap: 10px;
-  flex-wrap:wrap;
-  margin-bottom: 12px;
-}
-
-.services{ display:grid; gap: 12px; }
-
-.svc{
-  border: 1px solid #e5e7eb;
-  border-radius: 14px;
-  padding: 12px;
-  background:#fff;
-}
-
-.svc-main{
-  display:grid;
-  grid-template-columns: 1fr 180px;
-  gap: 10px;
-  align-items:center;
-  margin-bottom: 10px;
-}
-
-.svc-grid{
-  display:grid;
-  grid-template-columns: repeat(4, minmax(0,1fr));
-  gap: 10px;
-  align-items:end;
-}
-
-.svc-grid label{ display:block; font-size: 12px; font-weight: 900; color:#374151; margin-bottom: 6px; }
-.svc-total .price{ font-weight: 1000; color:#111827; padding: 10px 0 0; }
-
-.svc-foot{
-  margin-top: 10px;
-  display:flex;
-  gap: 10px;
-  align-items:center;
-  flex-wrap: wrap;
-}
-
-.jom-wizard-foot{
-  padding: 14px 14px;
-  background:#fff;
-  border-top: 1px solid #e5e7eb;
-  display:flex;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-@media (max-width: 768px){
-  .jom-header-actions{ width: 100%; }
-  .jom-search-wrap{ flex: 1; min-width: 220px; }
-  .grid2{ grid-template-columns: 1fr; }
-  .svc-grid{ grid-template-columns: 1fr 1fr; }
-  .svc-main{ grid-template-columns: 1fr; }
-  .add-doc{ grid-template-columns: 1fr; }
+  .jom-search-wrap{ min-width: 0; flex: 1 1 auto; }
 }
