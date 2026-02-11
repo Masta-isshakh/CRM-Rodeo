@@ -1,3 +1,4 @@
+// amplify/functions/departments/set-user-departments/handler.ts
 import type { Schema } from "../../../data/resource";
 import {
   AdminAddUserToGroupCommand,
@@ -6,6 +7,8 @@ import {
   CognitoIdentityProviderClient,
   CreateGroupCommand,
   GetGroupCommand,
+  AdminGetUserCommand,
+  ListUsersCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 
 import { Amplify } from "aws-amplify";
@@ -20,8 +23,7 @@ async function ensureGroup(userPoolId: string, groupName: string, description?: 
   try {
     await cognito.send(new GetGroupCommand({ UserPoolId: userPoolId, GroupName: groupName }));
     return;
-  } catch (e: any) {
-    // create if missing
+  } catch {
     await cognito.send(
       new CreateGroupCommand({
         UserPoolId: userPoolId,
@@ -29,6 +31,28 @@ async function ensureGroup(userPoolId: string, groupName: string, description?: 
         Description: description || keyToLabel(groupName),
       })
     );
+  }
+}
+
+// ✅ NEW: resolve Cognito username reliably
+async function resolveCognitoUsername(userPoolId: string, email: string): Promise<string> {
+  // 1) If your pool uses email-as-username, this succeeds
+  try {
+    await cognito.send(new AdminGetUserCommand({ UserPoolId: userPoolId, Username: email }));
+    return email;
+  } catch {
+    // 2) Otherwise find by email
+    const res = await cognito.send(
+      new ListUsersCommand({
+        UserPoolId: userPoolId,
+        Filter: `email = "${email}"`,
+        Limit: 1,
+      })
+    );
+
+    const username = res.Users?.[0]?.Username;
+    if (!username) throw new Error(`Cognito user not found for email: ${email}`);
+    return username;
   }
 }
 
@@ -47,18 +71,24 @@ export const handler = async (event: {
 
   await ensureGroup(userPoolId, departmentKey, departmentName);
 
+  // ✅ Use the correct Cognito Username for group actions
+  const username = await resolveCognitoUsername(userPoolId, email);
+
   // remove current DEPT_* groups
   const groupsRes = await cognito.send(
-    new AdminListGroupsForUserCommand({ UserPoolId: userPoolId, Username: email })
+    new AdminListGroupsForUserCommand({ UserPoolId: userPoolId, Username: username })
   );
-  const current = (groupsRes.Groups ?? []).map((g) => g.GroupName).filter(Boolean) as string[];
+
+  const current = (groupsRes.Groups ?? [])
+    .map((g) => g.GroupName)
+    .filter(Boolean) as string[];
 
   for (const g of current) {
     if (isDeptGroup(g) && g !== departmentKey) {
       await cognito.send(
         new AdminRemoveUserFromGroupCommand({
           UserPoolId: userPoolId,
-          Username: email,
+          Username: username,
           GroupName: g,
         })
       );
@@ -67,10 +97,14 @@ export const handler = async (event: {
 
   // add to new department group
   await cognito.send(
-    new AdminAddUserToGroupCommand({ UserPoolId: userPoolId, Username: email, GroupName: departmentKey })
+    new AdminAddUserToGroupCommand({
+      UserPoolId: userPoolId,
+      Username: username,
+      GroupName: departmentKey,
+    })
   );
 
-  // update UserProfile
+  // update UserProfile (same logic as yours)
   const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
   Amplify.configure(resourceConfig, libraryOptions);
   const dataClient = generateClient<Schema>();
@@ -90,5 +124,5 @@ export const handler = async (event: {
     departmentName: departmentName || keyToLabel(departmentKey),
   });
 
-  return { ok: true, email, departmentKey };
+  return { ok: true, email, departmentKey, departmentName: departmentName || keyToLabel(departmentKey) };
 };

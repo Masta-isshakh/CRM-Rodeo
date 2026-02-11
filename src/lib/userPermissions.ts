@@ -1,3 +1,4 @@
+// src/lib/userPermissions.ts
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 import type { Schema } from "../../amplify/data/resource";
@@ -43,10 +44,7 @@ export const POLICY_KEYS = [
 ] as const;
 
 function normalizeKey(x: unknown) {
-  return String(x ?? "")
-    .trim()
-    .toUpperCase()
-    .replace(/\s+/g, "_");
+  return String(x ?? "").trim().toUpperCase().replace(/\s+/g, "_");
 }
 
 function pickGroups(payload: any): string[] {
@@ -95,8 +93,18 @@ export function usePermissions() {
   const [groups, setGroups] = useState<string[]>([]);
   const [departmentKey, setDepartmentKey] = useState<string>("");
   const [isAdminGroup, setIsAdminGroup] = useState(false);
-
   const [permMap, setPermMap] = useState<Record<string, Permission>>({});
+
+  // ✅ allow UI to force refresh permissions (without breaking current API)
+  const [tick, setTick] = useState(0);
+  const refresh = useCallback(() => setTick((t) => t + 1), []);
+
+  // ✅ listen for refresh event (triggered after dept changes)
+  useEffect(() => {
+    const onRefresh = () => refresh();
+    window.addEventListener("rbac:refresh", onRefresh);
+    return () => window.removeEventListener("rbac:refresh", onRefresh);
+  }, [refresh]);
 
   const can = useCallback(
     (policyKey: string): Permission => {
@@ -120,7 +128,6 @@ export function usePermissions() {
 
   const fetchGroupsFallback = useCallback(async (): Promise<string[]> => {
     try {
-      // Data query returns AWSJSON (often string)
       const res = await (client.queries as any).myGroups?.();
       const raw = (res as any)?.data;
 
@@ -142,6 +149,7 @@ export function usePermissions() {
       setLoading(true);
 
       try {
+        // Force refresh so if your own dept was changed you get latest tokens where possible
         const session = await fetchAuthSession({ forceRefresh: true });
         const idPayload: any = session.tokens?.idToken?.payload ?? {};
         const accessPayload: any = session.tokens?.accessToken?.payload ?? {};
@@ -161,21 +169,43 @@ export function usePermissions() {
         const admin = resolvedGroups.includes(ADMIN_GROUP_NAME);
         setIsAdminGroup(admin);
 
-        // Email for display
-        const tokenEmail = String(idPayload?.email ?? "");
-        if (tokenEmail) {
-          setEmail(tokenEmail);
-        } else {
+        // Email for display (and for UserProfile lookup)
+        let resolvedEmail = String(idPayload?.email ?? "");
+        if (!resolvedEmail) {
           const u = await getCurrentUser();
           const maybe = u.signInDetails?.loginId || u.username;
-          setEmail(String(maybe ?? ""));
+          resolvedEmail = String(maybe ?? "");
+        }
+        resolvedEmail = resolvedEmail.trim().toLowerCase();
+        setEmail(resolvedEmail);
+
+        // Dept from token groups (legacy)
+        const deptFromGroups = resolvedGroups.find((g) => g.startsWith(DEPT_PREFIX)) ?? "";
+
+        // ✅ Dept from UserProfile (authoritative; fixes dept change UX/permissions)
+        type UserProfileRow = Schema["UserProfile"]["type"];
+        let deptFromProfile = "";
+        let profileActive = true;
+
+        if (resolvedEmail) {
+          try {
+            const upRes = await (client.models.UserProfile as any).list({
+              filter: { email: { eq: resolvedEmail } },
+              limit: 1,
+            });
+            const row = (upRes?.data ?? [])[0] as UserProfileRow | undefined;
+            deptFromProfile = String((row as any)?.departmentKey ?? "").trim();
+            profileActive = Boolean((row as any)?.isActive ?? true);
+          } catch (e) {
+            console.warn("[PERMS] UserProfile lookup failed:", e);
+          }
         }
 
-        // Department = first DEPT_ group
-        const dept = resolvedGroups.find((g) => g.startsWith(DEPT_PREFIX)) ?? "";
-        setDepartmentKey(dept);
+        // pick dept: profile > token
+        let effectiveDept = deptFromProfile || deptFromGroups || "";
+        setDepartmentKey(effectiveDept);
 
-        // Admin => full map
+        // Admin => full map (do NOT change your current behavior)
         if (admin) {
           const fullMap: Record<string, Permission> = {};
           for (const k of POLICY_KEYS) fullMap[k] = FULL;
@@ -184,15 +214,27 @@ export function usePermissions() {
           console.log("[PERMS] loaded (admin)", {
             ...debugSummary,
             groups: resolvedGroups,
-            departmentKey: dept,
+            departmentKey: effectiveDept,
             isAdminGroup: true,
             permKeys: Object.keys(fullMap),
           });
           return;
         }
 
+        // If profile says inactive => no permissions
+        if (!profileActive) {
+          setPermMap({});
+          console.log("[PERMS] loaded (inactive user)", {
+            groups: resolvedGroups,
+            departmentKey: effectiveDept,
+            isAdminGroup: false,
+            permKeys: [],
+          });
+          return;
+        }
+
         // No dept => no permissions
-        if (!dept) {
+        if (!effectiveDept) {
           setPermMap({});
           console.log("[PERMS] loaded (no dept)", {
             ...debugSummary,
@@ -204,30 +246,41 @@ export function usePermissions() {
           return;
         }
 
-        // 1) Dept -> Roles
-        const links = await listAll<Schema["DepartmentRoleLink"]["type"]>(
-          (args) =>
-            client.models.DepartmentRoleLink.list({
-              ...args,
-              filter: { departmentKey: { eq: dept } },
-            } as any),
-          1000,
-          20000
-        );
+        // 1) Dept -> Roles (support legacy non-prefixed keys only if needed)
+        const fetchLinksForDept = async (dk: string) => {
+          return await listAll<Schema["DepartmentRoleLink"]["type"]>(
+            (args) =>
+              client.models.DepartmentRoleLink.list({
+                ...args,
+                filter: { departmentKey: { eq: dk } },
+              } as any),
+            1000,
+            20000
+          );
+        };
+
+        let links = await fetchLinksForDept(effectiveDept);
+
+        // If no links and dept lacks prefix, try adding DEPT_
+        if ((!links || !links.length) && effectiveDept && !effectiveDept.startsWith(DEPT_PREFIX)) {
+          const alt = `${DEPT_PREFIX}${effectiveDept}`;
+          const altLinks = await fetchLinksForDept(alt);
+          if (altLinks?.length) {
+            links = altLinks;
+            effectiveDept = alt;
+            setDepartmentKey(alt);
+          }
+        }
 
         const roleIds = Array.from(
-          new Set(
-            (links ?? [])
-              .map((l) => String((l as any).roleId ?? ""))
-              .filter(Boolean)
-          )
+          new Set((links ?? []).map((l) => String((l as any).roleId ?? "")).filter(Boolean))
         );
 
         if (!roleIds.length) {
           setPermMap({});
           console.log("[PERMS] loaded (dept has no roles)", {
             groups: resolvedGroups,
-            departmentKey: dept,
+            departmentKey: effectiveDept,
             roleIds: [],
           });
           return;
@@ -264,7 +317,7 @@ export function usePermissions() {
 
         console.log("[PERMS] loaded (dept)", {
           groups: resolvedGroups,
-          departmentKey: dept,
+          departmentKey: effectiveDept,
           roleIds,
           permKeys: Object.keys(map),
         });
@@ -276,7 +329,8 @@ export function usePermissions() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [tick, fetchGroupsFallback, client]);
 
-  return { loading, email, groups, departmentKey, isAdminGroup, can };
+  // ✅ keep old API, add refresh without breaking anything
+  return { loading, email, groups, departmentKey, isAdminGroup, can, refresh };
 }

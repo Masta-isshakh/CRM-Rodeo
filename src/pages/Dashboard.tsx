@@ -19,21 +19,23 @@ type Visibility = {
   };
 };
 
+type NavPage =
+  | "dashboard"
+  | "customers"
+  | "tickets"
+  | "employees"
+  | "activitylog"
+  | "jobcards"
+  | "calltracking"
+  | "inspection"
+  | "users"
+  | "departments"
+  | "rolespolicies";
+
 type DashboardProps = PageProps & {
   email?: string;
   visibility: Visibility;
-  onNavigate?: (page:
-    | "dashboard"
-    | "customers"
-    | "tickets"
-    | "employees"
-    | "activitylog"
-    | "jobcards"
-    | "calltracking"
-    | "inspection"
-    | "users"
-    | "departments"
-    | "rolespolicies") => void;
+  onNavigate?: (page: NavPage) => void;
 };
 
 type StatKey =
@@ -106,16 +108,13 @@ function buildCalendar(year: number, monthIndex0: number) {
 
   const cells: { day: number | null; isToday: boolean }[] = [];
   const today = new Date();
-  const isSameMonth =
-    today.getFullYear() === year && today.getMonth() === monthIndex0;
+  const isSameMonth = today.getFullYear() === year && today.getMonth() === monthIndex0;
 
   for (let i = 0; i < startDay; i++) cells.push({ day: null, isToday: false });
-
   for (let d = 1; d <= daysInMonth; d++) {
     const isToday = isSameMonth && today.getDate() === d;
     cells.push({ day: d, isToday });
   }
-
   while (cells.length < 42) cells.push({ day: null, isToday: false });
 
   return cells;
@@ -151,12 +150,7 @@ async function safeList<T = any>(client: any, candidates: string[]) {
   }
 }
 
-export default function Dashboard({
-  permissions,
-  email,
-  visibility,
-  onNavigate,
-}: DashboardProps) {
+export default function Dashboard({ permissions, email, visibility, onNavigate }: DashboardProps) {
   if (!permissions.canRead) {
     return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
   }
@@ -195,18 +189,20 @@ export default function Dashboard({
     return e[0].toUpperCase();
   }, [email]);
 
-  const canSee = {
-    jobcards: !!visibility.jobcards,
-    customers: !!visibility.customers,
-    tickets: !!visibility.tickets,
-    employees: !!visibility.employees,
-    calltracking: !!visibility.calltracking,
-    inspection: !!visibility.inspection,
-    activitylog: !!visibility.activitylog,
-    users: !!visibility.admin?.users,
-    departments: !!visibility.admin?.departments,
-    rolespolicies: !!visibility.admin?.rolespolicies,
-  };
+  const canSee = useMemo(() => {
+    return {
+      jobcards: !!visibility.jobcards,
+      customers: !!visibility.customers,
+      tickets: !!visibility.tickets,
+      employees: !!visibility.employees,
+      calltracking: !!visibility.calltracking,
+      inspection: !!visibility.inspection,
+      activitylog: !!visibility.activitylog,
+      users: !!visibility.admin?.users,
+      departments: !!visibility.admin?.departments,
+      rolespolicies: !!visibility.admin?.rolespolicies,
+    };
+  }, [visibility]);
 
   useEffect(() => {
     void loadAll();
@@ -218,15 +214,9 @@ export default function Dashboard({
     try {
       const tasks: Promise<any>[] = [];
 
-      tasks.push(
-        canSee.customers ? safeCount(client, ["Customer", "Customers"]) : Promise.resolve(0)
-      );
-      tasks.push(
-        canSee.employees ? safeCount(client, ["Employee", "Employees"]) : Promise.resolve(0)
-      );
-      tasks.push(
-        canSee.tickets ? safeCount(client, ["Ticket", "Tickets"]) : Promise.resolve(0)
-      );
+      tasks.push(canSee.customers ? safeCount(client, ["Customer", "Customers"]) : Promise.resolve(0));
+      tasks.push(canSee.employees ? safeCount(client, ["Employee", "Employees"]) : Promise.resolve(0));
+      tasks.push(canSee.tickets ? safeCount(client, ["Ticket", "Tickets"]) : Promise.resolve(0));
       tasks.push(
         canSee.calltracking
           ? safeCount(client, ["CallTracking", "CallLog", "CallRecord"])
@@ -238,25 +228,15 @@ export default function Dashboard({
           : Promise.resolve(0)
       );
       tasks.push(
-        canSee.activitylog
-          ? safeCount(client, ["ActivityLog", "ActivityLogs", "AuditLog"])
-          : Promise.resolve(0)
+        canSee.activitylog ? safeCount(client, ["ActivityLog", "ActivityLogs", "AuditLog"]) : Promise.resolve(0)
       );
+      tasks.push(canSee.users ? safeCount(client, ["User", "Users", "AppUser"]) : Promise.resolve(0));
+      tasks.push(canSee.departments ? safeCount(client, ["Department", "Departments"]) : Promise.resolve(0));
       tasks.push(
-        canSee.users ? safeCount(client, ["User", "Users", "AppUser"]) : Promise.resolve(0)
-      );
-      tasks.push(
-        canSee.departments ? safeCount(client, ["Department", "Departments"]) : Promise.resolve(0)
-      );
-      tasks.push(
-        canSee.rolespolicies
-          ? safeCount(client, ["RolePolicy", "RolesPolicies", "Role", "Policy"])
-          : Promise.resolve(0)
+        canSee.rolespolicies ? safeCount(client, ["RolePolicy", "RolesPolicies", "Role", "Policy"]) : Promise.resolve(0)
       );
 
-      const jobOrdersTask = canSee.jobcards
-        ? safeList<any>(client, ["JobOrder", "JobOrders"])
-        : Promise.resolve([]);
+      const jobOrdersTask = canSee.jobcards ? safeList<any>(client, ["JobOrder", "JobOrders"]) : Promise.resolve([]);
 
       const [
         customers,
@@ -307,15 +287,15 @@ export default function Dashboard({
     }
   };
 
-  const go = (page: any) => {
+  const go = (page: NavPage) => {
     if (onNavigate) onNavigate(page);
   };
 
   const topKpis = useMemo(() => {
-    const candidates: { key: StatKey; label: string; value: string; hint?: string; page?: any }[] = [];
+    const items: { key: StatKey; label: string; value: string; hint?: string; page?: NavPage }[] = [];
 
     if (canSee.jobcards) {
-      candidates.push({
+      items.push({
         key: "jobcards",
         label: "Earning",
         value: `${formatMoneyQAR(stats.revenueQar)}`,
@@ -334,27 +314,116 @@ export default function Dashboard({
         stats.departments +
         stats.rolespolicies;
 
-      candidates.push({
-        key: "activitylog",
-        label: "Records",
-        value: formatInt(totalRecords),
-        hint: "Total",
-      });
+      items.push({ key: "activitylog", label: "Records", value: formatInt(totalRecords), hint: "Total" });
     }
 
-    if (canSee.customers) candidates.push({ key: "customers", label: "Customers", value: formatInt(stats.customers), page: "customers" });
-    if (canSee.tickets) candidates.push({ key: "tickets", label: "Tickets", value: formatInt(stats.tickets), page: "tickets" });
-    if (canSee.employees) candidates.push({ key: "employees", label: "Employees", value: formatInt(stats.employees), page: "employees" });
-    if (canSee.calltracking) candidates.push({ key: "calltracking", label: "Calls", value: formatInt(stats.calltracking), page: "calltracking" });
-    if (canSee.inspection) candidates.push({ key: "inspection", label: "Approvals", value: formatInt(stats.inspection), page: "inspection" });
-    if (canSee.activitylog) candidates.push({ key: "activitylog", label: "Activity", value: formatInt(stats.activitylog), page: "activitylog" });
+    if (canSee.customers) items.push({ key: "customers", label: "Customers", value: formatInt(stats.customers), page: "customers" });
+    if (canSee.tickets) items.push({ key: "tickets", label: "Tickets", value: formatInt(stats.tickets), page: "tickets" });
+    if (canSee.employees) items.push({ key: "employees", label: "Employees", value: formatInt(stats.employees), page: "employees" });
+    if (canSee.calltracking) items.push({ key: "calltracking", label: "Calls", value: formatInt(stats.calltracking), page: "calltracking" });
+    if (canSee.inspection) items.push({ key: "inspection", label: "Approvals", value: formatInt(stats.inspection), page: "inspection" });
+    if (canSee.activitylog) items.push({ key: "activitylog", label: "Activity", value: formatInt(stats.activitylog), page: "activitylog" });
 
-    if (canSee.users) candidates.push({ key: "users", label: "Users", value: formatInt(stats.users), page: "users" });
-    if (canSee.departments) candidates.push({ key: "departments", label: "Departments", value: formatInt(stats.departments), page: "departments" });
-    if (canSee.rolespolicies) candidates.push({ key: "rolespolicies", label: "Policies", value: formatInt(stats.rolespolicies), page: "rolespolicies" });
+    if (canSee.users) items.push({ key: "users", label: "Users", value: formatInt(stats.users), page: "users" });
+    if (canSee.departments) items.push({ key: "departments", label: "Departments", value: formatInt(stats.departments), page: "departments" });
+    if (canSee.rolespolicies) items.push({ key: "rolespolicies", label: "Policies", value: formatInt(stats.rolespolicies), page: "rolespolicies" });
 
-    return candidates.slice(0, 4);
+    return items.slice(0, 4);
   }, [canSee, stats]);
+
+  const quickActions = useMemo(() => {
+    const actions: {
+      page: NavPage;
+      label: string;
+      sub: string;
+      icon: string;
+      tone: "blue" | "gold" | "mint" | "slate";
+      enabled: boolean;
+    }[] = [
+      {
+        page: "jobcards",
+        label: "Job Orders",
+        sub: "Create & manage billing",
+        icon: "🧾",
+        tone: "blue",
+        enabled: canSee.jobcards,
+      },
+      {
+        page: "customers",
+        label: "Customers",
+        sub: "Profiles & history",
+        icon: "👤",
+        tone: "mint",
+        enabled: canSee.customers,
+      },
+      {
+        page: "tickets",
+        label: "Tickets",
+        sub: "Support & follow-up",
+        icon: "🎫",
+        tone: "gold",
+        enabled: canSee.tickets,
+      },
+      {
+        page: "employees",
+        label: "Employees",
+        sub: "Team & roles",
+        icon: "👥",
+        tone: "slate",
+        enabled: canSee.employees,
+      },
+      {
+        page: "calltracking",
+        label: "Call Tracking",
+        sub: "Calls & outcomes",
+        icon: "📞",
+        tone: "mint",
+        enabled: canSee.calltracking,
+      },
+      {
+        page: "inspection",
+        label: "Inspections",
+        sub: "Approvals queue",
+        icon: "✅",
+        tone: "blue",
+        enabled: canSee.inspection,
+      },
+      {
+        page: "activitylog",
+        label: "Activity Log",
+        sub: "Audits & actions",
+        icon: "🧠",
+        tone: "slate",
+        enabled: canSee.activitylog,
+      },
+      {
+        page: "users",
+        label: "Users",
+        sub: "Admin management",
+        icon: "🛡️",
+        tone: "gold",
+        enabled: canSee.users,
+      },
+      {
+        page: "departments",
+        label: "Departments",
+        sub: "Structure & teams",
+        icon: "🏢",
+        tone: "slate",
+        enabled: canSee.departments,
+      },
+      {
+        page: "rolespolicies",
+        label: "Roles & Policies",
+        sub: "RBAC rules",
+        icon: "🔐",
+        tone: "blue",
+        enabled: canSee.rolespolicies,
+      },
+    ];
+
+    return actions.filter((a) => a.enabled);
+  }, [canSee]);
 
   const months = useMemo(() => lastNMonths(6), []);
   const barData = useMemo(() => {
@@ -407,6 +476,7 @@ export default function Dashboard({
 
   const nothingToShow =
     !loading &&
+    quickActions.length === 0 &&
     !canSee.jobcards &&
     !canSee.customers &&
     !canSee.tickets &&
@@ -474,8 +544,7 @@ export default function Dashboard({
                     <div className="kpi-value">
                       {isDark ? (
                         <>
-                          <span className="kpi-currency">QAR</span>{" "}
-                          <span>{k.value}</span>
+                          <span className="kpi-currency">QAR</span> <span>{k.value}</span>
                         </>
                       ) : (
                         <span>{k.value}</span>
@@ -499,6 +568,40 @@ export default function Dashboard({
             )}
           </div>
 
+          {/* ✅ Quick Actions (permission-based) */}
+          {!loading && quickActions.length > 0 && (
+            <div className="dash-actions-card">
+              <div className="dash-actions-head">
+                <div className="dash-actions-title">Quick Actions</div>
+                <div className="dash-actions-sub">Only what you’re authorized to access</div>
+              </div>
+
+              <div className="dash-actions-grid">
+                {quickActions.map((a) => (
+                  <button
+                    key={a.page}
+                    className={`dash-action tone-${a.tone}`}
+                    type="button"
+                    onClick={() => go(a.page)}
+                  >
+                    <span className="dash-action-ico" aria-hidden>
+                      {a.icon}
+                    </span>
+
+                    <span className="dash-action-text">
+                      <span className="dash-action-title">{a.label}</span>
+                      <span className="dash-action-sub">{a.sub}</span>
+                    </span>
+
+                    <span className="dash-action-arrow" aria-hidden>
+                      →
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Row 2: bar chart + donut */}
           <div className="dash-row">
             <div className="dash-card">
@@ -515,9 +618,7 @@ export default function Dashboard({
               </div>
 
               <div className="bar-wrap">
-                {!canSee.jobcards && (
-                  <div className="dash-empty">No job orders permission → charts hidden.</div>
-                )}
+                {!canSee.jobcards && <div className="dash-empty">No job orders permission → charts hidden.</div>}
 
                 {canSee.jobcards && (
                   <div className="bar-chart">
@@ -603,9 +704,7 @@ export default function Dashboard({
                   </svg>
 
                   <div className="wave-legend">
-                    <span className="dot dot-a" /> Orders
-                    <span className="sp" />
-                    <span className="dot dot-b" /> Paid Orders
+                    <span className="dot dot-a" /> Orders <span className="sp" /> <span className="dot dot-b" /> Paid Orders
                   </div>
                 </div>
               )}
@@ -629,10 +728,7 @@ export default function Dashboard({
 
                 <div className="cal-grid">
                   {calendar.map((c, i) => (
-                    <div
-                      key={i}
-                      className={`cal-cell ${c.isToday ? "today" : ""} ${c.day ? "" : "empty"}`}
-                    >
+                    <div key={i} className={`cal-cell ${c.isToday ? "today" : ""} ${c.day ? "" : "empty"}`}>
                       {c.day ?? ""}
                     </div>
                   ))}
@@ -641,11 +737,7 @@ export default function Dashboard({
             </div>
           </div>
 
-          {nothingToShow && (
-            <div className="dash-no-kpi">
-              No widgets available for your current permissions.
-            </div>
-          )}
+          {nothingToShow && <div className="dash-no-kpi">No widgets available for your current permissions.</div>}
         </section>
       </div>
     </div>
