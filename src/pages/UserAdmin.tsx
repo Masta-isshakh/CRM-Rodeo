@@ -3,7 +3,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
 import { createPortal } from "react-dom";
-import { fetchAuthSession } from "aws-amplify/auth";
 
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
@@ -74,7 +73,10 @@ async function listAll<T>(
 }
 
 function normalizeKey(x: unknown) {
-  return String(x ?? "").trim().toUpperCase().replace(/\s+/g, "_");
+  return String(x ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "_");
 }
 
 function empIdFromIndex(idx: number) {
@@ -84,13 +86,24 @@ function empIdFromIndex(idx: number) {
 
 type MenuState =
   | { open: false }
-  | { open: true; userId: string; top: number; left: number; width: number };
+  | {
+      open: true;
+      userId: string;
+      top: number;
+      left: number;
+      width: number;
+    };
+
+//const EMPTY = { canRead: false, canCreate: false, canUpdate: false, canDelete: false, canApprove: false };
 
 export default function Users({ permissions }: PageProps) {
-  if (!permissions.canRead) return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+  if (!permissions.canRead) {
+    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+  }
 
   const client = getDataClient();
 
+  // Invite modal state
   const [inviteOpen, setInviteOpen] = useState(false);
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
@@ -99,6 +112,7 @@ export default function Users({ permissions }: PageProps) {
   const [departmentKey, setDepartmentKey] = useState("");
   const [inviteStatus, setInviteStatus] = useState("");
 
+  // List state
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState("");
 
@@ -107,28 +121,20 @@ export default function Users({ permissions }: PageProps) {
   const [departments, setDepartments] = useState<Dept[]>([]);
   const [search, setSearch] = useState("");
 
+  // Row-level busy for dept changes (keeps rest of UI responsive)
+  const [deptSavingUserId, setDeptSavingUserId] = useState<string>("");
+
+  // UI/table controls
   const [pageSize, setPageSize] = useState(10);
   const [pageIndex, setPageIndex] = useState(0);
 
+  // Portal dropdown menu state
   const [menu, setMenu] = useState<MenuState>({ open: false });
   const portalMenuRef = useRef<HTMLDivElement | null>(null);
 
+  // RBAC display helpers
   const [roleByDept, setRoleByDept] = useState<Record<string, string>>({});
   const [dashboardAllowedByDept, setDashboardAllowedByDept] = useState<Record<string, boolean>>({});
-
-  const [currentSignedInEmail, setCurrentSignedInEmail] = useState("");
-
-  useEffect(() => {
-    (async () => {
-      try {
-        const s = await fetchAuthSession();
-        const e = String((s as any)?.tokens?.idToken?.payload?.email ?? "").trim().toLowerCase();
-        setCurrentSignedInEmail(e);
-      } catch {
-        setCurrentSignedInEmail("");
-      }
-    })();
-  }, []);
 
   const inviteLink = useMemo(() => {
     const e = email.trim().toLowerCase();
@@ -143,13 +149,17 @@ export default function Users({ permissions }: PageProps) {
       const [allUsers, deptRes, links, roles, policies] = await Promise.all([
         listAll<UserRow>((args) => client.models.UserProfile.list(args), 1000, 20000),
         client.queries.adminListDepartments(),
+
+        // Used only for UI labels
         listAll<any>((args) => client.models.DepartmentRoleLink.list(args), 1000, 20000),
         listAll<any>((args) => client.models.AppRole.list(args), 1000, 20000),
         listAll<any>((args) => client.models.RolePolicy.list(args), 1000, 20000),
       ]);
 
       const anyErrors = (deptRes as any)?.errors;
-      if (Array.isArray(anyErrors) && anyErrors.length) throw new Error(anyErrors.map((e: any) => e.message).join(" | "));
+      if (Array.isArray(anyErrors) && anyErrors.length) {
+        throw new Error(anyErrors.map((e: any) => e.message).join(" | "));
+      }
 
       const deptList = normalizeDepartmentsFromAdminList(deptRes);
 
@@ -157,6 +167,7 @@ export default function Users({ permissions }: PageProps) {
         String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""))
       );
 
+      // Role map per department
       const roleNameById = new Map<string, string>();
       for (const r of roles ?? []) roleNameById.set(String(r.id), String(r.name ?? ""));
 
@@ -177,12 +188,15 @@ export default function Users({ permissions }: PageProps) {
       }
       setRoleByDept(deptRoleLabel);
 
+      // Dashboard access per department
       const roleDashboardAllowed = new Set<string>();
       for (const p of policies ?? []) {
         const rid = String(p.roleId ?? "");
         const key = normalizeKey((p as any).policyKey);
         if (!rid || !key) continue;
-        if (key === "DASHBOARD" && Boolean((p as any).canRead)) roleDashboardAllowed.add(rid);
+        if (key === "DASHBOARD" && Boolean((p as any).canRead)) {
+          roleDashboardAllowed.add(rid);
+        }
       }
 
       const deptDashboard: Record<string, boolean> = {};
@@ -206,22 +220,33 @@ export default function Users({ permissions }: PageProps) {
     }
   };
 
-  useEffect(() => { load(); /* eslint-disable-next-line */ }, []);
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => setPageIndex(0), [search, pageSize]);
 
+  // Close menu on outside click / ESC / scroll / resize
   useEffect(() => {
     if (!menu.open) return;
 
     const onDown = (ev: MouseEvent) => {
       const t = ev.target as HTMLElement | null;
       if (!t) return;
+
       const btn = t.closest(`[data-ums-menu-btn="${menu.userId}"]`);
       if (btn) return;
+
       if (portalMenuRef.current?.contains(t)) return;
+
       setMenu({ open: false });
     };
 
-    const onKey = (ev: KeyboardEvent) => { if (ev.key === "Escape") setMenu({ open: false }); };
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === "Escape") setMenu({ open: false });
+    };
+
     const onScroll = () => setMenu({ open: false });
     const onResize = () => setMenu({ open: false });
 
@@ -241,10 +266,14 @@ export default function Users({ permissions }: PageProps) {
   const enriched = useMemo(() => {
     return (users ?? []).map((u, idx) => {
       const empId = empIdFromIndex(idx);
-      const deptName = departments.find((d) => d.key === u.departmentKey)?.name ?? (u.departmentName ?? "—");
+      const deptName =
+        departments.find((d) => d.key === u.departmentKey)?.name ?? (u.departmentName ?? "—");
+
       const roleName = u.departmentKey ? (roleByDept[u.departmentKey] ?? "—") : "—";
       const dashboardAllowed = u.departmentKey ? Boolean(dashboardAllowedByDept[u.departmentKey]) : false;
+
       const mobile = String((u as any).mobileNumber ?? (u as any).mobile ?? (u as any).phone ?? "").trim();
+
       return { u, empId, deptName: String(deptName || "—"), roleName: String(roleName || "—"), dashboardAllowed, mobile };
     });
   }, [users, departments, roleByDept, dashboardAllowedByDept]);
@@ -252,13 +281,15 @@ export default function Users({ permissions }: PageProps) {
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return enriched;
+
     return enriched.filter((row) => {
       const fullName = String(row.u.fullName ?? "");
       const email = String(row.u.email ?? "");
       const dept = String(row.deptName ?? "");
       const role = String(row.roleName ?? "");
       const mobile = String(row.mobile ?? "");
-      return `${row.empId} ${fullName} ${email} ${mobile} ${dept} ${role}`.toLowerCase().includes(q);
+      const hay = `${row.empId} ${fullName} ${email} ${mobile} ${dept} ${role}`.toLowerCase();
+      return hay.includes(q);
     });
   }, [enriched, search]);
 
@@ -271,6 +302,7 @@ export default function Users({ permissions }: PageProps) {
     return filtered.slice(start, start + pageSize);
   }, [filtered, pageIndex, pageSize]);
 
+  // Backend actions
   const invite = async () => {
     if (!permissions.canCreate) return;
     setInviteStatus("Inviting...");
@@ -296,7 +328,9 @@ export default function Users({ permissions }: PageProps) {
       } as any);
 
       const errs = (res as any)?.errors;
-      if (Array.isArray(errs) && errs.length) throw new Error(errs.map((x: any) => x.message).join(" | "));
+      if (Array.isArray(errs) && errs.length) {
+        throw new Error(errs.map((x: any) => x.message).join(" | "));
+      }
 
       setInviteStatus(`Invitation created for ${e}.`);
       setEmail("");
@@ -317,31 +351,35 @@ export default function Users({ permissions }: PageProps) {
     setInviteStatus("Set-password link copied.");
   };
 
-  // ✅ FINAL FIX: department change works + refresh RBAC if changing yourself
+  // ✅ FIXED: reliable department change + optimistic UI + refresh event
   const setDepartmentForUser = async (u: UserRow, deptKey: string) => {
     if (!permissions.canUpdate) return;
     if (!u.email) return;
 
     const nextKey = String(deptKey ?? "").trim();
-    if (!nextKey) return;
+    if (!nextKey) return; // do not allow empty (backend requires)
+    if (nextKey === String(u.departmentKey ?? "").trim()) return; // no-op
 
-    const prevKey = String((u as any).departmentKey ?? "");
-    if (prevKey === nextKey) return;
-
+    const prevKey = String(u.departmentKey ?? "");
+    const prevName = String(u.departmentName ?? "");
     const dept = departments.find((d) => d.key === nextKey);
-    const prevName = String((u as any).departmentName ?? "");
 
-    // optimistic UI
+    setStatus("");
+    setDeptSavingUserId(u.id);
+
+    // optimistic update (instant UI)
     setUsers((prev) =>
-      prev.map((x) =>
+      (prev ?? []).map((x) =>
         x.id === u.id
-          ? ({ ...x, departmentKey: nextKey, departmentName: dept?.name ?? "" } as any)
+          ? ({
+              ...x,
+              departmentKey: nextKey,
+              departmentName: dept?.name ?? (x as any).departmentName,
+            } as any)
           : x
       )
     );
 
-    setStatus("");
-    setLoading(true);
     try {
       const res = await client.mutations.adminSetUserDepartment({
         email: u.email,
@@ -350,33 +388,33 @@ export default function Users({ permissions }: PageProps) {
       });
 
       const errs = (res as any)?.errors;
-      if (Array.isArray(errs) && errs.length) throw new Error(errs.map((x: any) => x.message).join(" | "));
-
-      await load();
-
-      const targetEmail = String(u.email).trim().toLowerCase();
-      if (targetEmail && currentSignedInEmail && targetEmail === currentSignedInEmail) {
-        // refresh tokens so groups update -> permissions update
-        await fetchAuthSession({ forceRefresh: true });
-        window.dispatchEvent(new Event("rbac:refresh"));
+      if (Array.isArray(errs) && errs.length) {
+        throw new Error(errs.map((x: any) => x.message).join(" | "));
       }
 
-      setStatus("Department updated. (Users may need token refresh/sign-in to see new permissions.)");
+      // ✅ refresh permissions in the app (your userPermissions listens to this)
+      window.dispatchEvent(new Event("rbac:refresh"));
+
+      // keep everything consistent (roles labels, dashboard allowed, etc.)
+      await load();
     } catch (e: any) {
       console.error(e);
+      setStatus(e?.message ?? "Failed to set department.");
 
-      // revert optimistic UI
+      // revert optimistic update on failure
       setUsers((prev) =>
-        prev.map((x) =>
+        (prev ?? []).map((x) =>
           x.id === u.id
-            ? ({ ...x, departmentKey: prevKey, departmentName: prevName } as any)
+            ? ({
+                ...x,
+                departmentKey: prevKey,
+                departmentName: prevName,
+              } as any)
             : x
         )
       );
-
-      setStatus(e?.message ?? "Failed to set department.");
     } finally {
-      setLoading(false);
+      setDeptSavingUserId("");
     }
   };
 
@@ -389,11 +427,17 @@ export default function Users({ permissions }: PageProps) {
     try {
       const next = !Boolean(u.isActive);
 
-      const res = await client.mutations.adminSetUserActive({ email: u.email, isActive: next });
+      const res = await client.mutations.adminSetUserActive({
+        email: u.email,
+        isActive: next,
+      });
 
       const errs = (res as any)?.errors;
-      if (Array.isArray(errs) && errs.length) throw new Error(errs.map((x: any) => x.message).join(" | "));
+      if (Array.isArray(errs) && errs.length) {
+        throw new Error(errs.map((x: any) => x.message).join(" | "));
+      }
 
+      window.dispatchEvent(new Event("rbac:refresh"));
       await load();
     } catch (e: any) {
       console.error(e);
@@ -416,8 +460,11 @@ export default function Users({ permissions }: PageProps) {
       const res = await client.mutations.adminDeleteUser({ email: u.email });
 
       const errs = (res as any)?.errors;
-      if (Array.isArray(errs) && errs.length) throw new Error(errs.map((x: any) => x.message).join(" | "));
+      if (Array.isArray(errs) && errs.length) {
+        throw new Error(errs.map((x: any) => x.message).join(" | "));
+      }
 
+      window.dispatchEvent(new Event("rbac:refresh"));
       await load();
     } catch (e: any) {
       console.error(e);
@@ -448,7 +495,12 @@ export default function Users({ permissions }: PageProps) {
   const portalDropdown =
     menu.open &&
     createPortal(
-      <div className="ums-portal-menu" ref={portalMenuRef} style={{ top: menu.top, left: menu.left, width: 180 }}>
+      <div
+        className="ums-portal-menu"
+        ref={portalMenuRef}
+        style={{ top: menu.top, left: menu.left, width: 180 }}
+        data-ums-menu={menu.userId}
+      >
         {(() => {
           const row = users.find((x) => x.id === menu.userId);
           const active = Boolean(row?.isActive);
@@ -456,7 +508,10 @@ export default function Users({ permissions }: PageProps) {
             <>
               <button
                 className="ums-menu-item"
-                onClick={() => { setMenu({ open: false }); if (row) toggleActive(row); }}
+                onClick={() => {
+                  setMenu({ open: false });
+                  if (row) toggleActive(row);
+                }}
                 disabled={!permissions.canUpdate || loading}
               >
                 {active ? "Disable" : "Enable"}
@@ -464,7 +519,10 @@ export default function Users({ permissions }: PageProps) {
 
               <button
                 className="ums-menu-item danger"
-                onClick={() => { setMenu({ open: false }); if (row) deleteUser(row); }}
+                onClick={() => {
+                  setMenu({ open: false });
+                  if (row) deleteUser(row);
+                }}
                 disabled={!permissions.canDelete || loading}
               >
                 Delete
@@ -481,6 +539,7 @@ export default function Users({ permissions }: PageProps) {
       {portalDropdown}
 
       <div className="ums-shell">
+        {/* Top bar */}
         <div className="ums-topbar">
           <div className="ums-topbar-left">
             <span className="ums-topbar-icon" aria-hidden>
@@ -495,11 +554,17 @@ export default function Users({ permissions }: PageProps) {
           </div>
         </div>
 
+        {/* Search */}
         <div className="ums-card ums-search-card">
           <div className="ums-search-wrap">
             <span className="ums-search-icon" aria-hidden>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
-                <path d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Zm6.1-1.4 4.3 4.3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                <path
+                  d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Zm6.1-1.4 4.3 4.3"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                />
               </svg>
             </span>
             <input
@@ -515,6 +580,7 @@ export default function Users({ permissions }: PageProps) {
           </div>
         </div>
 
+        {/* Users list */}
         <div className="ums-card ums-table-card">
           <div className="ums-table-header">
             <div className="ums-table-title">
@@ -534,7 +600,10 @@ export default function Users({ permissions }: PageProps) {
 
               <button
                 className="ums-add-btn"
-                onClick={() => { setInviteStatus(""); setInviteOpen(true); }}
+                onClick={() => {
+                  setInviteStatus("");
+                  setInviteOpen(true);
+                }}
                 disabled={!permissions.canCreate}
               >
                 <span className="ums-add-icon" aria-hidden>+</span>
@@ -567,6 +636,8 @@ export default function Users({ permissions }: PageProps) {
                   const active = Boolean(u.isActive);
                   const dashAllowed = row.dashboardAllowed && active;
 
+                  const deptBusy = deptSavingUserId === u.id;
+
                   return (
                     <tr key={u.id}>
                       <td className="ums-mono">{row.empId}</td>
@@ -576,25 +647,38 @@ export default function Users({ permissions }: PageProps) {
 
                       <td>
                         <span className="pill pill-dept">{row.deptName}</span>
+
                         {permissions.canUpdate && (
                           <div className="ums-inline-edit">
                             <select
                               className="ums-pill-select"
                               value={u.departmentKey ?? ""}
-                              onChange={(e) => setDepartmentForUser(u, (e.target as HTMLSelectElement).value)}
-                              disabled={loading}
+                              onChange={(e) => setDepartmentForUser(u, e.target.value)}
+                              disabled={loading || deptBusy}
                               title="Change department"
                             >
-                              <option value="">Select…</option>
+                              <option value="" disabled>
+                                Select…
+                              </option>
                               {departments.map((d) => (
-                                <option key={d.key} value={d.key}>{d.name}</option>
+                                <option key={d.key} value={d.key}>
+                                  {d.name}
+                                </option>
                               ))}
                             </select>
+
+                            {deptBusy && (
+                              <span style={{ marginLeft: 8, fontSize: 12, opacity: 0.8 }}>
+                                Saving…
+                              </span>
+                            )}
                           </div>
                         )}
                       </td>
 
-                      <td><span className="pill pill-role">{row.roleName}</span></td>
+                      <td>
+                        <span className="pill pill-role">{row.roleName}</span>
+                      </td>
 
                       <td>
                         <span className={`pill ${active ? "pill-active" : "pill-inactive"}`}>
@@ -618,6 +702,7 @@ export default function Users({ permissions }: PageProps) {
                             if (menu.open && menu.userId === u.id) setMenu({ open: false });
                             else openActionsMenu(u.id, el);
                           }}
+                          disabled={loading}
                         >
                           <span aria-hidden>⚙</span> Actions <span className="ums-caret" aria-hidden>▾</span>
                         </button>
@@ -628,7 +713,9 @@ export default function Users({ permissions }: PageProps) {
 
                 {!pageRows.length && (
                   <tr>
-                    <td colSpan={9} className="ums-empty">No users found.</td>
+                    <td colSpan={9} className="ums-empty">
+                      No users found.
+                    </td>
                   </tr>
                 )}
               </tbody>
@@ -636,43 +723,74 @@ export default function Users({ permissions }: PageProps) {
           </div>
         </div>
 
+        {/* Invite Modal */}
         {inviteOpen && (
           <div className="ums-modal-overlay" role="dialog" aria-modal="true">
             <div className="ums-modal">
               <div className="ums-modal-head">
                 <h3>Add New User</h3>
-                <button className="ums-modal-close" onClick={() => setInviteOpen(false)} aria-label="Close">✕</button>
+                <button className="ums-modal-close" onClick={() => setInviteOpen(false)} aria-label="Close">
+                  ✕
+                </button>
               </div>
 
               <div className="ums-modal-body">
                 <div className="ums-form-grid">
                   <div>
                     <label className="ums-label">First name</label>
-                    <input className="ums-input" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" />
+                    <input
+                      className="ums-input"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      placeholder="First name"
+                    />
                   </div>
 
                   <div>
                     <label className="ums-label">Last name</label>
-                    <input className="ums-input" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" />
+                    <input
+                      className="ums-input"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      placeholder="Last name"
+                    />
                   </div>
 
                   <div className="ums-span-2">
                     <label className="ums-label">Email</label>
-                    <input className="ums-input" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="email@domain.com" type="email" />
+                    <input
+                      className="ums-input"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="email@domain.com"
+                      type="email"
+                    />
                   </div>
 
                   <div className="ums-span-2">
                     <label className="ums-label">Mobile number</label>
-                    <input className="ums-input" value={mobileNumber} onChange={(e) => setMobileNumber(e.target.value)} placeholder="+974 1234 5678" />
+                    <input
+                      className="ums-input"
+                      value={mobileNumber}
+                      onChange={(e) => setMobileNumber(e.target.value)}
+                      placeholder="+974 1234 5678"
+                    />
                     <div className="ums-field-hint">Tip: use Qatar format like +974 XXXXXXXX</div>
                   </div>
 
                   <div className="ums-span-2">
                     <label className="ums-label">Department</label>
-                    <select className="ums-input" value={departmentKey} onChange={(e) => setDepartmentKey(e.target.value)} disabled={loading}>
+                    <select
+                      className="ums-input"
+                      value={departmentKey}
+                      onChange={(e) => setDepartmentKey(e.target.value)}
+                      disabled={loading}
+                    >
                       <option value="">Select…</option>
                       {departments.map((d) => (
-                        <option key={d.key} value={d.key}>{d.name}</option>
+                        <option key={d.key} value={d.key}>
+                          {d.name}
+                        </option>
                       ))}
                     </select>
                   </div>
@@ -680,7 +798,9 @@ export default function Users({ permissions }: PageProps) {
 
                 <div className="ums-invite-link">
                   <div className="ums-invite-link-title">Set-password link</div>
-                  <div className="ums-invite-link-value">{inviteLink || "Enter an email to generate the link."}</div>
+                  <div className="ums-invite-link-value">
+                    {inviteLink || "Enter an email to generate the link."}
+                  </div>
                 </div>
 
                 {inviteStatus && <div className="ums-toast">{inviteStatus}</div>}
@@ -689,12 +809,19 @@ export default function Users({ permissions }: PageProps) {
               <div className="ums-modal-foot">
                 <Button onClick={() => setInviteOpen(false)}>Cancel</Button>
                 <Button onClick={copyInviteLink} isDisabled={!inviteLink}>Copy link</Button>
-                <Button variation="primary" onClick={invite} isDisabled={!permissions.canCreate || loading} isLoading={loading}>
+                <Button
+                  variation="primary"
+                  onClick={invite}
+                  isDisabled={!permissions.canCreate || loading}
+                  isLoading={loading}
+                >
                   Invite
                 </Button>
               </div>
 
-              <div className="ums-hint">Users get access from Department(Group) → Roles → Policies.</div>
+              <div className="ums-hint">
+                Users get access from Department(Group) → Roles → Policies.
+              </div>
             </div>
           </div>
         )}

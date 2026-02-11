@@ -34,14 +34,14 @@ async function ensureGroup(userPoolId: string, groupName: string, description?: 
   }
 }
 
-// ✅ NEW: resolve Cognito username reliably
+// ✅ Resolve Cognito Username reliably (works for both "email as username" AND random usernames)
 async function resolveCognitoUsername(userPoolId: string, email: string): Promise<string> {
-  // 1) If your pool uses email-as-username, this succeeds
+  // 1) If email is the Username, this succeeds
   try {
     await cognito.send(new AdminGetUserCommand({ UserPoolId: userPoolId, Username: email }));
     return email;
   } catch {
-    // 2) Otherwise find by email
+    // 2) Otherwise, find by email attribute
     const res = await cognito.send(
       new ListUsersCommand({
         UserPoolId: userPoolId,
@@ -71,17 +71,15 @@ export const handler = async (event: {
 
   await ensureGroup(userPoolId, departmentKey, departmentName);
 
-  // ✅ Use the correct Cognito Username for group actions
+  // ✅ Use correct Cognito Username
   const username = await resolveCognitoUsername(userPoolId, email);
 
-  // remove current DEPT_* groups
+  // Remove current DEPT_* groups (except the target one)
   const groupsRes = await cognito.send(
     new AdminListGroupsForUserCommand({ UserPoolId: userPoolId, Username: username })
   );
 
-  const current = (groupsRes.Groups ?? [])
-    .map((g) => g.GroupName)
-    .filter(Boolean) as string[];
+  const current = (groupsRes.Groups ?? []).map((g) => g.GroupName).filter(Boolean) as string[];
 
   for (const g of current) {
     if (isDeptGroup(g) && g !== departmentKey) {
@@ -95,7 +93,7 @@ export const handler = async (event: {
     }
   }
 
-  // add to new department group
+  // Add to new department group
   await cognito.send(
     new AdminAddUserToGroupCommand({
       UserPoolId: userPoolId,
@@ -104,7 +102,7 @@ export const handler = async (event: {
     })
   );
 
-  // update UserProfile (same logic as yours)
+  // Update UserProfile
   const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
   Amplify.configure(resourceConfig, libraryOptions);
   const dataClient = generateClient<Schema>();
@@ -124,5 +122,10 @@ export const handler = async (event: {
     departmentName: departmentName || keyToLabel(departmentKey),
   });
 
-  return { ok: true, email, departmentKey, departmentName: departmentName || keyToLabel(departmentKey) };
+  return {
+    ok: true,
+    email,
+    departmentKey,
+    departmentName: departmentName || keyToLabel(departmentKey),
+  };
 };
