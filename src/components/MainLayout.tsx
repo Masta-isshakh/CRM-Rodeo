@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import Dashboard from "../pages/Dashboard";
 import Customers from "../pages/Customer";
+import Vehicles from "../pages/Vehicule"; // ✅ ADD
 import Tickets from "../pages/Tickets";
 import Employees from "../pages/Employees";
 import ActivityLog from "../pages/ActivityLogs";
@@ -23,6 +24,7 @@ import { usePermissions } from "../lib/userPermissions";
 type Page =
   | "dashboard"
   | "customers"
+  | "vehicles" // ✅ ADD
   | "tickets"
   | "employees"
   | "activitylog"
@@ -51,6 +53,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     return {
       dashboard: isAdminGroup || canAny("DASHBOARD").canRead,
       customers: isAdminGroup || canAny("CUSTOMERS").canRead,
+      vehicles: isAdminGroup || canAny("VEHICLES").canRead, // ✅ ADD
       tickets: isAdminGroup || canAny("TICKETS").canRead,
       employees: isAdminGroup || canAny("EMPLOYEES").canRead,
       activitylog: isAdminGroup || canAny("ACTIVITY_LOG").canRead,
@@ -72,6 +75,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !loading &&
     !show.dashboard &&
     !show.customers &&
+    !show.vehicles && // ✅ ADD
     !show.tickets &&
     !show.employees &&
     !show.activitylog &&
@@ -82,13 +86,13 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !showAdmin.departments &&
     !showAdmin.rolespolicies;
 
-  // If user lands on a page they don't have access to, redirect to first allowed page
   useEffect(() => {
     if (loading) return;
 
     const allowedPages: Page[] = [];
     if (show.dashboard) allowedPages.push("dashboard");
     if (show.customers) allowedPages.push("customers");
+    if (show.vehicles) allowedPages.push("vehicles"); // ✅ ADD
     if (show.jobcards) allowedPages.push("jobcards");
     if (show.calltracking) allowedPages.push("calltracking");
     if (show.inspection) allowedPages.push("inspection");
@@ -103,6 +107,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     const isCurrentAllowed =
       (page === "dashboard" && show.dashboard) ||
       (page === "customers" && show.customers) ||
+      (page === "vehicles" && show.vehicles) || // ✅ ADD
       (page === "jobcards" && show.jobcards) ||
       (page === "calltracking" && show.calltracking) ||
       (page === "inspection" && show.inspection) ||
@@ -118,7 +123,6 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     }
   }, [loading, page, show, showAdmin]);
 
-  // ESC closes sidebar
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") setSidebarOpen(false);
@@ -127,7 +131,6 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     return () => document.removeEventListener("keydown", onKey);
   }, []);
 
-  // Lock body scroll while drawer open
   useEffect(() => {
     const prev = document.body.style.overflow;
     if (sidebarOpen) document.body.style.overflow = "hidden";
@@ -147,13 +150,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
   return (
     <div className="layout-root">
-      {/* Overlay */}
-      <div
-        className={`drawer-overlay ${sidebarOpen ? "show" : ""}`}
-        onClick={() => setSidebarOpen(false)}
-      />
+      <div className={`drawer-overlay ${sidebarOpen ? "show" : ""}`} onClick={() => setSidebarOpen(false)} />
 
-      {/* Drawer Sidebar (always a toggle) */}
       <aside className={`drawer ${sidebarOpen ? "open" : ""}`} aria-hidden={!sidebarOpen}>
         <div className="drawer-head">
           <div className="drawer-brand">
@@ -180,6 +178,14 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               Customers
             </button>
           )}
+
+          {/* ✅ ADD Vehicles */}
+          {show.vehicles && (
+            <button className={page === "vehicles" ? "active" : ""} onClick={() => go("vehicles")}>
+              Vehicles
+            </button>
+          )}
+
           {show.jobcards && (
             <button className={page === "jobcards" ? "active" : ""} onClick={() => go("jobcards")}>
               Job Cards
@@ -241,17 +247,10 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
         </nav>
       </aside>
 
-      {/* Main */}
       <div className="layout-main">
         <header className="topbar">
           <div className="topbar-inner">
-            {/* Left: Toggle */}
-            <button
-              className="menu-toggle"
-              onClick={() => setSidebarOpen(true)}
-              aria-label="Open menu"
-              type="button"
-            >
+            <button className="menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open menu" type="button">
               <span className="menu-toggle-icon" aria-hidden>
                 <span />
                 <span />
@@ -259,17 +258,15 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               </span>
             </button>
 
-            {/* Center: Title */}
             <div className="topbar-center">
               <div className="topbar-title">{title}</div>
-              <div className="topbar-sub">
-                {loading ? "Loading..." : `Signed in as: ${email || "-"}`}
-              </div>
+              <div className="topbar-sub">{loading ? "Loading..." : `Signed in as: ${email || "-"}`}</div>
             </div>
 
-            {/* Right: Avatar */}
             <div className="topbar-right">
-              <div className="avatar" title={email || ""}>{initials}</div>
+              <div className="avatar" title={email || ""}>
+                {initials}
+              </div>
             </div>
           </div>
         </header>
@@ -279,29 +276,23 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             <div className="no-access">
               <h3>No access configured</h3>
               <p>
-                You are signed in, but no department → role → policy permissions were resolved for your account.
-                Ask an Admin to assign a Department role + Role policies.
+                You are signed in, but no department → role → policy permissions were resolved for your account. Ask an Admin to assign a Department role + Role policies.
               </p>
             </div>
           )}
 
-{page === "dashboard" && show.dashboard && (
-  <Dashboard
-    permissions={canAny("DASHBOARD")}
-    email={email}
-    visibility={{ ...show, admin: showAdmin }}
-    onNavigate={(p) => setPage(p)}
-  />
-)}
-
-
+          {page === "dashboard" && show.dashboard && (
+            <Dashboard permissions={canAny("DASHBOARD")} email={email} visibility={{ ...show, admin: showAdmin }} onNavigate={(p) => setPage(p)} />
+          )}
 
           {page === "customers" && show.customers && <Customers permissions={canAny("CUSTOMERS")} />}
+
+          {/* ✅ Vehicles */}
+          {page === "vehicles" && show.vehicles && <Vehicles permissions={canAny("VEHICLES")} />}
+
           {page === "jobcards" && show.jobcards && <JobCards permissions={canAny("JOB_CARDS")} />}
           {page === "calltracking" && show.calltracking && <CallTracking permissions={canAny("CALL_TRACKING")} />}
-          {page === "inspection" && show.inspection && (
-            <InspectionApprovals permissions={canAny("INSPECTION_APPROVALS")} />
-          )}
+          {page === "inspection" && show.inspection && <InspectionApprovals permissions={canAny("INSPECTION_APPROVALS")} />}
 
           {page === "tickets" && show.tickets && <Tickets permissions={canAny("TICKETS")} />}
           {page === "employees" && show.employees && <Employees permissions={canAny("EMPLOYEES")} />}

@@ -2,6 +2,8 @@
 export const RESOURCE_KEYS = [
   "DASHBOARD",
   "CUSTOMERS",
+    "VEHICLES", // ✅ ADD
+
   "TICKETS",
   "EMPLOYEES",
   "ACTIVITY_LOG",

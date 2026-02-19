@@ -111,6 +111,42 @@ const schema = a
         contacts: a.hasMany("Contact", "customerId"),
         deals: a.hasMany("Deal", "customerId"),
         tickets: a.hasMany("Ticket", "customerId"),
+
+        // ✅ NEW: Vehicles relationship
+        vehicles: a.hasMany("Vehicle", "customerId"),
+      })
+      .authorization((allow) => [allow.authenticated()]),
+
+    // ✅ NEW: Vehicle model (Amplify backend table)
+    Vehicle: a
+      .model({
+        // human-friendly ID like "VEH-2026-12345"
+        vehicleId: a.string().required(),
+
+        // ownership
+        customerId: a.id().required(),
+        ownedBy: a.string().required(), // denormalized "First Last" for fast UI
+
+        // vehicle details
+        make: a.string().required(),
+        model: a.string().required(),
+        year: a.string(),
+        vehicleType: a.string(), // keep string for flexibility (Sedan/SUV/etc.)
+        color: a.string(),
+        plateNumber: a.string().required(),
+        vin: a.string(),
+        notes: a.string(),
+
+        // computed/managed (optional)
+        completedServicesCount: a.integer().default(0),
+
+        // audit
+        createdBy: a.string(),
+        createdAt: a.datetime(),
+        updatedAt: a.datetime(),
+
+        // relation
+        customer: a.belongsTo("Customer", "customerId"),
       })
       .authorization((allow) => [allow.authenticated()]),
 

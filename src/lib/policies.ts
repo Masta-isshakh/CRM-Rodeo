@@ -1,6 +1,8 @@
 export const POLICY_LABELS = {
   DASHBOARD: "Dashboard",
   CUSTOMERS: "Customers",
+    VEHICLES: "Vehicles", // ✅ ADD
+
   TICKETS: "Tickets",
   EMPLOYEES: "Employees",
   ACTIVITY_LOG: "Activity Log",

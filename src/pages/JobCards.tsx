@@ -1799,475 +1799,616 @@ export default function JobCards({ permissions }: PageProps) {
         </div>
       )}
 
-      {/* Wizard (Create/Edit) */}
-      {wizardOpen && (
-        <div className="jom-overlay" role="dialog" aria-modal="true">
-          <div className="jom-wizard">
-            <div className="jom-wizard-head">
-              <div className="left">
-                <button className="icon-btn" onClick={() => setWizardOpen(false)} aria-label="Close">
-                  ✕
-                </button>
+{/* Wizard (Create/Edit) */}
+{wizardOpen && (
+  <div className="jom-overlay" role="dialog" aria-modal="true">
+    <div className="jom-wizard2">
+      {/* Top bar */}
+      <div className="wiz-topbar">
+        <div className="wiz-topbar-left">
+          <button className="icon-btn" onClick={() => setWizardOpen(false)} aria-label="Close">
+            ✕
+          </button>
+          <div>
+            <div className="wiz-title">{draft.id ? "Edit Job Order" : "Create New Job Order"}</div>
+            <div className="wiz-subtitle">Fill the details, review totals, then save.</div>
+          </div>
+        </div>
+
+        <div className="wiz-topbar-right">
+          <div className="wiz-pill">
+            Step <b>{wizardStep}</b> / 4
+          </div>
+        </div>
+      </div>
+
+      {/* Body */}
+      <div className="wiz-body">
+        {/* Sidebar Stepper */}
+        <aside className="wiz-sidebar">
+          <div className="wiz-sidebar-card">
+            <div className="wiz-sidebar-head">Progress</div>
+
+            <button
+              className={`wiz-step ${wizardStep === 1 ? "active" : ""}`}
+              onClick={() => setWizardStep(1)}
+              type="button"
+            >
+              <div className="wiz-step-dot">{wizardStep > 1 ? "✓" : "1"}</div>
+              <div className="wiz-step-text">
+                <div className="wiz-step-title">Customer</div>
+                <div className="wiz-step-desc">Select or enter customer info</div>
+              </div>
+            </button>
+
+            <button
+              className={`wiz-step ${wizardStep === 2 ? "active" : ""}`}
+              onClick={() => setWizardStep(2)}
+              type="button"
+            >
+              <div className="wiz-step-dot">{wizardStep > 2 ? "✓" : "2"}</div>
+              <div className="wiz-step-text">
+                <div className="wiz-step-title">Vehicle</div>
+                <div className="wiz-step-desc">Vehicle identity & notes</div>
+              </div>
+            </button>
+
+            <button
+              className={`wiz-step ${wizardStep === 3 ? "active" : ""}`}
+              onClick={() => setWizardStep(3)}
+              type="button"
+            >
+              <div className="wiz-step-dot">{wizardStep > 3 ? "✓" : "3"}</div>
+              <div className="wiz-step-text">
+                <div className="wiz-step-title">Services</div>
+                <div className="wiz-step-desc">Add services & prices</div>
+              </div>
+            </button>
+
+            <button
+              className={`wiz-step ${wizardStep === 4 ? "active" : ""}`}
+              onClick={() => setWizardStep(4)}
+              type="button"
+            >
+              <div className="wiz-step-dot">4</div>
+              <div className="wiz-step-text">
+                <div className="wiz-step-title">Summary</div>
+                <div className="wiz-step-desc">Discount, VAT & final review</div>
+              </div>
+            </button>
+          </div>
+
+          <div className="wiz-sidebar-note">
+            Tip: You can jump between steps anytime. Totals update automatically.
+          </div>
+        </aside>
+
+        {/* Main content */}
+        <main className="wiz-content">
+          {wizardStep === 1 && (
+            <div className="wiz-card">
+              <div className="wiz-card-head">
                 <div>
-                  <div className="headline">{draft.id ? "Edit Job Order" : "New Job Order"}</div>
-                  <div className="muted">Step {wizardStep} of 4</div>
-                </div>
-              </div>
-
-              <div className="steps">
-                <div className={wizardStep === 1 ? "step on" : "step"}>Customer</div>
-                <div className={wizardStep === 2 ? "step on" : "step"}>Vehicle</div>
-                <div className={wizardStep === 3 ? "step on" : "step"}>Services</div>
-                <div className={wizardStep === 4 ? "step on" : "step"}>Summary</div>
-              </div>
-            </div>
-
-            <div className="jom-wizard-body">
-              {wizardStep === 1 && (
-                <div className="panel">
                   <h3>Customer</h3>
-
-                  <div className="grid2">
-                    <div>
-                      <label>Link existing customer (optional)</label>
-                      <select
-                        className="input"
-                        value={draft.customerId ?? ""}
-                        onChange={(e) => {
-                          const id = e.target.value || undefined;
-                          const c = customers.find((x) => (x as any).id === id);
-                          setDraft((p) => ({
-                            ...p,
-                            customerId: id,
-                            customerName: c
-                              ? `${(c as any).name ?? ""} ${(c as any).lastname ?? ""}`.trim()
-                              : p.customerName,
-                            customerPhone: (c as any)?.phone ?? p.customerPhone,
-                            customerEmail: (c as any)?.email ?? p.customerEmail,
-                          }));
-                        }}
-                      >
-                        <option value="">— Select customer —</option>
-                        {customers
-                          .slice()
-                          .sort((a, b) =>
-                            String((a as any).name ?? "").localeCompare(String((b as any).name ?? ""))
-                          )
-                          .map((c) => (
-                            <option key={(c as any).id} value={(c as any).id}>
-                              {((c as any).name ?? "") + " " + ((c as any).lastname ?? "")} •{" "}
-                              {(c as any).phone ?? "—"}
-                            </option>
-                          ))}
-                      </select>
-                      <div className="hint">
-                        If the customer isn't listed, create them in <b>Customers</b> page first.
-                      </div>
-                    </div>
-
-                    <div>
-                      <label>Customer name</label>
-                      <input
-                        className="input"
-                        value={draft.customerName}
-                        onChange={(e) => setDraft((p) => ({ ...p, customerName: e.target.value }))}
-                        placeholder="Full name"
-                      />
-                    </div>
-
-                    <div>
-                      <label>Phone</label>
-                      <input
-                        className="input"
-                        value={draft.customerPhone ?? ""}
-                        onChange={(e) => setDraft((p) => ({ ...p, customerPhone: e.target.value }))}
-                        placeholder="+974 XXXXXXXX"
-                      />
-                    </div>
-
-                    <div>
-                      <label>Email</label>
-                      <input
-                        className="input"
-                        value={draft.customerEmail ?? ""}
-                        onChange={(e) => setDraft((p) => ({ ...p, customerEmail: e.target.value }))}
-                        placeholder="email@domain.com"
-                      />
-                    </div>
-                  </div>
+                  <p>Link an existing customer or enter details manually.</p>
                 </div>
-              )}
+              </div>
 
-              {wizardStep === 2 && (
-                <div className="panel">
-                  <h3>Vehicle</h3>
-
-                  <div className="grid2">
-                    <div>
-                      <label>Vehicle type</label>
-                      <select
-                        className="input"
-                        value={draft.vehicleType}
-                        onChange={(e) => setDraft((p) => ({ ...p, vehicleType: e.target.value as VehicleType }))}
-                      >
-                        {VEHICLE_TYPES.map((v) => (
-                          <option key={v.key} value={v.key}>
-                            {v.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label>Make</label>
-                      <input
-                        className="input"
-                        value={draft.vehicleMake ?? ""}
-                        onChange={(e) => setDraft((p) => ({ ...p, vehicleMake: e.target.value }))}
-                        placeholder="BMW"
-                      />
-                    </div>
-
-                    <div>
-                      <label>Model</label>
-                      <input
-                        className="input"
-                        value={draft.vehicleModel ?? ""}
-                        onChange={(e) => setDraft((p) => ({ ...p, vehicleModel: e.target.value }))}
-                        placeholder="X5"
-                      />
-                    </div>
-
-                    <div>
-                      <label>Plate number</label>
-                      <input
-                        className="input"
-                        value={draft.plateNumber ?? ""}
-                        onChange={(e) => setDraft((p) => ({ ...p, plateNumber: e.target.value }))}
-                        placeholder="123456"
-                      />
-                    </div>
-
-                    <div>
-                      <label>VIN</label>
-                      <input
-                        className="input"
-                        value={draft.vin ?? ""}
-                        onChange={(e) => setDraft((p) => ({ ...p, vin: e.target.value }))}
-                        placeholder="(optional)"
-                      />
-                    </div>
-
-                    <div>
-                      <label>Mileage</label>
-                      <input
-                        className="input"
-                        value={draft.mileage ?? ""}
-                        onChange={(e) => setDraft((p) => ({ ...p, mileage: e.target.value }))}
-                        placeholder="(optional)"
-                      />
-                    </div>
-
-                    <div>
-                      <label>Color</label>
-                      <input
-                        className="input"
-                        value={draft.color ?? ""}
-                        onChange={(e) => setDraft((p) => ({ ...p, color: e.target.value }))}
-                        placeholder="(optional)"
-                      />
-                    </div>
-
-                    <div>
-                      <label>Notes</label>
-                      <input
-                        className="input"
-                        value={draft.notes ?? ""}
-                        onChange={(e) => setDraft((p) => ({ ...p, notes: e.target.value }))}
-                        placeholder="(optional)"
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {wizardStep === 3 && (
-                <div className="panel">
-                  <h3>Services</h3>
-
-                  <div className="service-add">
-                    <select
-                      className="input"
-                      defaultValue=""
-                      onChange={(e) => {
-                        const name = e.target.value;
-                        if (!name) return;
-
-                        const p = YOUR_PRODUCTS.find((x) => x.name === name);
-                        const isSUV = draft.vehicleType !== "SEDAN";
-                        const unitPrice = p ? (isSUV ? p.suvPrice : p.sedanPrice) : 0;
-
-                        setDraft((prev) => ({
-                          ...prev,
-                          services: [
-                            ...prev.services,
-                            { id: uid("svc"), name, qty: 1, unitPrice, status: "PENDING" as const },
-                          ],
-                        }));
-                        e.currentTarget.value = "";
-                      }}
-                    >
-                      <option value="">+ Add service from catalog…</option>
-                      {YOUR_PRODUCTS.map((p) => (
-                        <option key={p.name} value={p.name}>
-                          {p.name}
+              <div className="wiz-grid2">
+                <div className="wiz-field">
+                  <label>Link existing customer (optional)</label>
+                  <select
+                    className="wiz-input"
+                    value={draft.customerId ?? ""}
+                    onChange={(e) => {
+                      const id = e.target.value || undefined;
+                      const c = customers.find((x) => (x as any).id === id);
+                      setDraft((p) => ({
+                        ...p,
+                        customerId: id,
+                        customerName: c
+                          ? `${(c as any).name ?? ""} ${(c as any).lastname ?? ""}`.trim()
+                          : p.customerName,
+                        customerPhone: (c as any)?.phone ?? p.customerPhone,
+                        customerEmail: (c as any)?.email ?? p.customerEmail,
+                      }));
+                    }}
+                  >
+                    <option value="">— Select customer —</option>
+                    {customers
+                      .slice()
+                      .sort((a, b) =>
+                        String((a as any).name ?? "").localeCompare(String((b as any).name ?? ""))
+                      )
+                      .map((c) => (
+                        <option key={(c as any).id} value={(c as any).id}>
+                          {((c as any).name ?? "") + " " + ((c as any).lastname ?? "")} • {(c as any).phone ?? "—"}
                         </option>
                       ))}
-                    </select>
-
-                    <button
-                      className="secondary"
-                      onClick={() =>
-                        setDraft((prev) => ({
-                          ...prev,
-                          services: [
-                            ...prev.services,
-                            { id: uid("svc"), name: "Custom Service", qty: 1, unitPrice: 0, status: "PENDING" as const },
-                          ],
-                        }))
-                      }
-                    >
-                      + Custom
-                    </button>
-                  </div>
-
-                  <div className="services">
-                    {draft.services.map((s, idx) => (
-                      <div key={s.id} className="svc">
-                        <div className="svc-main">
-                          <input
-                            className="input"
-                            value={s.name}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              setDraft((p) => {
-                                const next = [...p.services];
-                                next[idx] = { ...next[idx], name: v };
-                                return { ...p, services: next };
-                              });
-                            }}
-                            placeholder="Service name"
-                          />
-
-                          <select
-                            className="input"
-                            value={s.status}
-                            onChange={(e) => {
-                              const v = e.target.value as ServiceLine["status"];
-                              setDraft((p) => {
-                                const next = [...p.services];
-                                next[idx] = { ...next[idx], status: v };
-                                return { ...p, services: next };
-                              });
-                            }}
-                          >
-                            <option value="PENDING">PENDING</option>
-                            <option value="IN_PROGRESS">IN_PROGRESS</option>
-                            <option value="DONE">DONE</option>
-                            <option value="CANCELLED">CANCELLED</option>
-                          </select>
-                        </div>
-
-                        <div className="svc-grid">
-                          <div>
-                            <label>Qty</label>
-                            <input
-                              className="input"
-                              type="number"
-                              value={s.qty}
-                              min={1}
-                              onChange={(e) => {
-                                const v = Math.max(1, toNum(e.target.value));
-                                setDraft((p) => {
-                                  const next = [...p.services];
-                                  next[idx] = { ...next[idx], qty: v };
-                                  return { ...p, services: next };
-                                });
-                              }}
-                            />
-                          </div>
-
-                          <div>
-                            <label>Unit price (QAR)</label>
-                            <input
-                              className="input"
-                              type="number"
-                              value={s.unitPrice}
-                              min={0}
-                              onChange={(e) => {
-                                const v = Math.max(0, toNum(e.target.value));
-                                setDraft((p) => {
-                                  const next = [...p.services];
-                                  next[idx] = { ...next[idx], unitPrice: v };
-                                  return { ...p, services: next };
-                                });
-                              }}
-                            />
-                          </div>
-
-                          <div>
-                            <label>Technician</label>
-                            <input
-                              className="input"
-                              value={s.technician ?? ""}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                setDraft((p) => {
-                                  const next = [...p.services];
-                                  next[idx] = { ...next[idx], technician: v };
-                                  return { ...p, services: next };
-                                });
-                              }}
-                              placeholder="(optional)"
-                            />
-                          </div>
-
-                          <div className="svc-total">
-                            <label>Line total</label>
-                            <div className="price">{(toNum(s.qty) * toNum(s.unitPrice)).toFixed(2)} QAR</div>
-                          </div>
-                        </div>
-
-                        <div className="svc-foot">
-                          <input
-                            className="input"
-                            value={s.notes ?? ""}
-                            onChange={(e) => {
-                              const v = e.target.value;
-                              setDraft((p) => {
-                                const next = [...p.services];
-                                next[idx] = { ...next[idx], notes: v };
-                                return { ...p, services: next };
-                              });
-                            }}
-                            placeholder="Notes (optional)"
-                          />
-                          <button
-                            className="link danger"
-                            onClick={() => setDraft((p) => ({ ...p, services: p.services.filter((_, i) => i !== idx) }))}
-                          >
-                            Remove
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-
-                    {!draft.services.length && <div className="muted">No services added yet.</div>}
-                  </div>
+                  </select>
+                  <div className="wiz-hint">If not listed, create the customer in the Customers page.</div>
                 </div>
-              )}
 
-              {wizardStep === 4 && (
-                <div className="panel">
-                  <h3>Summary</h3>
+                <div className="wiz-field">
+                  <label>Customer name</label>
+                  <input
+                    className="wiz-input"
+                    value={draft.customerName}
+                    onChange={(e) => setDraft((p) => ({ ...p, customerName: e.target.value }))}
+                    placeholder="Full name"
+                  />
+                </div>
 
-                  <div className="grid2">
-                    <div className="summary">
-                      <div className="row">
-                        <span>Subtotal</span>
-                        <b>{totalsPreview.subtotal.toFixed(2)} QAR</b>
-                      </div>
-                      <div className="row">
-                        <span>Discount</span>
-                        <b>{totalsPreview.discount.toFixed(2)} QAR</b>
-                      </div>
-                      <div className="row">
-                        <span>VAT rate</span>
-                        <b>{(totalsPreview.vatRate * 100).toFixed(2)}%</b>
-                      </div>
-                      <div className="row">
-                        <span>VAT</span>
-                        <b>{totalsPreview.vatAmount.toFixed(2)} QAR</b>
-                      </div>
-                      <div className="row">
-                        <span>Total</span>
-                        <b>{totalsPreview.totalAmount.toFixed(2)} QAR</b>
-                      </div>
-                    </div>
+                <div className="wiz-field">
+                  <label>Phone</label>
+                  <input
+                    className="wiz-input"
+                    value={draft.customerPhone ?? ""}
+                    onChange={(e) => setDraft((p) => ({ ...p, customerPhone: e.target.value }))}
+                    placeholder="+974 XXXXXXXX"
+                  />
+                </div>
 
-                    <div>
-                      <label>Discount (QAR)</label>
+                <div className="wiz-field">
+                  <label>Email</label>
+                  <input
+                    className="wiz-input"
+                    value={draft.customerEmail ?? ""}
+                    onChange={(e) => setDraft((p) => ({ ...p, customerEmail: e.target.value }))}
+                    placeholder="email@domain.com"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {wizardStep === 2 && (
+            <div className="wiz-card">
+              <div className="wiz-card-head">
+                <div>
+                  <h3>Vehicle</h3>
+                  <p>Add vehicle details for accurate pricing & records.</p>
+                </div>
+              </div>
+
+              <div className="wiz-grid2">
+                <div className="wiz-field">
+                  <label>Vehicle type</label>
+                  <select
+                    className="wiz-input"
+                    value={draft.vehicleType}
+                    onChange={(e) => setDraft((p) => ({ ...p, vehicleType: e.target.value as VehicleType }))}
+                  >
+                    {VEHICLE_TYPES.map((v) => (
+                      <option key={v.key} value={v.key}>
+                        {v.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="wiz-field">
+                  <label>Make</label>
+                  <input
+                    className="wiz-input"
+                    value={draft.vehicleMake ?? ""}
+                    onChange={(e) => setDraft((p) => ({ ...p, vehicleMake: e.target.value }))}
+                    placeholder="BMW"
+                  />
+                </div>
+
+                <div className="wiz-field">
+                  <label>Model</label>
+                  <input
+                    className="wiz-input"
+                    value={draft.vehicleModel ?? ""}
+                    onChange={(e) => setDraft((p) => ({ ...p, vehicleModel: e.target.value }))}
+                    placeholder="X5"
+                  />
+                </div>
+
+                <div className="wiz-field">
+                  <label>Plate number</label>
+                  <input
+                    className="wiz-input"
+                    value={draft.plateNumber ?? ""}
+                    onChange={(e) => setDraft((p) => ({ ...p, plateNumber: e.target.value }))}
+                    placeholder="123456"
+                  />
+                </div>
+
+                <div className="wiz-field">
+                  <label>VIN</label>
+                  <input
+                    className="wiz-input"
+                    value={draft.vin ?? ""}
+                    onChange={(e) => setDraft((p) => ({ ...p, vin: e.target.value }))}
+                    placeholder="(optional)"
+                  />
+                </div>
+
+                <div className="wiz-field">
+                  <label>Mileage</label>
+                  <input
+                    className="wiz-input"
+                    value={draft.mileage ?? ""}
+                    onChange={(e) => setDraft((p) => ({ ...p, mileage: e.target.value }))}
+                    placeholder="(optional)"
+                  />
+                </div>
+
+                <div className="wiz-field">
+                  <label>Color</label>
+                  <input
+                    className="wiz-input"
+                    value={draft.color ?? ""}
+                    onChange={(e) => setDraft((p) => ({ ...p, color: e.target.value }))}
+                    placeholder="(optional)"
+                  />
+                </div>
+
+                <div className="wiz-field">
+                  <label>Notes</label>
+                  <input
+                    className="wiz-input"
+                    value={draft.notes ?? ""}
+                    onChange={(e) => setDraft((p) => ({ ...p, notes: e.target.value }))}
+                    placeholder="(optional)"
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {wizardStep === 3 && (
+            <div className="wiz-card">
+              <div className="wiz-card-head">
+                <div>
+                  <h3>Services</h3>
+                  <p>Add services from your catalog or create a custom line.</p>
+                </div>
+              </div>
+
+              <div className="wiz-services-toolbar">
+                <select
+                  className="wiz-input"
+                  defaultValue=""
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    if (!name) return;
+
+                    const p = YOUR_PRODUCTS.find((x) => x.name === name);
+                    const isSUV = draft.vehicleType !== "SEDAN";
+                    const unitPrice = p ? (isSUV ? p.suvPrice : p.sedanPrice) : 0;
+
+                    setDraft((prev) => ({
+                      ...prev,
+                      services: [
+                        ...prev.services,
+                        { id: uid("svc"), name, qty: 1, unitPrice, status: "PENDING" as const },
+                      ],
+                    }));
+                    e.currentTarget.value = "";
+                  }}
+                >
+                  <option value="">+ Add service from catalog…</option>
+                  {YOUR_PRODUCTS.map((p) => (
+                    <option key={p.name} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  className="wiz-btn wiz-btn-secondary"
+                  onClick={() =>
+                    setDraft((prev) => ({
+                      ...prev,
+                      services: [
+                        ...prev.services,
+                        { id: uid("svc"), name: "Custom Service", qty: 1, unitPrice: 0, status: "PENDING" as const },
+                      ],
+                    }))
+                  }
+                  type="button"
+                >
+                  + Custom
+                </button>
+              </div>
+
+              <div className="wiz-services-list">
+                {draft.services.map((s, idx) => (
+                  <div key={s.id} className="wiz-service-item">
+                    <div className="wiz-service-row1">
                       <input
-                        className="input"
-                        type="number"
-                        value={draft.discount}
-                        onChange={(e) => setDraft((p) => ({ ...p, discount: toNum(e.target.value) }))}
+                        className="wiz-input"
+                        value={s.name}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setDraft((p) => {
+                            const next = [...p.services];
+                            next[idx] = { ...next[idx], name: v };
+                            return { ...p, services: next };
+                          });
+                        }}
+                        placeholder="Service name"
                       />
 
-                      <label style={{ marginTop: 10 }}>VAT rate (e.g., 0.05 for 5%)</label>
-                      <input
-                        className="input"
-                        type="number"
-                        step="0.01"
-                        value={draft.vatRate}
-                        onChange={(e) => setDraft((p) => ({ ...p, vatRate: toNum(e.target.value) }))}
-                      />
-
-                      <label style={{ marginTop: 10 }}>Order status</label>
                       <select
-                        className="input"
-                        value={draft.status}
-                        onChange={(e) => setDraft((p) => ({ ...p, status: e.target.value as OrderStatus }))}
+                        className="wiz-input"
+                        value={s.status}
+                        onChange={(e) => {
+                          const v = e.target.value as ServiceLine["status"];
+                          setDraft((p) => {
+                            const next = [...p.services];
+                            next[idx] = { ...next[idx], status: v };
+                            return { ...p, services: next };
+                          });
+                        }}
                       >
-                        <option value="DRAFT">DRAFT</option>
-                        <option value="OPEN">OPEN</option>
+                        <option value="PENDING">PENDING</option>
                         <option value="IN_PROGRESS">IN_PROGRESS</option>
-                        <option value="READY">READY</option>
-                        <option value="COMPLETED">COMPLETED</option>
+                        <option value="DONE">DONE</option>
                         <option value="CANCELLED">CANCELLED</option>
                       </select>
                     </div>
+
+                    <div className="wiz-service-row2">
+                      <div className="wiz-field">
+                        <label>Qty</label>
+                        <input
+                          className="wiz-input"
+                          type="number"
+                          value={s.qty}
+                          min={1}
+                          onChange={(e) => {
+                            const v = Math.max(1, toNum(e.target.value));
+                            setDraft((p) => {
+                              const next = [...p.services];
+                              next[idx] = { ...next[idx], qty: v };
+                              return { ...p, services: next };
+                            });
+                          }}
+                        />
+                      </div>
+
+                      <div className="wiz-field">
+                        <label>Unit price (QAR)</label>
+                        <input
+                          className="wiz-input"
+                          type="number"
+                          value={s.unitPrice}
+                          min={0}
+                          onChange={(e) => {
+                            const v = Math.max(0, toNum(e.target.value));
+                            setDraft((p) => {
+                              const next = [...p.services];
+                              next[idx] = { ...next[idx], unitPrice: v };
+                              return { ...p, services: next };
+                            });
+                          }}
+                        />
+                      </div>
+
+                      <div className="wiz-field">
+                        <label>Technician</label>
+                        <input
+                          className="wiz-input"
+                          value={s.technician ?? ""}
+                          onChange={(e) => {
+                            const v = e.target.value;
+                            setDraft((p) => {
+                              const next = [...p.services];
+                              next[idx] = { ...next[idx], technician: v };
+                              return { ...p, services: next };
+                            });
+                          }}
+                          placeholder="(optional)"
+                        />
+                      </div>
+
+                      <div className="wiz-line-total">
+                        <label>Line total</label>
+                        <div className="wiz-money">{(toNum(s.qty) * toNum(s.unitPrice)).toFixed(2)} QAR</div>
+                      </div>
+                    </div>
+
+                    <div className="wiz-service-row3">
+                      <input
+                        className="wiz-input"
+                        value={s.notes ?? ""}
+                        onChange={(e) => {
+                          const v = e.target.value;
+                          setDraft((p) => {
+                            const next = [...p.services];
+                            next[idx] = { ...next[idx], notes: v };
+                            return { ...p, services: next };
+                          });
+                        }}
+                        placeholder="Notes (optional)"
+                      />
+
+                      <button
+                        className="wiz-link-danger"
+                        onClick={() => setDraft((p) => ({ ...p, services: p.services.filter((_, i) => i !== idx) }))}
+                        type="button"
+                      >
+                        Remove
+                      </button>
+                    </div>
                   </div>
+                ))}
 
-                  <div className="hint">Tip: Payments can be added in the details screen after saving the job order.</div>
-                </div>
-              )}
+                {!draft.services.length && <div className="wiz-empty">No services added yet.</div>}
+              </div>
             </div>
+          )}
 
-            <div className="jom-wizard-foot">
-              <div className="left">
-                <button className="secondary" onClick={() => setWizardOpen(false)}>
-                  Cancel
-                </button>
+          {wizardStep === 4 && (
+            <div className="wiz-card">
+              <div className="wiz-card-head">
+                <div>
+                  <h3>Summary</h3>
+                  <p>Finalize discount/VAT and review totals before saving.</p>
+                </div>
               </div>
 
-              <div className="right">
-                <button
-                  className="secondary"
-                  disabled={wizardStep === 1}
-                  onClick={() => setWizardStep((s) => (s > 1 ? ((s - 1) as any) : s))}
-                >
-                  Back
-                </button>
+              <div className="wiz-grid2">
+                <div className="wiz-summary-box">
+                  <div className="wiz-summary-row">
+                    <span>Subtotal</span>
+                    <b>{totalsPreview.subtotal.toFixed(2)} QAR</b>
+                  </div>
+                  <div className="wiz-summary-row">
+                    <span>Discount</span>
+                    <b>{totalsPreview.discount.toFixed(2)} QAR</b>
+                  </div>
+                  <div className="wiz-summary-row">
+                    <span>VAT rate</span>
+                    <b>{(totalsPreview.vatRate * 100).toFixed(2)}%</b>
+                  </div>
+                  <div className="wiz-summary-row">
+                    <span>VAT</span>
+                    <b>{totalsPreview.vatAmount.toFixed(2)} QAR</b>
+                  </div>
+                  <div className="wiz-summary-row total">
+                    <span>Total</span>
+                    <b>{totalsPreview.totalAmount.toFixed(2)} QAR</b>
+                  </div>
+                </div>
 
-                {wizardStep < 4 ? (
-                  <button className="primary" onClick={() => setWizardStep((s) => (s + 1) as any)}>
-                    Next
-                  </button>
-                ) : (
-                  <button
-                    className="primary"
-                    disabled={draft.id ? !permissions.canUpdate : !permissions.canCreate}
-                    onClick={() => void saveDraft()}
-                  >
-                    {draft.id ? "Update Job Order" : "Create Job Order"}
-                  </button>
-                )}
+                <div className="wiz-card-inner">
+                  <div className="wiz-field">
+                    <label>Discount (QAR)</label>
+                    <input
+                      className="wiz-input"
+                      type="number"
+                      value={draft.discount}
+                      onChange={(e) => setDraft((p) => ({ ...p, discount: toNum(e.target.value) }))}
+                    />
+                  </div>
+
+                  <div className="wiz-field">
+                    <label>VAT rate (e.g., 0.05 for 5%)</label>
+                    <input
+                      className="wiz-input"
+                      type="number"
+                      step="0.01"
+                      value={draft.vatRate}
+                      onChange={(e) => setDraft((p) => ({ ...p, vatRate: toNum(e.target.value) }))}
+                    />
+                  </div>
+
+                  <div className="wiz-field">
+                    <label>Order status</label>
+                    <select
+                      className="wiz-input"
+                      value={draft.status}
+                      onChange={(e) => setDraft((p) => ({ ...p, status: e.target.value as OrderStatus }))}
+                    >
+                      <option value="DRAFT">DRAFT</option>
+                      <option value="OPEN">OPEN</option>
+                      <option value="IN_PROGRESS">IN_PROGRESS</option>
+                      <option value="READY">READY</option>
+                      <option value="COMPLETED">COMPLETED</option>
+                      <option value="CANCELLED">CANCELLED</option>
+                    </select>
+                  </div>
+
+                  <div className="wiz-hint">
+                    Tip: Payments can be added from the job order details after saving.
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </main>
+
+        {/* Sticky summary (desktop) */}
+        <aside className="wiz-summary">
+          <div className="wiz-summary-card">
+            <div className="wiz-summary-head">Live Summary</div>
+
+            <div className="wiz-summary-mini">
+              <div className="row">
+                <span>Customer</span>
+                <b>{draft.customerName?.trim() || "—"}</b>
+              </div>
+              <div className="row">
+                <span>Vehicle</span>
+                <b>
+                  {[draft.vehicleMake, draft.vehicleModel].filter(Boolean).join(" ") || "—"}{" "}
+                  {draft.plateNumber ? `• ${draft.plateNumber}` : ""}
+                </b>
+              </div>
+              <div className="row">
+                <span>Services</span>
+                <b>{draft.services?.length || 0}</b>
+              </div>
+            </div>
+
+            <div className="wiz-divider" />
+
+            <div className="wiz-summary-totals">
+              <div className="row">
+                <span>Subtotal</span>
+                <b>{totalsPreview.subtotal.toFixed(2)} QAR</b>
+              </div>
+              <div className="row">
+                <span>Discount</span>
+                <b>{totalsPreview.discount.toFixed(2)} QAR</b>
+              </div>
+              <div className="row">
+                <span>VAT</span>
+                <b>{totalsPreview.vatAmount.toFixed(2)} QAR</b>
+              </div>
+              <div className="row total">
+                <span>Total</span>
+                <b>{totalsPreview.totalAmount.toFixed(2)} QAR</b>
               </div>
             </div>
           </div>
+        </aside>
+      </div>
+
+      {/* Sticky footer actions */}
+      <div className="wiz-footer">
+        <div className="wiz-footer-left">
+          <button className="wiz-btn wiz-btn-secondary" onClick={() => setWizardOpen(false)} type="button">
+            Cancel
+          </button>
         </div>
-      )}
+
+        <div className="wiz-footer-right">
+          <button
+            className="wiz-btn wiz-btn-secondary"
+            disabled={wizardStep === 1}
+            onClick={() => setWizardStep((s) => (s > 1 ? ((s - 1) as any) : s))}
+            type="button"
+          >
+            Back
+          </button>
+
+          {wizardStep < 4 ? (
+            <button className="wiz-btn wiz-btn-primary" onClick={() => setWizardStep((s) => (s + 1) as any)} type="button">
+              Next
+            </button>
+          ) : (
+            <button
+              className="wiz-btn wiz-btn-primary"
+              disabled={draft.id ? !permissions.canUpdate : !permissions.canCreate}
+              onClick={() => void saveDraft()}
+              type="button"
+            >
+              {draft.id ? "Update Job Order" : "Create Job Order"}
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  </div>
+)}
+
     </div>
   );
 }

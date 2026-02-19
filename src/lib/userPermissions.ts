@@ -35,6 +35,8 @@ const DEPT_PREFIX = "DEPT_";
 export const POLICY_KEYS = [
   "DASHBOARD",
   "CUSTOMERS",
+    "VEHICLES", // ✅ ADD
+
   "TICKETS",
   "EMPLOYEES",
   "ACTIVITY_LOG",

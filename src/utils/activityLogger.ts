@@ -4,22 +4,23 @@ import type { Schema } from "../../amplify/data/resource";
 
 const client = generateClient<Schema>();
 
-export type ActivityEntityType =
-  | "Customer"
-  | "Employee"
-  | "Ticket"
-  | "JobOrder"
-  | "CallTracking"
-  | "InspectionApproval";
+// ✅ allow any entity type (your schema stores entityType as string anyway)
+export type ActivityEntityType = string;
 
-export type ActivityAction = "CREATE" | "UPDATE" | "DELETE" | "APPROVE" | "REJECT" | string;
+export type ActivityAction =
+  | "CREATE"
+  | "UPDATE"
+  | "DELETE"
+  | "APPROVE"
+  | "REJECT"
+  | string;
 
 export async function logActivity(
   entityType: ActivityEntityType,
   entityId: string,
   action: ActivityAction,
   message: string
-) {
+): Promise<void> {
   try {
     await client.models.ActivityLog.create({
       entityType,
