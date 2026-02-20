@@ -1,112 +1,29 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Button } from "@aws-amplify/ui-react";
-import "@aws-amplify/ui-react/styles.css";
+// src/pages/JobOrderManagement.tsx
+// ✅ Full updated file - paste as-is
+
+import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-
-import { uploadData, getUrl } from "aws-amplify/storage";
-
-import type { Schema } from "../../amplify/data/resource";
-import type { PageProps } from "../lib/PageProps";
-import { getDataClient } from "../lib/amplifyClient";
-import { logActivity } from "../utils/activityLogger";
-
 import "./JobCards.css";
 
-type JobOrderRow = Schema["JobOrder"]["type"];
-type CustomerRow = Schema["Customer"]["type"];
-type PaymentRow = Schema["JobOrderPayment"]["type"];
+import SuccessPopup from "./SuccessPopup";
+import ErrorPopup from "./ErrorPopup";
+import PermissionGate from "./PermissionGate";
 
-type OrderStatus =
-  | "DRAFT"
-  | "OPEN"
-  | "IN_PROGRESS"
-  | "READY"
-  | "COMPLETED"
-  | "CANCELLED";
-type PaymentStatus = "UNPAID" | "PARTIAL" | "PAID";
-type VehicleType = "SEDAN" | "SUV_4X4" | "TRUCK" | "MOTORBIKE" | "OTHER";
+import {
+  listJobOrdersForMain,
+  getJobOrderByOrderNumber,
+  upsertJobOrder,
+  cancelJobOrderByOrderNumber,
+  searchCustomers,
+  getCustomerWithVehicles,
+  createCustomer,
+  createVehicleForCustomer,
+  listCompletedOrdersByPlateNumber,
+} from "./jobOrderRepo";
 
-type ServiceLine = {
-  id: string;
-  name: string;
-  category?: string;
-  qty: number;
-  unitPrice: number;
-  status: "PENDING" | "IN_PROGRESS" | "DONE" | "CANCELLED";
-  technician?: string;
-  notes?: string;
-};
-
-type DocLine = {
-  id: string;
-  title: string;
-  url: string; // external URL OR legacy string
-  type?: string;
-  addedAt: string;
-
-  // NEW (for Storage uploads)
-  storagePath?: string; // e.g. "job-orders/<orderId>/documents/<file>"
-  fileName?: string;
-  contentType?: string;
-  size?: number;
-
-  // Optional linkage metadata
-  linkedPaymentId?: string;
-  paymentMethod?: string;
-};
-
-type OrderPayload = {
-  id?: string;
-  orderNumber?: string;
-  orderType: string;
-  status: OrderStatus;
-  paymentStatus?: PaymentStatus;
-
-  customerId?: string;
-  customerName: string;
-  customerPhone?: string;
-  customerEmail?: string;
-
-  vehicleType: VehicleType;
-  vehicleMake?: string;
-  vehicleModel?: string;
-  plateNumber?: string;
-  vin?: string;
-  mileage?: string;
-  color?: string;
-
-  notes?: string;
-
-  vatRate: number; // 0..1
-  discount: number;
-
-  services: ServiceLine[];
-  documents: DocLine[];
-
-  totals?: {
-    subtotal: number;
-    discount: number;
-    vatRate: number;
-    vatAmount: number;
-    totalAmount: number;
-    amountPaid: number;
-    balanceDue: number;
-    paymentStatus: PaymentStatus;
-  };
-
-  [k: string]: any;
-};
-
-const VEHICLE_TYPES: { key: VehicleType; label: string }[] = [
-  { key: "SEDAN", label: "Sedan" },
-  { key: "SUV_4X4", label: "SUV / 4x4" },
-  { key: "TRUCK", label: "Truck" },
-  { key: "MOTORBIKE", label: "Motorbike" },
-  { key: "OTHER", label: "Other" },
-];
-
-const METHODS = ["Cash", "Card", "Bank Transfer", "Online", "Other"];
-
+// ============================================
+// DEMO DATA (catalog only — keep)
+// ============================================
 const YOUR_PRODUCTS = [
   { name: "Extra Cool Tint", suvPrice: 3200, sedanPrice: 2900 },
   { name: "UV Protection Film", suvPrice: 2500, sedanPrice: 2200 },
@@ -140,2275 +57,2279 @@ const YOUR_PRODUCTS = [
   { name: "Pedal Protection (Each)", suvPrice: 400, sedanPrice: 400 },
 ];
 
-function safeJsonParse<T>(raw: unknown): T | null {
-  try {
-    if (raw == null) return null;
-    if (typeof raw === "string") {
-      const s = raw.trim();
-      if (!s) return null;
-      return JSON.parse(s) as T;
-    }
-    return raw as T;
-  } catch {
-    return null;
-  }
+function errMsg(e: unknown) {
+  const anyE = e as any;
+  return String(anyE?.message ?? anyE?.errors?.[0]?.message ?? anyE ?? "Unknown error");
 }
 
-function uid(prefix = "id") {
-  return `${prefix}_${Math.random().toString(36).slice(2, 10)}_${Date.now().toString(36)}`;
-}
+// ============================================
+// MAIN COMPONENT
+// ============================================
+function JobOrderManagement({ currentUser, navigationData, onClearNavigation, onNavigateBack }: any) {
+  const [screenState, setScreenState] = useState<"main" | "details" | "newJob" | "addService">("main");
+  const [currentDetailsOrder, setCurrentDetailsOrder] = useState<any>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
 
-function toNum(x: unknown) {
-  const n = typeof x === "number" ? x : Number(String(x ?? "").trim());
-  return Number.isFinite(n) ? n : 0;
-}
+  const [demoOrders, setDemoOrders] = useState<any[]>([]);
+  const [loadingOrders, setLoadingOrders] = useState(false);
 
-function getRowBalance(o: any) {
-  // Prefer backend-calculated balanceDue (best + fast)
-  const raw = o?.balanceDue;
+  const [currentAddServiceOrder, setCurrentAddServiceOrder] = useState<any>(null);
 
-  const hasBalanceDue = raw !== null && raw !== undefined && String(raw).trim() !== "";
+  const [inspectionModalOpen, setInspectionModalOpen] = useState(false);
+  const [currentInspectionItem, setCurrentInspectionItem] = useState<any>(null);
 
-  if (hasBalanceDue) {
-    return Math.max(0, toNum(raw));
-  }
+  // ✅ Success popup state
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [submittedOrderId, setSubmittedOrderId] = useState("");
+  const [lastAction, setLastAction] = useState<"create" | "cancel" | "addService">("create");
+  const [showAddServiceSuccessPopup, setShowAddServiceSuccessPopup] = useState(false);
+  const [addServiceSuccessData, setAddServiceSuccessData] = useState({ orderId: "", invoiceId: "" });
 
-  // Fallback if balanceDue is not stored on the JobOrder row
-  const total = toNum(o?.totalAmount);
-  const paid = toNum(o?.amountPaid);
-  return Math.max(0, total - paid);
-}
+  // ✅ Error popup state
+  const [errorOpen, setErrorOpen] = useState(false);
+  const [errorTitle, setErrorTitle] = useState("Operation failed");
+  const [errorMessage, setErrorMessage] = useState<React.ReactNode>(null);
+  const [errorDetails, setErrorDetails] = useState<string | undefined>(undefined);
+  const [errorRetry, setErrorRetry] = useState<(() => void) | undefined>(undefined);
 
-function computeTotalsFromServices(d: OrderPayload) {
-  const subtotal = (d.services ?? []).reduce((sum, s) => sum + toNum(s.qty) * toNum(s.unitPrice), 0);
-  const discount = Math.max(0, toNum(d.discount));
-  const vatRate = Math.max(0, toNum(d.vatRate));
-  const taxable = Math.max(0, subtotal - discount);
-  const vatAmount = taxable * vatRate;
-  const totalAmount = taxable + vatAmount;
-
-  const amountPaid = 0;
-  const balanceDue = Math.max(0, totalAmount - amountPaid);
-  const paymentStatus: PaymentStatus = balanceDue <= 0.00001 ? "PAID" : amountPaid > 0 ? "PARTIAL" : "UNPAID";
-
-  return {
-    subtotal,
-    discount,
-    vatRate,
-    vatAmount,
-    totalAmount,
-    amountPaid,
-    balanceDue,
-    paymentStatus,
+  const showError = (args: {
+    title?: string;
+    message: React.ReactNode;
+    details?: string;
+    onRetry?: () => void;
+  }) => {
+    setErrorTitle(args.title || "Operation failed");
+    setErrorMessage(args.message);
+    setErrorDetails(args.details);
+    setErrorRetry(args.onRetry);
+    setErrorOpen(true);
   };
-}
 
-function isHttpUrl(s: string) {
-  return /^https?:\/\//i.test(String(s ?? "").trim());
-}
+  const [newJobPrefill, setNewJobPrefill] = useState<any>(null);
+  const [navigationSource, setNavigationSource] = useState<any>(null);
+  const [returnToVehicleId, setReturnToVehicleId] = useState<any>(null);
 
-function sanitizeFileName(name: string) {
-  const base = String(name || "file")
-    .trim()
-    .replace(/\s+/g, "_")
-    .replace(/[^a-zA-Z0-9._-]/g, "");
-  return base || `file_${Date.now()}`;
-}
+  const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
+  const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
 
-type MenuState = { open: false } | { open: true; orderId: string; top: number; left: number };
-
-export default function JobCards({ permissions }: PageProps) {
-  if (!permissions.canRead) {
-    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
-  }
-
-  const client = getDataClient();
-
-  const [orders, setOrders] = useState<JobOrderRow[]>([]);
-  const [customers, setCustomers] = useState<CustomerRow[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [status, setStatus] = useState("");
-
-  const [search, setSearch] = useState("");
-  const [statusFilter, setStatusFilter] = useState<OrderStatus | "ALL">("ALL");
-
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const [activeOrderId, setActiveOrderId] = useState<string | null>(null);
-  const [activePayload, setActivePayload] = useState<OrderPayload | null>(null);
-
-  const [activePayments, setActivePayments] = useState<PaymentRow[]>([]);
-  const [paymentsLoading, setPaymentsLoading] = useState(false);
-
-  const [wizardOpen, setWizardOpen] = useState(false);
-  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4>(1);
-  const [draft, setDraft] = useState<OrderPayload>(() => ({
-    orderType: "Job Order",
-    status: "OPEN",
-    vehicleType: "SUV_4X4",
-    customerName: "",
-    vatRate: 0,
-    discount: 0,
-    services: [],
-    documents: [],
-  }));
-
-  const [menu, setMenu] = useState<MenuState>({ open: false });
-  const portalMenuRef = useRef<HTMLDivElement | null>(null);
-
-  // Documents UI state (Details screen)
-  const [docTitle, setDocTitle] = useState("");
-  const [docUrl, setDocUrl] = useState("");
-  const [docFile, setDocFile] = useState<File | null>(null);
-  const [docUploading, setDocUploading] = useState(false);
-
-  // Payment quick-add state (Details screen)
-  const [payAmount, setPayAmount] = useState<string>("");
-  const [payMethod, setPayMethod] = useState<string>("Cash");
-  const [payRef, setPayRef] = useState<string>("");
-  const [payNotes, setPayNotes] = useState<string>("");
-  const [payFile, setPayFile] = useState<File | null>(null);
-  const [payAttaching, setPayAttaching] = useState(false);
-
-  // Payment edit state
-  const [editingPaymentId, setEditingPaymentId] = useState<string | null>(null);
-  const [editPayAmount, setEditPayAmount] = useState<string>("");
-  const [editPayMethod, setEditPayMethod] = useState<string>("Cash");
-  const [editPayRef, setEditPayRef] = useState<string>("");
-  const [editPayNotes, setEditPayNotes] = useState<string>("");
-  const [editPayAt, setEditPayAt] = useState<string>("");
-
-  const load = async () => {
-    setLoading(true);
-    setStatus("Loading...");
+  async function refreshMainOrders() {
+    setLoadingOrders(true);
     try {
-      const [oRes, cRes] = await Promise.all([
-        client.models.JobOrder.list({ limit: 2000 }),
-        client.models.Customer.list({ limit: 2000 }),
-      ]);
-      const sorted = [...(oRes.data ?? [])].sort((a, b) =>
-        String((b as any).updatedAt ?? (b as any).createdAt ?? "").localeCompare(
-          String((a as any).updatedAt ?? (a as any).createdAt ?? "")
-        )
-      );
-      setOrders(sorted);
-      setCustomers(cRes.data ?? []);
-      setStatus(`Loaded ${sorted.length} job orders.`);
-    } catch (e: any) {
-      console.error(e);
-      setOrders([]);
-      setCustomers([]);
-      setStatus(e?.message ?? "Failed to load.");
+      const orders = await listJobOrdersForMain();
+      setDemoOrders(orders);
     } finally {
-      setLoading(false);
+      setLoadingOrders(false);
     }
-  };
-
-  const loadPaymentsFor = async (jobOrderId: string) => {
-    if (!jobOrderId) return;
-    setPaymentsLoading(true);
-    try {
-      let res: any;
-      try {
-        res = await (client.models.JobOrderPayment as any).listPaymentsByJobOrder?.({
-          jobOrderId,
-          limit: 2000,
-        });
-      } catch {
-        res = null;
-      }
-      if (!res) {
-        res = await client.models.JobOrderPayment.list({
-          filter: { jobOrderId: { eq: jobOrderId } } as any,
-          limit: 2000,
-        });
-      }
-      const sorted = [...(res.data ?? [])].sort((a: any, b: any) =>
-        String(b.paidAt ?? "").localeCompare(String(a.paidAt ?? ""))
-      );
-      setActivePayments(sorted);
-    } catch (e) {
-      console.warn("Failed to load payments", e);
-      setActivePayments([]);
-    } finally {
-      setPaymentsLoading(false);
-    }
-  };
-
-  const rowToPayload = (row: JobOrderRow): OrderPayload => {
-    const payload = safeJsonParse<Partial<OrderPayload>>((row as any).dataJson) ?? ({} as Partial<OrderPayload>);
-
-    const merged: OrderPayload = {
-      id: (row as any).id,
-      orderNumber: (row as any).orderNumber,
-      orderType: String((row as any).orderType ?? "Job Order"),
-      status: ((row as any).status as any) ?? "OPEN",
-      paymentStatus: ((row as any).paymentStatus as any) ?? "UNPAID",
-
-      customerId: (row as any).customerId ?? undefined,
-      customerName: (row as any).customerName ?? "",
-      customerPhone: (row as any).customerPhone ?? undefined,
-      customerEmail: (row as any).customerEmail ?? undefined,
-
-      vehicleType: ((row as any).vehicleType as any) ?? "SUV_4X4",
-      vehicleMake: (row as any).vehicleMake ?? undefined,
-      vehicleModel: (row as any).vehicleModel ?? undefined,
-      plateNumber: (row as any).plateNumber ?? undefined,
-      vin: (row as any).vin ?? undefined,
-      mileage: (row as any).mileage ?? undefined,
-      color: (row as any).color ?? undefined,
-
-      notes: (row as any).notes ?? undefined,
-
-      vatRate: toNum((row as any).vatRate ?? (payload as any).vatRate ?? 0),
-      discount: toNum((row as any).discount ?? (payload as any).discount ?? 0),
-
-      services: (payload as any).services ?? [],
-      documents: (payload as any).documents ?? [],
-      ...payload,
-    };
-
-    merged.totals = {
-      subtotal: toNum((row as any).subtotal),
-      discount: toNum((row as any).discount),
-      vatRate: toNum((row as any).vatRate),
-      vatAmount: toNum((row as any).vatAmount),
-      totalAmount: toNum((row as any).totalAmount),
-      amountPaid: toNum((row as any).amountPaid),
-      balanceDue: toNum((row as any).balanceDue),
-      paymentStatus: ((row as any).paymentStatus as any) ?? "UNPAID",
-    };
-
-    return merged;
-  };
-
-  const refreshActiveOrder = async (id: string) => {
-    try {
-      const res = await client.models.JobOrder.get({ id } as any);
-      const row = (res as any)?.data as JobOrderRow | undefined;
-      if (!row) return;
-      const merged = rowToPayload(row);
-      setActiveOrderId(id);
-      setActivePayload(merged);
-    } catch (e) {
-      console.warn("Failed to refresh active order", e);
-    }
-  };
+  }
 
   useEffect(() => {
-    load();
+    void refreshMainOrders();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
-    if (!menu.open) return;
+    if (screenState === "main") void refreshMainOrders();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screenState]);
 
-    const onDown = (ev: MouseEvent) => {
-      const t = ev.target as HTMLElement | null;
-      if (!t) return;
-      const btn = t.closest(`[data-jom-menu-btn="${menu.orderId}"]`);
-      if (btn) return;
-      if (portalMenuRef.current?.contains(t)) return;
-      setMenu({ open: false });
-    };
+  useEffect(() => setCurrentPage(1), [searchQuery]);
+  useEffect(() => setCurrentPage(1), [pageSize]);
 
-    const onKey = (ev: KeyboardEvent) => {
-      if (ev.key === "Escape") setMenu({ open: false });
-    };
-
-    const onScroll = () => setMenu({ open: false });
-    const onResize = () => setMenu({ open: false });
-
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    window.addEventListener("scroll", onScroll, true);
-    window.addEventListener("resize", onResize);
-
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("resize", onResize);
-    };
-  }, [menu]);
-
-  const filtered = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    return (orders ?? []).filter((o) => {
-      if (statusFilter !== "ALL" && String((o as any).status) !== statusFilter) return false;
-
-      if (!q) return true;
-      const hay = [
-        (o as any).orderNumber,
-        (o as any).customerName,
-        (o as any).customerPhone,
-        (o as any).plateNumber,
-        (o as any).vehicleMake,
-        (o as any).vehicleModel,
-        (o as any).status,
-        (o as any).paymentStatus,
-      ]
-        .map((x) => String(x ?? ""))
-        .join(" ")
-        .toLowerCase();
-
-      return hay.includes(q);
-    });
-  }, [orders, search, statusFilter]);
-
-  const openActionsMenu = (orderId: string, btnEl: HTMLElement) => {
-    const rect = btnEl.getBoundingClientRect();
-    const menuWidth = 200;
-    const menuHeight = 170;
-
-    let left = rect.right - menuWidth;
-    if (left < 12) left = 12;
-    if (left + menuWidth > window.innerWidth - 12) left = window.innerWidth - 12 - menuWidth;
-
-    let top = rect.bottom + 8;
-    if (top + menuHeight > window.innerHeight - 12) {
-      top = rect.top - 8 - menuHeight;
-      if (top < 12) top = 12;
-    }
-
-    setMenu({ open: true, orderId, top, left });
-  };
-
-  const portalDropdown =
-    menu.open &&
-    createPortal(
-      <div className="jom-menu" ref={portalMenuRef} style={{ top: menu.top, left: menu.left, width: 200 }}>
-        <button
-          className="jom-menu-item"
-          onClick={() => {
-            setMenu({ open: false });
-            openDetails(menu.orderId);
-          }}
-        >
-          View details
-        </button>
-
-        <button
-          className="jom-menu-item"
-          disabled={!permissions.canUpdate}
-          onClick={() => {
-            setMenu({ open: false });
-            startEdit(menu.orderId);
-          }}
-        >
-          Edit
-        </button>
-
-        <button
-          className="jom-menu-item danger"
-          disabled={!permissions.canDelete}
-          onClick={() => {
-            setMenu({ open: false });
-            void removeOrder(menu.orderId);
-          }}
-        >
-          Delete
-        </button>
-
-        <div className="jom-menu-sep" />
-
-        <button
-          className="jom-menu-item"
-          onClick={() => {
-            setMenu({ open: false });
-            window.print();
-          }}
-        >
-          Print
-        </button>
-      </div>,
-      document.body
-    );
-
-  const openDetails = async (id: string) => {
-    const row = orders.find((x) => (x as any).id === id);
-    if (!row) return;
-
-    const merged = rowToPayload(row);
-
-    setActiveOrderId(id);
-    setActivePayload(merged);
-    setDetailsOpen(true);
-
-    // reset inline UI fields
-    setDocTitle("");
-    setDocUrl("");
-    setDocFile(null);
-
-    setPayAmount("");
-    setPayMethod("Cash");
-    setPayRef("");
-    setPayNotes("");
-    setPayFile(null);
-
-    setEditingPaymentId(null);
-
-    await loadPaymentsFor(id);
-  };
-
-  const startCreate = () => {
-    setWizardStep(1);
-    setDraft({
-      orderType: "Job Order",
-      status: "OPEN",
-      vehicleType: "SUV_4X4",
-      customerName: "",
-      vatRate: 0,
-      discount: 0,
-      services: [],
-      documents: [],
-    });
-    setWizardOpen(true);
-  };
-
-  const startEdit = (id: string) => {
-    const row = orders.find((x) => (x as any).id === id);
-    if (!row) return;
-
-    const d = rowToPayload(row);
-
-    setDraft(d);
-    setWizardStep(1);
-    setWizardOpen(true);
-  };
-
-  const savePayload = async (payload: OrderPayload) => {
-    setStatus("");
-    setLoading(true);
-
-    try {
-      const clean: OrderPayload = {
-        ...payload,
-        customerName: String(payload.customerName ?? "").trim(),
-        customerPhone: String(payload.customerPhone ?? "").trim() || undefined,
-        customerEmail: String(payload.customerEmail ?? "").trim() || undefined,
-        plateNumber: String(payload.plateNumber ?? "").trim() || undefined,
-        vehicleMake: String(payload.vehicleMake ?? "").trim() || undefined,
-        vehicleModel: String(payload.vehicleModel ?? "").trim() || undefined,
-        vin: String(payload.vin ?? "").trim() || undefined,
-        mileage: String(payload.mileage ?? "").trim() || undefined,
-        color: String(payload.color ?? "").trim() || undefined,
-        notes: String(payload.notes ?? "").trim() || undefined,
-        services: (payload.services ?? []).map((s) => ({
-          ...s,
-          name: String(s.name ?? "").trim(),
-          category: String(s.category ?? "").trim() || undefined,
-          technician: String(s.technician ?? "").trim() || undefined,
-          notes: String(s.notes ?? "").trim() || undefined,
-          qty: Math.max(1, toNum(s.qty)),
-          unitPrice: Math.max(0, toNum(s.unitPrice)),
-        })),
-        documents: (payload.documents ?? []).map((d) => ({
-          ...d,
-          title: String(d.title ?? "").trim(),
-          url: String(d.url ?? "").trim(),
-          type: String(d.type ?? "").trim() || undefined,
-          addedAt: String(d.addedAt ?? "").trim() || new Date().toISOString(),
-          storagePath: String(d.storagePath ?? "").trim() || undefined,
-          fileName: String(d.fileName ?? "").trim() || undefined,
-          contentType: String(d.contentType ?? "").trim() || undefined,
-          size: typeof d.size === "number" ? d.size : undefined,
-          linkedPaymentId: String(d.linkedPaymentId ?? "").trim() || undefined,
-          paymentMethod: String(d.paymentMethod ?? "").trim() || undefined,
-        })),
-        vatRate: Math.max(0, toNum(payload.vatRate)),
-        discount: Math.max(0, toNum(payload.discount)),
-      };
-
-      if (!clean.customerName) throw new Error("Customer name is required.");
-      if (!clean.services.length) throw new Error("Add at least one service.");
-
-      const res = await (client.mutations as any).jobOrderSave({
-        input: JSON.stringify(clean),
+  useEffect(() => {
+    if (navigationData?.openNewJob) {
+      setNewJobPrefill({
+        startStep: navigationData.startStep || 1,
+        customerData: navigationData.customerData || null,
+        vehicleData: navigationData.vehicleData || null,
       });
+      if (navigationData.source) setNavigationSource(navigationData.source);
+      if (navigationData.returnToVehicle) setReturnToVehicleId(navigationData.returnToVehicle);
 
-      if (res?.errors?.length) {
-        throw new Error(res.errors.map((e: any) => e.message).join(" | "));
-      }
+      setScreenState("newJob");
 
-      const out = res?.data as any;
-      const savedId = String(out?.id || clean.id || "");
-      const orderNumber = String(out?.orderNumber || clean.orderNumber || "");
+      const timer = setTimeout(() => {
+        if (onClearNavigation) onClearNavigation();
+      }, 100);
 
-      const action = clean.id ? "UPDATE" : "CREATE";
-      if (savedId) {
-        await logActivity("JobOrder", savedId, action, `Job order ${orderNumber} ${action.toLowerCase()}`);
-      }
-
-      setWizardOpen(false);
-
-      await load();
-      setStatus(clean.id ? "Job order updated." : "Job order created.");
-
-      if (detailsOpen && activeOrderId && activeOrderId === savedId) {
-        await refreshActiveOrder(savedId);
-      }
-    } catch (e: any) {
-      console.error(e);
-      setStatus(e?.message ?? "Save failed.");
-      throw e;
-    } finally {
-      setLoading(false);
+      return () => clearTimeout(timer);
     }
-  };
+  }, [navigationData, onClearNavigation]);
 
-  const saveDraft = async () => {
-    await savePayload(draft);
-  };
-
-  const saveFromDetails = async (next: OrderPayload) => {
-    setActivePayload(next);
-    setDraft(next);
-    await savePayload(next);
-  };
-
-  const removeOrder = async (id: string) => {
-    if (!permissions.canDelete) return;
-    if (!confirm("Delete this job order? This cannot be undone.")) return;
-
-    setStatus("");
-    setLoading(true);
-    try {
-      const res = await (client.mutations as any).jobOrderDelete({ id });
-
-      if (res?.errors?.length) throw new Error(res.errors.map((e: any) => e.message).join(" | "));
-
-      await logActivity("JobOrder", id, "DELETE", `Job order deleted`);
-      await load();
-      setStatus("Deleted.");
-      if (activeOrderId === id) {
-        setDetailsOpen(false);
-        setActiveOrderId(null);
-        setActivePayload(null);
-        setActivePayments([]);
-      }
-    } catch (e: any) {
-      console.error(e);
-      setStatus(e?.message ?? "Delete failed.");
-    } finally {
-      setLoading(false);
+  const parseAmount = (value: any) => {
+    if (typeof value === "number") return value;
+    if (typeof value === "string") {
+      const cleaned = value.replace(/[^0-9.-]/g, "");
+      const parsed = parseFloat(cleaned);
+      return Number.isNaN(parsed) ? 0 : parsed;
     }
+    return 0;
   };
 
-  // -------- Storage helpers --------
-  const uploadFileToStorage = async (opts: { orderId: string; file: File; folder: "documents" | "payments" }) => {
-    const safe = sanitizeFileName(opts.file.name);
-    const ts = new Date().toISOString().replace(/[:.]/g, "-");
-    const storagePath = `job-orders/${opts.orderId}/${opts.folder}/${ts}_${safe}`;
+  const formatAmount = (value: any) => `QAR ${Number(value || 0).toLocaleString()}`;
 
-    // Upload to S3 via Amplify Storage
-    const task = uploadData({
-      path: storagePath,
-      data: opts.file,
-      options: {
-        contentType: opts.file.type || "application/octet-stream",
-      },
-    });
-    await task.result;
-
-    return {
-      storagePath,
-      fileName: opts.file.name,
-      contentType: opts.file.type || undefined,
-      size: opts.file.size,
-    };
-  };
-
-  const openStoragePathInNewTab = async (storagePath: string) => {
-    const link = await getUrl({
-      path: storagePath,
-      options: {
-        expiresIn: 60 * 30, // 30 minutes
-        validateObjectExistence: true,
-      },
-    });
-
-    const signed = String((link as any)?.url ?? "");
-    if (!signed) throw new Error("Could not create download URL.");
-
-    window.open(signed, "_blank", "noopener,noreferrer");
-  };
-
-  const openDoc = async (d: DocLine) => {
-    const external = String(d.url ?? "").trim();
-    if (d.storagePath) {
-      await openStoragePathInNewTab(d.storagePath);
+  // ✅ Add service submit with ErrorPopup + SuccessPopup
+  const handleAddServiceSubmit = async ({ selectedServices, discountPercent }: any) => {
+    if (!currentAddServiceOrder || !selectedServices || selectedServices.length === 0) {
+      setScreenState("details");
       return;
     }
-    // legacy support: if url is not http, treat it as storage path
-    if (external && !isHttpUrl(external)) {
-      await openStoragePathInNewTab(external);
-      return;
-    }
-    if (external && isHttpUrl(external)) {
-      window.open(external, "_blank", "noopener,noreferrer");
-      return;
-    }
-    throw new Error("Document has no URL/path.");
-  };
 
-  // -------- Payments actions --------
-  const addPayment = async (
-    jobOrderId: string,
-    amount: number,
-    method: string,
-    reference: string,
-    paidAt: string,
-    notes?: string
-  ) => {
-    if (!permissions.canUpdate) return;
+    const now = new Date();
+    const year = now.getFullYear();
+    const invoiceNumber = `INV-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
+    const billId =
+      currentAddServiceOrder.billing?.billId ||
+      `BILL-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
 
-    setStatus("");
-    setPaymentsLoading(true);
-    try {
-      const res = await (client.mutations as any).jobOrderPaymentCreate({
-        jobOrderId,
-        amount,
-        method,
-        reference,
-        paidAt,
-        notes: notes || "",
-      });
-      if (res?.errors?.length) throw new Error(res.errors.map((e: any) => e.message).join(" | "));
+    const subtotal = selectedServices.reduce((sum: number, s: any) => sum + (s.price || 0), 0);
+    const discount = (subtotal * (discountPercent || 0)) / 100;
+    const netAmount = subtotal - discount;
 
-      await logActivity(
-        "JobOrder",
-        String(res?.data?.jobOrderId ?? activeOrderId ?? ""),
-        "CREATE",
-        `Payment added: ${amount.toFixed(2)} QAR`
-      );
+    const existingTotal = parseAmount(currentAddServiceOrder.billing?.totalAmount);
+    const existingDiscount = parseAmount(currentAddServiceOrder.billing?.discount);
+    const existingNet = parseAmount(currentAddServiceOrder.billing?.netAmount);
+    const existingPaid = parseAmount(currentAddServiceOrder.billing?.amountPaid);
 
-      await loadPaymentsFor(jobOrderId);
-      await refreshActiveOrder(jobOrderId);
-      await load();
-      setStatus("Payment added.");
-    } catch (e: any) {
-      console.error(e);
-      setStatus(e?.message ?? "Failed to add payment.");
-      throw e;
-    } finally {
-      setPaymentsLoading(false);
-    }
-  };
-
-  const updatePayment = async (payload: {
-    id: string;
-    amount: number;
-    method?: string;
-    reference?: string;
-    paidAt?: string;
-    notes?: string;
-  }) => {
-    if (!permissions.canUpdate) return;
-
-    setStatus("");
-    setPaymentsLoading(true);
-    try {
-      const res = await (client.mutations as any).jobOrderPaymentUpdate({
-        id: payload.id,
-        amount: payload.amount,
-        method: payload.method ?? "",
-        reference: payload.reference ?? "",
-        paidAt: payload.paidAt ?? "",
-        notes: payload.notes ?? "",
-      });
-      if (res?.errors?.length) throw new Error(res.errors.map((e: any) => e.message).join(" | "));
-
-      const jobOrderId = String(res?.data?.jobOrderId ?? activeOrderId ?? "");
-      await logActivity("JobOrder", jobOrderId, "UPDATE", `Payment updated`);
-
-      if (jobOrderId) {
-        await loadPaymentsFor(jobOrderId);
-        await refreshActiveOrder(jobOrderId);
-        await load();
-      }
-
-      setStatus("Payment updated.");
-    } catch (e: any) {
-      console.error(e);
-      setStatus(e?.message ?? "Failed to update payment.");
-    } finally {
-      setPaymentsLoading(false);
-    }
-  };
-
-  const deletePayment = async (paymentId: string) => {
-    if (!permissions.canDelete) return;
-    if (!confirm("Delete this payment entry?")) return;
-
-    setStatus("");
-    setPaymentsLoading(true);
-    try {
-      const res = await (client.mutations as any).jobOrderPaymentDelete({
-        id: paymentId,
-      });
-      if (res?.errors?.length) throw new Error(res.errors.map((e: any) => e.message).join(" | "));
-
-      const jobOrderId = String(res?.data?.jobOrderId ?? activeOrderId ?? "");
-
-      await logActivity("JobOrder", String(activeOrderId ?? ""), "DELETE", `Payment deleted`);
-
-      if (jobOrderId) {
-        await loadPaymentsFor(jobOrderId);
-        await refreshActiveOrder(jobOrderId);
-        await load();
-      }
-
-      setStatus("Payment deleted.");
-    } catch (e: any) {
-      console.error(e);
-      setStatus(e?.message ?? "Failed to delete payment.");
-    } finally {
-      setPaymentsLoading(false);
-    }
-  };
-
-  const totalsPreview = useMemo(() => computeTotalsFromServices(draft), [draft]);
-
-  // -------- Documents actions (Details screen) --------
-  const addDocumentLink = async (title: string, url: string) => {
-    if (!permissions.canUpdate || !activePayload?.id) return;
-    const nextDocs: DocLine[] = [
-      ...(activePayload.documents ?? []),
-      {
-        id: uid("doc"),
-        title,
-        url,
-        type: "Link",
-        addedAt: new Date().toISOString(),
-      },
-    ];
-    const next = { ...activePayload, documents: nextDocs };
-    await saveFromDetails(next);
-  };
-
-  const addDocumentUpload = async (title: string, file: File) => {
-    if (!permissions.canUpdate || !activePayload?.id) return;
-
-    setDocUploading(true);
-    try {
-      const meta = await uploadFileToStorage({
-        orderId: activePayload.id,
-        file,
-        folder: "documents",
-      });
-
-      const nextDocs: DocLine[] = [
-        ...(activePayload.documents ?? []),
+    const updatedBilling = {
+      billId,
+      totalAmount: formatAmount(existingTotal + subtotal),
+      discount: formatAmount(existingDiscount + discount),
+      netAmount: formatAmount(existingNet + netAmount),
+      amountPaid: formatAmount(existingPaid),
+      balanceDue: formatAmount(existingNet + netAmount - existingPaid),
+      paymentMethod: currentAddServiceOrder.billing?.paymentMethod || null,
+      invoices: [
+        ...(currentAddServiceOrder.billing?.invoices || []),
         {
-          id: uid("doc"),
-          title: title || file.name,
-          url: meta.storagePath, // keep legacy compatibility
-          storagePath: meta.storagePath,
-          type: "File",
-          addedAt: new Date().toISOString(),
-          fileName: meta.fileName,
-          contentType: meta.contentType,
-          size: meta.size,
+          number: invoiceNumber,
+          amount: formatAmount(netAmount),
+          discount: formatAmount(discount),
+          status: "Unpaid",
+          paymentMethod: null,
+          services: selectedServices.map((s: any) => s.name),
         },
-      ];
+      ],
+    };
 
-      const next = { ...activePayload, documents: nextDocs };
-      await saveFromDetails(next);
+    const newServiceEntries = selectedServices.map((service: any) => ({
+      name: service.name,
+      price: service.price || 0,
+      status: "New",
+      started: "Not started",
+      ended: "Not completed",
+      duration: "Not started",
+      technician: "Not assigned",
+      notes: "Added from Job Order details",
+    }));
 
-      setDocTitle("");
-      setDocUrl("");
-      setDocFile(null);
-      setStatus("Document uploaded.");
-    } catch (e: any) {
+    const updatedOrder = {
+      ...currentAddServiceOrder,
+      services: [...(currentAddServiceOrder.services || []), ...newServiceEntries],
+      billing: updatedBilling,
+    };
+
+    try {
+      setLoadingOrders(true);
+
+      const { backendId } = await upsertJobOrder(updatedOrder);
+      updatedOrder._backendId = backendId;
+
+      await refreshMainOrders();
+
+      setCurrentDetailsOrder(updatedOrder);
+      setCurrentAddServiceOrder(updatedOrder);
+
+      setAddServiceSuccessData({ orderId: currentAddServiceOrder.id, invoiceId: invoiceNumber });
+      setShowAddServiceSuccessPopup(true);
+      setLastAction("addService");
+
+      setTimeout(() => setScreenState("details"), 50);
+    } catch (e) {
       console.error(e);
-      setStatus(e?.message ?? "Failed to upload document.");
+      showError({
+        title: "Add services failed",
+        message: (
+          <div>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>Could not add services to this job order.</div>
+            <div>{errMsg(e)}</div>
+          </div>
+        ),
+        details: String((e as any)?.stack ?? ""),
+        onRetry: () => void handleAddServiceSubmit({ selectedServices, discountPercent }),
+      });
+      setScreenState("details");
     } finally {
-      setDocUploading(false);
+      setLoadingOrders(false);
     }
   };
 
-  const removeDocument = async (docId: string) => {
-    if (!permissions.canUpdate || !activePayload?.id) return;
-    if (!confirm("Remove this document from the job order?")) return;
+  // ✅ Cancel: uses ErrorPopup + refresh
+  const handleCancelOrder = async () => {
+    if (!cancelOrderId) return;
 
-    const nextDocs = (activePayload.documents ?? []).filter((d) => d.id !== docId);
-    const next = { ...activePayload, documents: nextDocs };
-    await saveFromDetails(next);
-    setStatus("Document removed.");
+    const orderToCancel = demoOrders.find((o) => o.id === cancelOrderId);
+    if (!orderToCancel) {
+      showError({
+        title: "Cancel failed",
+        message: "Order not found in the current list. Please refresh and try again.",
+        onRetry: () => void refreshMainOrders(),
+      });
+      return;
+    }
+
+    if (orderToCancel.workStatus === "Cancelled") {
+      showError({
+        title: "Already cancelled",
+        message: `Job Order ${cancelOrderId} is already cancelled.`,
+      });
+      setShowCancelConfirmation(false);
+      setCancelOrderId(null);
+      return;
+    }
+
+    try {
+      setLoadingOrders(true);
+
+      await cancelJobOrderByOrderNumber(cancelOrderId);
+      await refreshMainOrders();
+
+      setSubmittedOrderId(cancelOrderId);
+      setLastAction("cancel");
+      setShowSuccessPopup(true);
+    } catch (e) {
+      console.error(e);
+      showError({
+        title: "Cancel failed",
+        message: (
+          <div>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>Could not cancel this job order.</div>
+            <div>{errMsg(e)}</div>
+          </div>
+        ),
+        details: String((e as any)?.stack ?? ""),
+        onRetry: () => void handleCancelOrder(),
+      });
+    } finally {
+      setShowCancelConfirmation(false);
+      setCancelOrderId(null);
+      setLoadingOrders(false);
+    }
   };
 
-  // ---------- UI ----------
+  const filteredOrders = demoOrders.filter((order) => {
+    const allowedStatuses = ["New Request", "Inspection", "Inprogress", "Quality Check", "Ready"];
+    if (!allowedStatuses.includes(order.workStatus)) return false;
+
+    if (!searchQuery) return true;
+    const query = searchQuery.toLowerCase();
+    return (
+      String(order.id || "").toLowerCase().includes(query) ||
+      String(order.customerName || "").toLowerCase().includes(query) ||
+      String(order.mobile || "").toLowerCase().includes(query) ||
+      String(order.vehiclePlate || "").toLowerCase().includes(query) ||
+      String(order.workStatus || "").toLowerCase().includes(query)
+    );
+  });
+
+  const paginatedOrders = filteredOrders.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+
   return (
-    <div className="jom-page">
-      {portalDropdown}
-
-      <div className="jom-header">
-        <div className="jom-title">
-          <div className="jom-badge">≡</div>
-          <div>
-            <h2>Job Orders</h2>
-            <p>Search, create, and manage job orders (services, billing, documents).</p>
-          </div>
-        </div>
-
-        <div className="jom-header-actions">
-          <select className="jom-select" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}>
-            <option value="ALL">All statuses</option>
-            <option value="DRAFT">Draft</option>
-            <option value="OPEN">Open</option>
-            <option value="IN_PROGRESS">In progress</option>
-            <option value="READY">Ready</option>
-            <option value="COMPLETED">Completed</option>
-            <option value="CANCELLED">Cancelled</option>
-          </select>
-
-          <div className="jom-search-wrap">
-            <span className="jom-search-ico" aria-hidden>
-              🔎
-            </span>
-            <input
-              className="jom-search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search order no, customer, phone, plate..."
-            />
-          </div>
-
-          {permissions.canCreate && (
-            <button className="jom-add" onClick={startCreate}>
-              <span aria-hidden>+</span> New Job Order
-            </button>
-          )}
-
-          <Button onClick={load} isLoading={loading}>
-            Refresh
-          </Button>
-        </div>
-      </div>
-
-      {status && <div className="jom-status">{status}</div>}
-
-      <div className="jom-card">
-        {/* Desktop table */}
-        <div className="jom-table-scroll">
-          <table className="jom-table">
-            <thead>
-              <tr>
-                <th>Order #</th>
-                <th>Customer</th>
-                <th>Phone</th>
-                <th>Vehicle</th>
-                <th>Plate</th>
-                <th>Status</th>
-                <th>Payment</th>
-                <th className="right">Total (QAR)</th>
-                <th className="right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((o) => (
-                <tr
-                  key={(o as any).id}
-                  onDoubleClick={() => openDetails(String((o as any).id))}
-                  title="Double-click to view details"
-                >
-                  <td className="mono">{(o as any).orderNumber}</td>
-                  <td className="strong">{(o as any).customerName}</td>
-                  <td>{(o as any).customerPhone ?? "—"}</td>
-                  <td>
-                    {[(o as any).vehicleMake, (o as any).vehicleModel].filter(Boolean).join(" ") || "—"}
-                  </td>
-                  <td>{(o as any).plateNumber ?? "—"}</td>
-                  <td>
-                    <span className={`pill st-${String((o as any).status ?? "").toLowerCase()}`}>
-                      {String((o as any).status ?? "—")}
-                    </span>
-                  </td>
-                  <td>
-                    <span className={`pill pay-${String((o as any).paymentStatus ?? "").toLowerCase()}`}>
-                      {String((o as any).paymentStatus ?? "—")}
-                    </span>
-                  </td>
-                  <td className="right">
-                    {(() => {
-                      const bal = getRowBalance(o);
-                      const hasAnyMoneyField =
-                        (o as any).balanceDue !== undefined ||
-                        (o as any).totalAmount !== undefined ||
-                        (o as any).amountPaid !== undefined;
-
-                      return hasAnyMoneyField ? bal.toFixed(2) : "—";
-                    })()}
-                  </td>
-
-                  <td className="right">
-                    <button
-                      className="jom-actions-btn"
-                      type="button"
-                      data-jom-menu-btn={String((o as any).id)}
-                      onClick={(e) => {
-                        const el = e.currentTarget as HTMLElement;
-                        if (menu.open && menu.orderId === String((o as any).id)) setMenu({ open: false });
-                        else openActionsMenu(String((o as any).id), el);
-                      }}
-                    >
-                      Actions{" "}
-                      <span className="caret" aria-hidden>
-                        ▾
-                      </span>
-                    </button>
-                  </td>
-                </tr>
-              ))}
-              {!filtered.length && (
-                <tr>
-                  <td colSpan={9} className="empty">
-                    No job orders found.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Mobile list (design-only alternative layout) */}
-        <div className="jom-mobile-list">
-          {filtered.map((o) => {
-            const id = String((o as any).id);
-            const orderNumber = String((o as any).orderNumber ?? "—");
-            const customerName = String((o as any).customerName ?? "—");
-            const phone = String((o as any).customerPhone ?? "—");
-            const plate = String((o as any).plateNumber ?? "—");
-            const vehicle =
-              [String((o as any).vehicleMake ?? ""), String((o as any).vehicleModel ?? "")]
-                .filter(Boolean)
-                .join(" ")
-                .trim() || "—";
-
-            const st = String((o as any).status ?? "").toLowerCase();
-            const pay = String((o as any).paymentStatus ?? "").toLowerCase();
-
-            const bal = getRowBalance(o);
-            const hasAnyMoneyField =
-              (o as any).balanceDue !== undefined ||
-              (o as any).totalAmount !== undefined ||
-              (o as any).amountPaid !== undefined;
-
-            return (
-              <div key={id} className="jom-mcard">
-                <div className="jom-mtop">
-                  <div className="jom-mleft">
-                    <div className="jom-morder mono">{orderNumber}</div>
-                    <div className="jom-mname">{customerName}</div>
-                    <div className="jom-mmeta">
-                      {phone} • {vehicle} • Plate: {plate}
-                    </div>
-                  </div>
-
-                  <div className="jom-mright">
-                    <button className="jom-mview" onClick={() => openDetails(id)}>
-                      View
-                    </button>
-
-                    <button
-                      className="jom-actions-btn"
-                      type="button"
-                      data-jom-menu-btn={id}
-                      onClick={(e) => {
-                        const el = e.currentTarget as HTMLElement;
-                        if (menu.open && menu.orderId === id) setMenu({ open: false });
-                        else openActionsMenu(id, el);
-                      }}
-                    >
-                      ⋯
-                    </button>
-                  </div>
-                </div>
-
-                <div className="jom-mpills">
-                  <span className={`pill st-${st}`}>{String((o as any).status ?? "—")}</span>
-                  <span className={`pill pay-${pay}`}>{String((o as any).paymentStatus ?? "—")}</span>
-                </div>
-
-                <div className="jom-mmoney">
-                  <span>Balance</span>
-                  <b>{hasAnyMoneyField ? `${bal.toFixed(2)} QAR` : "—"}</b>
-                </div>
-              </div>
-            );
-          })}
-
-          {!filtered.length && <div className="muted">No job orders found.</div>}
-        </div>
-
-        <div className="jom-footnote">
-          Permissions are enforced in UI and also server-side for Create/Update/Delete through the{" "}
-          <b>jobOrderSave</b> / <b>jobOrderDelete</b> functions (RBAC policy key: <b>JOB_CARDS</b>). Payments are stored
-          in a separate model (<b>JobOrderPayment</b>) for reporting/audits.
-        </div>
-      </div>
-
-      {/* Details screen */}
-      {detailsOpen && activePayload && (
-        <div className="jom-overlay" role="dialog" aria-modal="true">
-          <div className="jom-details">
-            <div className="jom-details-head">
-              <div className="left">
-                <button
-                  className="icon-btn"
-                  onClick={() => {
-                    setDetailsOpen(false);
-                    setActivePayments([]);
-                    setEditingPaymentId(null);
-                  }}
-                  aria-label="Close"
-                >
-                  ✕
-                </button>
-                <div>
-                  <div className="kicker">Job Order</div>
-                  <div className="headline">{activePayload.orderNumber || "—"}</div>
-                  <div className="subline">
-                    <span className={`pill st-${activePayload.status.toLowerCase()}`}>{activePayload.status}</span>
-                    <span
-                      className={`pill pay-${String(
-                        activePayload.totals?.paymentStatus ?? activePayload.paymentStatus ?? "UNPAID"
-                      ).toLowerCase()}`}
-                    >
-                      {String(activePayload.totals?.paymentStatus ?? activePayload.paymentStatus ?? "UNPAID")}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="right">
-                {permissions.canUpdate && (
-                  <button
-                    className="primary"
-                    onClick={() => {
-                      setDetailsOpen(false);
-                      startEdit(activePayload.id!);
-                    }}
-                  >
-                    Edit
-                  </button>
-                )}
-                {permissions.canDelete && (
-                  <button className="danger" onClick={() => void removeOrder(activePayload.id!)}>
-                    Delete
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="jom-details-body">
-              <div className="grid">
-                <div className="card">
-                  <div className="card-title">Customer</div>
-                  <div className="rows">
-                    <div className="row">
-                      <span>Name</span>
-                      <b>{activePayload.customerName}</b>
-                    </div>
-                    <div className="row">
-                      <span>Phone</span>
-                      <b>{activePayload.customerPhone || "—"}</b>
-                    </div>
-                    <div className="row">
-                      <span>Email</span>
-                      <b>{activePayload.customerEmail || "—"}</b>
-                    </div>
-                  </div>
-
-                  {activePayload.customerId && (
-                    <div className="hint">
-                      Linked to customer record: <span className="mono">{activePayload.customerId}</span>
-                    </div>
-                  )}
-                </div>
-
-                <div className="card">
-                  <div className="card-title">Vehicle</div>
-                  <div className="rows">
-                    <div className="row">
-                      <span>Type</span>
-                      <b>{activePayload.vehicleType}</b>
-                    </div>
-                    <div className="row">
-                      <span>Make / Model</span>
-                      <b>
-                        {[activePayload.vehicleMake, activePayload.vehicleModel].filter(Boolean).join(" ") || "—"}
-                      </b>
-                    </div>
-                    <div className="row">
-                      <span>Plate</span>
-                      <b>{activePayload.plateNumber || "—"}</b>
-                    </div>
-                    <div className="row">
-                      <span>VIN</span>
-                      <b>{activePayload.vin || "—"}</b>
-                    </div>
-                    <div className="row">
-                      <span>Mileage</span>
-                      <b>{activePayload.mileage || "—"}</b>
-                    </div>
-                    <div className="row">
-                      <span>Color</span>
-                      <b>{activePayload.color || "—"}</b>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="card">
-                  <div className="card-title">Billing</div>
-                  {(() => {
-                    const t = activePayload.totals;
-                    const total = t?.totalAmount ?? 0;
-                    const amountPaid = t?.amountPaid ?? 0;
-                    const balance = t?.balanceDue ?? 0;
-                    return (
-                      <>
-                        <div className="rows">
-                          <div className="row">
-                            <span>Subtotal</span>
-                            <b>{toNum(t?.subtotal).toFixed(2)} QAR</b>
-                          </div>
-                          <div className="row">
-                            <span>Discount</span>
-                            <b>{toNum(t?.discount).toFixed(2)} QAR</b>
-                          </div>
-                          <div className="row">
-                            <span>VAT</span>
-                            <b>{toNum(t?.vatAmount).toFixed(2)} QAR</b>
-                          </div>
-                          <div className="row">
-                            <span>Total</span>
-                            <b>{toNum(total).toFixed(2)} QAR</b>
-                          </div>
-                          <div className="row">
-                            <span>Paid</span>
-                            <b>{toNum(amountPaid).toFixed(2)} QAR</b>
-                          </div>
-                          <div className="row">
-                            <span>Balance</span>
-                            <b>{toNum(balance).toFixed(2)} QAR</b>
-                          </div>
-                        </div>
-                        {permissions.canUpdate && (
-                          <div className="inline">
-                            <label>Order status</label>
-                            <select
-                              value={activePayload.status}
-                              onChange={(e) => {
-                                const next = { ...activePayload, status: e.target.value as OrderStatus };
-                                void saveFromDetails(next);
-                              }}
-                            >
-                              <option value="DRAFT">DRAFT</option>
-                              <option value="OPEN">OPEN</option>
-                              <option value="IN_PROGRESS">IN_PROGRESS</option>
-                              <option value="READY">READY</option>
-                              <option value="COMPLETED">COMPLETED</option>
-                              <option value="CANCELLED">CANCELLED</option>
-                            </select>
-                          </div>
-                        )}
-                      </>
-                    );
-                  })()}
-                </div>
-              </div>
-
-              {/* Services */}
-              <div className="card wide">
-                <div className="card-title">Services</div>
-
-                <div className="table-mini">
-                  <div className="thead">
-                    <div>Service</div>
-                    <div>Qty</div>
-                    <div>Unit</div>
-                    <div>Status</div>
-                    <div className="right">Line Total</div>
-                    <div />
-                  </div>
-
-                  {(activePayload.services ?? []).map((s, idx) => (
-                    <div className="trow" key={s.id || idx}>
-                      <div>
-                        <div className="strong">{s.name}</div>
-                        <div className="muted">{s.category || "—"}</div>
-                      </div>
-                      <div>{s.qty}</div>
-                      <div>{toNum(s.unitPrice).toFixed(2)}</div>
-                      <div>
-                        {permissions.canUpdate ? (
-                          <select
-                            value={s.status}
-                            onChange={(e) => {
-                              const nextServices = [...activePayload.services];
-                              nextServices[idx] = { ...s, status: e.target.value as any };
-                              const next = { ...activePayload, services: nextServices };
-                              void saveFromDetails(next);
-                            }}
-                          >
-                            <option value="PENDING">PENDING</option>
-                            <option value="IN_PROGRESS">IN_PROGRESS</option>
-                            <option value="DONE">DONE</option>
-                            <option value="CANCELLED">CANCELLED</option>
-                          </select>
-                        ) : (
-                          <span className="pill">{s.status}</span>
-                        )}
-                      </div>
-                      <div className="right">{(toNum(s.qty) * toNum(s.unitPrice)).toFixed(2)}</div>
-                      <div className="right">
-                        {permissions.canUpdate && (
-                          <button
-                            className="link danger"
-                            onClick={() => {
-                              const nextServices = activePayload.services.filter((_, i) => i !== idx);
-                              const next = { ...activePayload, services: nextServices };
-                              void saveFromDetails(next);
-                            }}
-                          >
-                            Remove
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-
-                  {!activePayload.services?.length && <div className="empty-mini">No services yet.</div>}
-                </div>
-
-                {permissions.canUpdate && (
-                  <div className="add-line">
-                    <select
-                      className="input"
-                      defaultValue=""
-                      onChange={(e) => {
-                        const name = e.target.value;
-                        if (!name) return;
-                        const p = YOUR_PRODUCTS.find((x) => x.name === name);
-                        const isSUV = activePayload.vehicleType !== "SEDAN";
-                        const unitPrice = p ? (isSUV ? p.suvPrice : p.sedanPrice) : 0;
-
-                        const nextServices = [
-                          ...(activePayload.services ?? []),
-                          {
-                            id: uid("svc"),
-                            name,
-                            qty: 1,
-                            unitPrice,
-                            status: "PENDING" as const,
-                          },
-                        ];
-                        const next = { ...activePayload, services: nextServices };
-                        void saveFromDetails(next);
-                        e.currentTarget.value = "";
-                      }}
-                    >
-                      <option value="">+ Add service from catalog…</option>
-                      {YOUR_PRODUCTS.map((p) => (
-                        <option key={p.name} value={p.name}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
-
-                    <button
-                      className="secondary"
-                      onClick={() => {
-                        const nextServices = [
-                          ...(activePayload.services ?? []),
-                          {
-                            id: uid("svc"),
-                            name: "Custom Service",
-                            qty: 1,
-                            unitPrice: 0,
-                            status: "PENDING" as const,
-                          },
-                        ];
-                        const next = { ...activePayload, services: nextServices };
-                        void saveFromDetails(next);
-                      }}
-                    >
-                      + Custom
-                    </button>
-                  </div>
-                )}
-              </div>
-
-              {/* Payments */}
-              <div className="card wide">
-                <div className="card-title">Payments</div>
-
-                <div className="payments">
-                  {paymentsLoading && <div className="muted">Loading payments…</div>}
-
-                  {(activePayments ?? []).map((p) => {
-                    const pid = String((p as any).id);
-                    const isEditing = editingPaymentId === pid;
-
-                    return (
-                      <div className="pay" key={pid}>
-                        {!isEditing ? (
-                          <>
-                            <div className="strong">{toNum((p as any).amount).toFixed(2)} QAR</div>
-                            <div className="muted">
-                              {(p as any).method || "—"} • {(p as any).reference || "—"}
-                            </div>
-                            <div className="muted">
-                              {(p as any).paidAt ? new Date(String((p as any).paidAt)).toLocaleString() : "—"}
-                              {(p as any).notes ? ` • ${(p as any).notes}` : ""}
-                            </div>
-
-                            <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-                              {permissions.canUpdate && (
-                                <button
-                                  className="link"
-                                  onClick={() => {
-                                    setEditingPaymentId(pid);
-                                    setEditPayAmount(String(toNum((p as any).amount)));
-                                    setEditPayMethod(String((p as any).method ?? "Cash") || "Cash");
-                                    setEditPayRef(String((p as any).reference ?? ""));
-                                    setEditPayNotes(String((p as any).notes ?? ""));
-                                    setEditPayAt(String((p as any).paidAt ?? ""));
-                                  }}
-                                >
-                                  Edit
-                                </button>
-                              )}
-                              {permissions.canDelete && (
-                                <button className="link danger" onClick={() => void deletePayment(pid)}>
-                                  Remove
-                                </button>
-                              )}
-                            </div>
-                          </>
-                        ) : (
-                          <>
-                            {/* design-only: replaced fixed inline grid with responsive class grids */}
-                            <div className="pay-edit-grid1">
-                              <input
-                                className="input"
-                                type="number"
-                                value={editPayAmount}
-                                onChange={(e) => setEditPayAmount(e.target.value)}
-                                placeholder="Amount"
-                              />
-                              <select
-                                className="input"
-                                value={editPayMethod}
-                                onChange={(e) => setEditPayMethod(e.target.value)}
-                              >
-                                {METHODS.map((m) => (
-                                  <option key={m} value={m}>
-                                    {m}
-                                  </option>
-                                ))}
-                              </select>
-                              <input
-                                className="input"
-                                value={editPayRef}
-                                onChange={(e) => setEditPayRef(e.target.value)}
-                                placeholder="Reference"
-                              />
-                            </div>
-
-                            <div className="pay-edit-grid2">
-                              <input
-                                className="input"
-                                value={editPayNotes}
-                                onChange={(e) => setEditPayNotes(e.target.value)}
-                                placeholder="Notes (optional)"
-                              />
-                              <input
-                                className="input"
-                                value={editPayAt}
-                                onChange={(e) => setEditPayAt(e.target.value)}
-                                placeholder="paidAt (ISO or leave)"
-                              />
-                            </div>
-
-                            <div className="pay-actions">
-                              <button
-                                className="secondary"
-                                disabled={paymentsLoading}
-                                onClick={() => {
-                                  const amt = Math.max(0, toNum(editPayAmount));
-                                  if (!amt) {
-                                    setStatus("Payment amount must be > 0.");
-                                    return;
-                                  }
-                                  void updatePayment({
-                                    id: pid,
-                                    amount: amt,
-                                    method: editPayMethod,
-                                    reference: editPayRef,
-                                    notes: editPayNotes,
-                                    paidAt: editPayAt,
-                                  });
-                                  setEditingPaymentId(null);
-                                }}
-                              >
-                                Save
-                              </button>
-                              <button className="link" onClick={() => setEditingPaymentId(null)}>
-                                Cancel
-                              </button>
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    );
-                  })}
-
-                  {!paymentsLoading && !activePayments?.length && <div className="muted">No payments recorded.</div>}
-                </div>
-
-                {/* Add payment */}
-                {permissions.canUpdate && activePayload.id && (
-                  <div className="add-payment">
-                    {/* design-only: replaced fixed inline grid with responsive class grids */}
-                    <div className="pay-add-grid1">
-                      <input
-                        className="input"
-                        type="number"
-                        placeholder="Amount (QAR)"
-                        value={payAmount}
-                        onChange={(e) => setPayAmount(e.target.value)}
-                      />
-                      <select
-                        className="input"
-                        value={payMethod}
-                        onChange={(e) => {
-                          setPayMethod(e.target.value);
-                        }}
-                      >
-                        {METHODS.map((m) => (
-                          <option key={m} value={m}>
-                            {m}
-                          </option>
-                        ))}
-                      </select>
-                      <input
-                        className="input"
-                        placeholder="Reference (optional)"
-                        value={payRef}
-                        onChange={(e) => setPayRef(e.target.value)}
-                      />
-                    </div>
-
-                    <div className="pay-add-grid2">
-                      <input
-                        className="input"
-                        placeholder="Notes (optional)"
-                        value={payNotes}
-                        onChange={(e) => setPayNotes(e.target.value)}
-                      />
-
-                      <input
-                        className="input"
-                        type="file"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0] ?? null;
-                          setPayFile(f);
-                        }}
-                      />
-                    </div>
-
-                    <div className="pay-add-foot">
-                      <button
-                        className="secondary"
-                        disabled={!payAmount || paymentsLoading || payAttaching}
-                        onClick={async () => {
-                          const amt = Math.max(0, toNum(payAmount));
-                          if (!amt || !activePayload.id) return;
-
-                          // RULE: Bank Transfer requires receipt file
-                          if (payMethod === "Bank Transfer" && !payFile) {
-                            setStatus("Bank Transfer requires uploading a receipt file before submitting.");
-                            return;
-                          }
-
-                          setPayAttaching(true);
-                          try {
-                            // Upload optional/required receipt file first (if provided)
-                            let receiptDoc: DocLine | null = null;
-
-                            if (payFile) {
-                              const meta = await uploadFileToStorage({
-                                orderId: activePayload.id,
-                                file: payFile,
-                                folder: "payments",
-                              });
-
-                              receiptDoc = {
-                                id: uid("doc"),
-                                title:
-                                  (payMethod === "Bank Transfer" ? "Bank Transfer Receipt" : "Payment Attachment") +
-                                  ` • ${amt.toFixed(2)} QAR`,
-                                url: meta.storagePath,
-                                storagePath: meta.storagePath,
-                                type: "Payment Receipt",
-                                addedAt: new Date().toISOString(),
-                                fileName: meta.fileName,
-                                contentType: meta.contentType,
-                                size: meta.size,
-                                paymentMethod: payMethod,
-                              };
-                            }
-
-                            // Create payment record
-                            await addPayment(activePayload.id, amt, payMethod, payRef, new Date().toISOString(), payNotes);
-
-                            // If we uploaded a receipt, store it in JobOrder documents
-                            if (receiptDoc) {
-                              const nextDocs = [...(activePayload.documents ?? []), receiptDoc];
-                              const next = { ...activePayload, documents: nextDocs };
-                              await saveFromDetails(next);
-                            }
-
-                            setPayAmount("");
-                            setPayRef("");
-                            setPayNotes("");
-                            setPayFile(null);
-                          } finally {
-                            setPayAttaching(false);
-                          }
-                        }}
-                      >
-                        Add payment
-                      </button>
-
-                      <span className="hint">
-                        {payMethod === "Bank Transfer"
-                          ? "Receipt file is required for Bank Transfer."
-                          : "Attachment is optional for other methods."}
-                      </span>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Documents */}
-              <div className="card wide">
-                <div className="card-title">Documents</div>
-
-                <div className="docs">
-                  {(activePayload.documents ?? []).map((d) => (
-                    <div key={d.id} className="doc doc-row">
-                      <div className="doc-left">
-                        <div className="strong doc-title">{d.title}</div>
-                        <div className="muted">
-                          {d.type || "Link"} • {d.addedAt ? new Date(d.addedAt).toLocaleDateString() : "—"}
-                          {d.fileName ? ` • ${d.fileName}` : ""}
-                        </div>
-                      </div>
-
-                      <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                        <button
-                          className="link"
-                          onClick={async () => {
-                            try {
-                              await openDoc(d);
-                            } catch (e: any) {
-                              setStatus(e?.message ?? "Failed to open document.");
-                            }
-                          }}
-                        >
-                          Open
-                        </button>
-
-                        {permissions.canUpdate && (
-                          <button className="link danger" onClick={() => void removeDocument(d.id)}>
-                            Remove
-                          </button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-
-                  {!activePayload.documents?.length && <div className="muted">No documents added.</div>}
-                </div>
-
-                {permissions.canUpdate && (
-                  <div className="add-doc">
-                    <div className="add-doc-grid1">
-                      <input
-                        className="input"
-                        placeholder="Document title (optional)"
-                        value={docTitle}
-                        onChange={(e) => setDocTitle(e.target.value)}
-                      />
-                      <input
-                        className="input"
-                        type="file"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0] ?? null;
-                          setDocFile(f);
-                        }}
-                      />
-                    </div>
-
-                    <div className="add-doc-grid2">
-                      <input
-                        className="input"
-                        placeholder="OR paste a link (https://...)"
-                        value={docUrl}
-                        onChange={(e) => setDocUrl(e.target.value)}
-                      />
-                      <button
-                        className="secondary"
-                        disabled={docUploading || !activePayload.id}
-                        onClick={async () => {
-                          const title = String(docTitle ?? "").trim();
-                          const url = String(docUrl ?? "").trim();
-                          const file = docFile;
-
-                          if (file) {
-                            await addDocumentUpload(title, file);
-                            return;
-                          }
-                          if (title && url) {
-                            await addDocumentLink(title, url);
-                            setDocTitle("");
-                            setDocUrl("");
-                            setDocFile(null);
-                            setStatus("Document link added.");
-                            return;
-                          }
-
-                          setStatus("Upload a file OR provide Title + URL.");
-                        }}
-                      >
-                        {docUploading ? "Uploading..." : "Add"}
-                      </button>
-                    </div>
-
-                    <div className="hint">
-                      Upload a file to Storage (recommended) or add an external link. Stored files open via signed URL.
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
+    <div className="job-order-management">
+      {screenState === "main" && (
+        <MainScreen
+          orders={paginatedOrders}
+          searchQuery={searchQuery}
+          onSearchChange={setSearchQuery}
+          onViewDetails={async (order: any) => {
+            try {
+              const fresh = await getJobOrderByOrderNumber(order.id);
+              setCurrentDetailsOrder(fresh || order);
+              setScreenState("details");
+            } catch (e) {
+              console.error(e);
+              showError({
+                title: "Load details failed",
+                message: errMsg(e),
+                details: String((e as any)?.stack ?? ""),
+                onRetry: async () => {
+                  const fresh = await getJobOrderByOrderNumber(order.id);
+                  setCurrentDetailsOrder(fresh || order);
+                  setScreenState("details");
+                },
+              });
+            }
+          }}
+          onNewJob={() => setScreenState("newJob")}
+          currentPage={currentPage}
+          onPageChange={setCurrentPage}
+          pageSize={pageSize}
+          onPageSizeChange={setPageSize}
+          totalCount={filteredOrders.length}
+          onCancelOrder={(orderId: string) => {
+            setCancelOrderId(orderId);
+            setShowCancelConfirmation(true);
+          }}
+          loading={loadingOrders}
+        />
       )}
 
-{/* Wizard (Create/Edit) */}
-{wizardOpen && (
-  <div className="jom-overlay" role="dialog" aria-modal="true">
-    <div className="jom-wizard2">
-      {/* Top bar */}
-      <div className="wiz-topbar">
-        <div className="wiz-topbar-left">
-          <button className="icon-btn" onClick={() => setWizardOpen(false)} aria-label="Close">
-            ✕
-          </button>
-          <div>
-            <div className="wiz-title">{draft.id ? "Edit Job Order" : "Create New Job Order"}</div>
-            <div className="wiz-subtitle">Fill the details, review totals, then save.</div>
-          </div>
-        </div>
+      {screenState === "details" && currentDetailsOrder && (
+        <DetailsScreen
+          order={currentDetailsOrder}
+          onClose={() => setScreenState("main")}
+          onAddService={() => {
+            setCurrentAddServiceOrder(currentDetailsOrder);
+            setScreenState("addService");
+          }}
+        />
+      )}
 
-        <div className="wiz-topbar-right">
-          <div className="wiz-pill">
-            Step <b>{wizardStep}</b> / 4
+      {screenState === "newJob" && (
+        <NewJobScreen
+          currentUser={currentUser}
+          onClose={() => {
+            setScreenState("main");
+            setNewJobPrefill(null);
+            if (navigationSource && onNavigateBack) {
+              const vehicleId = returnToVehicleId;
+              setNavigationSource(null);
+              setReturnToVehicleId(null);
+              onNavigateBack(navigationSource, vehicleId);
+            }
+          }}
+          prefill={newJobPrefill}
+          onSubmit={async (newOrder: any) => {
+            setLoadingOrders(true);
+
+            const doCreate = async () => {
+              const out = await upsertJobOrder(newOrder);
+              newOrder._backendId = out?.backendId;
+
+              await refreshMainOrders();
+
+              setScreenState("main");
+              setSubmittedOrderId(String(newOrder.id || ""));
+              setLastAction("create");
+              setShowSuccessPopup(true);
+
+              setNewJobPrefill(null);
+              setNavigationSource(null);
+              setReturnToVehicleId(null);
+
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            };
+
+            try {
+              await doCreate();
+            } catch (e) {
+              console.error(e);
+              showError({
+                title: "Create job order failed",
+                message: (
+                  <div>
+                    <div style={{ fontWeight: 700, marginBottom: 6 }}>Your job order was not created.</div>
+                    <div>{errMsg(e)}</div>
+                  </div>
+                ),
+                details: String((e as any)?.stack ?? ""),
+                onRetry: () => void doCreate(),
+              });
+            } finally {
+              setLoadingOrders(false);
+            }
+          }}
+        />
+      )}
+
+      {screenState === "addService" && currentAddServiceOrder && (
+        <AddServiceScreen order={currentAddServiceOrder} onClose={() => setScreenState("details")} onSubmit={handleAddServiceSubmit} />
+      )}
+
+      {inspectionModalOpen && currentInspectionItem && (
+        <InspectionModal
+          item={currentInspectionItem}
+          onClose={() => {
+            setInspectionModalOpen(false);
+            setCurrentInspectionItem(null);
+          }}
+        />
+      )}
+
+      {/* ✅ Success Popup: Create / Cancel */}
+      {showSuccessPopup && (
+        <SuccessPopup
+          isVisible={true}
+          onClose={() => {
+            setShowSuccessPopup(false);
+            setLastAction("create");
+          }}
+          title={lastAction === "cancel" ? "Cancelled" : "Created"}
+          message={
+            lastAction === "cancel" ? (
+              <>
+                <span style={{ fontSize: "1.2rem", fontWeight: "bold", color: "#4CAF50", display: "block", marginBottom: "15px" }}>
+                  <i className="fas fa-check-circle"></i> Order Cancelled Successfully!
+                </span>
+                <span style={{ fontSize: "1.1rem", color: "#333", display: "block", marginTop: "10px" }}>
+                  <strong>Job Order ID:</strong>{" "}
+                  <span style={{ color: "#2196F3", fontWeight: "600" }}>{submittedOrderId}</span>
+                </span>
+                <span style={{ fontSize: "0.95rem", color: "#666", display: "block", marginTop: "8px" }}>
+                  This order is now marked as Cancelled.
+                </span>
+              </>
+            ) : (
+              <>
+                <span style={{ fontSize: "1.2rem", fontWeight: "bold", color: "#4CAF50", display: "block", marginBottom: "15px" }}>
+                  <i className="fas fa-check-circle"></i> Order Created Successfully!
+                </span>
+                <span style={{ fontSize: "1.1rem", color: "#333", display: "block", marginTop: "10px" }}>
+                  <strong>Job Order ID:</strong>{" "}
+                  <span style={{ color: "#2196F3", fontWeight: "600" }}>{submittedOrderId}</span>
+                </span>
+              </>
+            )
+          }
+          autoCloseMs={2200}
+        />
+      )}
+
+      {/* ✅ Add Service Success Popup */}
+      {showAddServiceSuccessPopup && (
+        <SuccessPopup
+          isVisible={true}
+          onClose={() => setShowAddServiceSuccessPopup(false)}
+          title="Services added"
+          message={
+            <>
+              <span style={{ fontSize: "1.2rem", fontWeight: "bold", color: "#4CAF50", display: "block", marginBottom: "15px" }}>
+                <i className="fas fa-check-circle"></i> Services Added Successfully!
+              </span>
+              <span style={{ fontSize: "1.05rem", color: "#333", display: "block", marginTop: "10px" }}>
+                <strong>Job Order ID:</strong>{" "}
+                <span style={{ color: "#2196F3", fontWeight: "600" }}>{addServiceSuccessData.orderId}</span>
+              </span>
+              <span style={{ fontSize: "1.05rem", color: "#333", display: "block", marginTop: "8px" }}>
+                <strong>New Invoice ID:</strong>{" "}
+                <span style={{ color: "#27ae60", fontWeight: "600" }}>{addServiceSuccessData.invoiceId}</span>
+              </span>
+            </>
+          }
+          autoCloseMs={2200}
+        />
+      )}
+
+      {/* ✅ Error Popup */}
+      <ErrorPopup
+        isVisible={errorOpen}
+        onClose={() => setErrorOpen(false)}
+        title={errorTitle}
+        message={errorMessage || "Unknown error"}
+        details={errorDetails}
+        onRetry={errorRetry}
+      />
+
+      {/* Cancel Confirmation Modal */}
+      <div className={`cancel-modal-overlay ${showCancelConfirmation && cancelOrderId ? "active" : ""}`}>
+        <div className="cancel-modal">
+          <div className="cancel-modal-header">
+            <h3>
+              <i className="fas fa-exclamation-triangle"></i> Confirm Cancellation
+            </h3>
+          </div>
+          <div className="cancel-modal-body">
+            <div className="cancel-warning">
+              <i className="fas fa-exclamation-circle"></i>
+              <div className="cancel-warning-text">
+                <p>
+                  You are about to cancel order <strong>{cancelOrderId}</strong>.
+                </p>
+                <p>This action cannot be undone.</p>
+              </div>
+            </div>
+            <div className="cancel-modal-actions">
+              <button
+                className="btn-cancel"
+                onClick={() => {
+                  setShowCancelConfirmation(false);
+                  setCancelOrderId(null);
+                }}
+              >
+                <i className="fas fa-times"></i> Keep Order
+              </button>
+              <button className="btn-confirm-cancel" onClick={handleCancelOrder} disabled={loadingOrders}>
+                <i className="fas fa-ban"></i> {loadingOrders ? "Cancelling..." : "Cancel Order"}
+              </button>
+            </div>
           </div>
         </div>
       </div>
-
-      {/* Body */}
-      <div className="wiz-body">
-        {/* Sidebar Stepper */}
-        <aside className="wiz-sidebar">
-          <div className="wiz-sidebar-card">
-            <div className="wiz-sidebar-head">Progress</div>
-
-            <button
-              className={`wiz-step ${wizardStep === 1 ? "active" : ""}`}
-              onClick={() => setWizardStep(1)}
-              type="button"
-            >
-              <div className="wiz-step-dot">{wizardStep > 1 ? "✓" : "1"}</div>
-              <div className="wiz-step-text">
-                <div className="wiz-step-title">Customer</div>
-                <div className="wiz-step-desc">Select or enter customer info</div>
-              </div>
-            </button>
-
-            <button
-              className={`wiz-step ${wizardStep === 2 ? "active" : ""}`}
-              onClick={() => setWizardStep(2)}
-              type="button"
-            >
-              <div className="wiz-step-dot">{wizardStep > 2 ? "✓" : "2"}</div>
-              <div className="wiz-step-text">
-                <div className="wiz-step-title">Vehicle</div>
-                <div className="wiz-step-desc">Vehicle identity & notes</div>
-              </div>
-            </button>
-
-            <button
-              className={`wiz-step ${wizardStep === 3 ? "active" : ""}`}
-              onClick={() => setWizardStep(3)}
-              type="button"
-            >
-              <div className="wiz-step-dot">{wizardStep > 3 ? "✓" : "3"}</div>
-              <div className="wiz-step-text">
-                <div className="wiz-step-title">Services</div>
-                <div className="wiz-step-desc">Add services & prices</div>
-              </div>
-            </button>
-
-            <button
-              className={`wiz-step ${wizardStep === 4 ? "active" : ""}`}
-              onClick={() => setWizardStep(4)}
-              type="button"
-            >
-              <div className="wiz-step-dot">4</div>
-              <div className="wiz-step-text">
-                <div className="wiz-step-title">Summary</div>
-                <div className="wiz-step-desc">Discount, VAT & final review</div>
-              </div>
-            </button>
-          </div>
-
-          <div className="wiz-sidebar-note">
-            Tip: You can jump between steps anytime. Totals update automatically.
-          </div>
-        </aside>
-
-        {/* Main content */}
-        <main className="wiz-content">
-          {wizardStep === 1 && (
-            <div className="wiz-card">
-              <div className="wiz-card-head">
-                <div>
-                  <h3>Customer</h3>
-                  <p>Link an existing customer or enter details manually.</p>
-                </div>
-              </div>
-
-              <div className="wiz-grid2">
-                <div className="wiz-field">
-                  <label>Link existing customer (optional)</label>
-                  <select
-                    className="wiz-input"
-                    value={draft.customerId ?? ""}
-                    onChange={(e) => {
-                      const id = e.target.value || undefined;
-                      const c = customers.find((x) => (x as any).id === id);
-                      setDraft((p) => ({
-                        ...p,
-                        customerId: id,
-                        customerName: c
-                          ? `${(c as any).name ?? ""} ${(c as any).lastname ?? ""}`.trim()
-                          : p.customerName,
-                        customerPhone: (c as any)?.phone ?? p.customerPhone,
-                        customerEmail: (c as any)?.email ?? p.customerEmail,
-                      }));
-                    }}
-                  >
-                    <option value="">— Select customer —</option>
-                    {customers
-                      .slice()
-                      .sort((a, b) =>
-                        String((a as any).name ?? "").localeCompare(String((b as any).name ?? ""))
-                      )
-                      .map((c) => (
-                        <option key={(c as any).id} value={(c as any).id}>
-                          {((c as any).name ?? "") + " " + ((c as any).lastname ?? "")} • {(c as any).phone ?? "—"}
-                        </option>
-                      ))}
-                  </select>
-                  <div className="wiz-hint">If not listed, create the customer in the Customers page.</div>
-                </div>
-
-                <div className="wiz-field">
-                  <label>Customer name</label>
-                  <input
-                    className="wiz-input"
-                    value={draft.customerName}
-                    onChange={(e) => setDraft((p) => ({ ...p, customerName: e.target.value }))}
-                    placeholder="Full name"
-                  />
-                </div>
-
-                <div className="wiz-field">
-                  <label>Phone</label>
-                  <input
-                    className="wiz-input"
-                    value={draft.customerPhone ?? ""}
-                    onChange={(e) => setDraft((p) => ({ ...p, customerPhone: e.target.value }))}
-                    placeholder="+974 XXXXXXXX"
-                  />
-                </div>
-
-                <div className="wiz-field">
-                  <label>Email</label>
-                  <input
-                    className="wiz-input"
-                    value={draft.customerEmail ?? ""}
-                    onChange={(e) => setDraft((p) => ({ ...p, customerEmail: e.target.value }))}
-                    placeholder="email@domain.com"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {wizardStep === 2 && (
-            <div className="wiz-card">
-              <div className="wiz-card-head">
-                <div>
-                  <h3>Vehicle</h3>
-                  <p>Add vehicle details for accurate pricing & records.</p>
-                </div>
-              </div>
-
-              <div className="wiz-grid2">
-                <div className="wiz-field">
-                  <label>Vehicle type</label>
-                  <select
-                    className="wiz-input"
-                    value={draft.vehicleType}
-                    onChange={(e) => setDraft((p) => ({ ...p, vehicleType: e.target.value as VehicleType }))}
-                  >
-                    {VEHICLE_TYPES.map((v) => (
-                      <option key={v.key} value={v.key}>
-                        {v.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="wiz-field">
-                  <label>Make</label>
-                  <input
-                    className="wiz-input"
-                    value={draft.vehicleMake ?? ""}
-                    onChange={(e) => setDraft((p) => ({ ...p, vehicleMake: e.target.value }))}
-                    placeholder="BMW"
-                  />
-                </div>
-
-                <div className="wiz-field">
-                  <label>Model</label>
-                  <input
-                    className="wiz-input"
-                    value={draft.vehicleModel ?? ""}
-                    onChange={(e) => setDraft((p) => ({ ...p, vehicleModel: e.target.value }))}
-                    placeholder="X5"
-                  />
-                </div>
-
-                <div className="wiz-field">
-                  <label>Plate number</label>
-                  <input
-                    className="wiz-input"
-                    value={draft.plateNumber ?? ""}
-                    onChange={(e) => setDraft((p) => ({ ...p, plateNumber: e.target.value }))}
-                    placeholder="123456"
-                  />
-                </div>
-
-                <div className="wiz-field">
-                  <label>VIN</label>
-                  <input
-                    className="wiz-input"
-                    value={draft.vin ?? ""}
-                    onChange={(e) => setDraft((p) => ({ ...p, vin: e.target.value }))}
-                    placeholder="(optional)"
-                  />
-                </div>
-
-                <div className="wiz-field">
-                  <label>Mileage</label>
-                  <input
-                    className="wiz-input"
-                    value={draft.mileage ?? ""}
-                    onChange={(e) => setDraft((p) => ({ ...p, mileage: e.target.value }))}
-                    placeholder="(optional)"
-                  />
-                </div>
-
-                <div className="wiz-field">
-                  <label>Color</label>
-                  <input
-                    className="wiz-input"
-                    value={draft.color ?? ""}
-                    onChange={(e) => setDraft((p) => ({ ...p, color: e.target.value }))}
-                    placeholder="(optional)"
-                  />
-                </div>
-
-                <div className="wiz-field">
-                  <label>Notes</label>
-                  <input
-                    className="wiz-input"
-                    value={draft.notes ?? ""}
-                    onChange={(e) => setDraft((p) => ({ ...p, notes: e.target.value }))}
-                    placeholder="(optional)"
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {wizardStep === 3 && (
-            <div className="wiz-card">
-              <div className="wiz-card-head">
-                <div>
-                  <h3>Services</h3>
-                  <p>Add services from your catalog or create a custom line.</p>
-                </div>
-              </div>
-
-              <div className="wiz-services-toolbar">
-                <select
-                  className="wiz-input"
-                  defaultValue=""
-                  onChange={(e) => {
-                    const name = e.target.value;
-                    if (!name) return;
-
-                    const p = YOUR_PRODUCTS.find((x) => x.name === name);
-                    const isSUV = draft.vehicleType !== "SEDAN";
-                    const unitPrice = p ? (isSUV ? p.suvPrice : p.sedanPrice) : 0;
-
-                    setDraft((prev) => ({
-                      ...prev,
-                      services: [
-                        ...prev.services,
-                        { id: uid("svc"), name, qty: 1, unitPrice, status: "PENDING" as const },
-                      ],
-                    }));
-                    e.currentTarget.value = "";
-                  }}
-                >
-                  <option value="">+ Add service from catalog…</option>
-                  {YOUR_PRODUCTS.map((p) => (
-                    <option key={p.name} value={p.name}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
-
-                <button
-                  className="wiz-btn wiz-btn-secondary"
-                  onClick={() =>
-                    setDraft((prev) => ({
-                      ...prev,
-                      services: [
-                        ...prev.services,
-                        { id: uid("svc"), name: "Custom Service", qty: 1, unitPrice: 0, status: "PENDING" as const },
-                      ],
-                    }))
-                  }
-                  type="button"
-                >
-                  + Custom
-                </button>
-              </div>
-
-              <div className="wiz-services-list">
-                {draft.services.map((s, idx) => (
-                  <div key={s.id} className="wiz-service-item">
-                    <div className="wiz-service-row1">
-                      <input
-                        className="wiz-input"
-                        value={s.name}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setDraft((p) => {
-                            const next = [...p.services];
-                            next[idx] = { ...next[idx], name: v };
-                            return { ...p, services: next };
-                          });
-                        }}
-                        placeholder="Service name"
-                      />
-
-                      <select
-                        className="wiz-input"
-                        value={s.status}
-                        onChange={(e) => {
-                          const v = e.target.value as ServiceLine["status"];
-                          setDraft((p) => {
-                            const next = [...p.services];
-                            next[idx] = { ...next[idx], status: v };
-                            return { ...p, services: next };
-                          });
-                        }}
-                      >
-                        <option value="PENDING">PENDING</option>
-                        <option value="IN_PROGRESS">IN_PROGRESS</option>
-                        <option value="DONE">DONE</option>
-                        <option value="CANCELLED">CANCELLED</option>
-                      </select>
-                    </div>
-
-                    <div className="wiz-service-row2">
-                      <div className="wiz-field">
-                        <label>Qty</label>
-                        <input
-                          className="wiz-input"
-                          type="number"
-                          value={s.qty}
-                          min={1}
-                          onChange={(e) => {
-                            const v = Math.max(1, toNum(e.target.value));
-                            setDraft((p) => {
-                              const next = [...p.services];
-                              next[idx] = { ...next[idx], qty: v };
-                              return { ...p, services: next };
-                            });
-                          }}
-                        />
-                      </div>
-
-                      <div className="wiz-field">
-                        <label>Unit price (QAR)</label>
-                        <input
-                          className="wiz-input"
-                          type="number"
-                          value={s.unitPrice}
-                          min={0}
-                          onChange={(e) => {
-                            const v = Math.max(0, toNum(e.target.value));
-                            setDraft((p) => {
-                              const next = [...p.services];
-                              next[idx] = { ...next[idx], unitPrice: v };
-                              return { ...p, services: next };
-                            });
-                          }}
-                        />
-                      </div>
-
-                      <div className="wiz-field">
-                        <label>Technician</label>
-                        <input
-                          className="wiz-input"
-                          value={s.technician ?? ""}
-                          onChange={(e) => {
-                            const v = e.target.value;
-                            setDraft((p) => {
-                              const next = [...p.services];
-                              next[idx] = { ...next[idx], technician: v };
-                              return { ...p, services: next };
-                            });
-                          }}
-                          placeholder="(optional)"
-                        />
-                      </div>
-
-                      <div className="wiz-line-total">
-                        <label>Line total</label>
-                        <div className="wiz-money">{(toNum(s.qty) * toNum(s.unitPrice)).toFixed(2)} QAR</div>
-                      </div>
-                    </div>
-
-                    <div className="wiz-service-row3">
-                      <input
-                        className="wiz-input"
-                        value={s.notes ?? ""}
-                        onChange={(e) => {
-                          const v = e.target.value;
-                          setDraft((p) => {
-                            const next = [...p.services];
-                            next[idx] = { ...next[idx], notes: v };
-                            return { ...p, services: next };
-                          });
-                        }}
-                        placeholder="Notes (optional)"
-                      />
-
-                      <button
-                        className="wiz-link-danger"
-                        onClick={() => setDraft((p) => ({ ...p, services: p.services.filter((_, i) => i !== idx) }))}
-                        type="button"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  </div>
-                ))}
-
-                {!draft.services.length && <div className="wiz-empty">No services added yet.</div>}
-              </div>
-            </div>
-          )}
-
-          {wizardStep === 4 && (
-            <div className="wiz-card">
-              <div className="wiz-card-head">
-                <div>
-                  <h3>Summary</h3>
-                  <p>Finalize discount/VAT and review totals before saving.</p>
-                </div>
-              </div>
-
-              <div className="wiz-grid2">
-                <div className="wiz-summary-box">
-                  <div className="wiz-summary-row">
-                    <span>Subtotal</span>
-                    <b>{totalsPreview.subtotal.toFixed(2)} QAR</b>
-                  </div>
-                  <div className="wiz-summary-row">
-                    <span>Discount</span>
-                    <b>{totalsPreview.discount.toFixed(2)} QAR</b>
-                  </div>
-                  <div className="wiz-summary-row">
-                    <span>VAT rate</span>
-                    <b>{(totalsPreview.vatRate * 100).toFixed(2)}%</b>
-                  </div>
-                  <div className="wiz-summary-row">
-                    <span>VAT</span>
-                    <b>{totalsPreview.vatAmount.toFixed(2)} QAR</b>
-                  </div>
-                  <div className="wiz-summary-row total">
-                    <span>Total</span>
-                    <b>{totalsPreview.totalAmount.toFixed(2)} QAR</b>
-                  </div>
-                </div>
-
-                <div className="wiz-card-inner">
-                  <div className="wiz-field">
-                    <label>Discount (QAR)</label>
-                    <input
-                      className="wiz-input"
-                      type="number"
-                      value={draft.discount}
-                      onChange={(e) => setDraft((p) => ({ ...p, discount: toNum(e.target.value) }))}
-                    />
-                  </div>
-
-                  <div className="wiz-field">
-                    <label>VAT rate (e.g., 0.05 for 5%)</label>
-                    <input
-                      className="wiz-input"
-                      type="number"
-                      step="0.01"
-                      value={draft.vatRate}
-                      onChange={(e) => setDraft((p) => ({ ...p, vatRate: toNum(e.target.value) }))}
-                    />
-                  </div>
-
-                  <div className="wiz-field">
-                    <label>Order status</label>
-                    <select
-                      className="wiz-input"
-                      value={draft.status}
-                      onChange={(e) => setDraft((p) => ({ ...p, status: e.target.value as OrderStatus }))}
-                    >
-                      <option value="DRAFT">DRAFT</option>
-                      <option value="OPEN">OPEN</option>
-                      <option value="IN_PROGRESS">IN_PROGRESS</option>
-                      <option value="READY">READY</option>
-                      <option value="COMPLETED">COMPLETED</option>
-                      <option value="CANCELLED">CANCELLED</option>
-                    </select>
-                  </div>
-
-                  <div className="wiz-hint">
-                    Tip: Payments can be added from the job order details after saving.
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-        </main>
-
-        {/* Sticky summary (desktop) */}
-        <aside className="wiz-summary">
-          <div className="wiz-summary-card">
-            <div className="wiz-summary-head">Live Summary</div>
-
-            <div className="wiz-summary-mini">
-              <div className="row">
-                <span>Customer</span>
-                <b>{draft.customerName?.trim() || "—"}</b>
-              </div>
-              <div className="row">
-                <span>Vehicle</span>
-                <b>
-                  {[draft.vehicleMake, draft.vehicleModel].filter(Boolean).join(" ") || "—"}{" "}
-                  {draft.plateNumber ? `• ${draft.plateNumber}` : ""}
-                </b>
-              </div>
-              <div className="row">
-                <span>Services</span>
-                <b>{draft.services?.length || 0}</b>
-              </div>
-            </div>
-
-            <div className="wiz-divider" />
-
-            <div className="wiz-summary-totals">
-              <div className="row">
-                <span>Subtotal</span>
-                <b>{totalsPreview.subtotal.toFixed(2)} QAR</b>
-              </div>
-              <div className="row">
-                <span>Discount</span>
-                <b>{totalsPreview.discount.toFixed(2)} QAR</b>
-              </div>
-              <div className="row">
-                <span>VAT</span>
-                <b>{totalsPreview.vatAmount.toFixed(2)} QAR</b>
-              </div>
-              <div className="row total">
-                <span>Total</span>
-                <b>{totalsPreview.totalAmount.toFixed(2)} QAR</b>
-              </div>
-            </div>
-          </div>
-        </aside>
-      </div>
-
-      {/* Sticky footer actions */}
-      <div className="wiz-footer">
-        <div className="wiz-footer-left">
-          <button className="wiz-btn wiz-btn-secondary" onClick={() => setWizardOpen(false)} type="button">
-            Cancel
-          </button>
-        </div>
-
-        <div className="wiz-footer-right">
-          <button
-            className="wiz-btn wiz-btn-secondary"
-            disabled={wizardStep === 1}
-            onClick={() => setWizardStep((s) => (s > 1 ? ((s - 1) as any) : s))}
-            type="button"
-          >
-            Back
-          </button>
-
-          {wizardStep < 4 ? (
-            <button className="wiz-btn wiz-btn-primary" onClick={() => setWizardStep((s) => (s + 1) as any)} type="button">
-              Next
-            </button>
-          ) : (
-            <button
-              className="wiz-btn wiz-btn-primary"
-              disabled={draft.id ? !permissions.canUpdate : !permissions.canCreate}
-              onClick={() => void saveDraft()}
-              type="button"
-            >
-              {draft.id ? "Update Job Order" : "Create Job Order"}
-            </button>
-          )}
-        </div>
-      </div>
-    </div>
-  </div>
-)}
-
     </div>
   );
 }
+
+// ============================================
+// MAIN SCREEN
+// ============================================
+function MainScreen({
+  orders,
+  searchQuery,
+  onSearchChange,
+  onViewDetails,
+  onNewJob,
+  currentPage,
+  onPageChange,
+  pageSize,
+  onPageSizeChange,
+  totalCount,
+  onCancelOrder,
+  loading,
+}: any) {
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const totalPages = Math.ceil(totalCount / pageSize) || 1;
+
+  useEffect(() => {
+    const handleClickOutside = (event: any) => {
+      const isDropdownButton = event.target.closest(".btn-action-dropdown");
+      const isDropdownMenu = event.target.closest(".action-dropdown-menu");
+      if (!isDropdownButton && !isDropdownMenu) setActiveDropdown(null);
+    };
+
+    if (activeDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [activeDropdown]);
+
+  return (
+    <div className="app-container">
+      <header className="app-header">
+        <div className="header-left">
+          <h1>
+            <i className="fas fa-tools"></i> Job Order Management
+          </h1>
+        </div>
+      </header>
+
+      <main className="main-content">
+        <section className="search-section">
+          <div className="search-container">
+            <i className="fas fa-search search-icon"></i>
+            <input
+              type="text"
+              className="smart-search-input"
+              placeholder="Search by any details"
+              value={searchQuery}
+              onChange={(e) => onSearchChange(e.target.value)}
+            />
+          </div>
+          <div className="search-stats">
+            {loading ? "Loading..." : totalCount === 0 ? "No job orders found" : `Showing ${orders.length} of ${totalCount} job orders`}
+          </div>
+        </section>
+
+        <section className="results-section">
+          <div className="section-header">
+            <h2>
+              <i className="fas fa-list"></i> Job Order Records
+            </h2>
+            <div className="pagination-controls">
+              <div className="records-per-page">
+                <label htmlFor="pageSizeSelect">Records per page:</label>
+                <select id="pageSizeSelect" className="page-size-select" value={pageSize} onChange={(e) => onPageSizeChange(parseInt(e.target.value))}>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </div>
+              <PermissionGate moduleId="joborder" optionId="joborder_add">
+                <button className="btn-new-job" onClick={onNewJob}>
+                  <i className="fas fa-plus-circle"></i> New Job Order
+                </button>
+              </PermissionGate>
+            </div>
+          </div>
+
+          {orders.length > 0 ? (
+            <div className="table-wrapper">
+              <table className="job-order-table">
+                <thead>
+                  <tr>
+                    <th>Create Date</th>
+                    <th>Job Card ID</th>
+                    <th>Order Type</th>
+                    <th>Customer Name</th>
+                    <th>Mobile Number</th>
+                    <th>Vehicle Plate</th>
+                    <th>Work Status</th>
+                    <th>Payment Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {orders.map((order: any) => (
+                    <tr key={order.id}>
+                      <td className="date-column">{order.createDate}</td>
+                      <td>{order.id}</td>
+                      <td>
+                        <span className={`order-type-badge ${order.orderType === "New Job Order" ? "order-type-new-job" : "order-type-service"}`}>
+                          {order.orderType}
+                        </span>
+                      </td>
+                      <td>{order.customerName}</td>
+                      <td>{order.mobile}</td>
+                      <td>{order.vehiclePlate}</td>
+                      <td>
+                        <span className={`status-badge ${getWorkStatusClass(order.workStatus)}`}>{order.workStatus}</span>
+                      </td>
+                      <td>
+                        <span className={`status-badge ${getPaymentStatusClass(order.paymentStatus)}`}>{order.paymentStatus}</span>
+                      </td>
+                      <td>
+                        <PermissionGate moduleId="joborder" optionId="joborder_actions">
+                          <div className="action-dropdown-container">
+                            <button
+                              className={`btn-action-dropdown ${activeDropdown === order.id ? "active" : ""}`}
+                              onClick={(e: any) => {
+                                const isActive = activeDropdown === order.id;
+                                if (isActive) {
+                                  setActiveDropdown(null);
+                                  return;
+                                }
+                                const rect = e.currentTarget.getBoundingClientRect();
+                                const menuHeight = 140;
+                                const menuWidth = 200;
+                                const spaceBelow = window.innerHeight - rect.bottom;
+                                const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
+                                const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+                                setDropdownPosition({ top, left });
+                                setActiveDropdown(order.id);
+                              }}
+                            >
+                              <i className="fas fa-cogs"></i> Actions <i className="fas fa-chevron-down"></i>
+                            </button>
+                          </div>
+                        </PermissionGate>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="empty-state">
+              <div className="empty-icon">
+                <i className="fas fa-search"></i>
+              </div>
+              <div className="empty-text">No matching job orders found</div>
+              <div className="empty-subtext">Try adjusting your search terms or click "New Job Order" to create one</div>
+            </div>
+          )}
+        </section>
+
+        {orders.length > 0 && totalPages > 1 && (
+          <div className="pagination">
+            <button className="pagination-btn" onClick={() => onPageChange(Math.max(1, currentPage - 1))} disabled={currentPage === 1}>
+              <i className="fas fa-chevron-left"></i>
+            </button>
+            <div className="page-numbers">
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum;
+                if (totalPages <= 5) pageNum = i + 1;
+                else {
+                  const start = Math.max(1, currentPage - 2);
+                  const end = Math.min(totalPages, start + 4);
+                  const adjustedStart = Math.max(1, end - 4);
+                  pageNum = adjustedStart + i;
+                }
+                return (
+                  <button key={pageNum} className={`pagination-btn ${pageNum === currentPage ? "active" : ""}`} onClick={() => onPageChange(pageNum)}>
+                    {pageNum}
+                  </button>
+                );
+              })}
+            </div>
+            <button className="pagination-btn" onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages}>
+              <i className="fas fa-chevron-right"></i>
+            </button>
+          </div>
+        )}
+      </main>
+
+      <footer className="app-footer">
+        <p>Service Management System © 2023 | Job Order Management Module</p>
+      </footer>
+
+      {activeDropdown &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="action-dropdown-menu show action-dropdown-menu-fixed" style={{ top: `${dropdownPosition.top}px`, left: `${dropdownPosition.left}px` }}>
+            <PermissionGate moduleId="joborder" optionId="joborder_viewdetails">
+              <button
+                className="dropdown-item view"
+                onClick={() => {
+                  onViewDetails(orders.find((o: any) => o.id === activeDropdown));
+                  setActiveDropdown(null);
+                }}
+              >
+                <i className="fas fa-eye"></i> View Details
+              </button>
+            </PermissionGate>
+
+            <PermissionGate moduleId="joborder" optionId="joborder_cancel">
+              <>
+                <div className="dropdown-divider"></div>
+                <button
+                  className="dropdown-item delete"
+                  onClick={() => {
+                    onCancelOrder(activeDropdown);
+                    setActiveDropdown(null);
+                  }}
+                >
+                  <i className="fas fa-times-circle"></i> Cancel Order
+                </button>
+              </>
+            </PermissionGate>
+          </div>,
+          document.body
+        )}
+    </div>
+  );
+}
+
+// ============================================
+// DETAILS SCREEN
+// ============================================
+function DetailsScreen({ order, onClose, onAddService }: any) {
+  return (
+    <div className="pim-details-screen">
+      <div className="pim-details-header">
+        <div className="pim-details-title-container">
+          <h2>
+            <i className="fas fa-clipboard-list"></i> Job Order Details - {order.id}
+          </h2>
+        </div>
+        <button className="pim-btn-close-details" onClick={onClose}>
+          <i className="fas fa-times"></i> Close Details
+        </button>
+      </div>
+
+      <div className="pim-details-body">
+        <div className="pim-details-grid">
+          <PermissionGate moduleId="joborder" optionId="joborder_summary">
+            <JobOrderSummaryCard order={order} />
+          </PermissionGate>
+          <PermissionGate moduleId="joborder" optionId="joborder_customer">
+            <CustomerDetailsCard order={order} />
+          </PermissionGate>
+          <PermissionGate moduleId="joborder" optionId="joborder_vehicle">
+            <VehicleDetailsCard order={order} />
+          </PermissionGate>
+          <PermissionGate moduleId="joborder" optionId="joborder_services">
+            <ServicesCard order={order} onAddService={onAddService} />
+          </PermissionGate>
+          <PermissionGate moduleId="joborder" optionId="joborder_billing">
+            <BillingCard order={order} />
+          </PermissionGate>
+          <PermissionGate moduleId="joborder" optionId="joborder_paymentlog">
+            <PaymentActivityLogCard order={order} />
+          </PermissionGate>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// NEW JOB SCREEN (unchanged UI)
+// ============================================
+function NewJobScreen({ currentUser, onClose, onSubmit, prefill }: any) {
+  const [step, setStep] = useState(1);
+  const [orderType, setOrderType] = useState<any>(null); // 'new' or 'service'
+  const [customerType, setCustomerType] = useState<any>(null);
+  const [customerData, setCustomerData] = useState<any>(null);
+  const [vehicleData, setVehicleData] = useState<any>(null);
+
+  const [selectedServices, setSelectedServices] = useState<any[]>([]);
+  const [additionalServices, setAdditionalServices] = useState<any[]>([]);
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const [orderNotes, setOrderNotes] = useState("");
+  const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
+  const [expectedDeliveryTime, setExpectedDeliveryTime] = useState("");
+  const [vehicleCompletedServices, setVehicleCompletedServices] = useState<any[]>([]);
+
+  const formatAmount = (value: any) => `QAR ${Number(value || 0).toLocaleString()}`;
+
+  const handleVehicleSelected = async (vehicleInfo: any) => {
+    setVehicleData(vehicleInfo);
+
+    const plate = vehicleInfo.plateNumber || vehicleInfo.license || "";
+    const completed = plate ? await listCompletedOrdersByPlateNumber(plate) : [];
+    setVehicleCompletedServices(completed);
+
+    if (orderType === "service" && completed.length === 0) {
+      setOrderType("new");
+    }
+  };
+
+  useEffect(() => {
+    if (!prefill) return;
+
+    if (prefill.customerData) {
+      setCustomerType("existing");
+      setCustomerData(prefill.customerData);
+    }
+
+    if (prefill.vehicleData) {
+      void handleVehicleSelected(prefill.vehicleData);
+    }
+
+    if (prefill.startStep) setStep(Math.max(1, prefill.startStep));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefill]);
+
+  const handleSubmit = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const jobOrderId = `JO-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
+
+    const servicesToBill = orderType === "service" ? additionalServices : selectedServices;
+    const subtotal = servicesToBill.reduce((sum: number, s: any) => sum + (s.price || 0), 0);
+    const discount = (subtotal * (discountPercent || 0)) / 100;
+    const netAmount = subtotal - discount;
+
+    const billId = `BILL-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
+    const invoiceNumber = `INV-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
+
+    const newOrder = {
+      id: jobOrderId,
+      orderType: orderType === "service" ? "Service Order" : "New Job Order",
+      customerName: customerData.name,
+      mobile: customerData.mobile || customerData.phone,
+      vehiclePlate: vehicleData.plateNumber || vehicleData.license,
+      workStatus: "New Request",
+      paymentStatus: "Unpaid",
+      createDate: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+      jobOrderSummary: {
+        createDate: new Date().toLocaleString(),
+        createdBy: currentUser?.name || "System User",
+        expectedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleString(),
+      },
+      customerDetails: {
+        customerId: customerData.id,
+        email: customerData.email,
+        address: customerData.address || null,
+        registeredVehicles: `${customerData.vehicles?.length ?? customerData.registeredVehiclesCount ?? 1} vehicles`,
+        registeredVehiclesCount: customerData.vehicles?.length ?? customerData.registeredVehiclesCount ?? 1,
+        completedServicesCount: customerData.completedServicesCount ?? 0,
+        customerSince: customerData.customerSince || new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+      },
+      vehicleDetails: {
+        vehicleId: vehicleData.vehicleId || "VEH-" + Math.floor(Math.random() * 10000),
+        ownedBy: customerData.name,
+        make: vehicleData.make || vehicleData.factory,
+        model: vehicleData.model,
+        year: vehicleData.year,
+        type: vehicleData.vehicleType || vehicleData.carType,
+        color: vehicleData.color,
+        plateNumber: vehicleData.plateNumber || vehicleData.license,
+        vin: vehicleData.vin || "N/A",
+        registrationDate: vehicleData.registrationDate || "N/A",
+      },
+      services:
+        orderType === "service"
+          ? additionalServices.map((s: any) => ({
+              name: s.name,
+              price: s.price || 0,
+              status: "New",
+              started: "Not started",
+              ended: "Not completed",
+              duration: "Not started",
+              technician: "Not assigned",
+              notes: "Additional service for completed order",
+            }))
+          : selectedServices.map((s: any) => ({
+              name: s.name,
+              price: s.price || 0,
+              status: "New",
+              started: "Not started",
+              ended: "Not completed",
+              duration: "Not started",
+              technician: "Not assigned",
+              notes: "New service request",
+            })),
+      billing: {
+        billId,
+        totalAmount: formatAmount(subtotal),
+        discount: formatAmount(discount),
+        netAmount: formatAmount(netAmount),
+        amountPaid: formatAmount(0),
+        balanceDue: formatAmount(netAmount),
+        paymentMethod: null,
+        invoices: [
+          {
+            number: invoiceNumber,
+            amount: formatAmount(netAmount),
+            discount: formatAmount(discount),
+            status: "Unpaid",
+            paymentMethod: null,
+            services: servicesToBill.map((s: any) => s.name),
+          },
+        ],
+      },
+      roadmap: [
+        {
+          step: "New Request",
+          stepStatus: "Active",
+          startTimestamp: new Date().toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }),
+          endTimestamp: null,
+          actionBy: currentUser?.name || "System User",
+          status: "InProgress",
+        },
+        { step: "Inspection", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
+        { step: "Inprogress", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
+        { step: "Quality Check", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
+        { step: "Ready", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
+      ],
+      inspectionResult: null,
+      deliveryQualityCheck: null,
+      exitPermit: null,
+      additionalServiceRequests: [],
+      documents: [],
+      customerNotes: orderNotes || null,
+
+      discountPercent,
+      expectedDeliveryDate,
+      expectedDeliveryTime,
+    };
+
+    onSubmit(newOrder);
+  };
+
+  return (
+    <div className="pim-details-screen">
+      {/* ... keep your existing UI exactly as you have it ... */}
+      {/* IMPORTANT: I kept your logic; UI components below must exist in this same file (as in your current version). */}
+      {/* You already pasted them earlier; keep them unchanged. */}
+      <div className="pim-details-header">
+        <div className="pim-details-title-container">
+          <h2>
+            <i className="fas fa-plus-circle"></i> Create New Job Order
+          </h2>
+        </div>
+        <button className="pim-btn-close-details" onClick={onClose}>
+          <i className="fas fa-times"></i> Cancel
+        </button>
+      </div>
+
+      <div className="pim-details-body">
+        <div className="progress-bar">
+          {[1, 2, 3, 4, 5].map((s) => (
+            <div key={s} className={`progress-step ${s < step ? "completed" : s === step ? "active" : ""}`}>
+              <span>{s}</span>
+              <div className="step-label">{["Customer", "Vehicle", "Order Type", "Services", "Confirm"][s - 1]}</div>
+            </div>
+          ))}
+        </div>
+
+        {step === 1 && (
+          <StepOneCustomer
+            customerType={customerType}
+            setCustomerType={setCustomerType}
+            customerData={customerData}
+            setCustomerData={setCustomerData}
+            onNext={() => setStep(2)}
+            onCancel={onClose}
+          />
+        )}
+
+        {step === 2 && (
+          <StepTwoVehicle
+            vehicleData={vehicleData}
+            setVehicleData={setVehicleData}
+            customerData={customerData}
+            setCustomerData={setCustomerData}
+            onVehicleSelected={handleVehicleSelected}
+            onNext={() => setStep(3)}
+            onBack={() => setStep(1)}
+          />
+        )}
+
+        {step === 3 && vehicleCompletedServices.length > 0 && (
+          <OrderTypeSelection
+            vehicleCompletedServices={vehicleCompletedServices}
+            orderType={orderType}
+            onSelectOrderType={(type: any) => {
+              setOrderType(type);
+              setStep(4);
+            }}
+            onBack={() => setStep(2)}
+          />
+        )}
+
+        {step === 3 && vehicleCompletedServices.length === 0 && (
+          <NoCompletedServicesMessage
+            onNext={() => {
+              setOrderType("new");
+              setStep(4);
+            }}
+            onBack={() => setStep(2)}
+          />
+        )}
+
+        {step === 4 && (
+          <StepThreeServices
+            selectedServices={orderType === "service" ? additionalServices : selectedServices}
+            setSelectedServices={orderType === "service" ? setAdditionalServices : setSelectedServices}
+            vehicleType={vehicleData?.carType || vehicleData?.vehicleType || "SUV"}
+            discountPercent={discountPercent}
+            setDiscountPercent={setDiscountPercent}
+            orderNotes={orderNotes}
+            setOrderNotes={setOrderNotes}
+            expectedDeliveryDate={expectedDeliveryDate}
+            setExpectedDeliveryDate={setExpectedDeliveryDate}
+            expectedDeliveryTime={expectedDeliveryTime}
+            setExpectedDeliveryTime={setExpectedDeliveryTime}
+            onNext={() => setStep(5)}
+            onBack={() => setStep(3)}
+          />
+        )}
+
+        {step === 5 && (
+          <StepFourConfirm
+            customerData={customerData}
+            vehicleData={vehicleData}
+            selectedServices={orderType === "service" ? additionalServices : selectedServices}
+            discountPercent={discountPercent}
+            orderNotes={orderNotes}
+            expectedDeliveryDate={expectedDeliveryDate}
+            expectedDeliveryTime={expectedDeliveryTime}
+            onBack={() => setStep(4)}
+            onSubmit={handleSubmit}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ======================================================================
+// ✅ IMPORTANT
+// Keep the rest of your components exactly as in your current file:
+// StepOneCustomer, StepTwoVehicle, StepThreeServices, AddServiceScreen,
+// InspectionModal, StepFourConfirm, cards, utility functions, export.
+// ======================================================================
+
+// ============================================
+// CUSTOMER STEP (backend search/create)
+// ============================================
+function StepOneCustomer({ customerType, setCustomerType, customerData, setCustomerData, onNext, onCancel }: any) {
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [address, setAddress] = useState("");
+
+  const [smartSearch, setSmartSearch] = useState("");
+  const [searchResults, setSearchResults] = useState<any[]>([]);
+  const [showResults, setShowResults] = useState(false);
+
+  const [verifiedCustomer, setVerifiedCustomer] = useState<any>(null);
+
+  const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
+  const [pendingCustomer, setPendingCustomer] = useState<any>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setCustomerData(null);
+    setSmartSearch("");
+    setSearchResults([]);
+    setShowResults(false);
+    setVerifiedCustomer(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [customerType]);
+
+  const handleSave = async () => {
+    if (saving) return;
+    if (!fullName || !phone) return;
+
+    setSaving(true);
+    try {
+      const existing = await searchCustomers(phone);
+      const existingByName = await searchCustomers(fullName);
+
+      const dup = [...existing, ...existingByName].find(
+        (c) =>
+          String(c.mobile || c.phone || "").toLowerCase() === phone.toLowerCase() ||
+          String(c.name || "").toLowerCase() === fullName.toLowerCase()
+      );
+
+      if (dup) {
+        const newCustomer = {
+          id: "TEMP",
+          name: fullName,
+          email,
+          mobile: phone,
+          address: address || null,
+          registeredVehiclesCount: 0,
+          completedServicesCount: 0,
+          customerSince: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+          vehicles: [],
+        };
+        setPendingCustomer(newCustomer);
+        setShowDuplicateWarning(true);
+        return;
+      }
+
+      const created = await createCustomer({ fullName, phone, email, address });
+      setCustomerData(created);
+      setVerifiedCustomer(created);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleConfirmDuplicate = async () => {
+    if (!pendingCustomer || saving) return;
+    setSaving(true);
+    try {
+      const created = await createCustomer({
+        fullName: pendingCustomer.name,
+        phone: pendingCustomer.mobile,
+        email: pendingCustomer.email,
+        address: pendingCustomer.address,
+      });
+      setCustomerData(created);
+      setVerifiedCustomer(created);
+      setShowDuplicateWarning(false);
+      setPendingCustomer(null);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleCancelDuplicate = () => {
+    setShowDuplicateWarning(false);
+    setPendingCustomer(null);
+  };
+
+  const handleVerifySearch = async () => {
+    const term = smartSearch.trim();
+    if (!term) {
+      setSearchResults([]);
+      setShowResults(false);
+      return;
+    }
+    const matches = await searchCustomers(term);
+    setSearchResults(matches);
+    setShowResults(true);
+  };
+
+  const handleSelectCustomer = async (customer: any) => {
+    const full = await getCustomerWithVehicles(customer.id);
+    setVerifiedCustomer(full || customer);
+    setCustomerData(full || customer);
+    setSmartSearch("");
+    setShowResults(false);
+    setSearchResults([]);
+  };
+
+  // UI same as yours (unchanged)
+  return (
+    <div className="form-card">
+      <div className="form-card-title">
+        <i className="fas fa-user"></i>
+        <h2>Customer Information</h2>
+      </div>
+      <div className="form-card-content">
+        <div className="option-selector">
+          <div className={`option-btn ${customerType === "new" ? "selected" : ""}`} onClick={() => setCustomerType("new")}>
+            New Customer
+          </div>
+          <div className={`option-btn ${customerType === "existing" ? "selected" : ""}`} onClick={() => setCustomerType("existing")}>
+            Existing Customer
+          </div>
+        </div>
+
+        {customerType === "new" && !verifiedCustomer && (
+          <div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Full Name *</label>
+                <input value={fullName} onChange={(e) => setFullName(e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label>Phone *</label>
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} />
+              </div>
+            </div>
+            <div className="form-row">
+              <div className="form-group">
+                <label>Email</label>
+                <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Optional" />
+              </div>
+              <div className="form-group">
+                <label>Address</label>
+                <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Optional" />
+              </div>
+            </div>
+            <button className="btn btn-primary" onClick={() => void handleSave()} disabled={saving || !fullName || !phone}>
+              {saving ? "Saving..." : "Save Customer"}
+            </button>
+          </div>
+        )}
+
+        {customerType === "existing" && (
+          <div>
+            <div className="form-group" style={{ position: "relative" }}>
+              <label>Search Customer</label>
+              <div className="smart-search-wrapper">
+                <i className="fas fa-search" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#888" }}></i>
+                <input
+                  type="text"
+                  className="smart-search-input"
+                  placeholder="Search by name, customer ID, mobile, or email..."
+                  value={smartSearch}
+                  onChange={(e) => setSmartSearch(e.target.value)}
+                  onKeyPress={(e) => e.key === "Enter" && void handleVerifySearch()}
+                  style={{ paddingLeft: "40px" }}
+                />
+              </div>
+              <button className="btn btn-primary" onClick={() => void handleVerifySearch()} style={{ marginTop: "10px" }}>
+                <i className="fas fa-search"></i> Verify Customer
+              </button>
+
+              {showResults && searchResults.length > 0 && (
+                <div className="customer-search-results">
+                  {searchResults.map((customer) => (
+                    <div key={customer.id} className="customer-result-item">
+                      <div className="customer-result-info">
+                        <div className="customer-result-name">
+                          <strong>{customer.name}</strong>
+                        </div>
+                        <div className="customer-result-details">
+                          <span className="customer-detail-chip">
+                            <i className="fas fa-id-card"></i> {customer.id}
+                          </span>
+                          <span className="customer-detail-chip">
+                            <i className="fas fa-phone"></i> {customer.mobile}
+                          </span>
+                          <span className="customer-detail-chip">
+                            <i className="fas fa-envelope"></i> {customer.email}
+                          </span>
+                        </div>
+                      </div>
+                      <button className="btn btn-verify" onClick={() => void handleSelectCustomer(customer)}>
+                        <i className="fas fa-check"></i> Select
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {showResults && searchResults.length === 0 && (
+                <div className="customer-search-results">
+                  <div className="no-results-message">
+                    <i className="fas fa-search"></i>
+                    <p>No customers found matching your search</p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {verifiedCustomer && (
+              <div className="verified-customer-display">
+                <div className="verified-header">
+                  <i className="fas fa-check-circle"></i>
+                  <span>Customer Verified</span>
+                </div>
+                <div className="verified-info">
+                  <div className="verified-row">
+                    <span className="verified-label">Name:</span>
+                    <span className="verified-value">{verifiedCustomer.name}</span>
+                  </div>
+                  <div className="verified-row">
+                    <span className="verified-label">Customer ID:</span>
+                    <span className="verified-value">{verifiedCustomer.id}</span>
+                  </div>
+                  <div className="verified-row">
+                    <span className="verified-label">Email:</span>
+                    <span className="verified-value">{verifiedCustomer.email}</span>
+                  </div>
+                  <div className="verified-row">
+                    <span className="verified-label">Mobile:</span>
+                    <span className="verified-value">{verifiedCustomer.mobile}</span>
+                  </div>
+                  {verifiedCustomer.address && (
+                    <div className="verified-row">
+                      <span className="verified-label">Address:</span>
+                      <span className="verified-value">{verifiedCustomer.address}</span>
+                    </div>
+                  )}
+                  <div className="verified-row">
+                    <span className="verified-label">Registered Vehicles:</span>
+                    <span className="verified-value">{verifiedCustomer.vehicles?.length ?? verifiedCustomer.registeredVehiclesCount ?? 0}</span>
+                  </div>
+                </div>
+                <button
+                  className="btn btn-change-customer"
+                  onClick={() => {
+                    setVerifiedCustomer(null);
+                    setCustomerData(null);
+                    setSmartSearch("");
+                    setShowResults(false);
+                    setSearchResults([]);
+                  }}
+                >
+                  <i className="fas fa-sync-alt"></i> Change Customer
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {customerType === "new" && verifiedCustomer && (
+          <div className="verified-customer-display">
+            <div className="verified-header">
+              <i className="fas fa-check-circle"></i>
+              <span>Customer Verified</span>
+            </div>
+            <div className="verified-info">
+              <div className="verified-row">
+                <span className="verified-label">Name:</span>
+                <span className="verified-value">{verifiedCustomer.name}</span>
+              </div>
+              <div className="verified-row">
+                <span className="verified-label">Customer ID:</span>
+                <span className="verified-value">{verifiedCustomer.id}</span>
+              </div>
+              <div className="verified-row">
+                <span className="verified-label">Mobile:</span>
+                <span className="verified-value">{verifiedCustomer.mobile}</span>
+              </div>
+            </div>
+            <button
+              className="btn btn-change-customer"
+              onClick={() => {
+                setVerifiedCustomer(null);
+                setCustomerData(null);
+                setFullName("");
+                setEmail("");
+                setPhone("");
+                setAddress("");
+              }}
+            >
+              <i className="fas fa-edit"></i> Edit Customer
+            </button>
+          </div>
+        )}
+
+        {showDuplicateWarning && (
+          <div className="warning-dialog-overlay">
+            <div className="warning-dialog">
+              <div className="warning-dialog-header">
+                <i className="fas fa-exclamation-circle"></i>
+                <span>Duplicate Customer Warning</span>
+              </div>
+              <div className="warning-dialog-body">
+                <p>This customer already exists in the system.</p>
+                <p>
+                  <strong>Name:</strong> {pendingCustomer?.name}
+                </p>
+                <p>
+                  <strong>Mobile:</strong> {pendingCustomer?.mobile}
+                </p>
+                <p className="warning-message">Are you sure you want to save as a new customer?</p>
+              </div>
+              <div className="warning-dialog-footer">
+                <button className="btn btn-danger" onClick={() => void handleConfirmDuplicate()}>
+                  <i className="fas fa-check"></i> Yes, Save Anyway
+                </button>
+                <button className="btn btn-secondary" onClick={handleCancelDuplicate}>
+                  <i className="fas fa-times"></i> No, Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="action-buttons">
+        <button className="btn btn-secondary" onClick={onCancel}>
+          Cancel
+        </button>
+        <button className="btn btn-primary" onClick={onNext} disabled={!customerData}>
+          Next: Vehicle
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// VEHICLE STEP
+// ============================================
+function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomerData, onVehicleSelected, onNext, onBack }: any) {
+  const [showNewVehicleForm, setShowNewVehicleForm] = useState(false);
+  const [factory, setFactory] = useState("Toyota");
+  const [model, setModel] = useState("");
+  const [year, setYear] = useState<any>(new Date().getFullYear());
+  const [license, setLicense] = useState("");
+  const [carType, setCarType] = useState("SUV");
+  const [color, setColor] = useState("");
+
+  const hasVehicles = customerData?.vehicles && customerData.vehicles.length > 0;
+
+  useEffect(() => {
+    if (!hasVehicles) setShowNewVehicleForm(true);
+  }, [hasVehicles]);
+
+  const handleSaveNewVehicle = async () => {
+    if (!(factory && model && year && license && carType && color)) return;
+
+    const created = await createVehicleForCustomer({
+      customerId: customerData.id,
+      ownedBy: customerData.name,
+      make: factory,
+      model,
+      year: String(year),
+      color,
+      plateNumber: license,
+      vehicleType: carType,
+      vin: "VIN" + Math.random().toString(36).slice(2, 16).toUpperCase(),
+    });
+
+    const updatedCustomer = {
+      ...customerData,
+      vehicles: [...(customerData.vehicles || []), created],
+      registeredVehiclesCount: (customerData.registeredVehiclesCount || 0) + 1,
+    };
+
+    setCustomerData(updatedCustomer);
+    setVehicleData(created);
+    setShowNewVehicleForm(false);
+
+    if (onVehicleSelected) onVehicleSelected(created);
+  };
+
+  const handleSelectExistingVehicle = (vehicle: any) => {
+    setVehicleData(vehicle);
+    if (onVehicleSelected) onVehicleSelected(vehicle);
+  };
+
+  return (
+    <div className="form-card">
+      <div className="form-card-title">
+        <i className="fas fa-car"></i>
+        <h2>Vehicle Information</h2>
+      </div>
+      <div className="form-card-content">
+        {hasVehicles && !showNewVehicleForm && !vehicleData && (
+          <div>
+            <div className="info-banner" style={{ marginBottom: "20px", padding: "15px", backgroundColor: "#e3f2fd", borderRadius: "8px", border: "1px solid #2196f3" }}>
+              <i className="fas fa-info-circle" style={{ color: "#2196f3", marginRight: "8px" }}></i>
+              <span>This customer has {customerData.vehicles.length} registered vehicle(s). Select one or add a new vehicle.</span>
+            </div>
+
+            <h3 style={{ marginBottom: "15px", fontSize: "16px", fontWeight: "600" }}>Registered Vehicles</h3>
+            <div className="vehicles-list">
+              {customerData.vehicles.map((vehicle: any) => (
+                <div key={vehicle.vehicleId} className="vehicle-result-item">
+                  <div className="vehicle-result-info">
+                    <div className="vehicle-result-name">
+                      <strong>
+                        {vehicle.make} {vehicle.model} ({vehicle.year})
+                      </strong>
+                    </div>
+                    <div className="vehicle-result-details">
+                      <span className="vehicle-detail-chip">
+                        <i className="fas fa-palette"></i> {vehicle.color}
+                      </span>
+                      <span className="vehicle-detail-chip">
+                        <i className="fas fa-id-card"></i> {vehicle.plateNumber}
+                      </span>
+                      <span className="vehicle-detail-chip">
+                        <i className="fas fa-car"></i> {vehicle.vehicleType}
+                      </span>
+                      <span className="vehicle-detail-chip">
+                        <i className="fas fa-barcode"></i> {vehicle.vin}
+                      </span>
+                    </div>
+                  </div>
+                  <button className="btn btn-verify" onClick={() => handleSelectExistingVehicle(vehicle)}>
+                    <i className="fas fa-check"></i> Select
+                  </button>
+                </div>
+              ))}
+            </div>
+
+            <button className="btn btn-secondary" onClick={() => setShowNewVehicleForm(true)} style={{ marginTop: "15px" }}>
+              <i className="fas fa-plus"></i> Add New Vehicle
+            </button>
+          </div>
+        )}
+
+        {(showNewVehicleForm || !hasVehicles) && !vehicleData && (
+          <div>
+            {hasVehicles && (
+              <button className="btn btn-link" onClick={() => setShowNewVehicleForm(false)} style={{ marginBottom: "15px", padding: "8px 12px", fontSize: "14px" }}>
+                <i className="fas fa-arrow-left"></i> Back to Vehicle Selection
+              </button>
+            )}
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Manufacturer *</label>
+                <select value={factory} onChange={(e) => setFactory(e.target.value)}>
+                  <option>Toyota</option>
+                  <option>Honda</option>
+                  <option>Nissan</option>
+                  <option>Ford</option>
+                  <option>BMW</option>
+                  <option>Mercedes</option>
+                  <option>Hyundai</option>
+                  <option>Kia</option>
+                  <option>Chevrolet</option>
+                  <option>Volkswagen</option>
+                  <option>Audi</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Model *</label>
+                <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="e.g., Camry" />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Year *</label>
+                <select value={year} onChange={(e) => setYear(e.target.value)}>
+                  {Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - i).map((y) => (
+                    <option key={y} value={y}>
+                      {y}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label>License Plate *</label>
+                <input value={license} onChange={(e) => setLicense(e.target.value)} placeholder="e.g., 123456" />
+              </div>
+            </div>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Vehicle Type *</label>
+                <select value={carType} onChange={(e) => setCarType(e.target.value)}>
+                  <option>SUV</option>
+                  <option>Sedan</option>
+                  <option>Hatchback</option>
+                  <option>Coupe</option>
+                  <option>Truck</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Color *</label>
+                <input value={color} onChange={(e) => setColor(e.target.value)} placeholder="e.g., Silver Metallic" />
+              </div>
+            </div>
+
+            <button className="btn btn-success" onClick={() => void handleSaveNewVehicle()}>
+              <i className="fas fa-save"></i> Save Vehicle
+            </button>
+          </div>
+        )}
+
+        {vehicleData && (
+          <div className="verified-customer-display" style={{ marginTop: "0" }}>
+            <div className="verified-header">
+              <i className="fas fa-check-circle"></i>
+              <span>Vehicle Selected</span>
+            </div>
+            <div className="verified-info">
+              <div className="verified-row">
+                <span className="verified-label">Vehicle:</span>
+                <span className="verified-value">
+                  {vehicleData.make} {vehicleData.model} ({vehicleData.year})
+                </span>
+              </div>
+              <div className="verified-row">
+                <span className="verified-label">License Plate:</span>
+                <span className="verified-value">{vehicleData.plateNumber}</span>
+              </div>
+              <div className="verified-row">
+                <span className="verified-label">Type:</span>
+                <span className="verified-value">{vehicleData.vehicleType}</span>
+              </div>
+              <div className="verified-row">
+                <span className="verified-label">Color:</span>
+                <span className="verified-value">{vehicleData.color}</span>
+              </div>
+              {vehicleData.vin && (
+                <div className="verified-row">
+                  <span className="verified-label">VIN:</span>
+                  <span className="verified-value">{vehicleData.vin}</span>
+                </div>
+              )}
+            </div>
+            <button className="btn btn-change-customer" onClick={() => setVehicleData(null)}>
+              <i className="fas fa-sync-alt"></i> Change Vehicle
+            </button>
+          </div>
+        )}
+      </div>
+
+      <div className="action-buttons">
+        <button className="btn btn-secondary" onClick={onBack}>
+          Back
+        </button>
+        <button className="btn btn-primary" onClick={onNext} disabled={!vehicleData}>
+          Next: Services
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// SERVICES STEP (same UI)
+// ============================================
+function StepThreeServices({
+  selectedServices,
+  setSelectedServices,
+  vehicleType,
+  discountPercent,
+  setDiscountPercent,
+  orderNotes,
+  setOrderNotes,
+  expectedDeliveryDate,
+  setExpectedDeliveryDate,
+  expectedDeliveryTime,
+  setExpectedDeliveryTime,
+  onNext,
+  onBack,
+}: any) {
+  const handleToggleService = (product: any) => {
+    const price = vehicleType === "SUV" ? product.suvPrice : product.sedanPrice;
+    if (selectedServices.some((s: any) => s.name === product.name)) {
+      setSelectedServices(selectedServices.filter((s: any) => s.name !== product.name));
+    } else {
+      setSelectedServices([...selectedServices, { name: product.name, price }]);
+    }
+  };
+
+  const formatPrice = (price: number) => `QAR ${price.toLocaleString()}`;
+
+  const subtotal = selectedServices.reduce((sum: number, s: any) => sum + s.price, 0);
+  const discount = (subtotal * discountPercent) / 100;
+  const total = subtotal - discount;
+
+  return (
+    <div className="form-card">
+      <div className="form-card-title">
+        <i className="fas fa-concierge-bell"></i>
+        <h2>Services Selection</h2>
+      </div>
+
+      <div className="form-card-content">
+        <p>Select services for {vehicleType}:</p>
+
+        <div className="services-grid">
+          {YOUR_PRODUCTS.map((product) => (
+            <div
+              key={product.name}
+              className={`service-checkbox ${selectedServices.some((s: any) => s.name === product.name) ? "selected" : ""}`}
+              onClick={() => handleToggleService(product)}
+            >
+              <div className="service-info">
+                <div className="service-name">{product.name}</div>
+              </div>
+              <div className="service-price">{formatPrice(vehicleType === "SUV" ? product.suvPrice : product.sedanPrice)}</div>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ marginTop: "20px" }}>
+          <label style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "#333" }}>
+            <i className="fas fa-sticky-note" style={{ marginRight: "8px" }}></i>
+            Notes / Comments (Optional)
+          </label>
+          <textarea
+            value={orderNotes}
+            onChange={(e) => setOrderNotes(e.target.value)}
+            placeholder="Add any special instructions, notes, or comments for this order..."
+            rows={4}
+            style={{ width: "100%", padding: "12px", border: "1px solid #ddd", borderRadius: "8px", fontSize: "14px", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box" }}
+          />
+        </div>
+
+        <div style={{ marginTop: "20px" }}>
+          <label style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "#333" }}>
+            <i className="fas fa-calendar-check" style={{ marginRight: "8px" }}></i>
+            Expected Delivery Date & Time
+          </label>
+          <div style={{ display: "flex", gap: "12px" }}>
+            <div style={{ flex: 1 }}>
+              <input
+                type="date"
+                value={expectedDeliveryDate}
+                onChange={(e) => setExpectedDeliveryDate(e.target.value)}
+                min={new Date().toISOString().split("T")[0]}
+                style={{ width: "100%", padding: "12px", border: "1px solid #ddd", borderRadius: "8px", fontSize: "14px", boxSizing: "border-box" }}
+              />
+            </div>
+            <div style={{ flex: 1 }}>
+              <input
+                type="time"
+                value={expectedDeliveryTime}
+                onChange={(e) => setExpectedDeliveryTime(e.target.value)}
+                style={{ width: "100%", padding: "12px", border: "1px solid #ddd", borderRadius: "8px", fontSize: "14px", boxSizing: "border-box" }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="price-summary-box">
+          <h4>Price Summary</h4>
+          <div className="price-row">
+            <span>Services:</span>
+            <span>{formatPrice(subtotal)}</span>
+          </div>
+          <div className="price-row">
+            <span>Apply Discount:</span>
+            <div>
+              <input type="number" min="0" max="100" value={discountPercent} onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)} style={{ width: "80px", color: "#333", backgroundColor: "#fff" }} />
+              <span> %</span>
+            </div>
+          </div>
+          <div className="price-row discount-amount">
+            <span>Discount Amount:</span>
+            <span>{formatPrice(discount)}</span>
+          </div>
+          <div className="price-row total">
+            <span>Total:</span>
+            <span>{formatPrice(total)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="action-buttons">
+        <button className="btn btn-secondary" onClick={onBack}>
+          Back
+        </button>
+        <button className="btn btn-primary" onClick={onNext} disabled={selectedServices.length === 0}>
+          Next: Confirm
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// ADD SERVICE SCREEN
+// ============================================
+function AddServiceScreen({ order, onClose, onSubmit }: any) {
+  const [selectedServices, setSelectedServices] = useState<any[]>([]);
+  const [discountPercent, setDiscountPercent] = useState(0);
+  const vehicleType = order?.vehicleDetails?.type || "SUV";
+
+  const handleToggleService = (product: any) => {
+    const price = vehicleType === "SUV" ? product.suvPrice : product.sedanPrice;
+    if (selectedServices.some((s) => s.name === product.name)) {
+      setSelectedServices(selectedServices.filter((s) => s.name !== product.name));
+    } else {
+      setSelectedServices([...selectedServices, { name: product.name, price }]);
+    }
+  };
+
+  const formatPrice = (price: number) => `QAR ${price.toLocaleString()}`;
+  const subtotal = selectedServices.reduce((sum, s) => sum + s.price, 0);
+  const discount = (subtotal * discountPercent) / 100;
+  const total = subtotal - discount;
+
+  return (
+    <div className="pim-details-screen">
+      <div className="pim-details-header">
+        <div className="pim-details-title-container">
+          <h2>
+            <i className="fas fa-plus-circle"></i> Add Services to Job Order
+          </h2>
+        </div>
+        <button className="pim-btn-close-details" onClick={onClose}>
+          <i className="fas fa-times"></i> Cancel
+        </button>
+      </div>
+
+      <div className="pim-details-body">
+        <div className="form-card">
+          <div className="form-card-title">
+            <i className="fas fa-concierge-bell"></i>
+            <h2>Services Selection</h2>
+          </div>
+
+          <div className="form-card-content">
+            <p>Select services for {vehicleType}:</p>
+            <div className="services-grid">
+              {YOUR_PRODUCTS.map((product) => (
+                <div key={product.name} className={`service-checkbox ${selectedServices.some((s) => s.name === product.name) ? "selected" : ""}`} onClick={() => handleToggleService(product)}>
+                  <div className="service-info">
+                    <div className="service-name">{product.name}</div>
+                  </div>
+                  <PermissionGate moduleId="joborder" optionId="joborder_serviceprice">
+                    <div className="service-price">{formatPrice(vehicleType === "SUV" ? product.suvPrice : product.sedanPrice)}</div>
+                  </PermissionGate>
+                </div>
+              ))}
+            </div>
+
+            <div className="price-summary-box">
+              <h4>Price Summary</h4>
+              <div className="price-row">
+                <span>Services:</span>
+                <span>{formatPrice(subtotal)}</span>
+              </div>
+              <PermissionGate moduleId="joborder" optionId="joborder_servicediscount">
+                <div className="price-row">
+                  <span>Apply Discount:</span>
+                  <div>
+                    <PermissionGate moduleId="joborder" optionId="joborder_servicediscount_percent">
+                      <input type="number" min="0" max="100" value={discountPercent} onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)} style={{ width: "80px" }} />
+                      <span> %</span>
+                    </PermissionGate>
+                  </div>
+                </div>
+              </PermissionGate>
+              <div className="price-row discount-amount">
+                <span>Discount Amount:</span>
+                <span>{formatPrice(discount)}</span>
+              </div>
+              <div className="price-row total">
+                <span>Total:</span>
+                <span>{formatPrice(total)}</span>
+              </div>
+            </div>
+
+            <div className="action-buttons">
+              <button className="btn btn-secondary" onClick={onClose}>
+                Cancel
+              </button>
+              <button className="btn btn-primary" onClick={() => onSubmit({ selectedServices, discountPercent })} disabled={selectedServices.length === 0}>
+                Add Services
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InspectionModal({ item, onClose }: any) {
+  if (!item) return null;
+  return (
+    <div className="inspection-modal" style={{ display: "flex" }} onClick={onClose}>
+      <div className="inspection-modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="inspection-modal-header">
+          <h3>
+            <i className="fas fa-search"></i> {item.name}
+          </h3>
+          <button className="inspection-modal-close" onClick={onClose}>
+            &times;
+          </button>
+        </div>
+        <div className="inspection-modal-body">
+          <div className="inspection-detail-section">
+            <h4>Details</h4>
+            <div className="detail-grid">
+              <div className="detail-item">
+                <span className="detail-label">Status</span>
+                <span className="detail-value">{item.status}</span>
+              </div>
+              <div className="detail-item">
+                <span className="detail-label">Notes</span>
+                <span className="detail-value">{item.notes}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// CONFIRM STEP
+// ============================================
+function StepFourConfirm({ customerData, vehicleData, selectedServices, discountPercent, orderNotes, expectedDeliveryDate, expectedDeliveryTime, onBack, onSubmit }: any) {
+  const formatPrice = (price: number) => `QAR ${price.toLocaleString()}`;
+  const subtotal = selectedServices.reduce((sum: number, s: any) => sum + s.price, 0);
+  const discount = (subtotal * discountPercent) / 100;
+  const total = subtotal - discount;
+
+  return (
+    <div className="form-card">
+      <div className="form-card-title">
+        <i className="fas fa-check-circle"></i>
+        <h2>Order Confirmation</h2>
+      </div>
+      <div className="form-card-content">
+        <div className="pim-details-grid">
+          <div className="pim-detail-card">
+            <h3>
+              <i className="fas fa-user"></i> Customer Information
+            </h3>
+            <div className="pim-card-content">
+              <div className="pim-info-item">
+                <span className="pim-info-label">Customer ID</span>
+                <span className="pim-info-value">{customerData.id}</span>
+              </div>
+              <div className="pim-info-item">
+                <span className="pim-info-label">Customer Name</span>
+                <span className="pim-info-value">{customerData.name}</span>
+              </div>
+              <div className="pim-info-item">
+                <span className="pim-info-label">Mobile Number</span>
+                <span className="pim-info-value">{customerData.mobile || customerData.phone}</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="pim-detail-card">
+            <h3>
+              <i className="fas fa-car"></i> Vehicle Information
+            </h3>
+            <div className="pim-card-content">
+              <div className="pim-info-item">
+                <span className="pim-info-label">Vehicle ID</span>
+                <span className="pim-info-value">{vehicleData.vehicleId}</span>
+              </div>
+              <div className="pim-info-item">
+                <span className="pim-info-label">Plate Number</span>
+                <span className="pim-info-value">{vehicleData.plateNumber}</span>
+              </div>
+            </div>
+          </div>
+
+          {orderNotes && (
+            <div className="pim-detail-card">
+              <h3>
+                <i className="fas fa-sticky-note"></i> Notes / Comments
+              </h3>
+              <div className="pim-card-content">
+                <div style={{ padding: "12px", backgroundColor: "#f9f9f9", borderRadius: "4px", whiteSpace: "pre-wrap" }}>{orderNotes}</div>
+              </div>
+            </div>
+          )}
+
+          {(expectedDeliveryDate || expectedDeliveryTime) && (
+            <div className="pim-detail-card">
+              <h3>
+                <i className="fas fa-calendar-check"></i> Expected Delivery
+              </h3>
+              <div className="pim-card-content">
+                <div className="pim-info-item">
+                  <span className="pim-info-label">Delivery Date</span>
+                  <span className="pim-info-value">{expectedDeliveryDate || "Not specified"}</span>
+                </div>
+                <div className="pim-info-item">
+                  <span className="pim-info-label">Delivery Time</span>
+                  <span className="pim-info-value">{expectedDeliveryTime || "Not specified"}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="pim-detail-card">
+            <h3>
+              <i className="fas fa-calculator"></i> Price Summary
+            </h3>
+            <div className="pim-card-content">
+              <div className="pim-info-item">
+                <span className="pim-info-label">Subtotal</span>
+                <span className="pim-info-value">{formatPrice(subtotal)}</span>
+              </div>
+              {discountPercent > 0 && (
+                <div className="pim-info-item">
+                  <span className="pim-info-label">Discount ({discountPercent}%)</span>
+                  <span className="pim-info-value">-{formatPrice(discount)}</span>
+                </div>
+              )}
+              <div className="pim-info-item" style={{ paddingTop: "10px", borderTop: "2px solid #ddd" }}>
+                <span className="pim-info-label" style={{ fontSize: "18px", fontWeight: "bold" }}>
+                  Total
+                </span>
+                <span className="pim-info-value" style={{ fontSize: "18px", fontWeight: "bold" }}>
+                  {formatPrice(total)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="action-buttons">
+        <button className="btn btn-secondary" onClick={onBack}>
+          Back
+        </button>
+        <button className="btn btn-success" onClick={onSubmit}>
+          Submit Order
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// SIMPLE DISPLAY CARDS
+// ============================================
+function JobOrderSummaryCard({ order }: any) {
+  return (
+    <div className="epm-detail-card">
+      <h3>
+        <i className="fas fa-info-circle"></i> Job Order Summary
+      </h3>
+      <div className="epm-card-content">
+        <div className="epm-info-item">
+          <span className="epm-info-label">Job Order ID</span>
+          <span className="epm-info-value">{order.id}</span>
+        </div>
+        <div className="epm-info-item">
+          <span className="epm-info-label">Order Type</span>
+          <span className="epm-info-value">{order.orderType}</span>
+        </div>
+        <div className="epm-info-item">
+          <span className="epm-info-label">Work Status</span>
+          <span className={`epm-status-badge ${getWorkStatusClass(order.workStatus)}`}>{order.workStatus}</span>
+        </div>
+        <div className="epm-info-item">
+          <span className="epm-info-label">Payment Status</span>
+          <span className={`epm-status-badge ${getPaymentStatusClass(order.paymentStatus)}`}>{order.paymentStatus}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CustomerDetailsCard({ order }: any) {
+  return (
+    <div className="pim-detail-card">
+      <h3>
+        <i className="fas fa-user"></i> Customer Information
+      </h3>
+      <div className="pim-card-content">
+        <div className="pim-info-item">
+          <span className="pim-info-label">Customer Name</span>
+          <span className="pim-info-value">{order.customerName}</span>
+        </div>
+        <div className="pim-info-item">
+          <span className="pim-info-label">Mobile</span>
+          <span className="pim-info-value">{order.mobile}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function VehicleDetailsCard({ order }: any) {
+  return (
+    <div className="pim-detail-card">
+      <h3>
+        <i className="fas fa-car"></i> Vehicle Information
+      </h3>
+      <div className="pim-card-content">
+        <div className="pim-info-item">
+          <span className="pim-info-label">Plate</span>
+          <span className="pim-info-value">{order.vehiclePlate}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ServicesCard({ order, onAddService }: any) {
+  return (
+    <div className="pim-detail-card">
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
+        <h3 style={{ margin: 0 }}>
+          <i className="fas fa-tasks"></i> Services Summary
+        </h3>
+        <PermissionGate moduleId="joborder" optionId="joborder_addservice">
+          <button className="btn-add-service" onClick={onAddService} style={{ padding: "8px 16px", fontSize: "14px" }}>
+            <i className="fas fa-plus-circle"></i> Add Service
+          </button>
+        </PermissionGate>
+      </div>
+
+      <div className="pim-services-list">
+        {order.services && order.services.length > 0 ? (
+          order.services.map((service: any, idx: number) => (
+            <div key={idx} className="pim-service-item">
+              <div className="pim-service-header">
+                <span className="pim-service-name">{service.name}</span>
+                <span className="pim-status-badge pim-status-new">{service.status}</span>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div style={{ padding: "20px", textAlign: "center", color: "#999" }}>No services added yet</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function BillingCard({ order }: any) {
+  return (
+    <div className="epm-detail-card">
+      <h3>
+        <i className="fas fa-receipt"></i> Billing & Invoices
+      </h3>
+
+      <div className="epm-card-content">
+        <div className="epm-info-item">
+          <span className="epm-info-label">Bill ID</span>
+          <span className="epm-info-value">{order.billing?.billId || "N/A"}</span>
+        </div>
+        <div className="epm-info-item">
+          <span className="epm-info-label">Net Amount</span>
+          <span className="epm-info-value">{order.billing?.netAmount || "N/A"}</span>
+        </div>
+        <div className="epm-info-item">
+          <span className="epm-info-label">Amount Paid</span>
+          <span className="epm-info-value">{order.billing?.amountPaid || "N/A"}</span>
+        </div>
+        <div className="epm-info-item">
+          <span className="epm-info-label">Balance Due</span>
+          <span className="epm-info-value">{order.billing?.balanceDue || "N/A"}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PaymentActivityLogCard({ order }: any) {
+  if (!order.paymentActivityLog || order.paymentActivityLog.length === 0) return null;
+
+  return (
+    <div className="pim-detail-card">
+      <h3>
+        <i className="fas fa-history"></i> Payment Activity Log
+      </h3>
+      <table className="pim-payment-log-table">
+        <thead>
+          <tr>
+            <th>Serial</th>
+            <th>Amount</th>
+            <th>Discount</th>
+            <th>Payment Method</th>
+            <th>Cashier</th>
+            <th>Timestamp</th>
+          </tr>
+        </thead>
+        <tbody>
+          {[...order.paymentActivityLog].reverse().map((payment: any, idx: number) => (
+            <tr key={idx}>
+              <td className="pim-serial-column">{payment.serial}</td>
+              <td className="pim-amount-column">{payment.amount}</td>
+              <td className="pim-discount-column">{payment.discount}</td>
+              <td className="pim-cashier-column">{payment.paymentMethod}</td>
+              <td className="pim-cashier-column">{payment.cashierName}</td>
+              <td>{payment.timestamp}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ============================================
+// ORDER TYPE SCREENS
+// ============================================
+function OrderTypeSelection({ vehicleCompletedServices, onSelectOrderType, onBack, orderType }: any) {
+  return (
+    <div className="form-card">
+      <div className="form-card-title">
+        <i className="fas fa-list-check"></i>
+        <h2>Select Order Type</h2>
+      </div>
+      <div className="form-card-content">
+        <p style={{ marginBottom: "20px", color: "#666", fontSize: "14px" }}>
+          This vehicle has {vehicleCompletedServices.length} completed service(s). Choose the type of order you want to create:
+        </p>
+
+        <div className="option-selector">
+          <div className={`option-btn ${orderType === "new" ? "selected" : ""}`} onClick={() => onSelectOrderType("new")}>
+            <i className="fas fa-file-alt" style={{ marginRight: "8px" }}></i>
+            New Job Order
+          </div>
+          <div className={`option-btn ${orderType === "service" ? "selected" : ""}`} onClick={() => onSelectOrderType("service")}>
+            <i className="fas fa-tools" style={{ marginRight: "8px" }}></i>
+            Service Order
+          </div>
+        </div>
+      </div>
+
+      <div className="action-buttons">
+        <button className="btn btn-secondary" onClick={onBack}>
+          <i className="fas fa-arrow-left" style={{ marginRight: "8px" }}></i>
+          Back
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function NoCompletedServicesMessage({ onNext, onBack }: any) {
+  return (
+    <div className="form-card">
+      <div className="form-card-title">
+        <i className="fas fa-info-circle"></i>
+        <h2>Order Type</h2>
+      </div>
+      <div className="form-card-content">
+        <div style={{ marginBottom: "20px", padding: "15px", backgroundColor: "#fff3cd", borderRadius: "8px", border: "1px solid #ffc107" }}>
+          <i className="fas fa-exclamation-circle" style={{ color: "#ff9800", marginRight: "8px" }}></i>
+          <span style={{ color: "#ff9800", fontWeight: "500" }}>
+            This vehicle has no completed services yet. Proceeding with New Job Order.
+          </span>
+        </div>
+      </div>
+
+      <div className="action-buttons">
+        <button className="btn btn-secondary" onClick={onBack}>
+          Back
+        </button>
+        <button className="btn btn-primary" onClick={onNext}>
+          Continue
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// UTILITY FUNCTIONS
+// ============================================
+function getWorkStatusClass(status: any) {
+  const statusMap: any = {
+    "New Request": "status-new-request",
+    Inspection: "status-inspection",
+    Inprogress: "status-inprogress",
+    "Quality Check": "status-quality-check",
+    Ready: "status-ready",
+    Completed: "status-completed",
+    Cancelled: "status-cancelled",
+  };
+  return statusMap[status] || "status-inprogress";
+}
+
+function getPaymentStatusClass(status: any) {
+  if (status === "Fully Paid") return "payment-full";
+  if (status === "Partially Paid") return "payment-partial";
+  return "payment-unpaid";
+}
+
+export default JobOrderManagement;

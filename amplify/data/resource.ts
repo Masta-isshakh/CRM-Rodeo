@@ -1,3 +1,4 @@
+// amplify/data/resource.ts
 import { a, defineData, type ClientSchema } from "@aws-amplify/backend";
 import { myGroups } from "../functions/auth/my-groups/resource";
 
@@ -112,12 +113,18 @@ const schema = a
         deals: a.hasMany("Deal", "customerId"),
         tickets: a.hasMany("Ticket", "customerId"),
 
-        // ✅ NEW: Vehicles relationship
+        // ✅ Vehicles relationship
         vehicles: a.hasMany("Vehicle", "customerId"),
       })
+      .secondaryIndexes((index) => [
+        // Optional but strongly recommended for production search performance
+        index("phone").queryField("customersByPhone"),
+        index("email").queryField("customersByEmail"),
+        index("name").queryField("customersByName"),
+        index("lastname").queryField("customersByLastname"),
+      ])
       .authorization((allow) => [allow.authenticated()]),
 
-    // ✅ NEW: Vehicle model (Amplify backend table)
     Vehicle: a
       .model({
         // human-friendly ID like "VEH-2026-12345"
@@ -148,6 +155,10 @@ const schema = a
         // relation
         customer: a.belongsTo("Customer", "customerId"),
       })
+      .secondaryIndexes((index) => [
+        index("customerId").queryField("vehiclesByCustomer"),
+        index("plateNumber").queryField("vehiclesByPlateNumber"),
+      ])
       .authorization((allow) => [allow.authenticated()]),
 
     Employee: a
@@ -226,7 +237,7 @@ const schema = a
       .authorization((allow) => [allow.authenticated()]),
 
     // -----------------------------
-    // Job Orders (Job Cards)
+    // Job Orders (Job Cards + JobOrderManagement)
     // - Read-only for users; mutations go through functions (RBAC enforced server-side)
     // -----------------------------
     JobOrder: a
@@ -236,6 +247,10 @@ const schema = a
         status: a.enum(["DRAFT", "OPEN", "IN_PROGRESS", "READY", "COMPLETED", "CANCELLED"]),
         paymentStatus: a.enum(["UNPAID", "PARTIAL", "PAID"]),
 
+        // ✅ UI labels (store exactly what the JobOrderManagement UI shows)
+        workStatusLabel: a.string(),       // "New Request" / "Inspection" / ...
+        paymentStatusLabel: a.string(),    // "Unpaid" / "Partially Paid" / "Fully Paid"
+
         customerId: a.id(),
         customerName: a.string().required(),
         customerPhone: a.string(),
@@ -244,6 +259,7 @@ const schema = a
         vehicleType: a.enum(["SEDAN", "SUV_4X4", "TRUCK", "MOTORBIKE", "OTHER"]),
         vehicleMake: a.string(),
         vehicleModel: a.string(),
+        vehicleYear: a.string(), // ✅ JobOrderManagement uses year in vehicleDetails
         plateNumber: a.string(),
         vin: a.string(),
         mileage: a.string(),
@@ -259,18 +275,163 @@ const schema = a
         amountPaid: a.float(),
         balanceDue: a.float(),
 
+        // ✅ billing meta (not JSON)
+        billId: a.string(),
+        netAmount: a.float(),
+        paymentMethod: a.string(),
+
+        // ✅ delivery + notes
+        expectedDeliveryDate: a.date(),
+        expectedDeliveryTime: a.string(),
+        customerNotes: a.string(),
+
         notes: a.string(),
 
-        // stores the module payload (services, docs, inspection, etc.) — payments are stored in JobOrderPayment model
+        // Backward-compat snapshot payload (JobCards module can keep using this)
         dataJson: a.string(),
 
-        // relation
+        // relations
         payments: a.hasMany("JobOrderPayment", "jobOrderId"),
+
+        // ✅ normalized JobOrderManagement relations
+        servicesItems: a.hasMany("JobOrderServiceItem", "jobOrderId"),
+        invoicesItems: a.hasMany("JobOrderInvoice", "jobOrderId"),
+        roadmapItems: a.hasMany("JobOrderRoadmapStep", "jobOrderId"),
+        docsItems: a.hasMany("JobOrderDocumentItem", "jobOrderId"),
 
         createdBy: a.string(),
         createdAt: a.datetime(),
         updatedAt: a.datetime(),
       })
+      .secondaryIndexes((index) => [
+        index("orderNumber").queryField("jobOrdersByOrderNumber"),
+        index("plateNumber").queryField("jobOrdersByPlateNumber"),
+        index("status").queryField("jobOrdersByStatus"),
+      ])
+      .authorization((allow) => [
+        allow.group(ADMIN_GROUP),
+        allow.authenticated().to(["read"]),
+      ]),
+
+    // -----------------------------
+    // ✅ JobOrderManagement normalized tables (PRODUCTION)
+    // -----------------------------
+    JobOrderServiceItem: a
+      .model({
+        jobOrderId: a.id().required(),
+
+        name: a.string().required(),
+        qty: a.integer().default(1),
+        unitPrice: a.float().default(0),
+        price: a.float().default(0),
+
+        status: a.string(),
+        started: a.string(),
+        ended: a.string(),
+        duration: a.string(),
+        technician: a.string(),
+        notes: a.string(),
+
+        createdAt: a.datetime(),
+        updatedAt: a.datetime(),
+
+        jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
+      })
+      .secondaryIndexes((index) => [
+        index("jobOrderId").queryField("listServicesByJobOrder"),
+      ])
+      .authorization((allow) => [
+        allow.group(ADMIN_GROUP),
+        allow.authenticated().to(["read"]),
+      ]),
+
+    JobOrderInvoice: a
+      .model({
+        jobOrderId: a.id().required(),
+
+        number: a.string().required(),
+        amount: a.float().default(0),
+        discount: a.float().default(0),
+        status: a.string(),
+        paymentMethod: a.string(),
+
+        createdAt: a.datetime(),
+
+        jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
+        services: a.hasMany("JobOrderInvoiceService", "invoiceId"),
+      })
+      .secondaryIndexes((index) => [
+        index("jobOrderId").queryField("listInvoicesByJobOrder"),
+      ])
+      .authorization((allow) => [
+        allow.group(ADMIN_GROUP),
+        allow.authenticated().to(["read"]),
+      ]),
+
+    JobOrderInvoiceService: a
+      .model({
+        invoiceId: a.id().required(),
+        jobOrderId: a.id().required(),
+        serviceName: a.string().required(),
+
+        invoice: a.belongsTo("JobOrderInvoice", "invoiceId"),
+      })
+      .secondaryIndexes((index) => [
+        index("invoiceId").queryField("listInvoiceServicesByInvoice"),
+        index("jobOrderId").queryField("listInvoiceServicesByJobOrder"),
+      ])
+      .authorization((allow) => [
+        allow.group(ADMIN_GROUP),
+        allow.authenticated().to(["read"]),
+      ]),
+
+    JobOrderRoadmapStep: a
+      .model({
+        jobOrderId: a.id().required(),
+
+        step: a.string().required(),
+        stepStatus: a.string(),
+        startTimestamp: a.string(),
+        endTimestamp: a.string(),
+        actionBy: a.string(),
+        status: a.string(),
+
+        createdAt: a.datetime(),
+
+        jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
+      })
+      .secondaryIndexes((index) => [
+        index("jobOrderId").queryField("listRoadmapByJobOrder"),
+      ])
+      .authorization((allow) => [
+        allow.group(ADMIN_GROUP),
+        allow.authenticated().to(["read"]),
+      ]),
+
+    JobOrderDocumentItem: a
+      .model({
+        jobOrderId: a.id().required(),
+
+        title: a.string().required(),
+        url: a.string(),
+        storagePath: a.string(),
+        type: a.string(),
+        addedAt: a.string(),
+
+        fileName: a.string(),
+        contentType: a.string(),
+        size: a.integer(),
+
+        linkedPaymentId: a.string(),
+        paymentMethod: a.string(),
+
+        createdAt: a.datetime(),
+
+        jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
+      })
+      .secondaryIndexes((index) => [
+        index("jobOrderId").queryField("listDocsByJobOrder"),
+      ])
       .authorization((allow) => [
         allow.group(ADMIN_GROUP),
         allow.authenticated().to(["read"]),

@@ -4,8 +4,16 @@ import type { Schema } from "../../amplify/data/resource";
 
 const client = generateClient<Schema>();
 
-// ✅ allow any entity type (your schema stores entityType as string anyway)
-export type ActivityEntityType = string;
+// ✅ Include Vehicle + still allow future entity types without breaking builds
+export type ActivityEntityType =
+  | "Customer"
+  | "Vehicle"
+  | "Employee"
+  | "Ticket"
+  | "JobOrder"
+  | "CallTracking"
+  | "InspectionApproval"
+  | (string & {});
 
 export type ActivityAction =
   | "CREATE"
@@ -13,7 +21,7 @@ export type ActivityAction =
   | "DELETE"
   | "APPROVE"
   | "REJECT"
-  | string;
+  | (string & {});
 
 export async function logActivity(
   entityType: ActivityEntityType,
@@ -30,7 +38,6 @@ export async function logActivity(
       createdAt: new Date().toISOString(),
     });
   } catch (e) {
-    // best-effort (never block UI)
     console.warn("[ActivityLog] failed:", e);
   }
 }

@@ -1,20 +1,16 @@
-// src/pages/Vehicles.tsx
+// src/pages/VehicleManagement.tsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import "./Vehicule.css";
 
-import { getCurrentUser } from "aws-amplify/auth";
+import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
-import { getDataClient } from "../lib/amplifyClient";
+import type { PageProps } from "../lib/PageProps";
+import { getCurrentUser } from "aws-amplify/auth";
 import { logActivity } from "../utils/activityLogger";
+import type { ReactNode } from "react";
 
-type Permission = {
-  canRead: boolean;
-  canCreate: boolean;
-  canUpdate: boolean;
-  canDelete: boolean;
-  canApprove: boolean;
-};
+const client = generateClient<Schema>();
 
 type VehicleRow = Schema["Vehicle"]["type"];
 type CustomerRow = Schema["Customer"]["type"];
@@ -22,7 +18,7 @@ type JobOrderRow = Schema["JobOrder"]["type"];
 
 type VehicleForm = {
   customerId: string;
-  vehicleId: string; // "VEH-2026-12345"
+  vehicleId: string;
   make: string;
   model: string;
   year: string;
@@ -33,14 +29,28 @@ type VehicleForm = {
   notes: string;
 };
 
+type AlertType = "info" | "success" | "warning" | "error";
+
+type AlertState = {
+  isOpen: boolean;
+  title: string;
+  message: string;
+  type: AlertType;
+  showCancel: boolean;
+  onClose?: () => void;
+  onConfirm?: () => void;
+};
+
 function escapeRegExp(input: string) {
   return input.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function highlightText(text: string, query: string) {
-  if (!query?.trim()) return text;
+  const q = query?.trim();
+  if (!q) return text;
+  if (q.startsWith("!") || q.includes(":")) return text;
 
-  const terms = query
+  const terms = q
     .toLowerCase()
     .split(" ")
     .map((t) => t.trim())
@@ -49,11 +59,12 @@ function highlightText(text: string, query: string) {
   if (!terms.length) return text;
 
   const safe = escapeRegExp(terms.join("|"));
-  const re = new RegExp(`(${safe})`, "ig");
+  const splitRe = new RegExp(`(${safe})`, "ig");
+  const isHitRe = new RegExp(`^(${safe})$`, "i");
 
-  const parts = String(text ?? "").split(re);
+  const parts = String(text ?? "").split(splitRe);
   return parts.map((p, idx) =>
-    re.test(p) ? (
+    isHitRe.test(p) ? (
       <mark key={idx} className="search-highlight">
         {p}
       </mark>
@@ -63,31 +74,385 @@ function highlightText(text: string, query: string) {
   );
 }
 
-export default function Vehicles({ permissions }: { permissions: Permission }) {
-  const client = getDataClient();
+// ----------------------
+// Alert Popup Component
+// ----------------------
+function AlertPopup(props: AlertState) {
+  const { isOpen, title, message, type, onClose, showCancel, onConfirm } = props;
+  if (!isOpen) return null;
 
-  const [loading, setLoading] = useState(false);
-  const [vehicles, setVehicles] = useState<VehicleRow[]>([]);
+  const getIcon = () => {
+    switch (type) {
+      case "success":
+        return "fas fa-check-circle";
+      case "error":
+        return "fas fa-exclamation-circle";
+      case "warning":
+        return "fas fa-exclamation-triangle";
+      default:
+        return "fas fa-info-circle";
+    }
+  };
 
-  const [searchQuery, setSearchQuery] = useState("");
-  const [pageSize, setPageSize] = useState(20);
-  const [currentPage, setCurrentPage] = useState(1);
+  return (
+    <div className="alert-popup-overlay show" role="dialog" aria-modal="true">
+      <div className={`alert-popup alert-${type}`}>
+        <div className="alert-popup-header">
+          <div className="alert-popup-title">
+            <i className={getIcon()}></i>
+            <span>{title}</span>
+          </div>
+        </div>
+        <div className="alert-popup-body">
+          <div className="alert-popup-message">{message}</div>
+        </div>
+        <div className="alert-popup-footer">
+          {!showCancel ? (
+            <button className="alert-popup-btn ok" onClick={onClose}>
+              OK
+            </button>
+          ) : (
+            <>
+              <button className="alert-popup-btn cancel" onClick={onClose}>
+                Cancel
+              </button>
+              <button className="alert-popup-btn confirm" onClick={onConfirm}>
+                Confirm
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ----------------------
+// Modal Component
+// ----------------------
+function Modal(props: {
+  isOpen: boolean;
+  title: string;
+  icon: string;
+  children: ReactNode;
+  onClose: () => void;
+  onSave: () => void;
+  isEdit?: boolean;
+  saving?: boolean;
+  saveLabel?: string;
+}) {
+  const { isOpen, title, icon, children, onClose, onSave, isEdit = false, saving = false, saveLabel } = props;
+
+  if (!isOpen) return null;
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div className="modal-overlay show">
+      <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>
+            <i className={icon}></i> {title}
+          </h3>
+          <button className="btn-close-modal" onClick={onClose} aria-label="Close">
+            <i className="fas fa-times"></i>
+          </button>
+        </div>
+
+        <div className="modal-body">{children}</div>
+
+        <div className="modal-footer">
+          <button className="btn-save" onClick={onSave} disabled={saving}>
+            <i className="fas fa-save"></i>{" "}
+            {saving ? "Saving..." : saveLabel ? saveLabel : isEdit ? "Save Changes" : "Add Vehicle"}
+          </button>
+          <button className="btn-cancel" onClick={onClose} disabled={saving}>
+            <i className="fas fa-times"></i> Cancel
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// ----------------------
+// Form Field Component
+// ----------------------
+function FormField(props: {
+  label: string;
+  id: string;
+  type?: string;
+  value: string | number;
+  onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => void;
+  error?: string;
+  placeholder?: string;
+  required?: boolean;
+  disabled?: boolean;
+  options?: Array<string | { value: string; label: string }>;
+  hint?: string;
+}) {
+  const {
+    label,
+    id,
+    type = "text",
+    value,
+    onChange,
+    error,
+    placeholder,
+    required = false,
+    disabled = false,
+    options,
+    hint,
+  } = props;
+
+  const isSelect = type === "select";
+
+  return (
+    <div className="form-group">
+      <label htmlFor={id}>
+        {label}
+        {required ? <span className="required">*</span> : <span className="form-optional">(optional)</span>}
+      </label>
+
+      {isSelect ? (
+        <select
+          id={id}
+          className={`form-control ${error ? "error" : ""}`}
+          value={String(value)}
+          onChange={onChange}
+          disabled={disabled}
+          required={required}
+        >
+          {options?.map((opt) => {
+            const v = typeof opt === "string" ? opt : opt.value;
+            const l = typeof opt === "string" ? opt : opt.label;
+            return (
+              <option key={v} value={v}>
+                {l}
+              </option>
+            );
+          })}
+        </select>
+      ) : (
+        <input
+          type={type}
+          id={id}
+          className={`form-control ${error ? "error" : ""}`}
+          value={String(value)}
+          onChange={onChange}
+          placeholder={placeholder}
+          disabled={disabled}
+          required={required}
+        />
+      )}
+
+      {hint && <div className="field-hint">{hint}</div>}
+      {error && <div className="error-message show">{error}</div>}
+    </div>
+  );
+}
+
+// ----------------------
+// Vehicles Table
+// ----------------------
+function VehiclesTable(props: {
+  data: VehicleRow[];
+  searchQuery: string;
+  onView: (id: string) => void;
+  onEdit: (id: string) => void;
+  onDelete: (id: string) => void;
+  canUpdate: boolean;
+  canDelete: boolean;
+}) {
+  const { data, searchQuery, onView, onEdit, onDelete, canUpdate, canDelete } = props;
 
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
 
-  const [showAdd, setShowAdd] = useState(false);
-  const [showEdit, setShowEdit] = useState(false);
-  const [deleteVehicle, setDeleteVehicle] = useState<VehicleRow | null>(null);
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const t = event.target as HTMLElement;
+      const isDropdownButton = t.closest(".btn-action-dropdown");
+      const isDropdownMenu = t.closest(".action-dropdown-menu");
+      if (!isDropdownButton && !isDropdownMenu) setActiveDropdown(null);
+    };
 
+    if (activeDropdown) {
+      document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+    }
+  }, [activeDropdown]);
+
+  if (data.length === 0) {
+    return (
+      <div className="empty-state">
+        <div className="empty-icon">
+          <i className="fas fa-search"></i>
+        </div>
+        <div className="empty-text">No matching vehicles found</div>
+        <div className="empty-subtext">Try adjusting your search terms or clear the search to see all records</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="table-wrapper">
+      <table className="customers-table">
+        <thead>
+          <tr>
+            <th>Vehicle ID</th>
+            <th>Owned By</th>
+            <th>Make</th>
+            <th>Model</th>
+            <th>Year</th>
+            <th>Color</th>
+            <th>Plate Number</th>
+            <th>Completed Services</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {data.map((v) => (
+            <tr key={v.id}>
+              <td>{highlightText(v.vehicleId ?? "—", searchQuery)}</td>
+              <td>{highlightText(v.ownedBy ?? "—", searchQuery)}</td>
+              <td>{highlightText(v.make ?? "—", searchQuery)}</td>
+              <td>{highlightText(v.model ?? "—", searchQuery)}</td>
+              <td>{highlightText(v.year ?? "—", searchQuery)}</td>
+              <td>{highlightText(v.color ?? "—", searchQuery)}</td>
+              <td>{highlightText(v.plateNumber ?? "—", searchQuery)}</td>
+              <td>
+                <span className="count-badge">{(v.completedServicesCount ?? 0).toString()} services</span>
+              </td>
+
+              <td>
+                <div className="action-dropdown-container">
+                  <button
+                    className={`btn-action-dropdown ${activeDropdown === v.id ? "active" : ""}`}
+                    onClick={(e) => {
+                      const isActive = activeDropdown === v.id;
+                      if (isActive) {
+                        setActiveDropdown(null);
+                        return;
+                      }
+                      const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                      const menuHeight = 160;
+                      const menuWidth = 210;
+                      const spaceBelow = window.innerHeight - rect.bottom;
+                      const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
+                      const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+                      setDropdownPosition({ top, left });
+                      setActiveDropdown(v.id);
+                    }}
+                  >
+                    <i className="fas fa-cogs"></i> Actions <i className="fas fa-chevron-down"></i>
+                  </button>
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {activeDropdown &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="action-dropdown-menu show action-dropdown-menu-fixed"
+            style={{ top: `${dropdownPosition.top}px`, left: `${dropdownPosition.left}px` }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="dropdown-item view"
+              onClick={() => {
+                onView(activeDropdown);
+                setActiveDropdown(null);
+              }}
+            >
+              <i className="fas fa-eye"></i> View Details
+            </button>
+
+            {(canUpdate || canDelete) && <div className="dropdown-divider"></div>}
+
+            {canUpdate && (
+              <>
+                <button
+                  className="dropdown-item edit"
+                  onClick={() => {
+                    onEdit(activeDropdown);
+                    setActiveDropdown(null);
+                  }}
+                >
+                  <i className="fas fa-edit"></i> Edit Vehicle
+                </button>
+                {canDelete && <div className="dropdown-divider"></div>}
+              </>
+            )}
+
+            {canDelete && (
+              <button
+                className="dropdown-item delete"
+                onClick={() => {
+                  onDelete(activeDropdown);
+                  setActiveDropdown(null);
+                }}
+              >
+                <i className="fas fa-trash"></i> Delete Vehicle
+              </button>
+            )}
+          </div>,
+          document.body
+        )}
+    </div>
+  );
+}
+
+// ----------------------
+// Page
+// ----------------------
+type VehiclePageProps = PageProps & {
+  navigationData?: any;
+  onClearNavigation?: () => void;
+  onNavigate?: (moduleName: string, payload?: any) => void;
+  onNavigateBack?: (source: string, returnToCustomerId?: string | null) => void;
+};
+
+export default function VehicleManagement({
+  permissions,
+  navigationData,
+  onClearNavigation,
+  onNavigate,
+  onNavigateBack,
+}: VehiclePageProps) {
+  if (!permissions.canRead) {
+    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+  }
+
+  const [vehicles, setVehicles] = useState<VehicleRow[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  const [viewMode, setViewMode] = useState<"list" | "details">("list");
+  const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleRow | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerRow | null>(null);
   const [completedOrders, setCompletedOrders] = useState<JobOrderRow[]>([]);
 
-  const [verifiedCustomer, setVerifiedCustomer] = useState<CustomerRow | null>(null);
-
+  // modals
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [deleteVehicle, setDeleteVehicle] = useState<VehicleRow | null>(null);
   const [saving, setSaving] = useState(false);
 
+  // verification
+  const [verifiedCustomer, setVerifiedCustomer] = useState<CustomerRow | null>(null);
+
+  // forms/errors
   const [form, setForm] = useState<VehicleForm>({
     customerId: "",
     vehicleId: "",
@@ -103,63 +468,111 @@ export default function Vehicles({ permissions }: { permissions: Permission }) {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
+  // alert
+  const [alert, setAlert] = useState<AlertState>({
+    isOpen: false,
+    title: "",
+    message: "",
+    type: "info",
+    showCancel: false,
+  });
+
+  const showAlert = useCallback((title: string, message: string, type: AlertType = "info", showCancel = false) => {
+    return new Promise<boolean>((resolve) => {
+      setAlert({
+        isOpen: true,
+        title,
+        message,
+        type,
+        showCancel,
+        onClose: () => {
+          setAlert((p) => ({ ...p, isOpen: false }));
+          resolve(false);
+        },
+        onConfirm: () => {
+          setAlert((p) => ({ ...p, isOpen: false }));
+          resolve(true);
+        },
+      });
+    });
+  }, []);
+
   const loadVehicles = useCallback(async () => {
     setLoading(true);
     try {
       const res = await client.models.Vehicle.list({ limit: 2000 });
       setVehicles(res.data ?? []);
+    } catch (e) {
+      console.error(e);
+      await showAlert("Error", "Failed to load vehicles. Check console.", "error");
     } finally {
       setLoading(false);
     }
-  }, [client]);
+  }, [showAlert]);
 
   useEffect(() => {
     loadVehicles();
   }, [loadVehicles]);
 
-  // Close dropdown on outside click
+  // Optional navigation hook
   useEffect(() => {
-    const handle = (event: MouseEvent) => {
-      const t = event.target as HTMLElement;
-      const isBtn = t.closest(".btn-action-dropdown");
-      const isMenu = t.closest(".action-dropdown-menu");
-      if (!isBtn && !isMenu) setActiveDropdown(null);
-    };
-    if (activeDropdown) {
-      document.addEventListener("mousedown", handle);
-      return () => document.removeEventListener("mousedown", handle);
+    if (navigationData?.openDetails && navigationData?.vehicleId) {
+      (async () => {
+        try {
+          const res = await client.models.Vehicle.list({
+            limit: 1,
+            filter: { vehicleId: { eq: navigationData.vehicleId } },
+          });
+          const found = res.data?.[0];
+          if (found) {
+            setSelectedVehicleId(found.id);
+            setViewMode("details");
+          }
+        } catch (e) {
+          console.error(e);
+        } finally {
+          onClearNavigation?.();
+        }
+      })();
     }
-  }, [activeDropdown]);
+  }, [navigationData, onClearNavigation]);
 
-  const generateVehicleId = () => {
-    const y = new Date().getFullYear();
-    const rand = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
-    return `VEH-${y}-${rand}`;
-  };
+  const performSmartSearch = useCallback(
+    (query: string) => {
+      if (!query.trim()) return vehicles;
+      const terms = query.toLowerCase().split(" ").filter(Boolean);
 
-  const validate = (isEdit: boolean) => {
-    const next: Record<string, string> = {};
+      return vehicles.filter((v) => {
+        const hay = [
+          v.vehicleId,
+          v.ownedBy,
+          v.make,
+          v.model,
+          v.year,
+          v.color,
+          v.plateNumber,
+          v.vin,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
 
-    if (!form.customerId.trim()) next.customerId = "Customer ID required";
-    if (!isEdit && !form.vehicleId.trim()) next.vehicleId = "Vehicle ID required";
+        return terms.every((t) => hay.includes(t));
+      });
+    },
+    [vehicles]
+  );
 
-    if (!form.make.trim()) next.make = "Make required";
-    if (!form.model.trim()) next.model = "Model required";
+  const searchResults = useMemo(() => performSmartSearch(searchQuery), [performSmartSearch, searchQuery]);
 
-    // Your schema allows these optional, but your UI wants them required:
-    if (!form.year.trim()) next.year = "Year required";
-    if (!form.vehicleType.trim()) next.vehicleType = "Vehicle type required";
-    if (!form.color.trim()) next.color = "Color required";
+  const totalPages = Math.ceil(searchResults.length / pageSize) || 1;
+  const paginatedData = searchResults.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
-    if (!form.plateNumber.trim()) next.plateNumber = "Plate number required";
-
-    setErrors(next);
-    return Object.keys(next).length === 0;
-  };
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchQuery, pageSize]);
 
   const resetForm = () => {
-    setErrors({});
-    setVerifiedCustomer(null);
     setForm({
       customerId: "",
       vehicleId: "",
@@ -172,38 +585,83 @@ export default function Vehicles({ permissions }: { permissions: Permission }) {
       vin: "",
       notes: "",
     });
+    setErrors({});
+    setVerifiedCustomer(null);
   };
+
+  const generateVehicleId = () => {
+    const year = new Date().getFullYear();
+    const rand = String(Math.floor(Math.random() * 100000)).padStart(5, "0");
+    return `VEH-${year}-${rand}`;
+  };
+
+  // ✅ Verify helper (used by button + autosave)
+  const ensureVerifiedCustomer = useCallback(
+    async (customerId: string): Promise<CustomerRow | null> => {
+      const id = customerId.trim();
+      if (!id) return null;
+
+      // if already verified and matches -> return it
+      if (verifiedCustomer?.id === id) return verifiedCustomer;
+
+      try {
+        const res = await client.models.Customer.get({ id });
+        if (!res.data) return null;
+        setVerifiedCustomer(res.data);
+        return res.data;
+      } catch (e) {
+        console.error(e);
+        return null;
+      }
+    },
+    [verifiedCustomer]
+  );
 
   const verifyCustomer = async (customerId: string) => {
-    const id = customerId.trim();
-    if (!id) {
+    if (!customerId.trim()) {
       setVerifiedCustomer(null);
-      alert("Please enter a Customer ID");
+      await showAlert("Missing", "Please enter a Customer ID.", "warning");
       return;
     }
-
-    const res = await client.models.Customer.get({ id });
-    if (!res.data) {
+    const c = await ensureVerifiedCustomer(customerId);
+    if (!c) {
       setVerifiedCustomer(null);
-      alert("Customer not found");
+      await showAlert("Not Found", "Customer not found. Please use a valid Customer ID.", "error");
       return;
     }
-
-    setVerifiedCustomer(res.data);
-    alert(`Customer verified: ${res.data.name} ${res.data.lastname}`);
+    await showAlert("Verified", `Customer verified: ${c.name} ${c.lastname}`, "success");
   };
 
-  const openAdd = () => {
+  const validateVehicleForm = (isEdit: boolean) => {
+    const next: Record<string, string> = {};
+
+    if (!form.customerId.trim()) next.customerId = "Customer ID required";
+    if (!form.make.trim()) next.make = "Make required";
+    if (!form.model.trim()) next.model = "Model required";
+    if (!form.year.trim()) next.year = "Year required";
+    if (!form.vehicleType.trim()) next.vehicleType = "Type required";
+    if (!form.color.trim()) next.color = "Color required";
+    if (!form.plateNumber.trim()) next.plateNumber = "Plate number required";
+
+    if (!isEdit && !form.vehicleId.trim()) next.vehicleId = "Vehicle ID required";
+
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  };
+
+  const openAddModal = () => {
     if (!permissions.canCreate) return;
     resetForm();
     setForm((p) => ({ ...p, vehicleId: generateVehicleId() }));
-    setShowAdd(true);
+    setShowAddModal(true);
   };
 
-  const openEdit = async (row: VehicleRow) => {
+  const openEditModal = async (id: string) => {
     if (!permissions.canUpdate) return;
-    resetForm();
+    const row = vehicles.find((v) => v.id === id);
+    if (!row) return;
 
+    resetForm();
     setForm({
       customerId: row.customerId ?? "",
       vehicleId: row.vehicleId ?? "",
@@ -218,46 +676,23 @@ export default function Vehicles({ permissions }: { permissions: Permission }) {
     });
 
     if (row.customerId) {
-      const c = await client.models.Customer.get({ id: row.customerId });
-      setVerifiedCustomer(c.data ?? null);
+      await ensureVerifiedCustomer(row.customerId);
     }
 
-    setSelectedVehicle(row);
-    setShowEdit(true);
+    setSelectedVehicleId(id);
+    setShowEditModal(true);
   };
 
-  const openDetails = async (row: VehicleRow) => {
-    setSelectedVehicle(row);
-
-    // load customer
-    if (row.customerId) {
-      const c = await client.models.Customer.get({ id: row.customerId });
-      setSelectedCustomer(c.data ?? null);
-    } else {
-      setSelectedCustomer(null);
-    }
-
-    // load completed orders (matched by plate number)
-    if (row.plateNumber) {
-      const ordersRes = await client.models.JobOrder.list({
-        limit: 2000,
-        filter: {
-          plateNumber: { eq: row.plateNumber },
-          status: { eq: "COMPLETED" },
-        },
-      });
-      setCompletedOrders(ordersRes.data ?? []);
-    } else {
-      setCompletedOrders([]);
-    }
-  };
-
-  const createVehicle = async () => {
+  const handleCreateVehicle = async () => {
     if (!permissions.canCreate || saving) return;
-    if (!validate(false)) return;
 
-    if (!verifiedCustomer || verifiedCustomer.id !== form.customerId.trim()) {
-      alert("Please verify customer before saving");
+    const ok = validateVehicleForm(false);
+    if (!ok) return;
+
+    // ✅ Auto verify on save
+    const customer = await ensureVerifiedCustomer(form.customerId);
+    if (!customer) {
+      await showAlert("Customer missing", "Customer ID is invalid. Please verify a valid customer.", "error");
       return;
     }
 
@@ -266,9 +701,9 @@ export default function Vehicles({ permissions }: { permissions: Permission }) {
       const u = await getCurrentUser();
       const createdBy = (u.signInDetails?.loginId || u.username || "").toLowerCase();
 
-      const ownerName = `${verifiedCustomer.name} ${verifiedCustomer.lastname}`.trim();
+      const ownerName = `${customer.name} ${customer.lastname}`.trim();
 
-      const res = await client.models.Vehicle.create({
+      const created = await client.models.Vehicle.create({
         customerId: form.customerId.trim(),
         vehicleId: form.vehicleId.trim(),
         ownedBy: ownerName,
@@ -286,40 +721,42 @@ export default function Vehicles({ permissions }: { permissions: Permission }) {
         updatedAt: new Date().toISOString(),
       });
 
-      const created = res.data;
-      if (!created) throw new Error("Create failed: no data returned");
+      if (!created.data) throw new Error("Vehicle not created");
 
-      // ✅ NO MORE RED UNDERLINE (because logger accepts "Vehicle")
-      await logActivity("Vehicle", created.id, "CREATE", `Vehicle ${created.vehicleId} created`);
+      await logActivity("Vehicle", created.data.id, "CREATE", `Vehicle ${created.data.vehicleId} created`);
 
-      setShowAdd(false);
+      setShowAddModal(false);
       resetForm();
       await loadVehicles();
-      alert("Vehicle created successfully");
+      await showAlert("Success", "Vehicle created successfully!", "success");
     } catch (e) {
       console.error(e);
-      alert("Create failed");
+      await showAlert("Error", "Create failed. Check console.", "error");
     } finally {
       setSaving(false);
     }
   };
 
-  const updateVehicle = async () => {
+  const handleUpdateVehicle = async () => {
     if (!permissions.canUpdate || saving) return;
-    if (!selectedVehicle) return;
-    if (!validate(true)) return;
+    if (!selectedVehicleId) return;
 
-    if (!verifiedCustomer || verifiedCustomer.id !== form.customerId.trim()) {
-      alert("Please verify customer before saving");
+    const ok = validateVehicleForm(true);
+    if (!ok) return;
+
+    // ✅ Auto verify on save
+    const customer = await ensureVerifiedCustomer(form.customerId);
+    if (!customer) {
+      await showAlert("Customer missing", "Customer ID is invalid. Please verify a valid customer.", "error");
       return;
     }
 
     setSaving(true);
     try {
-      const ownerName = `${verifiedCustomer.name} ${verifiedCustomer.lastname}`.trim();
+      const ownerName = `${customer.name} ${customer.lastname}`.trim();
 
       await client.models.Vehicle.update({
-        id: selectedVehicle.id,
+        id: selectedVehicleId,
         customerId: form.customerId.trim(),
         ownedBy: ownerName,
         make: form.make.trim(),
@@ -333,269 +770,110 @@ export default function Vehicles({ permissions }: { permissions: Permission }) {
         updatedAt: new Date().toISOString(),
       });
 
-      // ✅ NO MORE RED UNDERLINE
-      await logActivity("Vehicle", selectedVehicle.id, "UPDATE", `Vehicle ${form.vehicleId} updated`);
+      await logActivity("Vehicle", selectedVehicleId, "UPDATE", `Vehicle ${form.vehicleId} updated`);
 
-      setShowEdit(false);
+      setShowEditModal(false);
       resetForm();
-      setSelectedVehicle(null);
+      setSelectedVehicleId(null);
       await loadVehicles();
-      alert("Vehicle updated successfully");
+      await showAlert("Success", "Vehicle updated successfully!", "success");
     } catch (e) {
       console.error(e);
-      alert("Update failed");
+      await showAlert("Error", "Update failed. Check console.", "error");
     } finally {
       setSaving(false);
     }
   };
 
-  const confirmDelete = async () => {
-    if (!permissions.canDelete || saving) return;
-    if (!deleteVehicle) return;
+  const handleDeleteVehicle = async (id: string) => {
+    if (!permissions.canDelete) return;
+    const row = vehicles.find((v) => v.id === id);
+    if (!row) return;
+    setDeleteVehicle(row);
+  };
 
-    const toDelete = deleteVehicle;
+  const confirmDeleteVehicle = async () => {
+    if (!permissions.canDelete || !deleteVehicle) return;
 
     setSaving(true);
     try {
-      await client.models.Vehicle.delete({ id: toDelete.id });
-
-      // ✅ NO MORE RED UNDERLINE
-      await logActivity("Vehicle", toDelete.id, "DELETE", `Vehicle ${toDelete.vehicleId} deleted`);
+      await client.models.Vehicle.delete({ id: deleteVehicle.id });
+      await logActivity("Vehicle", deleteVehicle.id, "DELETE", `Vehicle ${deleteVehicle.vehicleId} deleted`);
 
       setDeleteVehicle(null);
-      setSelectedVehicle(null);
-      setSelectedCustomer(null);
-      setCompletedOrders([]);
+
+      if (selectedVehicleId === deleteVehicle.id) {
+        setSelectedVehicleId(null);
+        setSelectedVehicle(null);
+        setSelectedCustomer(null);
+        setCompletedOrders([]);
+        setViewMode("list");
+      }
+
       await loadVehicles();
-      alert("Vehicle deleted successfully");
+      await showAlert("Success", "Vehicle deleted successfully!", "success");
     } catch (e) {
       console.error(e);
-      alert("Delete failed");
+      await showAlert("Error", "Delete failed. Check console.", "error");
     } finally {
       setSaving(false);
     }
   };
 
-  // SEARCH + PAGINATION
-  const searchResults = useMemo(() => {
-    if (!searchQuery.trim()) return vehicles;
+  const openDetails = async (id: string) => {
+    const row = vehicles.find((v) => v.id === id);
+    if (!row) return;
 
-    const terms = searchQuery.toLowerCase().split(" ").filter(Boolean);
-    return vehicles.filter((v) => {
-      const hay = [
-        v.vehicleId,
-        v.ownedBy,
-        v.make,
-        v.model,
-        v.year,
-        v.color,
-        v.plateNumber,
-        v.vin,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
+    setSelectedVehicleId(id);
+    setViewMode("details");
+  };
 
-      return terms.every((t) => hay.includes(t));
-    });
-  }, [vehicles, searchQuery]);
+  // Load details view data
+  useEffect(() => {
+    if (viewMode !== "details" || !selectedVehicleId) return;
 
-  //const totalPages = Math.ceil(searchResults.length / pageSize);
-  const paginated = searchResults.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+    (async () => {
+      try {
+        const v = await client.models.Vehicle.get({ id: selectedVehicleId });
+        const vehicle = v.data ?? null;
+        setSelectedVehicle(vehicle);
 
-  useEffect(() => setCurrentPage(1), [searchQuery, pageSize]);
+        if (vehicle?.customerId) {
+          const c = await client.models.Customer.get({ id: vehicle.customerId });
+          setSelectedCustomer(c.data ?? null);
+        } else {
+          setSelectedCustomer(null);
+        }
 
-  if (!permissions.canRead) {
-    return <div style={{ padding: 24 }}>You don’t have access to Vehicles.</div>;
-  }
+        if (vehicle?.plateNumber) {
+          const orders = await client.models.JobOrder.list({
+            limit: 2000,
+            filter: { plateNumber: { eq: vehicle.plateNumber }, status: { eq: "COMPLETED" } },
+          });
+          setCompletedOrders(orders.data ?? []);
+        } else {
+          setCompletedOrders([]);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+  }, [viewMode, selectedVehicleId]);
 
-  return (
-    <>
-      <div className={`vehicle-main-screen ${selectedVehicle ? "hidden" : ""}`}>
-        <header className="vehicle-header">
-          <div className="header-left">
-            <h1>
-              <i className="fas fa-car"></i> Vehicle Management
-            </h1>
-          </div>
-        </header>
+  const closeDetails = () => {
+    setViewMode("list");
+    setSelectedVehicleId(null);
+    setSelectedVehicle(null);
+    setSelectedCustomer(null);
+    setCompletedOrders([]);
+  };
 
-        <main className="vehicle-content">
-          <section className="search-section">
-            <div className="search-container">
-              <i className="fas fa-search search-icon"></i>
-              <input
-                type="text"
-                className="smart-search-input"
-                placeholder="Search by any vehicle details"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                autoComplete="off"
-              />
-            </div>
-
-            <div className="search-stats">
-              {loading
-                ? "Loading..."
-                : searchResults.length === 0
-                ? "No vehicles found"
-                : `Showing ${Math.min((currentPage - 1) * pageSize + 1, searchResults.length)}-${Math.min(
-                    currentPage * pageSize,
-                    searchResults.length
-                  )} of ${searchResults.length} vehicles`}
-            </div>
-          </section>
-
-          <section className="results-section">
-            <div className="section-header">
-              <h2>
-                <i className="fas fa-list"></i> Vehicle Records
-              </h2>
-
-              <div className="pagination-controls">
-                <div className="records-per-page">
-                  <label htmlFor="pageSizeSelect">Records per page:</label>
-                  <select
-                    id="pageSizeSelect"
-                    className="page-size-select"
-                    value={pageSize}
-                    onChange={(e) => setPageSize(parseInt(e.target.value))}
-                  >
-                    <option value="20">20</option>
-                    <option value="50">50</option>
-                    <option value="100">100</option>
-                  </select>
-                </div>
-
-                {permissions.canCreate && (
-                  <button className="btn-new-vehicle" onClick={openAdd}>
-                    <i className="fas fa-plus-circle"></i> Add New Vehicle
-                  </button>
-                )}
-              </div>
-            </div>
-
-            <div className="table-wrapper">
-              <table className="vehicle-table">
-                <thead>
-                  <tr>
-                    <th>Vehicle ID</th>
-                    <th>Owned by</th>
-                    <th>Make</th>
-                    <th>Model</th>
-                    <th>Year</th>
-                    <th>Color</th>
-                    <th>Plate Number</th>
-                    <th>Completed Services</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-
-                <tbody>
-                  {paginated.map((v) => (
-                    <tr key={v.id}>
-                      <td>{highlightText(v.vehicleId ?? "—", searchQuery)}</td>
-                      <td>{highlightText(v.ownedBy ?? "—", searchQuery)}</td>
-                      <td>{highlightText(v.make ?? "—", searchQuery)}</td>
-                      <td>{highlightText(v.model ?? "—", searchQuery)}</td>
-                      <td>{highlightText(v.year ?? "—", searchQuery)}</td>
-                      <td>{highlightText(v.color ?? "—", searchQuery)}</td>
-                      <td>{highlightText(v.plateNumber ?? "—", searchQuery)}</td>
-                      <td>{v.completedServicesCount ?? 0}</td>
-                      <td>
-                        <div className="action-dropdown-container">
-                          <button
-                            className={`btn-action-dropdown ${activeDropdown === v.id ? "active" : ""}`}
-                            onClick={(e) => {
-                              const isActive = activeDropdown === v.id;
-                              if (isActive) return setActiveDropdown(null);
-
-                              const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                              const menuHeight = 180;
-                              const menuWidth = 200;
-                              const spaceBelow = window.innerHeight - rect.bottom;
-
-                              const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
-                              const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
-
-                              setDropdownPosition({ top, left });
-                              setActiveDropdown(v.id);
-                            }}
-                          >
-                            <i className="fas fa-cogs"></i> Actions <i className="fas fa-chevron-down"></i>
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            {activeDropdown &&
-              typeof document !== "undefined" &&
-              createPortal(
-                <div
-                  className="action-dropdown-menu show action-dropdown-menu-fixed"
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                  style={{ top: `${dropdownPosition.top}px`, left: `${dropdownPosition.left}px` }}
-                >
-                  <button
-                    className="dropdown-item view"
-                    onClick={() => {
-                      const row = vehicles.find((x) => x.id === activeDropdown);
-                      if (row) openDetails(row);
-                      setActiveDropdown(null);
-                    }}
-                  >
-                    <i className="fas fa-eye"></i> View Details
-                  </button>
-
-                  {permissions.canUpdate && (
-                    <>
-                      <div className="dropdown-divider"></div>
-                      <button
-                        className="dropdown-item edit"
-                        onClick={() => {
-                          const row = vehicles.find((x) => x.id === activeDropdown);
-                          if (row) openEdit(row);
-                          setActiveDropdown(null);
-                        }}
-                      >
-                        <i className="fas fa-edit"></i> Edit Vehicle
-                      </button>
-                    </>
-                  )}
-
-                  {permissions.canDelete && (
-                    <>
-                      <div className="dropdown-divider"></div>
-                      <button
-                        className="dropdown-item delete"
-                        onClick={() => {
-                          const row = vehicles.find((x) => x.id === activeDropdown);
-                          if (row) setDeleteVehicle(row);
-                          setActiveDropdown(null);
-                        }}
-                      >
-                        <i className="fas fa-trash"></i> Delete Vehicle
-                      </button>
-                    </>
-                  )}
-                </div>,
-                document.body
-              )}
-          </section>
-        </main>
-
-        <footer className="vehicle-footer">
-          <p>Service Management System © {new Date().getFullYear()} | Vehicle Management Module</p>
-        </footer>
-      </div>
-
-      {/* DETAILS */}
-      {selectedVehicle && (
+  // ----------------------
+  // Details View
+  // ----------------------
+  if (viewMode === "details" && selectedVehicle) {
+    return (
+      <>
         <div className="pim-details-screen">
           <div className="pim-details-header">
             <div className="pim-details-title-container">
@@ -607,9 +885,10 @@ export default function Vehicles({ permissions }: { permissions: Permission }) {
             <button
               className="pim-btn-close-details"
               onClick={() => {
-                setSelectedVehicle(null);
-                setSelectedCustomer(null);
-                setCompletedOrders([]);
+                closeDetails();
+                if (navigationData?.source && onNavigateBack) {
+                  onNavigateBack(navigationData.source, navigationData.returnToCustomer ?? null);
+                }
               }}
             >
               <i className="fas fa-times"></i> Close Details
@@ -624,21 +903,27 @@ export default function Vehicles({ permissions }: { permissions: Permission }) {
                     <i className="fas fa-user"></i> Customer Information
                   </h3>
                 </div>
+
                 <div className="pim-card-content">
                   <div className="pim-info-item">
                     <span className="pim-info-label">Customer ID</span>
                     <span className="pim-info-value">{selectedVehicle.customerId ?? "—"}</span>
                   </div>
+
                   <div className="pim-info-item">
                     <span className="pim-info-label">Customer Name</span>
                     <span className="pim-info-value">
-                      {selectedCustomer ? `${selectedCustomer.name} ${selectedCustomer.lastname}` : selectedVehicle.ownedBy ?? "—"}
+                      {selectedCustomer
+                        ? `${selectedCustomer.name} ${selectedCustomer.lastname}`
+                        : selectedVehicle.ownedBy ?? "—"}
                     </span>
                   </div>
+
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Phone</span>
+                    <span className="pim-info-label">Mobile</span>
                     <span className="pim-info-value">{selectedCustomer?.phone ?? "Not provided"}</span>
                   </div>
+
                   <div className="pim-info-item">
                     <span className="pim-info-label">Email</span>
                     <span className="pim-info-value">{selectedCustomer?.email ?? "Not provided"}</span>
@@ -651,8 +936,19 @@ export default function Vehicles({ permissions }: { permissions: Permission }) {
                   <h3>
                     <i className="fas fa-car"></i> Vehicle Information
                   </h3>
+
+                  {permissions.canUpdate && (
+                    <button className="btn-action btn-edit" onClick={() => openEditModal(selectedVehicle.id)}>
+                      <i className="fas fa-edit"></i> Edit Vehicle
+                    </button>
+                  )}
                 </div>
+
                 <div className="pim-card-content">
+                  <div className="pim-info-item">
+                    <span className="pim-info-label">Vehicle ID</span>
+                    <span className="pim-info-value">{selectedVehicle.vehicleId ?? "—"}</span>
+                  </div>
                   <div className="pim-info-item">
                     <span className="pim-info-label">Make</span>
                     <span className="pim-info-value">{selectedVehicle.make ?? "—"}</span>
@@ -662,7 +958,19 @@ export default function Vehicles({ permissions }: { permissions: Permission }) {
                     <span className="pim-info-value">{selectedVehicle.model ?? "—"}</span>
                   </div>
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Plate</span>
+                    <span className="pim-info-label">Year</span>
+                    <span className="pim-info-value">{selectedVehicle.year ?? "—"}</span>
+                  </div>
+                  <div className="pim-info-item">
+                    <span className="pim-info-label">Type</span>
+                    <span className="pim-info-value">{selectedVehicle.vehicleType ?? "—"}</span>
+                  </div>
+                  <div className="pim-info-item">
+                    <span className="pim-info-label">Color</span>
+                    <span className="pim-info-value">{selectedVehicle.color ?? "—"}</span>
+                  </div>
+                  <div className="pim-info-item">
+                    <span className="pim-info-label">Plate Number</span>
                     <span className="pim-info-value">{selectedVehicle.plateNumber ?? "—"}</span>
                   </div>
                   <div className="pim-info-item">
@@ -675,8 +983,24 @@ export default function Vehicles({ permissions }: { permissions: Permission }) {
               <div className="pim-detail-card">
                 <div className="details-card-header">
                   <h3>
-                    <i className="fas fa-tasks"></i> Completed Orders (by plate number)
+                    <i className="fas fa-tasks"></i> Completed Services (from Job Orders)
                   </h3>
+
+                  <button
+                    className="btn-add-vehicle"
+                    onClick={() => {
+                      if (!onNavigate) return;
+                      onNavigate("Job Order Management", {
+                        openNewJob: true,
+                        source: "Vehicles Management",
+                        vehicleId: selectedVehicle.vehicleId,
+                        customerId: selectedVehicle.customerId,
+                        plateNumber: selectedVehicle.plateNumber,
+                      });
+                    }}
+                  >
+                    <i className="fas fa-plus-circle"></i> Add New Order
+                  </button>
                 </div>
 
                 <div className="table-wrapper details-table-wrapper">
@@ -704,7 +1028,7 @@ export default function Vehicles({ permissions }: { permissions: Permission }) {
                       ) : (
                         <tr>
                           <td colSpan={5} style={{ textAlign: "center", padding: 30, opacity: 0.8 }}>
-                            No completed orders found.
+                            No completed job orders found for this vehicle (matched by plate number).
                           </td>
                         </tr>
                       )}
@@ -712,271 +1036,405 @@ export default function Vehicles({ permissions }: { permissions: Permission }) {
                   </table>
                 </div>
               </div>
-
-              {/* quick actions */}
-              <div style={{ display: "flex", gap: 10, padding: 10 }}>
-                {permissions.canUpdate && (
-                  <button className="btn-new-vehicle" onClick={() => openEdit(selectedVehicle)}>
-                    <i className="fas fa-edit"></i> Edit
-                  </button>
-                )}
-                {permissions.canDelete && (
-                  <button className="btn-confirm-delete" onClick={() => setDeleteVehicle(selectedVehicle)}>
-                    <i className="fas fa-trash"></i> Delete
-                  </button>
-                )}
-              </div>
             </div>
           </div>
         </div>
-      )}
 
-      {/* ADD MODAL */}
-      {showAdd &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <div className="edit-modal-overlay" onClick={() => setShowAdd(false)}>
-            <div className="edit-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="edit-modal-header">
-                <h3>
+        {/* Edit Modal */}
+        <Modal
+          isOpen={showEditModal}
+          title="Edit Vehicle"
+          icon="fas fa-car"
+          onClose={() => {
+            setShowEditModal(false);
+            resetForm();
+            setSelectedVehicleId(null);
+          }}
+          onSave={handleUpdateVehicle}
+          isEdit
+          saving={saving}
+          saveLabel="Save Changes"
+        >
+          <div className="modal-form">
+            <div className="verify-row">
+              <FormField
+                label="Customer ID"
+                id="editCustomerId"
+                placeholder="Enter Customer ID"
+                value={form.customerId}
+                onChange={(e) => setForm((p) => ({ ...p, customerId: e.target.value }))}
+                error={errors.customerId}
+                required
+              />
+              <button className="btn-verify" type="button" onClick={() => verifyCustomer(form.customerId)}>
+                <i className="fas fa-check-circle"></i> Verify
+              </button>
+            </div>
+
+            {verifiedCustomer && (
+              <div className="verified-banner">
+                <i className="fas fa-check-circle"></i> Verified: {verifiedCustomer.name} {verifiedCustomer.lastname}
+              </div>
+            )}
+
+            <div className="form-grid-2">
+              <FormField
+                label="Vehicle ID"
+                id="editVehicleId"
+                value={form.vehicleId}
+                onChange={(e) => setForm((p) => ({ ...p, vehicleId: e.target.value }))}
+                disabled
+                hint="Vehicle ID is not editable."
+              />
+              <FormField
+                label="Plate Number"
+                id="editPlate"
+                placeholder="e.g. 123456"
+                value={form.plateNumber}
+                onChange={(e) => setForm((p) => ({ ...p, plateNumber: e.target.value }))}
+                error={errors.plateNumber}
+                required
+              />
+              <FormField
+                label="Make"
+                id="editMake"
+                placeholder="e.g. Toyota"
+                value={form.make}
+                onChange={(e) => setForm((p) => ({ ...p, make: e.target.value }))}
+                error={errors.make}
+                required
+              />
+              <FormField
+                label="Model"
+                id="editModel"
+                placeholder="e.g. Land Cruiser"
+                value={form.model}
+                onChange={(e) => setForm((p) => ({ ...p, model: e.target.value }))}
+                error={errors.model}
+                required
+              />
+              <FormField
+                label="Year"
+                id="editYear"
+                placeholder="e.g. 2024"
+                value={form.year}
+                onChange={(e) => setForm((p) => ({ ...p, year: e.target.value }))}
+                error={errors.year}
+                required
+              />
+              <FormField
+                label="Vehicle Type"
+                id="editType"
+                type="select"
+                value={form.vehicleType}
+                onChange={(e) => setForm((p) => ({ ...p, vehicleType: e.target.value }))}
+                error={errors.vehicleType}
+                required
+                options={[
+                  { value: "", label: "Select type" },
+                  { value: "Sedan", label: "Sedan" },
+                  { value: "SUV", label: "SUV" },
+                  { value: "Truck", label: "Truck" },
+                  { value: "Coupe", label: "Coupe" },
+                  { value: "Hatchback", label: "Hatchback" },
+                  { value: "Van", label: "Van" },
+                  { value: "Motorbike", label: "Motorbike" },
+                  { value: "Other", label: "Other" },
+                ]}
+              />
+              <FormField
+                label="Color"
+                id="editColor"
+                placeholder="e.g. Black"
+                value={form.color}
+                onChange={(e) => setForm((p) => ({ ...p, color: e.target.value }))}
+                error={errors.color}
+                required
+              />
+              <FormField
+                label="VIN"
+                id="editVin"
+                placeholder="Optional"
+                value={form.vin}
+                onChange={(e) => setForm((p) => ({ ...p, vin: e.target.value }))}
+              />
+            </div>
+
+            <FormField
+              label="Notes"
+              id="editNotes"
+              placeholder="Optional"
+              value={form.notes}
+              onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
+            />
+          </div>
+        </Modal>
+
+        <AlertPopup {...alert} />
+      </>
+    );
+  }
+
+  // ----------------------
+  // List View
+  // ----------------------
+  return (
+    <div className="app-container" id="mainScreen">
+      <header className="app-header">
+        <div className="header-left">
+          <h1>
+            <i className="fas fa-car"></i> Vehicle Management
+          </h1>
+        </div>
+      </header>
+
+      <main className="main-content">
+        <section className="search-section">
+          <div className="search-container">
+            <i className="fas fa-search search-icon"></i>
+            <input
+              type="text"
+              className="smart-search-input"
+              placeholder="Search by any vehicle details"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+
+          <div className="search-stats">
+            {loading
+              ? "Loading vehicles..."
+              : searchResults.length === 0
+              ? "No vehicles found"
+              : `Showing ${Math.min((currentPage - 1) * pageSize + 1, searchResults.length)}-${Math.min(
+                  currentPage * pageSize,
+                  searchResults.length
+                )} of ${searchResults.length} vehicles`}
+          </div>
+        </section>
+
+        <section className="results-section">
+          <div className="section-header">
+            <h2>
+              <i className="fas fa-list"></i> Vehicle Records
+            </h2>
+
+            <div className="pagination-controls">
+              <div className="records-per-page">
+                <label htmlFor="pageSizeSelect">Records per page:</label>
+                <select
+                  id="pageSizeSelect"
+                  className="page-size-select"
+                  value={pageSize}
+                  onChange={(e) => setPageSize(parseInt(e.target.value))}
+                >
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </select>
+              </div>
+
+              {permissions.canCreate && (
+                <button className="btn-new-customer" onClick={openAddModal}>
                   <i className="fas fa-plus-circle"></i> Add New Vehicle
-                </h3>
-                <button className="btn-close-modal" onClick={() => setShowAdd(false)}>
-                  <i className="fas fa-times"></i>
                 </button>
-              </div>
-
-              <div className="edit-modal-body">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    createVehicle();
-                  }}
-                >
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">Customer ID *</label>
-                      <div className="customer-verify-section">
-                        <div className="form-group">
-                          <input
-                            className="form-input"
-                            value={form.customerId}
-                            onChange={(e) => setForm((p) => ({ ...p, customerId: e.target.value }))}
-                          />
-                        </div>
-                        <button type="button" className="btn-verify" onClick={() => verifyCustomer(form.customerId)}>
-                          <i className="fas fa-check-circle"></i> Verify
-                        </button>
-                      </div>
-                      {errors.customerId && <div className="error-message show">{errors.customerId}</div>}
-                    </div>
-                  </div>
-
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">Vehicle ID</label>
-                      <input className="form-input" value={form.vehicleId} disabled />
-                      {errors.vehicleId && <div className="error-message show">{errors.vehicleId}</div>}
-                    </div>
-                  </div>
-
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">Make *</label>
-                      <input
-                        className="form-input"
-                        value={form.make}
-                        onChange={(e) => setForm((p) => ({ ...p, make: e.target.value }))}
-                        disabled={!verifiedCustomer}
-                      />
-                      {errors.make && <div className="error-message show">{errors.make}</div>}
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Model *</label>
-                      <input
-                        className="form-input"
-                        value={form.model}
-                        onChange={(e) => setForm((p) => ({ ...p, model: e.target.value }))}
-                        disabled={!verifiedCustomer}
-                      />
-                      {errors.model && <div className="error-message show">{errors.model}</div>}
-                    </div>
-                  </div>
-
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">Year *</label>
-                      <input
-                        className="form-input"
-                        value={form.year}
-                        onChange={(e) => setForm((p) => ({ ...p, year: e.target.value }))}
-                        disabled={!verifiedCustomer}
-                      />
-                      {errors.year && <div className="error-message show">{errors.year}</div>}
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Vehicle Type *</label>
-                      <input
-                        className="form-input"
-                        value={form.vehicleType}
-                        onChange={(e) => setForm((p) => ({ ...p, vehicleType: e.target.value }))}
-                        disabled={!verifiedCustomer}
-                      />
-                      {errors.vehicleType && <div className="error-message show">{errors.vehicleType}</div>}
-                    </div>
-                  </div>
-
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">Color *</label>
-                      <input
-                        className="form-input"
-                        value={form.color}
-                        onChange={(e) => setForm((p) => ({ ...p, color: e.target.value }))}
-                        disabled={!verifiedCustomer}
-                      />
-                      {errors.color && <div className="error-message show">{errors.color}</div>}
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Plate Number *</label>
-                      <input
-                        className="form-input"
-                        value={form.plateNumber}
-                        onChange={(e) => setForm((p) => ({ ...p, plateNumber: e.target.value }))}
-                        disabled={!verifiedCustomer}
-                      />
-                      {errors.plateNumber && <div className="error-message show">{errors.plateNumber}</div>}
-                    </div>
-                  </div>
-
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">VIN</label>
-                      <input
-                        className="form-input"
-                        value={form.vin}
-                        onChange={(e) => setForm((p) => ({ ...p, vin: e.target.value }))}
-                        disabled={!verifiedCustomer}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">Notes</label>
-                      <input
-                        className="form-input"
-                        value={form.notes}
-                        onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
-                        disabled={!verifiedCustomer}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="form-actions">
-                    <button type="submit" className="btn-save" disabled={saving || !verifiedCustomer}>
-                      <i className="fas fa-save"></i> {saving ? "Saving..." : "Add Vehicle"}
-                    </button>
-                    <button type="button" className="btn-cancel" onClick={() => setShowAdd(false)} disabled={saving}>
-                      <i className="fas fa-times"></i> Cancel
-                    </button>
-                  </div>
-                </form>
-              </div>
+              )}
             </div>
-          </div>,
-          document.body
-        )}
+          </div>
 
-      {/* EDIT MODAL */}
-      {showEdit &&
-        selectedVehicle &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <div className="edit-modal-overlay" onClick={() => setShowEdit(false)}>
-            <div className="edit-modal" onClick={(e) => e.stopPropagation()}>
-              <div className="edit-modal-header">
-                <h3>
-                  <i className="fas fa-edit"></i> Edit Vehicle
-                </h3>
-                <button className="btn-close-modal" onClick={() => setShowEdit(false)}>
-                  <i className="fas fa-times"></i>
-                </button>
-              </div>
+          <VehiclesTable
+            data={paginatedData}
+            searchQuery={searchQuery}
+            onView={openDetails}
+            onEdit={openEditModal}
+            onDelete={handleDeleteVehicle}
+            canUpdate={permissions.canUpdate}
+            canDelete={permissions.canDelete}
+          />
 
-              <div className="edit-modal-body">
-                <form
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    updateVehicle();
-                  }}
-                >
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">Customer ID *</label>
-                      <div className="customer-verify-section">
-                        <div className="form-group">
-                          <input
-                            className="form-input"
-                            value={form.customerId}
-                            onChange={(e) => setForm((p) => ({ ...p, customerId: e.target.value }))}
-                          />
-                        </div>
-                        <button type="button" className="btn-verify" onClick={() => verifyCustomer(form.customerId)}>
-                          <i className="fas fa-check-circle"></i> Verify
-                        </button>
-                      </div>
-                      {errors.customerId && <div className="error-message show">{errors.customerId}</div>}
-                    </div>
-                  </div>
+          {totalPages > 1 && (
+            <div className="pagination">
+              <button
+                className="pagination-btn"
+                onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+                disabled={currentPage === 1}
+              >
+                <i className="fas fa-chevron-left"></i>
+              </button>
 
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">Vehicle ID</label>
-                      <input className="form-input" value={form.vehicleId} disabled />
-                    </div>
-                  </div>
+              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                let pageNum: number;
+                if (totalPages <= 5) pageNum = i + 1;
+                else {
+                  const start = Math.max(1, currentPage - 2);
+                  const end = Math.min(totalPages, start + 4);
+                  const adjustedStart = Math.max(1, end - 4);
+                  pageNum = adjustedStart + i;
+                }
+                return (
+                  <button
+                    key={pageNum}
+                    className={`pagination-btn ${pageNum === currentPage ? "active" : ""}`}
+                    onClick={() => setCurrentPage(pageNum)}
+                  >
+                    {pageNum}
+                  </button>
+                );
+              })}
 
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">Color *</label>
-                      <input className="form-input" value={form.color} onChange={(e) => setForm((p) => ({ ...p, color: e.target.value }))} />
-                      {errors.color && <div className="error-message show">{errors.color}</div>}
-                    </div>
-                    <div className="form-group">
-                      <label className="form-label">Plate Number *</label>
-                      <input
-                        className="form-input"
-                        value={form.plateNumber}
-                        onChange={(e) => setForm((p) => ({ ...p, plateNumber: e.target.value }))}
-                      />
-                      {errors.plateNumber && <div className="error-message show">{errors.plateNumber}</div>}
-                    </div>
-                  </div>
-
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label className="form-label">VIN</label>
-                      <input className="form-input" value={form.vin} onChange={(e) => setForm((p) => ({ ...p, vin: e.target.value }))} />
-                    </div>
-                  </div>
-
-                  <div className="form-actions">
-                    <button type="submit" className="btn-save" disabled={saving}>
-                      <i className="fas fa-save"></i> {saving ? "Saving..." : "Save Changes"}
-                    </button>
-                    <button type="button" className="btn-cancel" onClick={() => setShowEdit(false)} disabled={saving}>
-                      <i className="fas fa-times"></i> Cancel
-                    </button>
-                  </div>
-                </form>
-              </div>
+              <button
+                className="pagination-btn"
+                onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+                disabled={currentPage === totalPages}
+              >
+                <i className="fas fa-chevron-right"></i>
+              </button>
             </div>
-          </div>,
-          document.body
-        )}
+          )}
+        </section>
+      </main>
 
-      {/* DELETE */}
+      <footer className="app-footer">
+        <p>Service Management System © {new Date().getFullYear()} | Vehicle Management Module</p>
+      </footer>
+
+      {/* Add Modal */}
+      <Modal
+        isOpen={showAddModal}
+        title="Add New Vehicle"
+        icon="fas fa-car"
+        onClose={() => {
+          setShowAddModal(false);
+          resetForm();
+        }}
+        onSave={handleCreateVehicle}
+        saving={saving}
+        saveLabel="Add Vehicle"
+      >
+        <div className="modal-form">
+          <div className="verify-row">
+            <FormField
+              label="Customer ID"
+              id="newCustomerId"
+              placeholder="Enter Customer ID"
+              value={form.customerId}
+              onChange={(e) => setForm((p) => ({ ...p, customerId: e.target.value }))}
+              error={errors.customerId}
+              required
+            />
+            <button className="btn-verify" type="button" onClick={() => verifyCustomer(form.customerId)}>
+              <i className="fas fa-check-circle"></i> Verify
+            </button>
+          </div>
+
+          {verifiedCustomer && (
+            <div className="verified-banner">
+              <i className="fas fa-check-circle"></i> Verified: {verifiedCustomer.name} {verifiedCustomer.lastname}
+            </div>
+          )}
+
+          <div className="form-grid-2">
+            <FormField
+              label="Vehicle ID"
+              id="newVehicleId"
+              value={form.vehicleId}
+              onChange={(e) => setForm((p) => ({ ...p, vehicleId: e.target.value }))}
+              error={errors.vehicleId}
+              required
+              disabled
+              hint="Auto-generated"
+            />
+            <FormField
+              label="Plate Number"
+              id="newPlate"
+              placeholder="e.g. 123456"
+              value={form.plateNumber}
+              onChange={(e) => setForm((p) => ({ ...p, plateNumber: e.target.value }))}
+              error={errors.plateNumber}
+              required
+            />
+
+            <FormField
+              label="Make"
+              id="newMake"
+              placeholder="e.g. Toyota"
+              value={form.make}
+              onChange={(e) => setForm((p) => ({ ...p, make: e.target.value }))}
+              error={errors.make}
+              required
+            />
+            <FormField
+              label="Model"
+              id="newModel"
+              placeholder="e.g. Land Cruiser"
+              value={form.model}
+              onChange={(e) => setForm((p) => ({ ...p, model: e.target.value }))}
+              error={errors.model}
+              required
+            />
+
+            <FormField
+              label="Year"
+              id="newYear"
+              placeholder="e.g. 2024"
+              value={form.year}
+              onChange={(e) => setForm((p) => ({ ...p, year: e.target.value }))}
+              error={errors.year}
+              required
+            />
+
+            <FormField
+              label="Vehicle Type"
+              id="newType"
+              type="select"
+              value={form.vehicleType}
+              onChange={(e) => setForm((p) => ({ ...p, vehicleType: e.target.value }))}
+              error={errors.vehicleType}
+              required
+              options={[
+                { value: "", label: "Select type" },
+                { value: "Sedan", label: "Sedan" },
+                { value: "SUV", label: "SUV" },
+                { value: "Truck", label: "Truck" },
+                { value: "Coupe", label: "Coupe" },
+                { value: "Hatchback", label: "Hatchback" },
+                { value: "Van", label: "Van" },
+                { value: "Motorbike", label: "Motorbike" },
+                { value: "Other", label: "Other" },
+              ]}
+            />
+
+            <FormField
+              label="Color"
+              id="newColor"
+              placeholder="e.g. Black"
+              value={form.color}
+              onChange={(e) => setForm((p) => ({ ...p, color: e.target.value }))}
+              error={errors.color}
+              required
+            />
+
+            <FormField
+              label="VIN"
+              id="newVin"
+              placeholder="Optional"
+              value={form.vin}
+              onChange={(e) => setForm((p) => ({ ...p, vin: e.target.value }))}
+            />
+          </div>
+
+          <FormField
+            label="Notes"
+            id="newNotes"
+            placeholder="Optional"
+            value={form.notes}
+            onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
+          />
+        </div>
+      </Modal>
+
+      {/* Delete Modal */}
       {deleteVehicle &&
         typeof document !== "undefined" &&
         createPortal(
@@ -999,7 +1457,7 @@ export default function Vehicles({ permissions }: { permissions: Permission }) {
                 </div>
 
                 <div className="delete-modal-actions">
-                  <button className="btn-confirm-delete" onClick={confirmDelete} disabled={saving}>
+                  <button className="btn-confirm-delete" onClick={confirmDeleteVehicle} disabled={saving}>
                     <i className="fas fa-trash"></i> Delete Vehicle
                   </button>
                   <button className="btn-cancel" onClick={() => setDeleteVehicle(null)} disabled={saving}>
@@ -1011,6 +1469,8 @@ export default function Vehicles({ permissions }: { permissions: Permission }) {
           </div>,
           document.body
         )}
-    </>
+
+      <AlertPopup {...alert} />
+    </div>
   );
 }
