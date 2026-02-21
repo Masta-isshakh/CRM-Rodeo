@@ -2,227 +2,160 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { getDataClient } from "../lib/amplifyClient";
 
-// ----- Types -----
-export type ApprovalStatusUI = "pending" | "approved" | "rejected";
+export type ApprovalRequestStatus = "PENDING" | "APPROVED" | "REJECTED";
 
 export type ApprovalRequest = {
-  id: string; // Data model id
+  id: string;
   jobOrderId: string;
   orderNumber: string;
 
   serviceId: string;
   serviceName: string;
-  price?: number;
+  price: number;
 
   requestedBy?: string | null;
   requestedAt?: string | null;
 
-  status: ApprovalStatusUI;
+  status: ApprovalRequestStatus;
 
   decidedBy?: string | null;
   decidedAt?: string | null;
   decisionNote?: string | null;
+
+  createdAt?: string | null;
+  updatedAt?: string | null;
+};
+
+type AddRequestInput = {
+  jobOrderId: string;
+  orderNumber: string;
+  serviceId: string;
+  serviceName: string;
+  price: number;
+  requestedBy?: string;
 };
 
 type Ctx = {
-  loading: boolean;
   requests: ApprovalRequest[];
+  loading: boolean;
+
+  addRequest: (input: AddRequestInput) => Promise<ApprovalRequest | null>;
+  updateRequestStatus: (id: string, status: ApprovalRequestStatus, decidedBy?: string, note?: string) => Promise<void>;
   refresh: () => Promise<void>;
-
-  addRequest: (args: {
-    jobOrderId: string;
-    orderNumber: string;
-    serviceId: string;
-    serviceName: string;
-    price?: number;
-    requestedBy?: string;
-  }) => Promise<void>;
-
-  updateRequestStatus: (args: {
-    requestId: string;
-    status: ApprovalStatusUI;
-    decidedBy?: string;
-    decisionNote?: string;
-  }) => Promise<void>;
-
-  removeRequest: (requestId: string) => Promise<void>;
 };
 
 const ApprovalRequestsContext = createContext<Ctx | null>(null);
 
 export function useApprovalRequests(): Ctx {
-  const ctx = useContext(ApprovalRequestsContext);
-  if (!ctx) throw new Error("useApprovalRequests must be used within ApprovalRequestsProvider");
-  return ctx;
+  const v = useContext(ApprovalRequestsContext);
+  if (!v) throw new Error("useApprovalRequests must be used within ApprovalRequestsProvider");
+  return v;
 }
 
-// ----- Helpers -----
-function nowIso() {
-  return new Date().toISOString();
+function toIso(v: any): string | null {
+  const s = String(v ?? "").trim();
+  return s ? s : null;
 }
 
-function mapStatusDbToUi(s: any): ApprovalStatusUI {
-  const v = String(s ?? "").toUpperCase();
-  if (v === "APPROVED") return "approved";
-  if (v === "REJECTED") return "rejected";
-  return "pending";
+function toNum(v: any): number {
+  const n = typeof v === "number" ? v : Number(String(v ?? "").replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? n : 0;
 }
 
-function mapStatusUiToDb(s: ApprovalStatusUI): "PENDING" | "APPROVED" | "REJECTED" {
-  if (s === "approved") return "APPROVED";
-  if (s === "rejected") return "REJECTED";
-  return "PENDING";
-}
+function mapRow(r: any): ApprovalRequest {
+  return {
+    id: String(r.id),
+    jobOrderId: String(r.jobOrderId),
+    orderNumber: String(r.orderNumber),
 
-// stable deterministic id (no random / Date.now)
-function buildRequestId(jobOrderId: string, serviceId: string) {
-  const a = String(jobOrderId || "").trim();
-  const b = String(serviceId || "").trim();
-  return `APR-${a}-${b}`.slice(0, 180);
+    serviceId: String(r.serviceId),
+    serviceName: String(r.serviceName),
+    price: toNum(r.price),
+
+    requestedBy: r.requestedBy ?? null,
+    requestedAt: toIso(r.requestedAt),
+
+    status: (r.status ?? "PENDING") as ApprovalRequestStatus,
+
+    decidedBy: r.decidedBy ?? null,
+    decidedAt: toIso(r.decidedAt),
+    decisionNote: r.decisionNote ?? null,
+
+    createdAt: toIso(r.createdAt),
+    updatedAt: toIso(r.updatedAt),
+  };
 }
 
 export function ApprovalRequestsProvider({ children }: { children: React.ReactNode }) {
   const client = useMemo(() => getDataClient(), []);
-  const [loading, setLoading] = useState(false);
   const [requests, setRequests] = useState<ApprovalRequest[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  // Live subscription
+  useEffect(() => {
+    setLoading(true);
+
+    const sub = (client.models.ServiceApprovalRequest as any)
+      .observeQuery({ limit: 2000 })
+      .subscribe(({ items }: any) => {
+        const mapped = (items ?? []).map(mapRow);
+        // newest first (by requestedAt / createdAt)
+        mapped.sort((a: ApprovalRequest, b: ApprovalRequest) => String(b.requestedAt ?? b.createdAt ?? "").localeCompare(String(a.requestedAt ?? a.createdAt ?? "")));
+        setRequests(mapped);
+        setLoading(false);
+      });
+
+    return () => sub.unsubscribe();
+  }, [client]);
 
   const refresh = async () => {
     setLoading(true);
     try {
-      // Fetch latest PENDING first (you can extend to approved/rejected history)
-      const res = await (client.models.ServiceApprovalRequest as any).list({
-        limit: 2000,
-      });
-
-      const rows = (res?.data ?? []) as any[];
-
-      // normalize
-      const mapped: ApprovalRequest[] = rows
-        .map((r) => ({
-          id: String(r.id),
-          jobOrderId: String(r.jobOrderId),
-          orderNumber: String(r.orderNumber),
-          serviceId: String(r.serviceId),
-          serviceName: String(r.serviceName),
-          price: typeof r.price === "number" ? r.price : r.price ? Number(r.price) : undefined,
-          requestedBy: r.requestedBy ?? null,
-          requestedAt: r.requestedAt ?? null,
-          status: mapStatusDbToUi(r.status),
-          decidedBy: r.decidedBy ?? null,
-          decidedAt: r.decidedAt ?? null,
-          decisionNote: r.decisionNote ?? null,
-        }))
-        // newest first
-        .sort((a, b) => String(b.requestedAt ?? "").localeCompare(String(a.requestedAt ?? "")));
-
+      const res = await client.models.ServiceApprovalRequest.list({ limit: 2000 });
+      const mapped = (res.data ?? []).map(mapRow);
+      mapped.sort((a: ApprovalRequest, b: ApprovalRequest) => String(b.requestedAt ?? b.createdAt ?? "").localeCompare(String(a.requestedAt ?? a.createdAt ?? "")));
       setRequests(mapped);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    void refresh();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const addRequest = async (input: AddRequestInput): Promise<ApprovalRequest | null> => {
+    const payload: any = {
+      jobOrderId: String(input.jobOrderId),
+      orderNumber: String(input.orderNumber),
 
-  const addRequest: Ctx["addRequest"] = async (args) => {
-    const jobOrderId = String(args.jobOrderId || "").trim();
-    const orderNumber = String(args.orderNumber || "").trim();
-    const serviceId = String(args.serviceId || "").trim();
-    const serviceName = String(args.serviceName || "").trim();
-    if (!jobOrderId || !orderNumber || !serviceId || !serviceName) return;
+      serviceId: String(input.serviceId),
+      serviceName: String(input.serviceName),
+      price: Number(input.price || 0),
 
-    const id = buildRequestId(jobOrderId, serviceId);
-    const ts = nowIso();
+      requestedBy: input.requestedBy ? String(input.requestedBy) : undefined,
+      requestedAt: new Date().toISOString(),
 
-    // Upsert style: if exists => update to PENDING again
-    setLoading(true);
-    try {
-      const got = await (client.models.ServiceApprovalRequest as any).get({ id });
-      const existing = (got as any)?.data;
+      status: "PENDING",
+    };
 
-      if (existing?.id) {
-        await (client.models.ServiceApprovalRequest as any).update({
-          id,
-          jobOrderId,
-          orderNumber,
-          serviceId,
-          serviceName,
-          price: args.price ?? 0,
-          requestedBy: args.requestedBy ?? "Unknown",
-          requestedAt: ts,
-          status: "PENDING",
-          decidedBy: null,
-          decidedAt: null,
-          decisionNote: null,
-        });
-      } else {
-        await (client.models.ServiceApprovalRequest as any).create({
-          id,
-          jobOrderId,
-          orderNumber,
-          serviceId,
-          serviceName,
-          price: args.price ?? 0,
-          requestedBy: args.requestedBy ?? "Unknown",
-          requestedAt: ts,
-          status: "PENDING",
-        });
-      }
-
-      await refresh();
-    } finally {
-      setLoading(false);
-    }
+    const created = await (client.models.ServiceApprovalRequest as any).create(payload);
+    const row = (created as any)?.data ?? created;
+    return row?.id ? mapRow(row) : null;
   };
 
-  const updateRequestStatus: Ctx["updateRequestStatus"] = async (args) => {
-    const requestId = String(args.requestId || "").trim();
-    if (!requestId) return;
-
-    setLoading(true);
-    try {
-      // Need existing to keep fields consistent
-      const got = await (client.models.ServiceApprovalRequest as any).get({ id: requestId });
-      const row = (got as any)?.data;
-      if (!row?.id) return;
-
-      await (client.models.ServiceApprovalRequest as any).update({
-        id: requestId,
-        status: mapStatusUiToDb(args.status),
-        decidedBy: args.decidedBy ?? "System",
-        decidedAt: nowIso(),
-        decisionNote: args.decisionNote ?? null,
-      });
-
-      await refresh();
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const removeRequest: Ctx["removeRequest"] = async (requestId) => {
-    const id = String(requestId || "").trim();
-    if (!id) return;
-
-    setLoading(true);
-    try {
-      // Amplify Gen2 data delete
-      await (client.models.ServiceApprovalRequest as any).delete({ id });
-      await refresh();
-    } finally {
-      setLoading(false);
-    }
+  const updateRequestStatus = async (id: string, status: ApprovalRequestStatus, decidedBy?: string, note?: string) => {
+    await (client.models.ServiceApprovalRequest as any).update({
+      id: String(id),
+      status,
+      decidedBy: decidedBy ? String(decidedBy) : undefined,
+      decidedAt: new Date().toISOString(),
+      decisionNote: note ? String(note) : undefined,
+    });
   };
 
   const value: Ctx = {
-    loading,
     requests,
-    refresh,
+    loading,
     addRequest,
     updateRequestStatus,
-    removeRequest,
+    refresh,
   };
 
   return <ApprovalRequestsContext.Provider value={value}>{children}</ApprovalRequestsContext.Provider>;
