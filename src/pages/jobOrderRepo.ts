@@ -3,7 +3,6 @@ import type { Schema } from "../../amplify/data/resource";
 import { getDataClient } from "../lib/amplifyClient";
 
 type CustomerRow = Schema["Customer"]["type"];
-type VehicleRow = Schema["Vehicle"]["type"];
 type JobOrderRow = Schema["JobOrder"]["type"];
 
 function toNum(x: any) {

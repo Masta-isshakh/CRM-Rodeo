@@ -117,7 +117,6 @@ const schema = a
         vehicles: a.hasMany("Vehicle", "customerId"),
       })
       .secondaryIndexes((index) => [
-        // Optional but strongly recommended for production search performance
         index("phone").queryField("customersByPhone"),
         index("email").queryField("customersByEmail"),
         index("name").queryField("customersByName"),
@@ -127,32 +126,25 @@ const schema = a
 
     Vehicle: a
       .model({
-        // human-friendly ID like "VEH-2026-12345"
         vehicleId: a.string().required(),
-
-        // ownership
         customerId: a.id().required(),
-        ownedBy: a.string().required(), // denormalized "First Last" for fast UI
+        ownedBy: a.string().required(),
 
-        // vehicle details
         make: a.string().required(),
         model: a.string().required(),
         year: a.string(),
-        vehicleType: a.string(), // keep string for flexibility (Sedan/SUV/etc.)
+        vehicleType: a.string(),
         color: a.string(),
         plateNumber: a.string().required(),
         vin: a.string(),
         notes: a.string(),
 
-        // computed/managed (optional)
         completedServicesCount: a.integer().default(0),
 
-        // audit
         createdBy: a.string(),
         createdAt: a.datetime(),
         updatedAt: a.datetime(),
 
-        // relation
         customer: a.belongsTo("Customer", "customerId"),
       })
       .secondaryIndexes((index) => [
@@ -237,8 +229,7 @@ const schema = a
       .authorization((allow) => [allow.authenticated()]),
 
     // -----------------------------
-    // Job Orders (Job Cards + JobOrderManagement)
-    // - Read-only for users; mutations go through functions (RBAC enforced server-side)
+    // Job Orders
     // -----------------------------
     JobOrder: a
       .model({
@@ -247,9 +238,8 @@ const schema = a
         status: a.enum(["DRAFT", "OPEN", "IN_PROGRESS", "READY", "COMPLETED", "CANCELLED"]),
         paymentStatus: a.enum(["UNPAID", "PARTIAL", "PAID"]),
 
-        // ✅ UI labels (store exactly what the JobOrderManagement UI shows)
-        workStatusLabel: a.string(),       // "New Request" / "Inspection" / ...
-        paymentStatusLabel: a.string(),    // "Unpaid" / "Partially Paid" / "Fully Paid"
+        workStatusLabel: a.string(),
+        paymentStatusLabel: a.string(),
 
         customerId: a.id(),
         customerName: a.string().required(),
@@ -259,7 +249,7 @@ const schema = a
         vehicleType: a.enum(["SEDAN", "SUV_4X4", "TRUCK", "MOTORBIKE", "OTHER"]),
         vehicleMake: a.string(),
         vehicleModel: a.string(),
-        vehicleYear: a.string(), // ✅ JobOrderManagement uses year in vehicleDetails
+        vehicleYear: a.string(),
         plateNumber: a.string(),
         vin: a.string(),
         mileage: a.string(),
@@ -271,29 +261,21 @@ const schema = a
         vatAmount: a.float(),
         totalAmount: a.float(),
 
-        // payments summary maintained by payment mutations
         amountPaid: a.float(),
         balanceDue: a.float(),
 
-        // ✅ billing meta (not JSON)
         billId: a.string(),
         netAmount: a.float(),
         paymentMethod: a.string(),
 
-        // ✅ delivery + notes
         expectedDeliveryDate: a.date(),
         expectedDeliveryTime: a.string(),
         customerNotes: a.string(),
 
         notes: a.string(),
-
-        // Backward-compat snapshot payload (JobCards module can keep using this)
         dataJson: a.string(),
 
-        // relations
         payments: a.hasMany("JobOrderPayment", "jobOrderId"),
-
-        // ✅ normalized JobOrderManagement relations
         servicesItems: a.hasMany("JobOrderServiceItem", "jobOrderId"),
         invoicesItems: a.hasMany("JobOrderInvoice", "jobOrderId"),
         roadmapItems: a.hasMany("JobOrderRoadmapStep", "jobOrderId"),
@@ -314,7 +296,112 @@ const schema = a
       ]),
 
     // -----------------------------
-    // ✅ JobOrderManagement normalized tables (PRODUCTION)
+    // ✅ INSPECTION MODULE (ALL IN DATA MODEL)
+    // -----------------------------
+
+    // 1) Config stored as JSON string (admin writes, everyone reads)
+    InspectionConfig: a
+      .model({
+        configKey: a.string().required(), // e.g. "default"
+        version: a.integer().default(1),
+        isActive: a.boolean().default(true),
+        configJson: a.string().required(), // JSON.stringify(inspectionListConfig)
+        updatedBy: a.string(),
+        updatedAt: a.datetime(),
+        createdAt: a.datetime(),
+      })
+      .secondaryIndexes((index) => [
+        index("configKey").queryField("inspectionConfigsByKey"),
+      ])
+      .authorization((allow) => [
+        allow.group(ADMIN_GROUP),
+        allow.authenticated().to(["read"]),
+      ]),
+
+    // 2) State per JobOrder (id should be set to jobOrderId to make it 1:1)
+    InspectionState: a
+      .model({
+        jobOrderId: a.id().required(),
+        orderNumber: a.string().required(),
+
+        // state machine
+        status: a.enum(["IN_PROGRESS", "PAUSED", "COMPLETED", "NOT_REQUIRED"]),
+
+        // JSON.stringify({ exterior:..., interior:... })
+        stateJson: a.string().required(),
+
+        startedAt: a.datetime(),
+        completedAt: a.datetime(),
+
+        createdAt: a.datetime(),
+        createdBy: a.string(),
+        updatedAt: a.datetime(),
+        updatedBy: a.string(),
+
+        jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
+      })
+      .secondaryIndexes((index) => [
+        index("jobOrderId").queryField("inspectionStatesByJobOrder"),
+        index("orderNumber").queryField("inspectionStatesByOrderNumber"),
+      ])
+      .authorization((allow) => [
+        allow.group(ADMIN_GROUP),
+        allow.authenticated().to(["read", "create", "update"]),
+      ]),
+
+    // 3) Photos metadata in Data; binary stays in Storage (job-orders/*)
+    InspectionPhoto: a
+      .model({
+        jobOrderId: a.id().required(),
+        orderNumber: a.string().required(),
+
+        sectionKey: a.string().required(), // "exterior" | "interior"
+        itemId: a.string().required(),
+
+        storagePath: a.string().required(), // job-orders/... path
+        fileName: a.string(),
+        contentType: a.string(),
+        size: a.integer(),
+
+        createdAt: a.datetime(),
+        createdBy: a.string(),
+
+        jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
+      })
+      .secondaryIndexes((index) => [
+        index("jobOrderId").queryField("listInspectionPhotosByJobOrder"),
+        index("orderNumber").queryField("inspectionPhotosByOrderNumber"),
+      ])
+      .authorization((allow) => [
+        allow.group(ADMIN_GROUP),
+        allow.authenticated().to(["read", "create", "update"]),
+      ]),
+
+    // 4) Report stored in Data model (HTML string)
+    InspectionReport: a
+      .model({
+        jobOrderId: a.id().required(),
+        orderNumber: a.string().required(),
+
+        html: a.string().required(), // report HTML (no expiring URLs)
+        createdAt: a.datetime(),
+        createdBy: a.string(),
+        updatedAt: a.datetime(),
+        updatedBy: a.string(),
+
+        jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
+      })
+      .secondaryIndexes((index) => [
+        index("jobOrderId").queryField("inspectionReportsByJobOrder"),
+        index("orderNumber").queryField("inspectionReportsByOrderNumber"),
+      ])
+      .authorization((allow) => [
+        allow.group(ADMIN_GROUP),
+        allow.authenticated().to(["read", "create", "update"]),
+      ]),
+
+    // -----------------------------
+    // JobOrderManagement normalized tables
     // -----------------------------
     JobOrderServiceItem: a
       .model({
@@ -437,9 +524,6 @@ const schema = a
         allow.authenticated().to(["read"]),
       ]),
 
-    // -----------------------------
-    // ✅ Separate Payments model (better reporting + audit)
-    // -----------------------------
     JobOrderPayment: a
       .model({
         jobOrderId: a.id().required(),
@@ -449,7 +533,6 @@ const schema = a
         paidAt: a.datetime().required(),
         notes: a.string(),
 
-        // audit fields
         createdBy: a.string(),
         createdAt: a.datetime(),
         updatedAt: a.datetime(),
@@ -592,12 +675,11 @@ const schema = a
 
     // -----------------------------
     // ✅ Job Orders mutations (RBAC enforced inside Lambda)
-    // Policy key expected in RolePolicy.policyKey: "JOB_CARDS"
     // -----------------------------
     jobOrderSave: a
       .mutation()
       .arguments({
-        input: a.json().required(), // AWSJSON (string or object)
+        input: a.json().required(),
       })
       .authorization((allow) => [allow.authenticated()])
       .handler(a.handler.function(jobOrderSave))
@@ -614,8 +696,6 @@ const schema = a
 
     // -----------------------------
     // ✅ Payments mutations (RBAC enforced inside Lambda)
-    // - Create/Update require JOB_CARDS.canUpdate
-    // - Delete requires JOB_CARDS.canDelete
     // -----------------------------
     jobOrderPaymentCreate: a
       .mutation()
@@ -665,11 +745,9 @@ const schema = a
     allow.resource(setUserDepartment),
     allow.resource(myGroups),
 
-    // job orders functions need data access
     allow.resource(jobOrderSave),
     allow.resource(jobOrderDelete),
 
-    // payments functions need data access
     allow.resource(jobOrderPaymentCreate),
     allow.resource(jobOrderPaymentUpdate),
     allow.resource(jobOrderPaymentDelete),

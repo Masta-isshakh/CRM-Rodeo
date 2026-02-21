@@ -1,7 +1,7 @@
 // src/pages/JobOrderManagement.tsx
 // ✅ Full updated file - paste as-is
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect,  useState } from "react";
 import { createPortal } from "react-dom";
 import "./JobCards.css";
 

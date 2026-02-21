@@ -10,7 +10,6 @@ import ActivityLog from "../pages/ActivityLogs";
 
 import JobCards from "../pages/JobCards";
 import CallTracking from "../pages/CallTracking";
-import InspectionApprovals from "../pages/InspectionApprovals";
 
 import Users from "../pages/UserAdmin";
 import DepartmentsAdmin from "../pages/DepartmentsAdmin";
@@ -20,6 +19,7 @@ import logo from "../assets/logo.jpeg";
 import "./mainLayout.css";
 
 import { usePermissions } from "../lib/userPermissions";
+import InspectionModule from "../pages/InspectionModule";
 
 type Page =
   | "dashboard"
@@ -292,7 +292,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
           {page === "jobcards" && show.jobcards && <JobCards permissions={canAny("JOB_CARDS")} />}
           {page === "calltracking" && show.calltracking && <CallTracking permissions={canAny("CALL_TRACKING")} />}
-          {page === "inspection" && show.inspection && <InspectionApprovals permissions={canAny("INSPECTION_APPROVALS")} />}
+
+          {page === "inspection" && show.inspection && <InspectionModule permissions={canAny("INSPECTION_APPROVALS")} />}
 
           {page === "tickets" && show.tickets && <Tickets permissions={canAny("TICKETS")} />}
           {page === "employees" && show.employees && <Employees permissions={canAny("EMPLOYEES")} />}
