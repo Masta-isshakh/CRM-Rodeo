@@ -11,13 +11,18 @@ type Props = {
 
 /**
  * Map UI optionId -> required operation on policy key.
- * Your backend enforces JOB_CARDS for mutations.
+ * Backend enforces JOB_CARDS for Job Orders + Inspection mutations.
  */
-function resolvePolicyAndOp(moduleId: string, optionId: string): { policyKey: string; op: keyof Permission } | null {
+function resolvePolicyAndOp(
+  moduleId: string,
+  optionId: string
+): { policyKey: string; op: keyof Permission } | null {
   const m = String(moduleId ?? "").toLowerCase().trim();
   const o = String(optionId ?? "").toLowerCase().trim();
 
-  // This page is Job Orders -> JOB_CARDS policy
+  // -----------------------------
+  // JOB ORDERS -> JOB_CARDS policy
+  // -----------------------------
   if (m === "joborder" || m === "joborders") {
     // view sections / view details
     if (
@@ -36,33 +41,90 @@ function resolvePolicyAndOp(moduleId: string, optionId: string): { policyKey: st
     // create new order
     if (o === "joborder_add") return { policyKey: "JOB_CARDS", op: "canCreate" };
 
-    // cancel order (destructive-ish) — you can choose canUpdate instead, but delete is stricter
-if (o === "joborder_cancel") return { policyKey: "JOB_CARDS", op: "canUpdate" };
+    // cancel/update order
+    if (o === "joborder_cancel") return { policyKey: "JOB_CARDS", op: "canUpdate" };
+
     // add service / edit pricing / discounts
     if (o === "joborder_addservice") return { policyKey: "JOB_CARDS", op: "canUpdate" };
     if (o === "joborder_serviceprice") return { policyKey: "JOB_CARDS", op: "canRead" };
     if (o === "joborder_servicediscount") return { policyKey: "JOB_CARDS", op: "canUpdate" };
     if (o === "joborder_servicediscount_percent") return { policyKey: "JOB_CARDS", op: "canUpdate" };
+    // (optional alias if you ever used this id)
+    if (o === "joborder_discount_percent") return { policyKey: "JOB_CARDS", op: "canUpdate" };
 
-    // default (fail closed)
     return null;
   }
 
+  // -----------------------------------------
+  // INSPECTION -> ALSO JOB_CARDS policy
+  // (Inspection is part of JobOrder lifecycle)
+  // -----------------------------------------
+  if (m === "inspection" || m === "inspectionmodule") {
+    // READ UI blocks
+    if (
+      o === "inspection_summary" ||
+      o === "inspection_customer" ||
+      o === "inspection_vehicle" ||
+      o === "inspection_services" ||
+      o === "inspection_billing" ||
+      o === "inspection_paymentlog" ||
+      o === "inspection_documents" ||
+      o === "inspection_exitpermit" ||
+      o === "inspection_roadmap" ||
+      o === "inspection_list" ||
+      o === "inspection_quality" ||
+      o === "inspection_download" ||
+      o === "inspection_viewdetails"
+    ) {
+      return { policyKey: "JOB_CARDS", op: "canRead" };
+    }
+
+    // Actions dropdown itself (show/hide)
+    if (o === "inspection_actions") return { policyKey: "JOB_CARDS", op: "canRead" };
+
+    // MUTATING actions (update)
+    if (
+      o === "inspection_start" ||
+      o === "inspection_resume" ||
+      o === "inspection_complete" ||
+      o === "inspection_notrequired" ||
+      o === "inspection_finish" ||
+      o === "inspection_cancel" ||
+      o === "inspection_addservice" ||
+      o === "inspection_servicediscount" ||
+      o === "inspection_discount_percent"
+    ) {
+      return { policyKey: "JOB_CARDS", op: "canUpdate" };
+    }
+
+    // Price visibility (read-only)
+    if (o === "inspection_serviceprice") return { policyKey: "JOB_CARDS", op: "canRead" };
+
+    return null;
+  }
+
+  // Unknown module => fail closed for non-admins
   return null;
 }
 
-export default function PermissionGate({ moduleId, optionId, children, fallback = null }: Props) {
+export default function PermissionGate({
+  moduleId,
+  optionId,
+  children,
+  fallback = null,
+}: Props) {
   const { can, loading, isAdminGroup } = usePermissions();
 
   const rule = useMemo(() => resolvePolicyAndOp(moduleId, optionId), [moduleId, optionId]);
 
-  // Fail closed: if unknown mapping, hide content (so admin truly controls every action)
-  if (!rule) return <>{fallback}</>;
-
-  // While loading permissions, hide (avoid “flash of unauthorized UI”)
+  // While loading permissions, hide (avoid flash)
   if (loading) return null;
 
+  // ✅ Admin override ALWAYS wins (even if mapping is missing)
   if (isAdminGroup) return <>{children}</>;
+
+  // Non-admins: fail closed if mapping not defined
+  if (!rule) return <>{fallback}</>;
 
   const perm = can(rule.policyKey);
   const allowed = Boolean(perm?.[rule.op]);

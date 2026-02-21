@@ -7,6 +7,22 @@ type InspectionConfigRow = Schema["InspectionConfig"]["type"];
 type InspectionStateRow = Schema["InspectionState"]["type"];
 type InspectionReportRow = Schema["InspectionReport"]["type"];
 
+function assertModels(client: any) {
+  const m = client?.models;
+  if (!m?.InspectionConfig || !m?.InspectionState || !m?.InspectionReport || !m?.InspectionPhoto) {
+    throw new Error(
+      "Amplify models missing on client. Ensure schema deployed and codegen ran. Missing: " +
+        JSON.stringify({
+          InspectionConfig: !!m?.InspectionConfig,
+          InspectionState: !!m?.InspectionState,
+          InspectionReport: !!m?.InspectionReport,
+          InspectionPhoto: !!m?.InspectionPhoto,
+        })
+    );
+  }
+  return m;
+}
+
 function safeJsonParse<T>(s: any, fallback: T): T {
   try {
     if (!s) return fallback;
@@ -26,24 +42,29 @@ function safeName(name: string) {
     .slice(0, 120);
 }
 
+// ✅ LOAD CONFIG (highest version active)
 export async function loadInspectionConfig(defaultConfig: any): Promise<any> {
   const client = getDataClient();
+  const models = assertModels(client);
   const key = "default";
 
-  // try load
-  const res = await client.models.InspectionConfig.list({
+  const res = await models.InspectionConfig.list({
     filter: { configKey: { eq: key }, isActive: { eq: true } } as any,
-    limit: 1,
+    limit: 50,
   });
 
-  const row = (res.data ?? [])[0] as any as InspectionConfigRow | undefined;
-  if (row?.id && row.configJson) {
-    return safeJsonParse(row.configJson, defaultConfig);
+  const rows = (res.data ?? []) as any as InspectionConfigRow[];
+  if (rows.length) {
+    rows.sort((a: any, b: any) => Number(b.version ?? 0) - Number(a.version ?? 0));
+    const best = rows[0];
+    if (best?.configJson) {
+      return safeJsonParse(best.configJson, defaultConfig);
+    }
   }
 
-  // If missing, attempt to seed (works only for Admins). If it fails, fallback safely.
+  // seed (admins only)
   try {
-    await client.models.InspectionConfig.create({
+    await models.InspectionConfig.create({
       configKey: key,
       version: 1,
       isActive: true,
@@ -53,18 +74,21 @@ export async function loadInspectionConfig(defaultConfig: any): Promise<any> {
       updatedBy: "system",
     } as any);
   } catch {
-    // ignore (non-admin users won't be able to seed)
+    // ignore
   }
 
   return defaultConfig;
 }
 
+// ✅ 1:1 mapping: InspectionState.id === JobOrder.id
 export async function getInspectionState(jobOrderId: string): Promise<any | null> {
   const client = getDataClient();
+  const models = assertModels(client);
+
   const id = String(jobOrderId || "").trim();
   if (!id) return null;
 
-  const got = await client.models.InspectionState.get({ id } as any);
+  const got = await models.InspectionState.get({ id } as any);
   const row = (got as any)?.data as InspectionStateRow | undefined;
   if (!row?.id) return null;
 
@@ -72,18 +96,20 @@ export async function getInspectionState(jobOrderId: string): Promise<any | null
 }
 
 export async function upsertInspectionState(args: {
-  jobOrderId: string;      // backend jobOrder.id
-  orderNumber: string;     // human orderNumber (JO-xxxx)
+  jobOrderId: string;
+  orderNumber: string;
   status: "IN_PROGRESS" | "PAUSED" | "COMPLETED" | "NOT_REQUIRED";
-  inspectionState: any;    // object
+  inspectionState: any;
   actor?: string;
 }): Promise<void> {
   const client = getDataClient();
+  const models = assertModels(client);
+
   const id = String(args.jobOrderId).trim();
   const ts = nowIso();
 
   const payload = {
-    id, // ✅ enforce 1:1 mapping (InspectionState.id === JobOrder.id)
+    id, // ✅ enforce 1:1 mapping
     jobOrderId: id,
     orderNumber: String(args.orderNumber).trim(),
     status: args.status,
@@ -92,14 +118,13 @@ export async function upsertInspectionState(args: {
     updatedBy: args.actor ?? "inspector",
   };
 
-  // check exist
-  const got = await client.models.InspectionState.get({ id } as any);
+  const got = await models.InspectionState.get({ id } as any);
   const row = (got as any)?.data as InspectionStateRow | undefined;
 
   if (row?.id) {
-    await client.models.InspectionState.update(payload as any);
+    await models.InspectionState.update(payload as any);
   } else {
-    await client.models.InspectionState.create({
+    await models.InspectionState.create({
       ...payload,
       createdAt: ts,
       createdBy: args.actor ?? "inspector",
@@ -108,6 +133,7 @@ export async function upsertInspectionState(args: {
   }
 }
 
+// ✅ 1:1 mapping: InspectionReport.id === JobOrder.id
 export async function saveInspectionReport(args: {
   jobOrderId: string;
   orderNumber: string;
@@ -115,14 +141,16 @@ export async function saveInspectionReport(args: {
   actor?: string;
 }): Promise<void> {
   const client = getDataClient();
+  const models = assertModels(client);
+
   const id = String(args.jobOrderId).trim();
   const ts = nowIso();
 
-  const got = await client.models.InspectionReport.get({ id } as any);
+  const got = await models.InspectionReport.get({ id } as any);
   const row = (got as any)?.data as InspectionReportRow | undefined;
 
   if (row?.id) {
-    await client.models.InspectionReport.update({
+    await models.InspectionReport.update({
       id,
       jobOrderId: id,
       orderNumber: String(args.orderNumber).trim(),
@@ -131,8 +159,8 @@ export async function saveInspectionReport(args: {
       updatedBy: args.actor ?? "inspector",
     } as any);
   } else {
-    await client.models.InspectionReport.create({
-      id, // ✅ 1:1 latest report
+    await models.InspectionReport.create({
+      id,
       jobOrderId: id,
       orderNumber: String(args.orderNumber).trim(),
       html: String(args.html ?? ""),
@@ -146,12 +174,15 @@ export async function saveInspectionReport(args: {
 
 export async function getInspectionReport(jobOrderId: string): Promise<string | null> {
   const client = getDataClient();
+  const models = assertModels(client);
+
   const id = String(jobOrderId || "").trim();
   if (!id) return null;
 
-  const got = await client.models.InspectionReport.get({ id } as any);
+  const got = await models.InspectionReport.get({ id } as any);
   const row = (got as any)?.data as any;
   if (!row?.id) return null;
+
   return String(row.html ?? "") || null;
 }
 
@@ -169,6 +200,7 @@ export async function uploadInspectionPhoto(args: {
   actor?: string;
 }): Promise<string> {
   const client = getDataClient();
+  const models = assertModels(client);
 
   const orderNumber = String(args.orderNumber).trim();
   const fileName = safeName(args.file.name);
@@ -182,8 +214,7 @@ export async function uploadInspectionPhoto(args: {
 
   const ts = nowIso();
 
-  // ✅ store metadata in Data model
-  await client.models.InspectionPhoto.create({
+  await models.InspectionPhoto.create({
     jobOrderId: String(args.jobOrderId).trim(),
     orderNumber,
     sectionKey: String(args.sectionKey),
@@ -196,7 +227,7 @@ export async function uploadInspectionPhoto(args: {
     createdBy: args.actor ?? "inspector",
   } as any);
 
-  return storagePath; // store path in inspectionState JSON
+  return storagePath;
 }
 
 export function buildInspectionReportHtml(args: {
@@ -303,6 +334,7 @@ export function buildInspectionReportHtml(args: {
         const label = statusLabels[status] || "Not Checked";
         const cls =
           status === "pass" ? "pass" : status === "attention" ? "attn" : status === "failed" ? "fail" : "na";
+
         const comment = String(st?.comment || "").trim();
         const photos: string[] = Array.isArray(st?.photos) ? st.photos : [];
 
@@ -344,13 +376,13 @@ export function buildInspectionReportHtml(args: {
   `;
 }
 
-
-// ---- Admin helpers for InspectionConfig ----
+// ---- Admin helpers ----
 
 export async function getActiveInspectionConfigRecord(configKey = "default") {
   const client = getDataClient();
+  const models = assertModels(client);
 
-  const res = await client.models.InspectionConfig.list({
+  const res = await models.InspectionConfig.list({
     filter: { configKey: { eq: configKey }, isActive: { eq: true } } as any,
     limit: 50,
   });
@@ -358,7 +390,6 @@ export async function getActiveInspectionConfigRecord(configKey = "default") {
   const rows = (res.data ?? []) as any[];
   if (!rows.length) return null;
 
-  // pick highest version (or latest)
   rows.sort((a, b) => Number(b.version ?? 0) - Number(a.version ?? 0));
   return rows[0];
 }
@@ -369,15 +400,16 @@ export async function saveInspectionConfigToBackend(args: {
   actor?: string;
 }) {
   const client = getDataClient();
-  const ts = new Date().toISOString();
+  const models = assertModels(client);
+
+  const ts = nowIso();
   const configKey = args.configKey ?? "default";
 
   const existing = await getActiveInspectionConfigRecord(configKey);
-
   const configJson = JSON.stringify(args.configObject ?? [], null, 2);
 
   if (!existing?.id) {
-    await client.models.InspectionConfig.create({
+    await models.InspectionConfig.create({
       configKey,
       version: 1,
       isActive: true,
@@ -389,7 +421,8 @@ export async function saveInspectionConfigToBackend(args: {
     return;
   }
 
-  await client.models.InspectionConfig.update({
+  // overwrite same row, bump version (simple)
+  await models.InspectionConfig.update({
     id: existing.id,
     configKey,
     version: Number(existing.version ?? 1) + 1,

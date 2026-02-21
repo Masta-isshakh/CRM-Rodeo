@@ -45,10 +45,7 @@ const schema = a
         departmentKey: a.string(),
         departmentName: a.string(),
       })
-      .authorization((allow) => [
-        allow.ownerDefinedIn("profileOwner"),
-        allow.group(ADMIN_GROUP),
-      ]),
+      .authorization((allow) => [allow.ownerDefinedIn("profileOwner"), allow.group(ADMIN_GROUP)]),
 
     // -----------------------------
     // RBAC MODELS
@@ -60,10 +57,7 @@ const schema = a
         isActive: a.boolean().default(true),
         createdAt: a.datetime(),
       })
-      .authorization((allow) => [
-        allow.group(ADMIN_GROUP),
-        allow.authenticated().to(["read"]),
-      ]),
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
 
     RolePolicy: a
       .model({
@@ -78,22 +72,16 @@ const schema = a
 
         createdAt: a.datetime(),
       })
-      .authorization((allow) => [
-        allow.group(ADMIN_GROUP),
-        allow.authenticated().to(["read"]),
-      ]),
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
 
     DepartmentRoleLink: a
       .model({
-        departmentKey: a.string().required(), // Cognito group key
+        departmentKey: a.string().required(),
         departmentName: a.string(),
         roleId: a.id().required(),
         createdAt: a.datetime(),
       })
-      .authorization((allow) => [
-        allow.group(ADMIN_GROUP),
-        allow.authenticated().to(["read"]),
-      ]),
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
 
     // -----------------------------
     // CRM MODELS
@@ -112,8 +100,6 @@ const schema = a
         contacts: a.hasMany("Contact", "customerId"),
         deals: a.hasMany("Deal", "customerId"),
         tickets: a.hasMany("Ticket", "customerId"),
-
-        // ✅ Vehicles relationship
         vehicles: a.hasMany("Vehicle", "customerId"),
       })
       .secondaryIndexes((index) => [
@@ -183,7 +169,6 @@ const schema = a
         phone: a.string(),
         position: a.string(),
         createdAt: a.datetime(),
-
         customer: a.belongsTo("Customer", "customerId"),
       })
       .authorization((allow) => [allow.authenticated()]),
@@ -197,7 +182,6 @@ const schema = a
         expectedCloseDate: a.date(),
         owner: a.string(),
         createdAt: a.datetime(),
-
         customer: a.belongsTo("Customer", "customerId"),
       })
       .authorization((allow) => [allow.authenticated()]),
@@ -223,7 +207,6 @@ const schema = a
         message: a.string().required(),
         author: a.string(),
         createdAt: a.datetime(),
-
         ticket: a.belongsTo("Ticket", "ticketId"),
       })
       .authorization((allow) => [allow.authenticated()]),
@@ -281,6 +264,11 @@ const schema = a
         roadmapItems: a.hasMany("JobOrderRoadmapStep", "jobOrderId"),
         docsItems: a.hasMany("JobOrderDocumentItem", "jobOrderId"),
 
+        // ✅ REQUIRED inverse relations (fixes your CDK error)
+        inspectionStates: a.hasMany("InspectionState", "jobOrderId"),
+        inspectionPhotos: a.hasMany("InspectionPhoto", "jobOrderId"),
+        inspectionReports: a.hasMany("InspectionReport", "jobOrderId"),
+
         createdBy: a.string(),
         createdAt: a.datetime(),
         updatedAt: a.datetime(),
@@ -290,22 +278,17 @@ const schema = a
         index("plateNumber").queryField("jobOrdersByPlateNumber"),
         index("status").queryField("jobOrdersByStatus"),
       ])
-      .authorization((allow) => [
-        allow.group(ADMIN_GROUP),
-        allow.authenticated().to(["read"]),
-      ]),
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
 
     // -----------------------------
-    // ✅ INSPECTION MODULE (ALL IN DATA MODEL)
+    // ✅ INSPECTION MODULE
     // -----------------------------
-
-    // 1) Config stored as JSON string (admin writes, everyone reads)
     InspectionConfig: a
       .model({
-        configKey: a.string().required(), // e.g. "default"
+        configKey: a.string().required(),
         version: a.integer().default(1),
         isActive: a.boolean().default(true),
-        configJson: a.string().required(), // JSON.stringify(inspectionListConfig)
+        configJson: a.string().required(),
         updatedBy: a.string(),
         updatedAt: a.datetime(),
         createdAt: a.datetime(),
@@ -313,21 +296,13 @@ const schema = a
       .secondaryIndexes((index) => [
         index("configKey").queryField("inspectionConfigsByKey"),
       ])
-      .authorization((allow) => [
-        allow.group(ADMIN_GROUP),
-        allow.authenticated().to(["read"]),
-      ]),
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
 
-    // 2) State per JobOrder (id should be set to jobOrderId to make it 1:1)
     InspectionState: a
       .model({
         jobOrderId: a.id().required(),
         orderNumber: a.string().required(),
-
-        // state machine
         status: a.enum(["IN_PROGRESS", "PAUSED", "COMPLETED", "NOT_REQUIRED"]),
-
-        // JSON.stringify({ exterior:..., interior:... })
         stateJson: a.string().required(),
 
         startedAt: a.datetime(),
@@ -349,16 +324,15 @@ const schema = a
         allow.authenticated().to(["read", "create", "update"]),
       ]),
 
-    // 3) Photos metadata in Data; binary stays in Storage (job-orders/*)
     InspectionPhoto: a
       .model({
         jobOrderId: a.id().required(),
         orderNumber: a.string().required(),
 
-        sectionKey: a.string().required(), // "exterior" | "interior"
+        sectionKey: a.string().required(),
         itemId: a.string().required(),
 
-        storagePath: a.string().required(), // job-orders/... path
+        storagePath: a.string().required(),
         fileName: a.string(),
         contentType: a.string(),
         size: a.integer(),
@@ -377,13 +351,12 @@ const schema = a
         allow.authenticated().to(["read", "create", "update"]),
       ]),
 
-    // 4) Report stored in Data model (HTML string)
     InspectionReport: a
       .model({
         jobOrderId: a.id().required(),
         orderNumber: a.string().required(),
 
-        html: a.string().required(), // report HTML (no expiring URLs)
+        html: a.string().required(),
         createdAt: a.datetime(),
         createdBy: a.string(),
         updatedAt: a.datetime(),
@@ -406,7 +379,6 @@ const schema = a
     JobOrderServiceItem: a
       .model({
         jobOrderId: a.id().required(),
-
         name: a.string().required(),
         qty: a.integer().default(1),
         unitPrice: a.float().default(0),
@@ -424,105 +396,71 @@ const schema = a
 
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
       })
-      .secondaryIndexes((index) => [
-        index("jobOrderId").queryField("listServicesByJobOrder"),
-      ])
-      .authorization((allow) => [
-        allow.group(ADMIN_GROUP),
-        allow.authenticated().to(["read"]),
-      ]),
+      .secondaryIndexes((index) => [index("jobOrderId").queryField("listServicesByJobOrder")])
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
 
     JobOrderInvoice: a
       .model({
         jobOrderId: a.id().required(),
-
         number: a.string().required(),
         amount: a.float().default(0),
         discount: a.float().default(0),
         status: a.string(),
         paymentMethod: a.string(),
-
         createdAt: a.datetime(),
 
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
         services: a.hasMany("JobOrderInvoiceService", "invoiceId"),
       })
-      .secondaryIndexes((index) => [
-        index("jobOrderId").queryField("listInvoicesByJobOrder"),
-      ])
-      .authorization((allow) => [
-        allow.group(ADMIN_GROUP),
-        allow.authenticated().to(["read"]),
-      ]),
+      .secondaryIndexes((index) => [index("jobOrderId").queryField("listInvoicesByJobOrder")])
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
 
     JobOrderInvoiceService: a
       .model({
         invoiceId: a.id().required(),
         jobOrderId: a.id().required(),
         serviceName: a.string().required(),
-
         invoice: a.belongsTo("JobOrderInvoice", "invoiceId"),
       })
       .secondaryIndexes((index) => [
         index("invoiceId").queryField("listInvoiceServicesByInvoice"),
         index("jobOrderId").queryField("listInvoiceServicesByJobOrder"),
       ])
-      .authorization((allow) => [
-        allow.group(ADMIN_GROUP),
-        allow.authenticated().to(["read"]),
-      ]),
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
 
     JobOrderRoadmapStep: a
       .model({
         jobOrderId: a.id().required(),
-
         step: a.string().required(),
         stepStatus: a.string(),
         startTimestamp: a.string(),
         endTimestamp: a.string(),
         actionBy: a.string(),
         status: a.string(),
-
         createdAt: a.datetime(),
-
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
       })
-      .secondaryIndexes((index) => [
-        index("jobOrderId").queryField("listRoadmapByJobOrder"),
-      ])
-      .authorization((allow) => [
-        allow.group(ADMIN_GROUP),
-        allow.authenticated().to(["read"]),
-      ]),
+      .secondaryIndexes((index) => [index("jobOrderId").queryField("listRoadmapByJobOrder")])
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
 
     JobOrderDocumentItem: a
       .model({
         jobOrderId: a.id().required(),
-
         title: a.string().required(),
         url: a.string(),
         storagePath: a.string(),
         type: a.string(),
         addedAt: a.string(),
-
         fileName: a.string(),
         contentType: a.string(),
         size: a.integer(),
-
         linkedPaymentId: a.string(),
         paymentMethod: a.string(),
-
         createdAt: a.datetime(),
-
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
       })
-      .secondaryIndexes((index) => [
-        index("jobOrderId").queryField("listDocsByJobOrder"),
-      ])
-      .authorization((allow) => [
-        allow.group(ADMIN_GROUP),
-        allow.authenticated().to(["read"]),
-      ]),
+      .secondaryIndexes((index) => [index("jobOrderId").queryField("listDocsByJobOrder")])
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
 
     JobOrderPayment: a
       .model({
@@ -532,23 +470,16 @@ const schema = a
         reference: a.string(),
         paidAt: a.datetime().required(),
         notes: a.string(),
-
         createdBy: a.string(),
         createdAt: a.datetime(),
         updatedAt: a.datetime(),
-
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
       })
-      .secondaryIndexes((index) => [
-        index("jobOrderId").queryField("listPaymentsByJobOrder"),
-      ])
-      .authorization((allow) => [
-        allow.group(ADMIN_GROUP),
-        allow.authenticated().to(["read"]),
-      ]),
+      .secondaryIndexes((index) => [index("jobOrderId").queryField("listPaymentsByJobOrder")])
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
 
     // -----------------------------
-    // Call Tracking / Inspection (existing)
+    // Existing
     // -----------------------------
     JobCard: a
       .model({
@@ -674,28 +605,24 @@ const schema = a
       .returns(a.json()),
 
     // -----------------------------
-    // ✅ Job Orders mutations (RBAC enforced inside Lambda)
+    // Job Orders mutations (RBAC enforced inside Lambda)
     // -----------------------------
     jobOrderSave: a
       .mutation()
-      .arguments({
-        input: a.json().required(),
-      })
+      .arguments({ input: a.json().required() })
       .authorization((allow) => [allow.authenticated()])
       .handler(a.handler.function(jobOrderSave))
       .returns(a.json()),
 
     jobOrderDelete: a
       .mutation()
-      .arguments({
-        id: a.string().required(),
-      })
+      .arguments({ id: a.string().required() })
       .authorization((allow) => [allow.authenticated()])
       .handler(a.handler.function(jobOrderDelete))
       .returns(a.json()),
 
     // -----------------------------
-    // ✅ Payments mutations (RBAC enforced inside Lambda)
+    // Payments mutations (RBAC enforced inside Lambda)
     // -----------------------------
     jobOrderPaymentCreate: a
       .mutation()
@@ -727,9 +654,7 @@ const schema = a
 
     jobOrderPaymentDelete: a
       .mutation()
-      .arguments({
-        id: a.string().required(),
-      })
+      .arguments({ id: a.string().required() })
       .authorization((allow) => [allow.authenticated()])
       .handler(a.handler.function(jobOrderPaymentDelete))
       .returns(a.json()),
