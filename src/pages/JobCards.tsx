@@ -16,8 +16,7 @@ import {
   cancelJobOrderByOrderNumber,
   searchCustomers,
   getCustomerWithVehicles,
-  createCustomer,
-  createVehicleForCustomer,
+
   listCompletedOrdersByPlateNumber,
 } from "./jobOrderRepo";
 

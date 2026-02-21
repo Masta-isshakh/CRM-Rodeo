@@ -7,9 +7,7 @@ type JobOrderRow = Schema["JobOrder"]["type"];
 
 function toNum(x: any) {
   const n =
-    typeof x === "number"
-      ? x
-      : Number(String(x ?? "").replace(/[^0-9.-]/g, ""));
+    typeof x === "number" ? x : Number(String(x ?? "").replace(/[^0-9.-]/g, ""));
   return Number.isFinite(n) ? n : 0;
 }
 
@@ -54,7 +52,9 @@ async function listAll<T>(
   return out.slice(0, max);
 }
 
-function mapWorkStatusToDbStatus(workStatusLabel: string | undefined): JobOrderRow["status"] {
+function mapWorkStatusToDbStatus(
+  workStatusLabel: string | undefined
+): JobOrderRow["status"] {
   const s = String(workStatusLabel ?? "").trim().toLowerCase();
 
   if (s === "cancelled" || s === "canceled") return "CANCELLED";
@@ -65,7 +65,6 @@ function mapWorkStatusToDbStatus(workStatusLabel: string | undefined): JobOrderR
   if (s === "inspection") return "IN_PROGRESS";
   if (s === "new request") return "OPEN";
 
-  // default
   return "OPEN";
 }
 
@@ -78,8 +77,9 @@ function deriveUiWorkStatus(job: any, parsed: any) {
 }
 
 function deriveUiPaymentStatus(job: any, parsed: any) {
-  // UI expects "Unpaid" / "Partially Paid" / "Fully Paid"
-  const fromLabel = String(parsed?.paymentStatusLabel ?? job?.paymentStatusLabel ?? "").trim();
+  const fromLabel = String(
+    parsed?.paymentStatusLabel ?? job?.paymentStatusLabel ?? ""
+  ).trim();
   if (fromLabel) return fromLabel;
 
   const ps = String(job?.paymentStatus ?? "").toUpperCase();
@@ -93,7 +93,7 @@ async function findJobOrderRowByAnyKey(keyRaw: string): Promise<any | null> {
   const key = String(keyRaw ?? "").trim();
   if (!key) return null;
 
-  // 1) Try secondary index queryField if exists: jobOrdersByOrderNumber
+  // 1) secondary index queryField (if generated)
   try {
     const byIndex = await (client.models.JobOrder as any)?.jobOrdersByOrderNumber?.({
       orderNumber: key,
@@ -101,11 +101,9 @@ async function findJobOrderRowByAnyKey(keyRaw: string): Promise<any | null> {
     });
     const row = (byIndex?.data ?? [])[0];
     if (row?.id) return row;
-  } catch {
-    // ignore
-  }
+  } catch {}
 
-  // 2) Try list(filter orderNumber eq)
+  // 2) list filter
   try {
     const list = await client.models.JobOrder.list({
       filter: { orderNumber: { eq: key } } as any,
@@ -113,24 +111,22 @@ async function findJobOrderRowByAnyKey(keyRaw: string): Promise<any | null> {
     });
     const row = (list?.data ?? [])[0];
     if (row?.id) return row;
-  } catch {
-    // ignore
-  }
+  } catch {}
 
-  // 3) Try direct get by backend id (UUID)
+  // 3) direct get by backend id
   try {
     const g = await client.models.JobOrder.get({ id: key } as any);
     const row = (g as any)?.data ?? g;
     if (row?.id) return row;
-  } catch {
-    // ignore
-  }
+  } catch {}
 
-  // 4) Last resort (case-insensitive) – fetch small set and compare
+  // 4) fallback scan
   try {
     const all = await listAll<any>((args) => client.models.JobOrder.list(args), 2000);
     const k = key.toLowerCase();
-    const hit = all.find((r: any) => String(r?.orderNumber ?? "").trim().toLowerCase() === k);
+    const hit = all.find(
+      (r: any) => String(r?.orderNumber ?? "").trim().toLowerCase() === k
+    );
     return hit ?? null;
   } catch {
     return null;
@@ -138,18 +134,12 @@ async function findJobOrderRowByAnyKey(keyRaw: string): Promise<any | null> {
 }
 
 function unwrapAwsJsonMaybe(raw: any): any {
-  // AWSJSON often returns as string. If object, keep it.
   const parsed = safeJsonParse<any>(raw);
   return parsed ?? raw;
 }
 
 function parseJobOrderSaveResult(res: any): { id?: string; orderNumber?: string } {
-  // Amplify can return:
-  // - { data: "{\"id\":\"...\",\"orderNumber\":\"...\"}" }
-  // - { data: { id: "...", orderNumber: "..." } }
-  // - { data: { jobOrderSave: "..." } } (rare wrappers)
   let x = res?.data ?? res;
-
   x = unwrapAwsJsonMaybe(x);
 
   // wrapper case
@@ -178,7 +168,7 @@ export async function searchCustomers(term: string): Promise<any[]> {
   const results: CustomerRow[] = [];
   const seen = new Set<string>();
 
-  // 1) If looks like an id, try direct get
+  // 1) If looks like id, try get
   if (q.length >= 8 && /[a-z0-9-]/i.test(q)) {
     try {
       const g = await client.models.Customer.get({ id: q } as any);
@@ -187,12 +177,10 @@ export async function searchCustomers(term: string): Promise<any[]> {
         seen.add(String(row.id));
         results.push(row);
       }
-    } catch {
-      // ignore
-    }
+    } catch {}
   }
 
-  // 2) Query by phone/email/name/lastname (server-side)
+  // 2) Server-side filters
   const [byPhone, byEmail, byName, byLast] = await Promise.all([
     client.models.Customer.list({ filter: { phone: { contains: q } } as any, limit: 50 }),
     client.models.Customer.list({ filter: { email: { contains: q } } as any, limit: 50 }),
@@ -200,14 +188,19 @@ export async function searchCustomers(term: string): Promise<any[]> {
     client.models.Customer.list({ filter: { lastname: { contains: q } } as any, limit: 50 }),
   ]);
 
-  for (const r of [...(byPhone.data ?? []), ...(byEmail.data ?? []), ...(byName.data ?? []), ...(byLast.data ?? [])]) {
+  for (const r of [
+    ...(byPhone.data ?? []),
+    ...(byEmail.data ?? []),
+    ...(byName.data ?? []),
+    ...(byLast.data ?? []),
+  ]) {
     const id = String((r as any)?.id ?? "");
     if (!id || seen.has(id)) continue;
     seen.add(id);
     results.push(r as any);
   }
 
-  // 3) Full name optimization: "First Last"
+  // 3) full name "First Last"
   const parts = q.split(/\s+/).filter(Boolean);
   if (parts.length >= 2) {
     const first = parts[0];
@@ -223,12 +216,10 @@ export async function searchCustomers(term: string): Promise<any[]> {
         seen.add(id);
         results.push(r as any);
       }
-    } catch {
-      // ignore
-    }
+    } catch {}
   }
 
-  // 4) Fallback: case-insensitive match (small DB)
+  // 4) fallback scan (small)
   if (!results.length) {
     const all = await listAll<CustomerRow>((args) => client.models.Customer.list(args), 2000);
     const ql = q.toLowerCase();
@@ -261,11 +252,15 @@ export async function searchCustomers(term: string): Promise<any[]> {
     mobile: c.phone ?? "",
     phone: c.phone ?? "",
     address: c.notes ?? null,
-    vehicles: [], // loaded by getCustomerWithVehicles
+    vehicles: [],
     registeredVehiclesCount: 0,
     completedServicesCount: 0,
     customerSince: c.createdAt
-      ? new Date(String(c.createdAt)).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+      ? new Date(String(c.createdAt)).toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
       : "",
   }));
 }
@@ -279,13 +274,19 @@ export async function getCustomerWithVehicles(customerId: string): Promise<any |
   const c = (cRes as any)?.data as CustomerRow | undefined;
   if (!c?.id) return null;
 
-  // Prefer index query if exists
+  // prefer index if exists
   let vData: any[] = [];
   try {
-    const byIndex = await (client.models.Vehicle as any)?.vehiclesByCustomer?.({ customerId: id, limit: 2000 });
+    const byIndex = await (client.models.Vehicle as any)?.vehiclesByCustomer?.({
+      customerId: id,
+      limit: 2000,
+    });
     vData = byIndex?.data ?? [];
   } catch {
-    const vRes = await client.models.Vehicle.list({ filter: { customerId: { eq: id } } as any, limit: 2000 });
+    const vRes = await client.models.Vehicle.list({
+      filter: { customerId: { eq: id } } as any,
+      limit: 2000,
+    });
     vData = vRes.data ?? [];
   }
 
@@ -313,13 +314,26 @@ export async function getCustomerWithVehicles(customerId: string): Promise<any |
     registeredVehiclesCount: vehicles.length,
     completedServicesCount: 0,
     customerSince: c.createdAt
-      ? new Date(String(c.createdAt)).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+      ? new Date(String(c.createdAt)).toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
       : "",
   };
 }
 
-export async function createCustomer(input: { fullName: string; phone: string; email?: string; address?: string }): Promise<any> {
+/**
+ * ✅ RESTORED: createCustomer (was missing in your current file)
+ */
+export async function createCustomer(input: {
+  fullName: string;
+  phone: string;
+  email?: string;
+  address?: string;
+}): Promise<any> {
   const client = getDataClient();
+
   const fullName = String(input.fullName ?? "").trim();
   const phone = String(input.phone ?? "").trim();
   if (!fullName || !phone) throw new Error("Full name and phone are required.");
@@ -328,13 +342,16 @@ export async function createCustomer(input: { fullName: string; phone: string; e
   const name = parts[0] ?? "Unknown";
   const lastname = parts.slice(1).join(" ") || "-";
 
+  const ts = new Date().toISOString();
+
   const created = await client.models.Customer.create({
     name,
     lastname,
     phone,
     email: String(input.email ?? "").trim() || undefined,
     notes: String(input.address ?? "").trim() || undefined,
-    createdAt: new Date().toISOString(),
+    createdAt: ts,
+    createdBy: "system",
   } as any);
 
   const row = (created as any)?.data ?? created;
@@ -350,11 +367,18 @@ export async function createCustomer(input: { fullName: string; phone: string; e
     registeredVehiclesCount: 0,
     completedServicesCount: 0,
     customerSince: row.createdAt
-      ? new Date(String(row.createdAt)).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+      ? new Date(String(row.createdAt)).toLocaleDateString("en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        })
       : "",
   };
 }
 
+/**
+ * ✅ RESTORED: createVehicleForCustomer (was missing in your current file)
+ */
 export async function createVehicleForCustomer(input: {
   customerId: string;
   ownedBy: string;
@@ -367,23 +391,25 @@ export async function createVehicleForCustomer(input: {
   vin: string;
 }): Promise<any> {
   const client = getDataClient();
+
   const ts = new Date().toISOString();
   const yearNow = new Date().getFullYear();
   const vehicleId = `VEH-${yearNow}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
 
   const created = await client.models.Vehicle.create({
     vehicleId,
-    customerId: String(input.customerId),
-    ownedBy: String(input.ownedBy),
-    make: String(input.make),
-    model: String(input.model),
-    year: String(input.year),
-    vehicleType: String(input.vehicleType),
-    color: String(input.color),
-    plateNumber: String(input.plateNumber),
-    vin: String(input.vin),
+    customerId: String(input.customerId).trim(),
+    ownedBy: String(input.ownedBy).trim() || "Owner",
+    make: String(input.make).trim() || "N/A",
+    model: String(input.model).trim() || "N/A",
+    year: String(input.year).trim() || "",
+    vehicleType: String(input.vehicleType).trim() || "",
+    color: String(input.color).trim() || "",
+    plateNumber: String(input.plateNumber).trim(), // required by schema
+    vin: String(input.vin).trim() || undefined,
     createdAt: ts,
     updatedAt: ts,
+    createdBy: "system",
   } as any);
 
   const row = (created as any)?.data ?? created;
@@ -416,13 +442,12 @@ export async function listJobOrdersForMain(): Promise<any[]> {
 
   return sorted.map((job: any) => {
     const parsed = safeJsonParse<any>(job.dataJson) ?? null;
-
     const workStatus = deriveUiWorkStatus(job, parsed);
     const paymentStatus = deriveUiPaymentStatus(job, parsed);
 
     return {
       _backendId: job.id,
-      id: job.orderNumber, // UI ID = orderNumber
+      id: job.orderNumber, // UI uses orderNumber
       orderType: job.orderType ?? parsed?.orderType ?? "Job Order",
       customerName: job.customerName ?? parsed?.customerName ?? "",
       mobile: job.customerPhone ?? parsed?.customerPhone ?? "",
@@ -430,7 +455,11 @@ export async function listJobOrdersForMain(): Promise<any[]> {
       workStatus,
       paymentStatus,
       createDate: job.createdAt
-        ? new Date(String(job.createdAt)).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+        ? new Date(String(job.createdAt)).toLocaleDateString("en-GB", {
+            day: "numeric",
+            month: "short",
+            year: "numeric",
+          })
         : "",
     };
   });
@@ -446,25 +475,43 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
 
   const parsed = safeJsonParse<any>(job.dataJson) ?? {};
 
-  // Services: from parsed.services (works even if normalized tables not populated)
+  // preserve service execution fields
   const parsedServices = Array.isArray(parsed?.services) ? parsed.services : [];
-  const services = parsedServices.map((s: any) => {
+  const services = parsedServices.map((s: any, idx: number) => {
     const qty = Math.max(1, toNum(s.qty ?? 1));
     const unitPrice = Math.max(0, toNum(s.unitPrice ?? s.price ?? 0));
     const price = Math.max(0, toNum(s.price ?? qty * unitPrice));
+
     return {
+      id: String(s.id ?? `SVC-${idx + 1}`),
+      order: Number(s.order ?? idx + 1),
+
       name: String(s.name ?? "").trim() || "Service",
       price,
-      status: s.status ?? "New",
-      started: s.started ?? "Not started",
-      ended: s.ended ?? "Not completed",
+
+      status: s.status ?? "Pending",
+      priority: s.priority ?? "normal",
+
+      assignedTo: s.assignedTo ?? null,
+      technicians: Array.isArray(s.technicians) ? s.technicians : [],
+
+      startTime: s.startTime ?? null,
+      endTime: s.endTime ?? null,
+
+      started: s.startTime || s.started || "Not started",
+      ended: s.endTime || s.ended || "Not completed",
+
       duration: s.duration ?? "Not started",
-      technician: s.technician ?? "Not assigned",
+      technician: s.assignedTo ?? s.technician ?? "Not assigned",
+
+      requestedAction: s.requestedAction ?? null,
+      approvalStatus: s.approvalStatus ?? null,
+
+      qualityCheckResult: s.qualityCheckResult ?? s.qcResult ?? null,
       notes: s.notes ?? "",
     };
   });
 
-  // Billing: prefer parsed.billing, fallback to job fields
   const billingRaw = parsed?.billing ?? {};
   const billId = String(billingRaw?.billId ?? job.billId ?? "").trim();
 
@@ -499,7 +546,7 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
 
   const documents = Array.isArray(parsed?.documents) ? parsed.documents : [];
 
-  // Payments log from JobOrderPayment model
+  // Payments log
   let paymentRows: any[] = [];
   try {
     const byIdx = await (client.models.JobOrderPayment as any)?.listPaymentsByJobOrder?.({
@@ -525,7 +572,11 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
   }));
 
   const createDate = job.createdAt
-    ? new Date(String(job.createdAt)).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+    ? new Date(String(job.createdAt)).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      })
     : "";
 
   const expectedDeliveryDate = String(parsed?.expectedDeliveryDate ?? job.expectedDeliveryDate ?? "").trim();
@@ -593,29 +644,23 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
   const status = mapWorkStatusToDbStatus(workStatusLabel);
 
   const discountNum =
-    typeof order?.billing?.discount === "string"
-      ? toNum(order.billing.discount)
-      : toNum(order?.billing?.discount);
+    typeof order?.billing?.discount === "string" ? toNum(order.billing.discount) : toNum(order?.billing?.discount);
 
   const totalFromBilling =
-    typeof order?.billing?.totalAmount === "string"
-      ? toNum(order.billing.totalAmount)
-      : toNum(order?.billing?.totalAmount);
+    typeof order?.billing?.totalAmount === "string" ? toNum(order.billing.totalAmount) : toNum(order?.billing?.totalAmount);
 
   const netFromBilling =
-    typeof order?.billing?.netAmount === "string"
-      ? toNum(order.billing.netAmount)
-      : toNum(order?.billing?.netAmount);
+    typeof order?.billing?.netAmount === "string" ? toNum(order.billing.netAmount) : toNum(order?.billing?.netAmount);
 
   const billId = String(order?.billing?.billId ?? "").trim() || undefined;
   const paymentMethod = String(order?.billing?.paymentMethod ?? "").trim() || undefined;
 
   const payload: any = {
-    id: String(order?._backendId ?? "").trim() || undefined, // backend UUID
+    id: String(order?._backendId ?? "").trim() || undefined,
     orderNumber,
     orderType: String(order?.orderType ?? "Job Order"),
 
-    status, // ✅ IMPORTANT for cancel/complete etc.
+    status,
     workStatusLabel,
     paymentStatusLabel,
 
@@ -634,23 +679,39 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
 
     vehicleType: "SUV_4X4",
 
-    // finance inputs
     discount: discountNum,
     vatRate: 0,
 
-    // store full service metadata (handler uses qty+unitPrice for totals)
-    services: services.map((s: any) => {
+    services: services.map((s: any, idx: number) => {
       const price = toNum(s.price);
       return {
+        id: String(s.id ?? `SVC-${idx + 1}`),
+        order: Number(s.order ?? idx + 1),
+
         name: String(s.name ?? "").trim() || "Service",
         qty: 1,
         unitPrice: price,
         price,
-        status: s.status ?? "New",
-        started: s.started ?? "Not started",
-        ended: s.ended ?? "Not completed",
+
+        status: s.status ?? "Pending",
+        priority: s.priority ?? "normal",
+
+        assignedTo: s.assignedTo ?? null,
+        technicians: Array.isArray(s.technicians) ? s.technicians : [],
+
+        startTime: s.startTime ?? null,
+        endTime: s.endTime ?? null,
+
+        started: s.startTime || s.started || "Not started",
+        ended: s.endTime || s.ended || "Not completed",
+
         duration: s.duration ?? "Not started",
-        technician: s.technician ?? "Not assigned",
+        technician: s.assignedTo ?? s.technician ?? "Not assigned",
+
+        requestedAction: s.requestedAction ?? null,
+        approvalStatus: s.approvalStatus ?? null,
+
+        qualityCheckResult: s.qualityCheckResult ?? s.qcResult ?? null,
         notes: s.notes ?? "",
       };
     }),
@@ -679,11 +740,9 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
 
   const parsed = parseJobOrderSaveResult(res);
 
-  // ✅ Most reliable backend id
   let backendId = String(parsed?.id ?? payload.id ?? "").trim();
   let returnedOrderNumber = String(parsed?.orderNumber ?? payload.orderNumber ?? "").trim();
 
-  // Fallback: if function returned nothing, locate by orderNumber
   if (!backendId) {
     const row = await findJobOrderRowByAnyKey(returnedOrderNumber || orderNumber);
     backendId = String(row?.id ?? "").trim();
@@ -697,11 +756,9 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
 }
 
 export async function cancelJobOrderByOrderNumber(orderKey: string): Promise<void> {
-  // orderKey can be orderNumber OR backendId (we support both)
   const order = await getJobOrderByOrderNumber(orderKey);
   if (!order) throw new Error("Order not found.");
 
-  // ✅ make cancel definitive in DB + UI
   order.workStatus = "Cancelled";
   order.workStatusLabel = "Cancelled";
   order.paymentStatus = order.paymentStatus ?? "Unpaid";
@@ -715,10 +772,12 @@ export async function listCompletedOrdersByPlateNumber(plateNumber: string): Pro
   const plate = String(plateNumber ?? "").trim();
   if (!plate) return [];
 
-  // Try index first
   let rows: any[] = [];
   try {
-    const byIdx = await (client.models.JobOrder as any)?.jobOrdersByPlateNumber?.({ plateNumber: plate, limit: 2000 });
+    const byIdx = await (client.models.JobOrder as any)?.jobOrdersByPlateNumber?.({
+      plateNumber: plate,
+      limit: 2000,
+    });
     rows = byIdx?.data ?? [];
   } catch {
     const res = await client.models.JobOrder.list({

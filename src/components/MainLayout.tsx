@@ -3,14 +3,14 @@ import { useEffect, useMemo, useState } from "react";
 
 import Dashboard from "../pages/Dashboard";
 import Customers from "../pages/Customer";
-import Vehicles from "../pages/Vehicule"; // ✅ ADD
+import Vehicles from "../pages/Vehicule";
 import Tickets from "../pages/Tickets";
 import Employees from "../pages/Employees";
 import ActivityLog from "../pages/ActivityLogs";
 
 import JobCards from "../pages/JobCards";
 import CallTracking from "../pages/CallTracking";
-
+import ServiceExecution from "../pages/ServiceExecutionModule";
 import Users from "../pages/UserAdmin";
 import DepartmentsAdmin from "../pages/DepartmentsAdmin";
 import RolesPoliciesAdmin from "../pages/RolesPoliciesAdmin";
@@ -24,18 +24,25 @@ import InspectionModule from "../pages/InspectionModule";
 type Page =
   | "dashboard"
   | "customers"
-  | "vehicles" // ✅ ADD
+  | "vehicles"
   | "tickets"
   | "employees"
   | "activitylog"
   | "jobcards"
+  | "serviceexecution"
   | "calltracking"
   | "inspection"
   | "users"
   | "departments"
   | "rolespolicies";
 
-const EMPTY = { canRead: false, canCreate: false, canUpdate: false, canDelete: false, canApprove: false };
+const EMPTY = {
+  canRead: false,
+  canCreate: false,
+  canUpdate: false,
+  canDelete: false,
+  canApprove: false,
+};
 
 export default function MainLayout({ signOut }: { signOut: () => void }) {
   const [page, setPage] = useState<Page>("dashboard");
@@ -49,17 +56,27 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     setSidebarOpen(false);
   };
 
+  /**
+   * ✅ IMPORTANT:
+   * Service Execution is JobOrder lifecycle, so show it when user can read JOB_CARDS.
+   * (Otherwise you must create + maintain a SERVICE_EXECUTION policy in RolePolicy.)
+   */
   const show = useMemo(() => {
+    const jobCardsRead = isAdminGroup || canAny("JOB_CARDS").canRead;
+
     return {
       dashboard: isAdminGroup || canAny("DASHBOARD").canRead,
       customers: isAdminGroup || canAny("CUSTOMERS").canRead,
-      vehicles: isAdminGroup || canAny("VEHICLES").canRead, // ✅ ADD
+      vehicles: isAdminGroup || canAny("VEHICLES").canRead,
       tickets: isAdminGroup || canAny("TICKETS").canRead,
       employees: isAdminGroup || canAny("EMPLOYEES").canRead,
       activitylog: isAdminGroup || canAny("ACTIVITY_LOG").canRead,
-      jobcards: isAdminGroup || canAny("JOB_CARDS").canRead,
+
+      // Core lifecycle
+      jobcards: jobCardsRead,
+      serviceexecution: jobCardsRead, // ✅ uses JOB_CARDS
       calltracking: isAdminGroup || canAny("CALL_TRACKING").canRead,
-      inspection: isAdminGroup || canAny("INSPECTION_APPROVALS").canRead,
+      inspection: jobCardsRead, // ✅ if you want it under JOB_CARDS
     };
   }, [isAdminGroup, can]);
 
@@ -75,9 +92,10 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !loading &&
     !show.dashboard &&
     !show.customers &&
-    !show.vehicles && // ✅ ADD
+    !show.vehicles &&
     !show.tickets &&
     !show.employees &&
+    !show.serviceexecution &&
     !show.activitylog &&
     !show.jobcards &&
     !show.calltracking &&
@@ -92,10 +110,13 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     const allowedPages: Page[] = [];
     if (show.dashboard) allowedPages.push("dashboard");
     if (show.customers) allowedPages.push("customers");
-    if (show.vehicles) allowedPages.push("vehicles"); // ✅ ADD
+    if (show.vehicles) allowedPages.push("vehicles");
+
     if (show.jobcards) allowedPages.push("jobcards");
+    if (show.serviceexecution) allowedPages.push("serviceexecution"); // ✅ ensure selectable
     if (show.calltracking) allowedPages.push("calltracking");
     if (show.inspection) allowedPages.push("inspection");
+
     if (show.tickets) allowedPages.push("tickets");
     if (show.employees) allowedPages.push("employees");
     if (show.activitylog) allowedPages.push("activitylog");
@@ -107,8 +128,9 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     const isCurrentAllowed =
       (page === "dashboard" && show.dashboard) ||
       (page === "customers" && show.customers) ||
-      (page === "vehicles" && show.vehicles) || // ✅ ADD
+      (page === "vehicles" && show.vehicles) ||
       (page === "jobcards" && show.jobcards) ||
+      (page === "serviceexecution" && show.serviceexecution) || // ✅
       (page === "calltracking" && show.calltracking) ||
       (page === "inspection" && show.inspection) ||
       (page === "tickets" && show.tickets) ||
@@ -150,7 +172,10 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
   return (
     <div className="layout-root">
-      <div className={`drawer-overlay ${sidebarOpen ? "show" : ""}`} onClick={() => setSidebarOpen(false)} />
+      <div
+        className={`drawer-overlay ${sidebarOpen ? "show" : ""}`}
+        onClick={() => setSidebarOpen(false)}
+      />
 
       <aside className={`drawer ${sidebarOpen ? "open" : ""}`} aria-hidden={!sidebarOpen}>
         <div className="drawer-head">
@@ -162,7 +187,11 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             </div>
           </div>
 
-          <button className="drawer-close" onClick={() => setSidebarOpen(false)} aria-label="Close menu">
+          <button
+            className="drawer-close"
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Close menu"
+          >
             ✕
           </button>
         </div>
@@ -173,13 +202,13 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               Dashboard
             </button>
           )}
+
           {show.customers && (
             <button className={page === "customers" ? "active" : ""} onClick={() => go("customers")}>
               Customers
             </button>
           )}
 
-          {/* ✅ ADD Vehicles */}
           {show.vehicles && (
             <button className={page === "vehicles" ? "active" : ""} onClick={() => go("vehicles")}>
               Vehicles
@@ -191,26 +220,41 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               Job Cards
             </button>
           )}
+
+          {/* ✅ ADD THIS BUTTON (your missing piece) */}
+          {show.serviceexecution && (
+            <button
+              className={page === "serviceexecution" ? "active" : ""}
+              onClick={() => go("serviceexecution")}
+            >
+              Service Execution
+            </button>
+          )}
+
           {show.calltracking && (
             <button className={page === "calltracking" ? "active" : ""} onClick={() => go("calltracking")}>
               Call Tracking
             </button>
           )}
+
           {show.inspection && (
             <button className={page === "inspection" ? "active" : ""} onClick={() => go("inspection")}>
-              Inspection Approvals
+              Inspection
             </button>
           )}
+
           {show.tickets && (
             <button className={page === "tickets" ? "active" : ""} onClick={() => go("tickets")}>
               Tickets
             </button>
           )}
+
           {show.employees && (
             <button className={page === "employees" ? "active" : ""} onClick={() => go("employees")}>
               Employees
             </button>
           )}
+
           {show.activitylog && (
             <button className={page === "activitylog" ? "active" : ""} onClick={() => go("activitylog")}>
               Activity Log
@@ -250,7 +294,12 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       <div className="layout-main">
         <header className="topbar">
           <div className="topbar-inner">
-            <button className="menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open menu" type="button">
+            <button
+              className="menu-toggle"
+              onClick={() => setSidebarOpen(true)}
+              aria-label="Open menu"
+              type="button"
+            >
               <span className="menu-toggle-icon" aria-hidden>
                 <span />
                 <span />
@@ -260,7 +309,9 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
             <div className="topbar-center">
               <div className="topbar-title">{title}</div>
-              <div className="topbar-sub">{loading ? "Loading..." : `Signed in as: ${email || "-"}`}</div>
+              <div className="topbar-sub">
+                {loading ? "Loading..." : `Signed in as: ${email || "-"}`}
+              </div>
             </div>
 
             <div className="topbar-right">
@@ -276,24 +327,36 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             <div className="no-access">
               <h3>No access configured</h3>
               <p>
-                You are signed in, but no department → role → policy permissions were resolved for your account. Ask an Admin to assign a Department role + Role policies.
+                You are signed in, but no department → role → policy permissions were resolved for your account.
+                Ask an Admin to assign a Department role + Role policies.
               </p>
             </div>
           )}
 
           {page === "dashboard" && show.dashboard && (
-            <Dashboard permissions={canAny("DASHBOARD")} email={email} visibility={{ ...show, admin: showAdmin }} onNavigate={(p) => setPage(p)} />
+            <Dashboard
+              permissions={canAny("DASHBOARD")}
+              email={email}
+              visibility={{ ...show, admin: showAdmin }}
+              onNavigate={(p) => setPage(p)}
+            />
           )}
 
           {page === "customers" && show.customers && <Customers permissions={canAny("CUSTOMERS")} />}
 
-          {/* ✅ Vehicles */}
           {page === "vehicles" && show.vehicles && <Vehicles permissions={canAny("VEHICLES")} />}
 
           {page === "jobcards" && show.jobcards && <JobCards permissions={canAny("JOB_CARDS")} />}
+
+          {page === "serviceexecution" && show.serviceexecution && (
+            <ServiceExecution permissions={canAny("JOB_CARDS")} />
+          )}
+
           {page === "calltracking" && show.calltracking && <CallTracking permissions={canAny("CALL_TRACKING")} />}
 
-          {page === "inspection" && show.inspection && <InspectionModule permissions={canAny("INSPECTION_APPROVALS")} />}
+          {page === "inspection" && show.inspection && (
+            <InspectionModule permissions={canAny("JOB_CARDS")} />
+          )}
 
           {page === "tickets" && show.tickets && <Tickets permissions={canAny("TICKETS")} />}
           {page === "employees" && show.employees && <Employees permissions={canAny("EMPLOYEES")} />}

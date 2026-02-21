@@ -11,7 +11,7 @@ type Props = {
 
 /**
  * Map UI optionId -> required operation on policy key.
- * Backend enforces JOB_CARDS for Job Orders + Inspection mutations.
+ * Backend enforces JOB_CARDS for Job Orders + Inspection + Service Execution mutations.
  */
 function resolvePolicyAndOp(
   moduleId: string,
@@ -24,7 +24,6 @@ function resolvePolicyAndOp(
   // JOB ORDERS -> JOB_CARDS policy
   // -----------------------------
   if (m === "joborder" || m === "joborders") {
-    // view sections / view details
     if (
       o === "joborder_viewdetails" ||
       o === "joborder_summary" ||
@@ -38,29 +37,22 @@ function resolvePolicyAndOp(
       return { policyKey: "JOB_CARDS", op: "canRead" };
     }
 
-    // create new order
     if (o === "joborder_add") return { policyKey: "JOB_CARDS", op: "canCreate" };
-
-    // cancel/update order
     if (o === "joborder_cancel") return { policyKey: "JOB_CARDS", op: "canUpdate" };
 
-    // add service / edit pricing / discounts
     if (o === "joborder_addservice") return { policyKey: "JOB_CARDS", op: "canUpdate" };
     if (o === "joborder_serviceprice") return { policyKey: "JOB_CARDS", op: "canRead" };
     if (o === "joborder_servicediscount") return { policyKey: "JOB_CARDS", op: "canUpdate" };
     if (o === "joborder_servicediscount_percent") return { policyKey: "JOB_CARDS", op: "canUpdate" };
-    // (optional alias if you ever used this id)
     if (o === "joborder_discount_percent") return { policyKey: "JOB_CARDS", op: "canUpdate" };
 
     return null;
   }
 
   // -----------------------------------------
-  // INSPECTION -> ALSO JOB_CARDS policy
-  // (Inspection is part of JobOrder lifecycle)
+  // INSPECTION -> JOB_CARDS policy
   // -----------------------------------------
   if (m === "inspection" || m === "inspectionmodule") {
-    // READ UI blocks
     if (
       o === "inspection_summary" ||
       o === "inspection_customer" ||
@@ -74,15 +66,12 @@ function resolvePolicyAndOp(
       o === "inspection_list" ||
       o === "inspection_quality" ||
       o === "inspection_download" ||
-      o === "inspection_viewdetails"
+      o === "inspection_viewdetails" ||
+      o === "inspection_actions"
     ) {
       return { policyKey: "JOB_CARDS", op: "canRead" };
     }
 
-    // Actions dropdown itself (show/hide)
-    if (o === "inspection_actions") return { policyKey: "JOB_CARDS", op: "canRead" };
-
-    // MUTATING actions (update)
     if (
       o === "inspection_start" ||
       o === "inspection_resume" ||
@@ -97,14 +86,53 @@ function resolvePolicyAndOp(
       return { policyKey: "JOB_CARDS", op: "canUpdate" };
     }
 
-    // Price visibility (read-only)
     if (o === "inspection_serviceprice") return { policyKey: "JOB_CARDS", op: "canRead" };
 
     return null;
   }
 
-  // Unknown module => fail closed for non-admins
-  return null;
+  // -----------------------------------------
+  // SERVICE EXECUTION -> JOB_CARDS policy
+  // -----------------------------------------
+  if (
+    m === "serviceexec" ||
+    m === "serviceexecution" ||
+    m === "serviceexecutionmodule"
+  ) {
+    // READ blocks
+    if (
+      o === "serviceexec_actions" ||
+      o === "serviceexec_viewdetails" ||
+      o === "serviceexec_summary" ||
+      o === "serviceexec_roadmap" ||
+      o === "serviceexec_customer" ||
+      o === "serviceexec_vehicle" ||
+      o === "serviceexec_services" ||
+      o === "serviceexec_notes" ||
+      o === "serviceexec_quality" ||
+      o === "serviceexec_billing" ||
+      o === "serviceexec_paymentlog" ||
+      o === "serviceexec_exitpermit" ||
+      o === "serviceexec_documents"
+    ) {
+      return { policyKey: "JOB_CARDS", op: "canRead" };
+    }
+
+    // MUTATIONS
+    if (
+      o === "serviceexec_edit" ||
+      o === "serviceexec_update" ||
+      o === "serviceexec_finish" ||
+      o === "serviceexec_addservice" ||
+      o === "serviceexec_cancel"
+    ) {
+      return { policyKey: "JOB_CARDS", op: "canUpdate" };
+    }
+
+    return null;
+  }
+
+  return null; // unknown module => fail closed for non-admins
 }
 
 export default function PermissionGate({
@@ -117,13 +145,12 @@ export default function PermissionGate({
 
   const rule = useMemo(() => resolvePolicyAndOp(moduleId, optionId), [moduleId, optionId]);
 
-  // While loading permissions, hide (avoid flash)
   if (loading) return null;
 
-  // ✅ Admin override ALWAYS wins (even if mapping is missing)
+  // ✅ Admin override always wins
   if (isAdminGroup) return <>{children}</>;
 
-  // Non-admins: fail closed if mapping not defined
+  // Non-admins: fail closed if not mapped
   if (!rule) return <>{fallback}</>;
 
   const perm = can(rule.policyKey);

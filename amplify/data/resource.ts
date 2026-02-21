@@ -169,6 +169,7 @@ const schema = a
         phone: a.string(),
         position: a.string(),
         createdAt: a.datetime(),
+
         customer: a.belongsTo("Customer", "customerId"),
       })
       .authorization((allow) => [allow.authenticated()]),
@@ -182,6 +183,7 @@ const schema = a
         expectedCloseDate: a.date(),
         owner: a.string(),
         createdAt: a.datetime(),
+
         customer: a.belongsTo("Customer", "customerId"),
       })
       .authorization((allow) => [allow.authenticated()]),
@@ -207,6 +209,7 @@ const schema = a
         message: a.string().required(),
         author: a.string(),
         createdAt: a.datetime(),
+
         ticket: a.belongsTo("Ticket", "ticketId"),
       })
       .authorization((allow) => [allow.authenticated()]),
@@ -264,10 +267,13 @@ const schema = a
         roadmapItems: a.hasMany("JobOrderRoadmapStep", "jobOrderId"),
         docsItems: a.hasMany("JobOrderDocumentItem", "jobOrderId"),
 
-        // ✅ REQUIRED inverse relations (fixes your CDK error)
+        // ✅ REQUIRED inverse relations (fixes Inspection belongsTo CDK errors)
         inspectionStates: a.hasMany("InspectionState", "jobOrderId"),
         inspectionPhotos: a.hasMany("InspectionPhoto", "jobOrderId"),
         inspectionReports: a.hasMany("InspectionReport", "jobOrderId"),
+
+        // ✅ Service approvals (optional but recommended)
+        serviceApprovalRequests: a.hasMany("ServiceApprovalRequest", "jobOrderId"),
 
         createdBy: a.string(),
         createdAt: a.datetime(),
@@ -293,9 +299,7 @@ const schema = a
         updatedAt: a.datetime(),
         createdAt: a.datetime(),
       })
-      .secondaryIndexes((index) => [
-        index("configKey").queryField("inspectionConfigsByKey"),
-      ])
+      .secondaryIndexes((index) => [index("configKey").queryField("inspectionConfigsByKey")])
       .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
 
     InspectionState: a
@@ -319,10 +323,7 @@ const schema = a
         index("jobOrderId").queryField("inspectionStatesByJobOrder"),
         index("orderNumber").queryField("inspectionStatesByOrderNumber"),
       ])
-      .authorization((allow) => [
-        allow.group(ADMIN_GROUP),
-        allow.authenticated().to(["read", "create", "update"]),
-      ]),
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
 
     InspectionPhoto: a
       .model({
@@ -346,10 +347,7 @@ const schema = a
         index("jobOrderId").queryField("listInspectionPhotosByJobOrder"),
         index("orderNumber").queryField("inspectionPhotosByOrderNumber"),
       ])
-      .authorization((allow) => [
-        allow.group(ADMIN_GROUP),
-        allow.authenticated().to(["read", "create", "update"]),
-      ]),
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
 
     InspectionReport: a
       .model({
@@ -367,6 +365,36 @@ const schema = a
       .secondaryIndexes((index) => [
         index("jobOrderId").queryField("inspectionReportsByJobOrder"),
         index("orderNumber").queryField("inspectionReportsByOrderNumber"),
+      ])
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
+
+    // -----------------------------
+    // ✅ SERVICE APPROVAL REQUESTS
+    // -----------------------------
+    ServiceApprovalRequest: a
+      .model({
+        jobOrderId: a.id().required(),
+        orderNumber: a.string().required(),
+
+        serviceId: a.string().required(),
+        serviceName: a.string().required(),
+        price: a.float().default(0),
+
+        requestedBy: a.string(),
+        requestedAt: a.datetime(),
+
+        status: a.enum(["PENDING", "APPROVED", "REJECTED"]),
+
+        decidedBy: a.string(),
+        decidedAt: a.datetime(),
+        decisionNote: a.string(),
+
+        jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
+      })
+      .secondaryIndexes((index) => [
+        index("jobOrderId").queryField("serviceApprovalRequestsByJobOrder"),
+        index("status").queryField("serviceApprovalRequestsByStatus"),
+        index("orderNumber").queryField("serviceApprovalRequestsByOrderNumber"),
       ])
       .authorization((allow) => [
         allow.group(ADMIN_GROUP),
@@ -420,6 +448,7 @@ const schema = a
         invoiceId: a.id().required(),
         jobOrderId: a.id().required(),
         serviceName: a.string().required(),
+
         invoice: a.belongsTo("JobOrderInvoice", "invoiceId"),
       })
       .secondaryIndexes((index) => [
@@ -438,6 +467,7 @@ const schema = a
         actionBy: a.string(),
         status: a.string(),
         createdAt: a.datetime(),
+
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
       })
       .secondaryIndexes((index) => [index("jobOrderId").queryField("listRoadmapByJobOrder")])
@@ -457,6 +487,7 @@ const schema = a
         linkedPaymentId: a.string(),
         paymentMethod: a.string(),
         createdAt: a.datetime(),
+
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
       })
       .secondaryIndexes((index) => [index("jobOrderId").queryField("listDocsByJobOrder")])
@@ -473,13 +504,14 @@ const schema = a
         createdBy: a.string(),
         createdAt: a.datetime(),
         updatedAt: a.datetime(),
+
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
       })
       .secondaryIndexes((index) => [index("jobOrderId").queryField("listPaymentsByJobOrder")])
       .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
 
     // -----------------------------
-    // Existing
+    // Existing legacy/demo models
     // -----------------------------
     JobCard: a
       .model({
