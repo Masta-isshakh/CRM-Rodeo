@@ -1,24 +1,20 @@
 // amplify/functions/job-orders/_shared/payments.ts
 import type { Schema } from "../../../data/resource";
+import { toNum } from "./finance";
 
-function toNum(x: any) {
-  const n = typeof x === "number" ? x : Number(String(x ?? "").trim());
-  return Number.isFinite(n) ? n : 0;
+function nowIso() {
+  return new Date().toISOString();
 }
 
-function computePaymentStatus(totalAmount: number, amountPaid: number) {
-  const balanceDue = Math.max(0, totalAmount - amountPaid);
-  const paymentStatus =
-    balanceDue <= 0.00001 ? "PAID" : amountPaid > 0 ? "PARTIAL" : "UNPAID";
-  return { balanceDue, paymentStatus };
-}
-
-async function listAll<T>(listFn: (args: any) => Promise<any>, pageSize = 1000, max = 20000): Promise<T[]> {
+async function listAll<T>(
+  listFn: (args: any) => Promise<any>,
+  max = 5000
+): Promise<T[]> {
   const out: T[] = [];
   let nextToken: string | null | undefined = undefined;
 
   while (out.length < max) {
-    const res = await listFn({ limit: pageSize, nextToken });
+    const res = await listFn({ limit: 1000, nextToken });
     out.push(...((res?.data ?? []) as T[]));
     nextToken = res?.nextToken;
     if (!nextToken) break;
@@ -26,47 +22,111 @@ async function listAll<T>(listFn: (args: any) => Promise<any>, pageSize = 1000, 
   return out.slice(0, max);
 }
 
-export async function recomputeJobOrderPaymentSummary(client: any, jobOrderId: string) {
+/**
+ * ✅ Recompute payment summary on JobOrder from JobOrderPayment rows.
+ * This MUST update:
+ *  - amountPaid
+ *  - balanceDue
+ *  - paymentStatus (UNPAID|PARTIAL|PAID)
+ *  - paymentStatusLabel ("Unpaid"|"Partially Paid"|"Fully Paid")
+ *  - (optional) paymentMethod from latest payment
+ */
+export async function recomputeJobOrderPaymentSummary(
+  client: ReturnType<any>,
+  jobOrderIdRaw: string
+) {
+  const jobOrderId = String(jobOrderIdRaw ?? "").trim();
   if (!jobOrderId) return;
 
-  // load job order
-  const jobRes = await client.models.JobOrder.get({ id: jobOrderId });
-  const job = (jobRes as any)?.data ?? jobRes;
-  if (!job?.id) throw new Error("Job order not found");
+  // 1) Load JobOrder
+  const g = await client.models.JobOrder.get({ id: jobOrderId } as any);
+  const job = (g as any)?.data ?? g;
+  if (!job?.id) return;
 
-  // sum payments
+  // 2) Load all payments for this JobOrder (prefer index queryField)
   let payments: any[] = [];
   try {
-    const res = await (client.models.JobOrderPayment as any).listPaymentsByJobOrder?.({
+    const byIdx = await (client.models.JobOrderPayment as any).listPaymentsByJobOrder?.({
       jobOrderId,
+      limit: 1000,
+    });
+
+    if (byIdx?.nextToken) {
+      payments = await listAll<any>(
+        (args) =>
+          (client.models.JobOrderPayment as any).listPaymentsByJobOrder({
+            jobOrderId,
+            ...args,
+          }),
+        5000
+      );
+    } else {
+      payments = byIdx?.data ?? [];
+    }
+  } catch {
+    // fallback scan
+    const res = await client.models.JobOrderPayment.list({
+      filter: { jobOrderId: { eq: jobOrderId } } as any,
       limit: 2000,
     });
     payments = res?.data ?? [];
-  } catch {
-    payments = await listAll<any>((args) =>
-      client.models.JobOrderPayment.list({
-        ...args,
-        filter: { jobOrderId: { eq: jobOrderId } },
-      } as any)
-    );
   }
 
-  const amountPaid = Math.max(
-    0,
-    (payments ?? []).reduce((sum, p) => sum + Math.max(0, toNum(p?.amount)), 0)
-  );
+  // 3) Sum amountPaid
+  const sumPaid = (payments ?? []).reduce((acc: number, p: any) => {
+    const a = Math.max(0, toNum(p?.amount));
+    return acc + a;
+  }, 0);
 
-  const totalAmount = Math.max(0, toNum(job?.totalAmount));
-  const { balanceDue, paymentStatus } = computePaymentStatus(totalAmount, amountPaid);
+  // 4) Determine net amount
+  const totalAmount = toNum(job.totalAmount);
+  const discount = toNum(job.discount);
+  const netAmountField = toNum(job.netAmount);
 
-  const ts = new Date().toISOString();
+  const net =
+    netAmountField > 0
+      ? netAmountField
+      : Math.max(0, totalAmount - discount);
 
-  // ✅ Update job order so UI + reports always match
+  // 5) Balance
+  const balanceDue = Math.max(0, net - sumPaid);
+
+  // 6) Payment status enum + label
+  let paymentStatus: Schema["JobOrder"]["type"]["paymentStatus"] = "UNPAID";
+  if (sumPaid <= 0.00001) {
+    paymentStatus = "UNPAID";
+  } else if (balanceDue <= 0.00001) {
+    paymentStatus = "PAID";
+  } else {
+    paymentStatus = "PARTIAL";
+  }
+
+  const paymentStatusLabel =
+    paymentStatus === "PAID"
+      ? "Fully Paid"
+      : paymentStatus === "PARTIAL"
+        ? "Partially Paid"
+        : "Unpaid";
+
+  // 7) Latest payment method (optional)
+  const latest = [...(payments ?? [])].sort((a: any, b: any) =>
+    String(b?.paidAt ?? b?.createdAt ?? "").localeCompare(
+      String(a?.paidAt ?? a?.createdAt ?? "")
+    )
+  )[0];
+
+  const latestMethod = String(latest?.method ?? "").trim();
+  const paymentMethod =
+    latestMethod || String(job.paymentMethod ?? "").trim() || undefined;
+
+  // 8) Update JobOrder (this is the missing part)
   await client.models.JobOrder.update({
     id: jobOrderId,
-    amountPaid,
+    amountPaid: sumPaid,
     balanceDue,
     paymentStatus,
-    updatedAt: ts,
-  });
+    paymentStatusLabel,
+    paymentMethod,
+    updatedAt: nowIso(),
+  } as any);
 }

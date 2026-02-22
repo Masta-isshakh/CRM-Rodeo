@@ -1,0 +1,271 @@
+/* src/components/ConfirmationPopup/ConfirmationPopup.css
+   White, premium modal. Color is mostly for confirm button only.
+*/
+
+:root {
+  --cp-bg: #ffffff;
+  --cp-surface: #fbfcfe;
+
+  --cp-text: #0f172a;
+  --cp-muted: #64748b;
+
+  --cp-border: rgba(15, 23, 42, 0.10);
+  --cp-shadow: 0 28px 80px rgba(15, 23, 42, 0.22);
+
+  --cp-radius: 18px;
+
+  /* Confirm button colors */
+  --cp-primary: #2563eb;
+  --cp-primary-hover: #1d4ed8;
+
+  --cp-success: #16a34a;
+  --cp-success-hover: #15803d;
+
+  --cp-danger: #dc2626;
+  --cp-danger-hover: #b91c1c;
+}
+
+.cp-overlay,
+.cp-overlay * {
+  box-sizing: border-box;
+}
+
+.cp-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+
+  display: grid;
+  place-items: center;
+  padding: 18px;
+
+  background: rgba(15, 23, 42, 0.48);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+
+  animation: cpFadeIn 140ms ease-out;
+}
+
+@keyframes cpFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.cp-modal {
+  width: min(560px, 100%);
+  background: var(--cp-bg);
+  border-radius: var(--cp-radius);
+  border: 1px solid var(--cp-border);
+  box-shadow: var(--cp-shadow);
+  overflow: hidden;
+
+  position: relative;
+  transform-origin: center;
+  animation: cpPop 160ms cubic-bezier(.22, 1, .36, 1);
+}
+
+@keyframes cpPop {
+  from { transform: translateY(6px) scale(0.985); opacity: 0.85; }
+  to   { transform: translateY(0px) scale(1); opacity: 1; }
+}
+
+/* soft glow */
+.cp-topGlow {
+  position: absolute;
+  inset: -90px -140px auto -140px;
+  height: 170px;
+  background: radial-gradient(closest-side, rgba(37, 99, 235, 0.18), transparent 70%);
+  filter: blur(10px);
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+.cp-header {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) 42px;
+  gap: 12px;
+  align-items: start;
+
+  padding: 16px 16px 12px;
+  background: linear-gradient(180deg, var(--cp-surface), #ffffff);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.cp-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  background: #ffffff;
+  box-shadow: 0 14px 28px rgba(2, 6, 23, 0.10);
+  position: relative;
+  overflow: hidden;
+}
+
+.cp-icon::before {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: 20px;
+  opacity: 0.22;
+  filter: blur(10px);
+  pointer-events: none;
+}
+
+.cp-icon.danger::before { background: radial-gradient(circle, rgba(220, 38, 38, 0.55), transparent 70%); }
+.cp-icon.primary::before { background: radial-gradient(circle, rgba(37, 99, 235, 0.55), transparent 70%); }
+.cp-icon.success::before { background: radial-gradient(circle, rgba(22, 163, 74, 0.55), transparent 70%); }
+
+.cp-iconMark {
+  font-weight: 950;
+  font-size: 20px;
+  color: var(--cp-text);
+}
+
+.cp-headText { min-width: 0; }
+
+.cp-title {
+  font-size: 15.5px;
+  font-weight: 950;
+  color: var(--cp-text);
+  letter-spacing: 0.2px;
+  line-height: 1.2;
+}
+
+.cp-subtitle {
+  margin-top: 5px;
+  font-size: 13.5px;
+  color: var(--cp-muted);
+  line-height: 1.4;
+}
+
+.cp-close {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  border: 1px solid rgba(15, 23, 42, 0.10);
+  background: #ffffff;
+  color: rgba(15, 23, 42, 0.70);
+  cursor: pointer;
+  transition: transform 120ms ease, background 120ms ease, opacity 120ms ease;
+}
+
+.cp-close:hover { background: #f8fafc; transform: translateY(-1px); }
+.cp-close:active { transform: translateY(0px) scale(0.98); }
+.cp-close:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Actions */
+.cp-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 14px 16px 16px;
+}
+
+.cp-btn {
+  appearance: none;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+
+  font-size: 13px;
+  font-weight: 900;
+
+  cursor: pointer;
+  user-select: none;
+  transition: transform 120ms ease, background 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
+}
+
+.cp-btn:active { transform: translateY(1px); }
+
+.cp-btn-ghost {
+  background: #ffffff;
+  color: var(--cp-text);
+  border-color: rgba(15, 23, 42, 0.12);
+}
+
+.cp-btn-ghost:hover { background: #f8fafc; }
+
+.cp-btn-primary {
+  background: var(--cp-primary);
+  color: #ffffff;
+  box-shadow: 0 12px 26px rgba(37, 99, 235, 0.24);
+}
+.cp-btn-primary:hover { background: var(--cp-primary-hover); }
+
+.cp-btn-success {
+  background: var(--cp-success);
+  color: #ffffff;
+  box-shadow: 0 12px 26px rgba(22, 163, 74, 0.22);
+}
+.cp-btn-success:hover { background: var(--cp-success-hover); }
+
+.cp-btn-danger {
+  background: var(--cp-danger);
+  color: #ffffff;
+  box-shadow: 0 12px 26px rgba(220, 38, 38, 0.22);
+}
+.cp-btn-danger:hover { background: var(--cp-danger-hover); }
+
+.cp-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Loading */
+.cp-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cp-spinner {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 2px solid rgba(255,255,255,0.50);
+  border-top-color: rgba(255,255,255,1);
+  animation: cpSpin 700ms linear infinite;
+}
+
+@keyframes cpSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Optional footer note */
+.cp-footnote {
+  padding: 0 16px 16px;
+  margin-top: -6px;
+  font-size: 12.5px;
+  color: rgba(15, 23, 42, 0.55);
+}
+
+/* Responsive */
+@media (max-width: 520px) {
+  .cp-header {
+    grid-template-columns: 48px minmax(0, 1fr) 40px;
+    padding: 14px 14px 10px;
+  }
+  .cp-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 15px;
+  }
+  .cp-actions {
+    padding: 12px 14px 14px;
+  }
+  .cp-btn {
+    height: 38px;
+    font-size: 12.5px;
+  }
+}
+
+/* Reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  .cp-overlay, .cp-modal { animation: none !important; }
+  * { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; }
+}

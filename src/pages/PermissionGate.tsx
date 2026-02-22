@@ -9,9 +9,6 @@ type Props = {
   fallback?: React.ReactNode;
 };
 
-/**
- * Map UI optionId -> required operation on policy key.
- */
 function resolvePolicyAndOp(
   moduleId: string,
   optionId: string
@@ -39,7 +36,6 @@ function resolvePolicyAndOp(
     if (o === "joborder_servicediscount") return { policyKey: "JOB_CARDS", op: "canUpdate" };
     if (o === "joborder_servicediscount_percent") return { policyKey: "JOB_CARDS", op: "canUpdate" };
     if (o === "joborder_discount_percent") return { policyKey: "JOB_CARDS", op: "canUpdate" };
-
     return null;
   }
 
@@ -107,16 +103,99 @@ function resolvePolicyAndOp(
     return null;
   }
 
-  // ✅ SERVICE APPROVAL HISTORY
+  // PAYMENT
+  if (m === "payment" || m === "paymentinvoice" || m === "paymentinvoices") {
+    if (
+      o === "payment_list" ||
+      o === "payment_actions" ||
+      o === "payment_viewdetails" ||
+      o === "payment_summary" ||
+      o === "payment_customer" ||
+      o === "payment_vehicle" ||
+      o === "payment_services" ||
+      o === "payment_notes" ||
+      o === "payment_quality" ||
+      o === "payment_billing" ||
+      o === "payment_invoices" ||
+      o === "payment_paymentlog" ||
+      o === "payment_exitpermit" ||
+      o === "payment_documents" ||
+      o === "payment_download"
+    ) return { policyKey: "JOB_CARDS", op: "canRead" };
+
+    if (
+      o === "payment_pay" ||
+      o === "payment_discountfield" ||
+      o === "payment_generatebill" ||
+      o === "payment_cancel" ||
+      o === "payment_refund"
+    ) return { policyKey: "JOB_CARDS", op: "canUpdate" };
+
+    return null;
+  }
+
+  // JOB HISTORY
+  if (m === "jobhistory" || m === "joborderhistory") {
+    if (
+      o === "jobhistory_list" ||
+      o === "jobhistory_view" ||
+      o === "jobhistory_viewdetails" ||
+      o === "jobhistory_summary" ||
+      o === "jobhistory_customer" ||
+      o === "jobhistory_vehicle" ||
+      o === "jobhistory_services" ||
+      o === "jobhistory_notes" ||
+      o === "jobhistory_quality" ||
+      o === "jobhistory_billing" ||
+      o === "jobhistory_paymentlog" ||
+      o === "jobhistory_exitpermit" ||
+      o === "jobhistory_documents" ||
+      o === "jobhistory_download" ||
+      o === "jobhistory_roadmap" ||
+      o === "jobhistory_export"
+    ) return { policyKey: "JOB_CARDS", op: "canRead" };
+    return null;
+  }
+
+  // ✅ QUALITY CHECK (ADDED)
+  if (m === "qualitycheck" || m === "qc") {
+    // read-only sections
+    if (
+      o === "qualitycheck_list" ||
+      o === "qualitycheck_actions" ||
+      o === "qualitycheck_viewdetails" ||
+      o === "qualitycheck_summary" ||
+      o === "qualitycheck_customer" ||
+      o === "qualitycheck_vehicle" ||
+      o === "qualitycheck_services" ||
+      o === "qualitycheck_quality" ||
+      o === "qualitycheck_roadmap" ||
+      o === "qualitycheck_billing" ||
+      o === "qualitycheck_paymentlog" ||
+      o === "qualitycheck_exitpermit" ||
+      o === "qualitycheck_documents" ||
+      o === "qualitycheck_notes" ||
+      o === "qualitycheck_download"
+    ) return { policyKey: "JOB_CARDS", op: "canRead" };
+
+    // mutations / actions
+    if (
+      o === "qualitycheck_finish" ||
+      o === "qualitycheck_approve" ||
+      o === "qualitycheck_reject" ||
+      o === "qualitycheck_cancel"
+    ) return { policyKey: "JOB_CARDS", op: "canUpdate" };
+
+    return null;
+  }
+
+  // APPROVAL HISTORY
   if (m === "approvalhistory" || m === "serviceapprovalhistory") {
     if (
       o === "approvalhistory_view" ||
       o === "approvalhistory_viewdetails" ||
       o === "approvalhistory_list"
-    ) {
-      // choose one policy key; this keeps it aligned with your existing setup
-      return { policyKey: "JOB_CARDS", op: "canRead" };
-    }
+    ) return { policyKey: "JOB_CARDS", op: "canRead" };
     return null;
   }
 

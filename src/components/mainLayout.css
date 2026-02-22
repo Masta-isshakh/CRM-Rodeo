@@ -2,6 +2,7 @@
    ✅ FINAL: Header is FULL WIDTH (100%), content centered, fully responsive
    ✅ Header fixed + content offset (no overlap)
    ✅ Body container is 98% width on ALL screens
+   ✅ Drawer (sidebar) is FULLY responsive + scrollable on ALL screens (fixes mobile Safari 100vh issues)
 */
 
 :root {
@@ -50,6 +51,9 @@
   --ease: cubic-bezier(.22, 1, .36, 1);
   --t-fast: 140ms var(--ease);
   --t-med: 220ms var(--ease);
+
+  /* Safer viewport unit for mobile browsers */
+  --vh: 100dvh;
 }
 
 /* ===== Global ===== */
@@ -110,7 +114,8 @@ body {
   padding-top: calc(
     (var(--topbar-pad-y) * 2) +
     var(--topbar-min-h) +
-    var(--content-gap)
+    var(--content-gap) +
+    env(safe-area-inset-top)
   );
 }
 
@@ -127,7 +132,7 @@ body {
   /* ✅ NO horizontal padding here (prevents off-center shift) */
   padding: var(--topbar-pad-y) 0;
 
-  /* optional safe area */
+  /* safe area */
   padding-top: calc(var(--topbar-pad-y) + env(safe-area-inset-top));
 }
 
@@ -199,7 +204,6 @@ body {
   border-color: rgba(47, 125, 225, 0.30);
   box-shadow: 0 16px 36px rgba(47,125,225,0.16);
 }
-
 .menu-toggle:active { transform: translateY(0px) scale(0.98); }
 
 .menu-toggle-icon {
@@ -207,7 +211,6 @@ body {
   flex-direction: column;
   gap: 6px;
 }
-
 .menu-toggle-icon span {
   width: 18px;
   height: 2px;
@@ -221,7 +224,6 @@ body {
   text-align: center;
   min-width: 0;
 }
-
 .topbar-title {
   font-weight: 950;
   letter-spacing: 0.2px;
@@ -236,7 +238,6 @@ body {
   background-clip: text;
   color: transparent;
 }
-
 .topbar-sub {
   margin-top: 3px;
   font-size: 12.5px;
@@ -253,7 +254,6 @@ body {
   position: relative;
   z-index: 1;
 }
-
 .avatar {
   width: 42px;
   height: 42px;
@@ -270,7 +270,6 @@ body {
   position: relative;
   overflow: hidden;
 }
-
 .avatar::before {
   content: "";
   position: absolute;
@@ -307,24 +306,32 @@ body {
   background: rgba(2, 6, 23, 0.55);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+
+  /* ✅ mobile safe viewport */
+  height: var(--vh);
+
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--t-med);
 }
-
 .drawer-overlay.show {
   opacity: 1;
   pointer-events: auto;
 }
 
-/* ===== Drawer ===== */
+/* ===== Drawer (Sidebar) ===== */
 .drawer {
   position: fixed;
   inset: 0 auto 0 0;
-  width: min(var(--drawer-w), 88vw);
-  height: 100vh;
-  z-index: 60;
 
+  /* ✅ responsive width */
+  width: min(var(--drawer-w), 92vw);
+
+  /* ✅ safe mobile viewport (fixes iOS address bar/100vh issues) */
+  height: var(--vh);
+  min-height: 100vh;
+
+  z-index: 60;
   color: rgba(255,255,255,0.92);
   border-right: 1px solid rgba(255,255,255,0.10);
 
@@ -338,17 +345,42 @@ body {
 
   transform: translateX(-106%);
   transition: transform var(--t-med);
-}
 
+  /* ✅ makes header fixed and nav scrollable reliably */
+  display: flex;
+  flex-direction: column;
+
+  /* ✅ safe-area padding for phones */
+  padding-bottom: env(safe-area-inset-bottom);
+
+  /* ✅ prevents scroll chaining + improves performance */
+  overscroll-behavior: contain;
+  contain: layout paint;
+}
 .drawer.open { transform: translateX(0); }
 
 .drawer-head {
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 16px 16px 14px;
+
+  /* ✅ safe-area top for notch phones */
+  padding: calc(16px + env(safe-area-inset-top)) 16px 14px;
+
   border-bottom: 1px solid rgba(255,255,255,0.10);
+
+  /* ✅ stays visible while sidebar scrolls */
+  position: sticky;
+  top: 0;
+  z-index: 2;
+
+  /* match drawer background so sticky looks clean */
+  background:
+    linear-gradient(180deg, rgba(7,10,18,0.98), rgba(11,16,32,0.98));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 
 .drawer-brand {
@@ -357,7 +389,6 @@ body {
   gap: 12px;
   min-width: 0;
 }
-
 .brand-logo {
   width: 48px;
   height: 48px;
@@ -366,9 +397,7 @@ body {
   border: 1px solid rgba(255,255,255,0.18);
   box-shadow: 0 16px 30px rgba(0,0,0,0.28);
 }
-
 .brand-text { min-width: 0; }
-
 .brand-title {
   font-weight: 950;
   font-size: 15px;
@@ -377,7 +406,6 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
 .brand-sub {
   margin-top: 4px;
   font-size: 12px;
@@ -397,7 +425,6 @@ body {
   cursor: pointer;
   transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast);
 }
-
 .drawer-close:hover {
   background: rgba(255,255,255,0.10);
   border-color: rgba(255,255,255,0.24);
@@ -405,15 +432,30 @@ body {
 }
 .drawer-close:active { transform: translateY(0px) scale(0.98); }
 
+/* ✅ NAV AREA: scrollable, responsive, smooth on mobile */
 .drawer-nav {
+  flex: 1 1 auto;
+  min-height: 0;                 /* IMPORTANT: allows scrolling inside flex container */
   display: flex;
   flex-direction: column;
   gap: 7px;
-  padding: 12px 12px 16px;
-  height: calc(100vh - 82px);
-  overflow: auto;
-}
 
+  padding: 12px 12px 16px;
+
+  overflow-y: auto;
+  overflow-x: hidden;
+
+  /* better mobile scroll */
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+
+  /* safe-area bottom so last buttons are reachable */
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+
+  /* Firefox */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.22) rgba(255,255,255,0.05);
+}
 .drawer-nav::-webkit-scrollbar { width: 10px; }
 .drawer-nav::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 999px; }
 .drawer-nav::-webkit-scrollbar-thumb {
@@ -439,6 +481,11 @@ body {
   transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
   position: relative;
   overflow: hidden;
+
+  /* ✅ text behaves better on small screens */
+  line-height: 1.25;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .drawer-nav button:hover {
@@ -447,7 +494,6 @@ body {
   transform: translateX(3px);
   box-shadow: 0 14px 26px rgba(0,0,0,0.24);
 }
-
 .drawer-nav button.active {
   background: linear-gradient(180deg, rgba(47,125,225,0.18), rgba(6,182,212,0.10));
   border-color: rgba(47,125,225,0.30);
@@ -461,7 +507,6 @@ body {
   padding-top: 12px;
   border-top: 1px solid rgba(255,255,255,0.10);
 }
-
 .drawer-section-label {
   padding: 0 8px 8px;
   font-size: 11.5px;
@@ -496,6 +541,9 @@ body {
     --topbar-inner-pad-y: 7px;
     --topbar-min-h: 62px;
     --content-gap: 6px;
+
+    /* slightly narrower drawer on tablets */
+    --drawer-w: 300px;
   }
 
   .topbar-inner {
@@ -510,11 +558,35 @@ body {
   .avatar { width: 40px; height: 40px; border-radius: 14px; }
 
   .content { padding: 8px 10px 16px; }
+
+  /* make drawer touch-friendly */
+  .drawer-close { width: 44px; height: 44px; border-radius: 14px; }
+  .drawer-nav button { padding: 12px 12px; border-radius: 14px; }
+}
+
+@media (max-width: 520px) {
+  :root { --drawer-w: 320px; }
+
+  /* give a bit more width on phones */
+  .drawer { width: min(var(--drawer-w), 94vw); }
+
+  .brand-logo { width: 46px; height: 46px; border-radius: 15px; }
 }
 
 @media (max-width: 420px) {
   .topbar-title { font-size: 15px; }
   .topbar-sub { font-size: 11.5px; }
+
+  /* ✅ tiny phones: drawer can become full width */
+  .drawer { width: 100vw; border-right: none; }
+  .drawer-nav { padding-left: 10px; padding-right: 10px; }
+}
+
+/* Short screens (small laptop / landscape phones) */
+@media (max-height: 700px) {
+  .drawer-head { padding: calc(12px + env(safe-area-inset-top)) 12px 10px; }
+  .brand-logo { width: 44px; height: 44px; }
+  .drawer-nav button { padding: 10px 12px; }
 }
 
 /* Reduced motion */

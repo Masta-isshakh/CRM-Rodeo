@@ -77,14 +77,16 @@ function deriveUiWorkStatus(job: any, parsed: any) {
 }
 
 function deriveUiPaymentStatus(job: any, parsed: any) {
-  const fromLabel = String(
-    parsed?.paymentStatusLabel ?? job?.paymentStatusLabel ?? ""
-  ).trim();
-  if (fromLabel) return fromLabel;
-
+  // ✅ enum FIRST
   const ps = String(job?.paymentStatus ?? "").toUpperCase();
   if (ps === "PAID") return "Fully Paid";
   if (ps === "PARTIAL") return "Partially Paid";
+  if (ps === "UNPAID") return "Unpaid";
+
+  // fallback label (legacy)
+  const fromLabel = String(parsed?.paymentStatusLabel ?? job?.paymentStatusLabel ?? "").trim();
+  if (fromLabel) return fromLabel;
+
   return "Unpaid";
 }
 
