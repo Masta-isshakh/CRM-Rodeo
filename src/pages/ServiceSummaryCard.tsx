@@ -27,13 +27,11 @@ import {
   FaPlusCircle,
   FaWrench,
 } from "react-icons/fa";
+import "./ServiceExecutionModule.css"
 
 import PermissionGate from "./PermissionGate";
 import { useApprovalRequests } from "./ApprovalRequestsContext";
 
-// -------------------------
-// Types
-// -------------------------
 type ServiceStatus =
   | "Pending"
   | "Inprogress"
@@ -64,8 +62,6 @@ export type Service = {
   approvalStatus?: "pending" | "approved" | "rejected" | string | null;
 
   notes?: string;
-  customer?: string;
-  vehicle?: string;
 
   [k: string]: unknown;
 };
@@ -82,10 +78,39 @@ type Props = {
   setEditMode: (v: boolean) => void;
   availableTechs?: string[];
   availableAssignees?: string[];
-
-  jobOrderBackendId?: string; // JobOrder.id (backend UUID)
-  orderNumber?: string;       // JobOrder.orderNumber (JO-xxx)
+  jobOrderBackendId?: string;
+  orderNumber?: string;
 };
+
+// -------------------------
+// ErrorBoundary (prevents “blank page”)
+// -------------------------
+class CardErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; msg: string }> {
+  constructor(props: any) {
+    super(props);
+    this.state = { hasError: false, msg: "" };
+  }
+  static getDerivedStateFromError(err: any) {
+    return { hasError: true, msg: String(err?.message ?? err ?? "Unknown error") };
+  }
+  componentDidCatch(err: any) {
+    console.error("ServiceSummaryCard crashed:", err);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: 16, border: "1px solid #ef4444", borderRadius: 10, background: "#fff5f5" }}>
+          <div style={{ fontWeight: 800, marginBottom: 6 }}>Service Summary crashed</div>
+          <div style={{ fontSize: 13, color: "#7f1d1d" }}>{this.state.msg}</div>
+          <div style={{ fontSize: 12, marginTop: 8, color: "#7f1d1d" }}>
+            Open DevTools Console to see the full stack.
+          </div>
+        </div>
+      );
+    }
+    return this.props.children as any;
+  }
+}
 
 // -------------------------
 // Helpers
@@ -106,10 +131,17 @@ function stableServiceId(jobId: string, raw: any, idx: number) {
   return `SVC-${jobId}-${idx + 1}-${name || "x"}`;
 }
 
+// ✅ also fixes duplicate IDs which break DnD
 function normalizeServices(jobId: string, services: unknown[]): Service[] {
   const list = Array.isArray(services) ? services : [];
+  const seen = new Map<string, number>();
+
   return list.map((raw: any, idx: number) => {
-    const id = stableServiceId(jobId, raw, idx);
+    let id = stableServiceId(jobId, raw, idx);
+    const count = seen.get(id) ?? 0;
+    seen.set(id, count + 1);
+    if (count > 0) id = `${id}-dup${count + 1}`;
+
     const order = Number(raw?.order ?? idx + 1);
 
     const startTime = raw?.startTime ?? null;
@@ -120,130 +152,50 @@ function normalizeServices(jobId: string, services: unknown[]): Service[] {
       (String(raw?.status ?? "").trim() as ServiceStatus) ||
       "Pending";
 
-    const assignedTo = (raw?.assignedTo ?? null) as string | null;
-    const technicians = Array.isArray(raw?.technicians) ? (raw.technicians as string[]) : [];
-
     return {
       ...raw,
       id,
       order,
       name: String(raw?.name ?? `Service ${idx + 1}`),
+      price: typeof raw?.price === "number" ? raw.price : raw?.price ? Number(raw.price) : undefined,
+
       status,
-      assignedTo,
-      technicians,
+      assignedTo: (raw?.assignedTo ?? null) as string | null,
+      technicians: Array.isArray(raw?.technicians) ? (raw.technicians as string[]) : [],
+
       startTime,
       endTime,
       started: raw?.started ?? (startTime ? String(startTime) : "Not started"),
       ended: raw?.ended ?? (endTime ? String(endTime) : "Not completed"),
+
       requestedAction: raw?.requestedAction ?? null,
       approvalStatus: raw?.approvalStatus ?? null,
       notes: raw?.notes ?? "",
-      price: typeof raw?.price === "number" ? raw.price : raw?.price ? Number(raw.price) : undefined,
     };
   });
 }
 
-function getStatusClass(status: string) {
-  switch (status) {
-    case "Inprogress":
-      return "status-inprogress";
-    case "Completed":
-      return "status-completed";
-    case "Cancelled":
-      return "status-cancelled";
-    case "Postponed":
-      return "status-postponed";
-    case "Pending Approval":
-      return "status-pending-approval";
-    default:
-      return "status-pending";
-  }
-}
-
-// =====================================================================
-// Read-only item (NO useSortable)  ✅ prevents blank screen crash
-// =====================================================================
-function ReadOnlyServiceItem({ service }: { service: Service }) {
-  return (
-    <div className="service-item">
-      <div className="service-header">
-        <div className="service-name">{service.name}</div>
-        <span className={`status-badge ${getStatusClass(service.status)} service-status-badge`}>
-          {service.status === "Pending Approval" ? service.requestedAction || "Pending" : service.status}
-        </span>
-      </div>
-
-      <div className="service-meta-row">
-        <div className="meta-item">
-          <span className="meta-label">Start time</span>
-          <span className="meta-value start-time-display">{service.startTime || "—"}</span>
-        </div>
-        <div className="meta-item">
-          <span className="meta-label">End time</span>
-          <span className="meta-value end-time-display">{service.endTime || "—"}</span>
-        </div>
-        <div className="meta-item">
-          <span className="meta-label">Service work status</span>
-          <span className="meta-value status-display">
-            {service.status === "Pending Approval" ? service.requestedAction || "Pending" : service.status}
-          </span>
-        </div>
-        <div className="meta-item">
-          <span className="meta-label">Assigned to</span>
-          <span className="meta-value assigned-display">{service.assignedTo || "—"}</span>
-        </div>
-      </div>
-
-      {service.notes ? (
-        <div className="service-notes">
-          <span className="notes-label">Notes:</span> {service.notes}
-        </div>
-      ) : null}
-
-      <div className="assigned-tech-section">
-        <div className="assigned-tech-title">
-          <FaWrench /> Assigned Technicians
-        </div>
-        <div className="tech-badge-list">
-          {service.technicians?.length ? (
-            service.technicians.map((tech) => (
-              <span key={tech} className="tech-badge">
-                {tech}
-              </span>
-            ))
-          ) : (
-            <span style={{ color: "var(--dark-gray)" }}>No technicians assigned</span>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// =====================================================================
-// Sortable item (uses useSortable) ✅ only rendered in editMode
-// =====================================================================
-function SortableServiceItem(props: {
+// -------------------------
+// Non-sortable item (safe when editMode=false)
+// -------------------------
+function ServiceItem({
+  service,
+  editMode,
+  onUpdate,
+  availableTechs,
+  availableAssignees,
+  jobOrderBackendId,
+  orderNumber,
+}: {
   service: Service;
+  editMode: boolean;
   onUpdate: (serviceId: string, updates: Partial<Service>) => void;
   availableTechs: string[];
   availableAssignees: string[];
   jobOrderBackendId?: string;
   orderNumber?: string;
 }) {
-  const { service, onUpdate, availableTechs, availableAssignees, jobOrderBackendId, orderNumber } = props;
-
-  const approvalCtx = useApprovalRequests() as any;
-  const addRequest: (req: any) => any = approvalCtx?.addRequest ?? (() => undefined);
-
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: service.id });
-
-  const style: React.CSSProperties = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.55 : 1,
-  };
+  const approval = useApprovalRequests();
 
   const [techDropdownOpen, setTechDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
@@ -256,6 +208,23 @@ function SortableServiceItem(props: {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  const getStatusClass = (status: string) => {
+    switch (status) {
+      case "Inprogress":
+        return "status-inprogress";
+      case "Completed":
+        return "status-completed";
+      case "Cancelled":
+        return "status-cancelled";
+      case "Postponed":
+        return "status-postponed";
+      case "Pending Approval":
+        return "status-pending-approval";
+      default:
+        return "status-pending";
+    }
+  };
 
   const handleTechChange = (techName: string, checked: boolean) => {
     const updated = new Set(service.technicians || []);
@@ -277,17 +246,21 @@ function SortableServiceItem(props: {
       service.status !== "Pending Approval" &&
       service.status !== newStatus
     ) {
-      // optional backend request info
-      addRequest({
-        jobOrderId: jobOrderBackendId,
-        orderNumber,
-        serviceId: service.id,
-        serviceName: service.name,
-        price: service.price ?? 0,
-        requestedBy: service.assignedTo ?? "Unknown",
-        requestedAt: new Date().toISOString(),
-        status: "pending",
-      });
+      // create backend request row (best-effort, never crash UI)
+      if (jobOrderBackendId && orderNumber) {
+        try {
+          await approval.addRequest({
+            jobOrderId: jobOrderBackendId,
+            orderNumber,
+            serviceId: service.id,
+            serviceName: service.name,
+            price: service.price ?? 0,
+            requestedBy: service.assignedTo ?? "Unknown",
+          });
+        } catch (err) {
+          console.warn("addRequest failed (non-fatal):", err);
+        }
+      }
 
       onUpdate(service.id, {
         status: "Pending Approval",
@@ -320,10 +293,11 @@ function SortableServiceItem(props: {
   };
 
   return (
-    <div ref={setNodeRef} style={style} className="service-item">
+    <div className="service-item">
       <div className="service-header">
         <div className="service-name">
-          <span {...attributes} {...listeners} className="drag-handle" title="Drag to reorder">
+          {/* drag handle only visible in edit mode */}
+          <span className="drag-handle" style={{ visibility: editMode ? "visible" : "hidden" }}>
             <FaGripVertical />
           </span>
           {service.name}
@@ -337,87 +311,83 @@ function SortableServiceItem(props: {
       <div className="service-meta-row">
         <div className="meta-item">
           <span className="meta-label">Start time</span>
-          <span className="meta-value start-time-display">{service.startTime || "—"}</span>
+          <span className="meta-value">{service.startTime || "—"}</span>
         </div>
         <div className="meta-item">
           <span className="meta-label">End time</span>
-          <span className="meta-value end-time-display">{service.endTime || "—"}</span>
+          <span className="meta-value">{service.endTime || "—"}</span>
         </div>
         <div className="meta-item">
-          <span className="meta-label">Service work status</span>
-          <span className="meta-value status-display">
+          <span className="meta-label">Status</span>
+          <span className="meta-value">
             {service.status === "Pending Approval" ? service.requestedAction || "Pending" : service.status}
           </span>
         </div>
         <div className="meta-item">
           <span className="meta-label">Assigned to</span>
-          <span className="meta-value assigned-display">{service.assignedTo || "—"}</span>
+          <span className="meta-value">{service.assignedTo || "—"}</span>
         </div>
       </div>
 
-      <PermissionGate moduleId="serviceexec" optionId="serviceexec_edit">
-        <div className="assign-controls edit-controls">
-          <div className="control-group">
-            <span className="control-label">
-              <FaUserTie /> Assigned to
-            </span>
-            <select className="assigned-select" value={service.assignedTo || ""} onChange={handleAssignedToChange}>
-              <option value="">— assign —</option>
-              {availableAssignees.map((assignee, idx) => (
-                <option key={idx} value={assignee}>
-                  {assignee}
-                </option>
-              ))}
-            </select>
-          </div>
+      {editMode && (
+        <PermissionGate moduleId="serviceexec" optionId="serviceexec_edit">
+          <div className="assign-controls edit-controls">
+            <div className="control-group">
+              <span className="control-label">
+                <FaUserTie /> Assigned to
+              </span>
+              <select className="assigned-select" value={service.assignedTo || ""} onChange={handleAssignedToChange}>
+                <option value="">— assign —</option>
+                {availableAssignees.map((assignee, idx) => (
+                  <option key={idx} value={assignee}>
+                    {assignee}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-          <div className="control-group">
-            <span className="control-label">
-              <FaUsers /> Technicians
-            </span>
-            <div className="tech-dropdown" ref={dropdownRef}>
-              <button type="button" className="tech-dropdown-btn" onClick={() => setTechDropdownOpen((v) => !v)}>
-                <span>{service.technicians?.length ? service.technicians.join(", ") : "Select technicians"}</span>
-                <i className="fas fa-chevron-down"></i>
-              </button>
+            <div className="control-group">
+              <span className="control-label">
+                <FaUsers /> Technicians
+              </span>
+              <div className="tech-dropdown" ref={dropdownRef}>
+                <button type="button" className="tech-dropdown-btn" onClick={() => setTechDropdownOpen((v) => !v)}>
+                  <span>{service.technicians?.length ? service.technicians.join(", ") : "Select technicians"}</span>
+                  <i className="fas fa-chevron-down"></i>
+                </button>
 
-              {techDropdownOpen && (
-                <div className="tech-dropdown-content show">
-                  {availableTechs.map((tech, idx) => (
-                    <div key={idx} className="tech-option">
-                      <input
-                        type="checkbox"
-                        id={`tech-${service.id}-${idx}`}
-                        value={tech}
-                        checked={service.technicians?.includes(tech) || false}
-                        onChange={(e) => handleTechChange(tech, e.target.checked)}
-                      />
-                      <label htmlFor={`tech-${service.id}-${idx}`}>{tech}</label>
-                    </div>
-                  ))}
-                </div>
-              )}
+                {techDropdownOpen && (
+                  <div className="tech-dropdown-content show">
+                    {availableTechs.map((tech, idx) => (
+                      <div key={idx} className="tech-option">
+                        <input
+                          type="checkbox"
+                          id={`tech-${service.id}-${idx}`}
+                          value={tech}
+                          checked={service.technicians?.includes(tech) || false}
+                          onChange={(e) => handleTechChange(tech, e.target.checked)}
+                        />
+                        <label htmlFor={`tech-${service.id}-${idx}`}>{tech}</label>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="control-group">
+              <span className="control-label">Service work status</span>
+              <select className="work-status-select" value={service.status} onChange={handleStatusChange}>
+                <option value="Pending">Pending</option>
+                <option value="Inprogress">In Progress</option>
+                <option value="Postponed">Postponed</option>
+                <option value="Cancelled">Cancelled</option>
+                <option value="Completed">Completed</option>
+              </select>
             </div>
           </div>
-
-          <div className="control-group">
-            <span className="control-label">Service work status</span>
-            <select className="work-status-select" value={service.status} onChange={handleStatusChange}>
-              <option value="Pending">Pending</option>
-              <option value="Inprogress">In Progress</option>
-              <option value="Postponed">Postponed</option>
-              <option value="Cancelled">Cancelled</option>
-              <option value="Completed">Completed</option>
-            </select>
-          </div>
-        </div>
-      </PermissionGate>
-
-      {service.notes ? (
-        <div className="service-notes">
-          <span className="notes-label">Notes:</span> {service.notes}
-        </div>
-      ) : null}
+        </PermissionGate>
+      )}
 
       <div className="assigned-tech-section">
         <div className="assigned-tech-title">
@@ -439,9 +409,32 @@ function SortableServiceItem(props: {
   );
 }
 
-// =====================================================================
-// Main Component
-// =====================================================================
+// -------------------------
+// Sortable wrapper (only used when editMode=true)
+// -------------------------
+function SortableServiceItem(props: React.ComponentProps<typeof ServiceItem> & { id: string }) {
+  const { id } = props;
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.55 : 1,
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      {/* inject listeners/attributes into the handle via CSS selector by placing them on wrapper */}
+      <div {...attributes} {...listeners}>
+        <ServiceItem {...props} />
+      </div>
+    </div>
+  );
+}
+
+// -------------------------
+// Main Card
+// -------------------------
 export default function ServiceSummaryCard({
   jobId,
   services,
@@ -457,10 +450,15 @@ export default function ServiceSummaryCard({
   jobOrderBackendId,
   orderNumber,
 }: Props) {
-  const [isAddingService, setIsAddingService] = useState(false);
-  const [approvalMessage, setApprovalMessage] = useState<string | null>(null);
   const [localServices, setLocalServices] = useState<Service[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
+
+  // ✅ Add Service modal (works even if editMode=false)
+  const [addOpen, setAddOpen] = useState(false);
+  const [addName, setAddName] = useState("");
+  const [addPrice, setAddPrice] = useState<number>(600);
+  const [addBusy, setAddBusy] = useState(false);
+  const [addError, setAddError] = useState<string | null>(null);
 
   useEffect(() => {
     setLocalServices(normalizeServices(jobId, services));
@@ -477,8 +475,6 @@ export default function ServiceSummaryCard({
   }, [localServices]);
 
   const handleDragEnd = (event: DragEndEvent) => {
-    if (!editMode) return;
-
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
@@ -507,30 +503,34 @@ export default function ServiceSummaryCard({
     setEditMode(!editMode);
   };
 
-  const handleAddServiceClick = async () => {
-    if (!editMode) return;
+  const openAddModal = () => {
+    setAddError(null);
+    setAddName("");
+    setAddPrice(600);
+    setAddOpen(true);
+  };
 
-    const serviceName = window.prompt("Enter service name:", "Wheel Protection");
-    if (!serviceName) return;
+  const submitAdd = async () => {
+    const name = addName.trim();
+    if (!name) {
+      setAddError("Service name is required.");
+      return;
+    }
+    const price = Number(addPrice);
+    if (!Number.isFinite(price) || price < 0) {
+      setAddError("Price must be a valid number.");
+      return;
+    }
 
-    const price = 600;
-
-    setIsAddingService(true);
-    setApprovalMessage(`📤 Approval request sent for "${serviceName}" (QAR ${price})...`);
-
+    setAddBusy(true);
+    setAddError(null);
     try {
-      const approved = await onAddService(serviceName, price);
-      if (approved) {
-        setApprovalMessage(`✅ Approved! Service "${serviceName}" added.`);
-        setHasChanges(true);
-      } else {
-        setApprovalMessage(`❌ Request declined. Service not added.`);
-      }
-    } catch {
-      setApprovalMessage(`❌ Error adding service.`);
+      await onAddService(name, price);
+      setAddOpen(false);
+    } catch (e: any) {
+      setAddError(String(e?.message ?? e ?? "Failed to add service"));
     } finally {
-      setIsAddingService(false);
-      setTimeout(() => setApprovalMessage(null), 2500);
+      setAddBusy(false);
     }
   };
 
@@ -563,46 +563,97 @@ export default function ServiceSummaryCard({
           </PermissionGate>
 
           <PermissionGate moduleId="serviceexec" optionId="serviceexec_addservice">
-            <button className="btn-add-service" onClick={handleAddServiceClick} disabled={isAddingService}>
+            <button className="btn-add-service" onClick={openAddModal}>
               <FaPlusCircle /> Add service
             </button>
           </PermissionGate>
         </span>
       </h3>
 
-      {editMode ? (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={sortedServices.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-            <div className="services-list">
-              {sortedServices.length ? (
-                sortedServices.map((service) => (
+      <CardErrorBoundary>
+        {editMode && sortedServices.length > 0 ? (
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={sortedServices.map((s) => s.id)} strategy={verticalListSortingStrategy}>
+              <div className="services-list">
+                {sortedServices.map((service) => (
                   <SortableServiceItem
                     key={service.id}
+                    id={service.id}
                     service={service}
+                    editMode={editMode}
                     onUpdate={handleServiceUpdate}
                     availableTechs={availableTechs}
                     availableAssignees={availableAssignees}
                     jobOrderBackendId={jobOrderBackendId}
                     orderNumber={orderNumber}
                   />
-                ))
-              ) : (
-                <div style={{ padding: "20px", textAlign: "center", color: "#7f8c8d" }}>No services assigned yet</div>
-              )}
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+        ) : (
+          <div className="services-list">
+            {sortedServices.length > 0 ? (
+              sortedServices.map((service) => (
+                <ServiceItem
+                  key={service.id}
+                  service={service}
+                  editMode={false}
+                  onUpdate={handleServiceUpdate}
+                  availableTechs={availableTechs}
+                  availableAssignees={availableAssignees}
+                  jobOrderBackendId={jobOrderBackendId}
+                  orderNumber={orderNumber}
+                />
+              ))
+            ) : (
+              <div style={{ padding: "20px", textAlign: "center", color: "#7f8c8d" }}>No services assigned yet</div>
+            )}
+          </div>
+        )}
+      </CardErrorBoundary>
+
+      {/* Add Service Modal */}
+      {addOpen && (
+        <div
+          className="sem-modal-overlay"
+          onClick={() => {
+            if (!addBusy) setAddOpen(false);
+          }}
+        >
+          <div className="sem-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="sem-modal-header">
+              <div className="sem-modal-title">Add Service</div>
+              <button className="sem-modal-close" onClick={() => !addBusy && setAddOpen(false)} aria-label="Close">
+                ✕
+              </button>
             </div>
-          </SortableContext>
-        </DndContext>
-      ) : (
-        <div className="services-list">
-          {sortedServices.length ? (
-            sortedServices.map((service) => <ReadOnlyServiceItem key={service.id} service={service} />)
-          ) : (
-            <div style={{ padding: "20px", textAlign: "center", color: "#7f8c8d" }}>No services assigned yet</div>
-          )}
+
+            <div className="sem-modal-body">
+              <label className="sem-field">
+                <span>Service name</span>
+                <input value={addName} onChange={(e) => setAddName(e.target.value)} placeholder="e.g. Wheel Protection" />
+              </label>
+
+              <label className="sem-field">
+                <span>Price (QAR)</span>
+                <input type="number" value={addPrice} onChange={(e) => setAddPrice(Number(e.target.value))} />
+              </label>
+
+              {addError && <div className="sem-modal-error">{addError}</div>}
+            </div>
+
+            <div className="sem-modal-actions">
+              <button className="sem-btn sem-btn-ghost" onClick={() => !addBusy && setAddOpen(false)}>
+                Cancel
+              </button>
+              <button className="sem-btn sem-btn-primary" onClick={submitAdd} disabled={addBusy}>
+                {addBusy ? "Adding..." : "Create approval request"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
-
-      {approvalMessage && <div id="approvalMessageArea" className="approval-simulate">{approvalMessage}</div>}
     </div>
   );
 }
