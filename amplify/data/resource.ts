@@ -83,6 +83,32 @@ const schema = a
       })
       .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
 
+
+    // ✅ OPTION-LEVEL RBAC (CORRECTLY PLACED)
+    RoleOptionToggle: a
+      .model({
+        roleId: a.id().required(),
+        key: a.string().required(), // "PAYMENT::PAYMENT_PAY"
+        enabled: a.boolean().default(true),
+        createdAt: a.datetime(),
+        updatedAt: a.datetime(),
+        updatedBy: a.string(),
+      })
+      .secondaryIndexes((index) => [index("roleId").queryField("roleOptionTogglesByRole")])
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
+
+    RoleOptionNumber: a
+      .model({
+        roleId: a.id().required(),
+        key: a.string().required(), // "PAYMENT::PAYMENT_DISCOUNT_PERCENT"
+        value: a.float().required(),
+        createdAt: a.datetime(),
+        updatedAt: a.datetime(),
+        updatedBy: a.string(),
+      })
+      .secondaryIndexes((index) => [index("roleId").queryField("roleOptionNumbersByRole")])
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
+
     // -----------------------------
     // CRM MODELS
     // -----------------------------

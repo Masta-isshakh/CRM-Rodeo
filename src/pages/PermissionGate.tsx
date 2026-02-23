@@ -1,4 +1,4 @@
-// src/pages/joborders/PermissionGate.tsx
+// src/pages/PermissionGate.tsx
 import React, { useMemo } from "react";
 import { usePermissions, type Permission } from "../lib/userPermissions";
 
@@ -26,16 +26,20 @@ function resolvePolicyAndOp(
       o === "joborder_services" ||
       o === "joborder_billing" ||
       o === "joborder_paymentlog" ||
-      o === "joborder_actions"
+      o === "joborder_actions" ||
+      o === "joborder_serviceprice"
     ) return { policyKey: "JOB_CARDS", op: "canRead" };
 
     if (o === "joborder_add") return { policyKey: "JOB_CARDS", op: "canCreate" };
-    if (o === "joborder_cancel") return { policyKey: "JOB_CARDS", op: "canUpdate" };
-    if (o === "joborder_addservice") return { policyKey: "JOB_CARDS", op: "canUpdate" };
-    if (o === "joborder_serviceprice") return { policyKey: "JOB_CARDS", op: "canRead" };
-    if (o === "joborder_servicediscount") return { policyKey: "JOB_CARDS", op: "canUpdate" };
-    if (o === "joborder_servicediscount_percent") return { policyKey: "JOB_CARDS", op: "canUpdate" };
-    if (o === "joborder_discount_percent") return { policyKey: "JOB_CARDS", op: "canUpdate" };
+
+    if (
+      o === "joborder_cancel" ||
+      o === "joborder_addservice" ||
+      o === "joborder_servicediscount" ||
+      o === "joborder_servicediscount_percent" ||
+      o === "joborder_discount_percent"
+    ) return { policyKey: "JOB_CARDS", op: "canUpdate" };
+
     return null;
   }
 
@@ -55,7 +59,8 @@ function resolvePolicyAndOp(
       o === "inspection_quality" ||
       o === "inspection_download" ||
       o === "inspection_viewdetails" ||
-      o === "inspection_actions"
+      o === "inspection_actions" ||
+      o === "inspection_serviceprice"
     ) return { policyKey: "JOB_CARDS", op: "canRead" };
 
     if (
@@ -70,7 +75,6 @@ function resolvePolicyAndOp(
       o === "inspection_discount_percent"
     ) return { policyKey: "JOB_CARDS", op: "canUpdate" };
 
-    if (o === "inspection_serviceprice") return { policyKey: "JOB_CARDS", op: "canRead" };
     return null;
   }
 
@@ -157,7 +161,7 @@ function resolvePolicyAndOp(
     return null;
   }
 
-  // ✅ QUALITY CHECK (ADDED)
+  // QUALITY CHECK
   if (m === "qualitycheck" || m === "qc") {
     if (
       o === "qualitycheck_list" ||
@@ -187,7 +191,7 @@ function resolvePolicyAndOp(
     return null;
   }
 
-  // ✅ EXIT PERMIT (ADDED)
+  // EXIT PERMIT
   if (m === "exitpermit" || m === "exitpermitmanagement") {
     if (
       o === "exitpermit_list" ||
@@ -207,10 +211,8 @@ function resolvePolicyAndOp(
       o === "exitpermit_roadmap"
     ) return { policyKey: "JOB_CARDS", op: "canRead" };
 
-    if (
-      o === "exitpermit_create" ||
-      o === "exitpermit_cancelorder"
-    ) return { policyKey: "JOB_CARDS", op: "canUpdate" };
+    if (o === "exitpermit_create" || o === "exitpermit_cancelorder")
+      return { policyKey: "JOB_CARDS", op: "canUpdate" };
 
     return null;
   }
@@ -229,11 +231,17 @@ function resolvePolicyAndOp(
 }
 
 export default function PermissionGate({ moduleId, optionId, children, fallback = null }: Props) {
-  const { can, loading, isAdminGroup } = usePermissions();
+  const { can, loading, isAdminGroup, canOption, isModuleEnabled } = usePermissions();
   const rule = useMemo(() => resolvePolicyAndOp(moduleId, optionId), [moduleId, optionId]);
 
   if (loading) return null;
   if (isAdminGroup) return <>{children}</>;
+
+  // ✅ Option-level + module-level (default allow if not configured)
+  const moduleOn = isModuleEnabled ? isModuleEnabled(moduleId, true) : true;
+  const optionOn = canOption ? canOption(moduleId, optionId, true) : true;
+
+  if (!moduleOn || !optionOn) return <>{fallback}</>;
 
   if (!rule) return <>{fallback}</>;
 

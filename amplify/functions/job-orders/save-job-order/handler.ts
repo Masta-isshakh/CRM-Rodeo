@@ -8,9 +8,9 @@ import type { Schema } from "../../../data/resource";
 import { requirePermissionFromEvent } from "../_shared/rbac";
 import { computePaymentStatus, toNum } from "../_shared/finance";
 import { recomputeJobOrderPaymentSummary } from "../_shared/payments";
+import { getOptionCtx } from "../_shared/optionRbac";
 
 type Args = { input: any };
-
 type ServiceLine = { qty?: number; unitPrice?: number; price?: number; name?: string };
 
 type Payload = {
@@ -87,56 +87,81 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
   const payload = safeParseInput(event.arguments?.input);
   const isUpdate = Boolean(payload.id);
 
-  // RBAC
+  // ✅ policy-level
   await requirePermissionFromEvent(client as any, event, "JOB_CARDS", isUpdate ? "UPDATE" : "CREATE");
+
+  // ✅ option-level ctx
+  const opt = await getOptionCtx(client as any, event);
 
   const status = String(payload.status ?? "OPEN").toUpperCase();
   const cancelling = status === "CANCELLED";
 
-  // ✅ customer name required unless cancelling an already-existing order (we can preserve old)
-  let customerName = String(payload.customerName ?? "").trim();
-
-  // Services: allow empty only for CANCELLED updates (we’ll preserve existing totals)
-  let services = Array.isArray(payload.services) ? payload.services : [];
-
-  // Load existing if update (for cancel safety and missing fields)
+  // Load existing
   let existing: any = null;
   if (isUpdate && payload.id) {
     const ex = await (client.models as any).JobOrder.get({ id: payload.id });
     existing = ex?.data ?? ex;
-
-    if (!customerName) customerName = String(existing?.customerName ?? "").trim();
-
-    if ((!services || !services.length) && existing?.dataJson) {
-      try {
-        const parsed = JSON.parse(String(existing.dataJson));
-        if (Array.isArray(parsed?.services)) services = parsed.services;
-      } catch {
-        // ignore
-      }
-    }
   }
 
+  // customer name required unless cancelling existing
+  let customerName = String(payload.customerName ?? "").trim();
+  if (!customerName) customerName = String(existing?.customerName ?? "").trim();
   if (!customerName && !cancelling) throw new Error("Customer name is required.");
+
+  // services
+  let services = Array.isArray(payload.services) ? payload.services : [];
+  if ((!services || !services.length) && existing?.dataJson) {
+    try {
+      const parsed = JSON.parse(String(existing.dataJson));
+      if (Array.isArray(parsed?.services)) services = parsed.services;
+    } catch {
+      // ignore
+    }
+  }
   if ((!services || !services.length) && !cancelling) throw new Error("Add at least one service.");
 
-  const vatRate = Math.max(0, toNum(payload.vatRate));
-  const discount = Math.max(0, toNum(payload.discount));
+  // ✅ keep existing vat/discount when missing
+  const vatRate =
+    payload.vatRate != null ? Math.max(0, toNum(payload.vatRate)) : Math.max(0, toNum(existing?.vatRate));
+  const discount =
+    payload.discount != null ? Math.max(0, toNum(payload.discount)) : Math.max(0, toNum(existing?.discount));
 
-  // Compute subtotal safely
+  // subtotal
   const subtotal = (services ?? []).reduce((sum, s) => {
     const qty = Math.max(1, toNum((s as any).qty ?? 1));
     const unit = Math.max(0, toNum((s as any).unitPrice ?? (s as any).price ?? 0));
     return sum + qty * unit;
   }, 0);
 
+  // ✅ numeric limit: discount max % (union of payment+joborder limits)
+  if (!cancelling && subtotal > 0) {
+    const existingDiscount = Math.max(0, toNum(existing?.discount));
+    const discountChanged = Math.abs(discount - existingDiscount) > 0.00001;
+
+    if (discountChanged && discount > 0) {
+      const allowedByToggle =
+        opt.toggleEnabled("payment", "payment_discountfield", true) ||
+        opt.toggleEnabled("joborder", "joborder_discount_percent", true);
+
+      if (!allowedByToggle) throw new Error("You are not allowed to change discount.");
+    }
+
+    const maxPctPayment = opt.maxNumber("payment", "payment_discount_percent", 100);
+    const maxPctJob = opt.maxNumber("joborder", "joborder_discount_percent", 100);
+    const maxPct = Math.max(0, Math.min(100, Math.max(maxPctPayment, maxPctJob)));
+
+    const maxDiscountAmount = (subtotal * maxPct) / 100;
+    if (discount > maxDiscountAmount + 0.00001) {
+      throw new Error(`Discount exceeds allowed limit. Max ${maxPct}% of subtotal (${maxDiscountAmount.toFixed(2)}).`);
+    }
+  }
+
   const taxable = Math.max(0, subtotal - discount);
   const vatAmount = taxable * vatRate;
   const totalAmount = taxable + vatAmount;
 
-  // Amount paid from Payment model (accurate)
+  // amountPaid from Payment model
   let amountPaid = 0;
-
   if (isUpdate && payload.id) {
     await recomputeJobOrderPaymentSummary(client as any, payload.id);
     const updated = await (client.models as any).JobOrder.get({ id: payload.id });
@@ -145,9 +170,8 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
 
   const { paymentStatus, balanceDue } = computePaymentStatus(totalAmount, amountPaid);
 
-  // Build dataJson snapshot (store EVERYTHING, but remove legacy payments array if it exists)
+  // snapshot json
   const { payments, ...payloadNoPayments } = payload as any;
-
   const dataJson = JSON.stringify({
     ...payloadNoPayments,
     customerName,
@@ -192,7 +216,8 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
     paymentStatus,
 
     billId: String(payload.billId ?? existing?.billId ?? "").trim() || undefined,
-    netAmount: payload.netAmount != null ? Math.max(0, toNum(payload.netAmount)) : existing?.netAmount ?? undefined,
+    netAmount:
+      payload.netAmount != null ? Math.max(0, toNum(payload.netAmount)) : existing?.netAmount ?? undefined,
     paymentMethod: String(payload.paymentMethod ?? existing?.paymentMethod ?? "").trim() || undefined,
 
     expectedDeliveryDate: String(payload.expectedDeliveryDate ?? existing?.expectedDeliveryDate ?? "").trim() || undefined,

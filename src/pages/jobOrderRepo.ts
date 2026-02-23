@@ -108,7 +108,7 @@ function deriveUiPaymentStatus(job: any, parsed: any) {
   return "Unpaid";
 }
 
-function deriveExitPermitStatus(job: any, parsed: any) {
+function deriveExitPermitStatus(parsed: any) {
   const s = String(parsed?.exitPermitStatus ?? "").trim();
   if (s) return s;
   const permitId = String(parsed?.exitPermit?.permitId ?? "").trim();
@@ -459,7 +459,7 @@ export async function listJobOrdersForMain(): Promise<any[]> {
     const parsed = safeJsonParse<any>(job.dataJson) ?? {};
     const workStatus = deriveUiWorkStatus(job, parsed);
     const paymentStatus = deriveUiPaymentStatus(job, parsed);
-    const exitPermitStatus = deriveExitPermitStatus(job, parsed);
+    const exitPermitStatus = deriveExitPermitStatus(parsed);
 
     return {
       _backendId: job.id,
@@ -565,7 +565,7 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
     ? parsed.additionalServiceRequests
     : [];
 
-  const exitPermitStatus = deriveExitPermitStatus(job, parsed);
+  const exitPermitStatus = deriveExitPermitStatus(parsed);
   const exitPermit = parsed?.exitPermit ?? {
     permitId: null,
     createDate: null,

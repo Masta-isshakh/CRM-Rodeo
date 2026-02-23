@@ -1,3 +1,4 @@
+// amplify/functions/job-orders/create-payment/handler.ts
 import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtime";
@@ -8,6 +9,7 @@ import type { Schema } from "../../../data/resource";
 import { requirePermissionFromEvent } from "../_shared/rbac";
 import { toNum } from "../_shared/finance";
 import { recomputeJobOrderPaymentSummary } from "../_shared/payments";
+import { getOptionCtx } from "../_shared/optionRbac";
 
 type Args = {
   jobOrderId: string;
@@ -41,7 +43,14 @@ export const handler: AppSyncResolverHandler<Args, Out> = async (event) => {
 
   const client = generateClient<Schema>();
 
+  // ✅ policy-level
   await requirePermissionFromEvent(client, event, "JOB_CARDS", "UPDATE");
+
+  // ✅ option-level
+  const opt = await getOptionCtx(client as any, event);
+  if (!opt.toggleEnabled("payment", "payment_pay", true)) {
+    throw new Error("You are not allowed to record payments.");
+  }
 
   const jobOrderId = String(event.arguments?.jobOrderId ?? "").trim();
   if (!jobOrderId) throw new Error("jobOrderId is required");

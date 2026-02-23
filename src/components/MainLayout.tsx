@@ -415,7 +415,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               <DepartmentsAdmin permissions={{ ...EMPTY, canRead: true, canCreate: true, canUpdate: true, canDelete: true, canApprove: true }} />
             )}
             {page === "rolespolicies" && showAdmin.rolespolicies && (
-              <RolesPoliciesAdmin permissions={{ ...EMPTY, canRead: true, canCreate: true, canUpdate: true, canDelete: true, canApprove: true }} />
+              <RolesPoliciesAdmin />
             )}
           </main>
         </div>

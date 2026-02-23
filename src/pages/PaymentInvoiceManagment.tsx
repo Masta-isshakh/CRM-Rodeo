@@ -6,6 +6,7 @@ import SuccessPopup from "./SuccessPopup";
 import ErrorPopup from "./ErrorPopup";
 import PermissionGate from "./PermissionGate";
 
+import { usePermissions } from "../lib/userPermissions";
 import { getDataClient } from "../lib/amplifyClient";
 
 import {
@@ -96,13 +97,11 @@ function normalizeWorkStatus(rowStatus?: string, label?: string): string {
 }
 
 function normalizePaymentLabel(enumVal?: string, label?: string): string {
-  // ✅ prefer enum FIRST (source of truth)
   const ps = String(enumVal || "").toUpperCase();
   if (ps === "PAID") return "Fully Paid";
   if (ps === "PARTIAL") return "Partially Paid";
   if (ps === "UNPAID") return "Unpaid";
 
-  // fallback to label if enum missing
   const l = String(label ?? "").trim();
   if (l) return l;
 
@@ -165,7 +164,7 @@ type PaymentFormState = {
   netAmount: number;
   amountPaid: number;
 
-  discount: string; // total discount
+  discount: string;
   amountToPay: string;
   paymentMethod: string;
 
@@ -202,8 +201,22 @@ type ListOrder = {
   _parsed: any;
 };
 
+function clampDiscountQar(totalAmount: number, discount: number, maxPct: number) {
+  const pct = Math.max(0, Math.min(100, Number.isFinite(maxPct) ? maxPct : 0));
+  const maxQar = (Math.max(0, totalAmount) * pct) / 100;
+  const d = Math.max(0, discount);
+  return Math.min(d, Math.max(0, totalAmount), maxQar);
+}
+
 export default function PaymentInvoiceManagement({ currentUser }: { currentUser: any; permissions?: any }) {
   const client = useMemo(() => getDataClient(), []);
+  const { getOptionNumber } = usePermissions();
+
+  // ✅ numeric limit (percent)
+  const maxPaymentDiscountPercent = useMemo(() => {
+    const raw = Number(getOptionNumber("payment", "payment_discount_percent", 10));
+    return Math.max(0, Math.min(100, Number.isFinite(raw) ? raw : 10));
+  }, [getOptionNumber]);
 
   const [allOrders, setAllOrders] = useState<ListOrder[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -213,41 +226,33 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
   const [loading, setLoading] = useState(false);
 
-  // details
   const [showDetailsScreen, setShowDetailsScreen] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
 
-  // normalized invoices + payments raw
   const [normalizedInvoices, setNormalizedInvoices] = useState<InvoiceUi[]>([]);
   const [paymentRowsRaw, setPaymentRowsRaw] = useState<PaymentRowRaw[]>([]);
   const [approvalRequests, setApprovalRequests] = useState<any[]>([]);
 
-  // dropdown
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
 
-  // cancel modal
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
 
-  // popups
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [successMessage, setSuccessMessage] = useState<React.ReactNode>("");
   const [showErrorPopup, setShowErrorPopup] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // bill popups
   const [showBillExistsPopup, setShowBillExistsPopup] = useState(false);
   const [billExistsMessage, setBillExistsMessage] = useState("");
   const [showBillGeneratedPopup, setShowBillGeneratedPopup] = useState(false);
   const [billGeneratedMessage, setBillGeneratedMessage] = useState("");
   const [isGeneratingBill, setIsGeneratingBill] = useState(false);
 
-  // payment modal
   const [showPaymentPopup, setShowPaymentPopup] = useState(false);
   const [paymentForm, setPaymentForm] = useState<PaymentFormState | null>(null);
 
-  // refund modal
   const [showRefundPopup, setShowRefundPopup] = useState(false);
   const [refundForm, setRefundForm] = useState<RefundFormState | null>(null);
 
@@ -309,7 +314,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     return () => sub.unsubscribe();
   }, [client]);
 
-  // -------------------- filter rules (same as your demo) --------------------
+  // -------------------- filter rules --------------------
   const filteredOrders = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
 
@@ -347,7 +352,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     });
   }, [allOrders, searchQuery]);
 
-  // pagination
   useEffect(() => setCurrentPage(1), [pageSize, searchQuery]);
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
   const startIndex = (currentPage - 1) * pageSize;
@@ -356,7 +360,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   // -------------------- backend loaders --------------------
   const loadPaymentsRaw = async (jobOrderId: string): Promise<PaymentRowRaw[]> => {
     try {
-      // prefer index if exists (in your repo you used listPaymentsByJobOrder)
       try {
         const byIdx = await (client.models.JobOrderPayment as any).listPaymentsByJobOrder?.({
           jobOrderId: String(jobOrderId),
@@ -432,13 +435,11 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     }
   };
 
-  // ✅ invoices from normalized tables
   const loadNormalizedInvoices = async (jobOrderId: string): Promise<InvoiceUi[]> => {
     const out: InvoiceUi[] = [];
     try {
       let invRows: any[] = [];
 
-      // prefer index queryField
       try {
         const byIdx = await (client.models.JobOrderInvoice as any).listInvoicesByJobOrder?.({
           jobOrderId: String(jobOrderId),
@@ -453,7 +454,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         invRows = (res?.data ?? []) as any[];
       }
 
-      // sort oldest->newest by createdAt
       invRows.sort((a, b) => String(a.createdAt ?? "").localeCompare(String(b.createdAt ?? "")));
 
       for (const inv of invRows) {
@@ -503,22 +503,20 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       const rowRes = await client.models.JobOrder.get({ id: detailed._backendId } as any);
       const row = (rowRes as any)?.data ?? null;
       const parsed = safeJsonParse<any>(row?.dataJson, {});
-      const docs: DocItem[] = Array.isArray(parsed?.documents) ? parsed.documents : (Array.isArray(detailed?.documents) ? detailed.documents : []);
+      const docs: DocItem[] = Array.isArray(parsed?.documents)
+        ? parsed.documents
+        : (Array.isArray(detailed?.documents) ? detailed.documents : []);
 
-      // payments
       const payRows = await loadPaymentsRaw(String(detailed._backendId));
       setPaymentRowsRaw(payRows);
       const paymentActivityLog = mapPaymentLog(payRows);
 
-      // approvals
       const approvals = await loadApprovalRequests(String(orderNumber));
       setApprovalRequests(approvals);
 
-      // normalized invoices
       const invoices = await loadNormalizedInvoices(String(detailed._backendId));
       setNormalizedInvoices(invoices);
 
-      // billing
       const totalAmount = toNum(row?.totalAmount ?? parsed?.billing?.totalAmount ?? detailed?.billing?.totalAmount);
       const discount = toNum(row?.discount ?? parsed?.billing?.discount ?? detailed?.billing?.discount);
       const netAmount = toNum(row?.netAmount ?? parsed?.billing?.netAmount ?? detailed?.billing?.netAmount ?? Math.max(0, totalAmount - discount));
@@ -616,7 +614,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     if (!selectedOrder) return;
 
     const totalAmount = toNum(selectedOrder?.billing?.totalAmount);
-    const discount = toNum(selectedOrder?.billing?.discount);
+    const rawDiscount = toNum(selectedOrder?.billing?.discount);
+    const discount = clampDiscountQar(totalAmount, rawDiscount, maxPaymentDiscountPercent);
+
     const netAmount = toNum(selectedOrder?.billing?.netAmount) || Math.max(0, totalAmount - discount);
     const amountPaid = toNum(selectedOrder?.billing?.amountPaid);
     const balance = Math.max(0, netAmount - amountPaid);
@@ -650,10 +650,18 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       const next = { ...prev, [name]: value } as PaymentFormState;
 
       if (name === "discount" || name === "amountToPay") {
-        const discount = toNum(next.discount);
-        const amountToPay = toNum(next.amountToPay);
+        const maxDiscountQar = (Math.max(0, prev.totalAmount) * maxPaymentDiscountPercent) / 100;
+
+        let discount = Math.max(0, toNum(next.discount));
+        discount = Math.min(discount, prev.totalAmount);
+        discount = Math.min(discount, maxDiscountQar);
+
+        next.discount = discount.toFixed(2);
+
+        const amountToPay = Math.max(0, toNum(next.amountToPay));
         const net = Math.max(0, prev.totalAmount - discount);
         next.netAmount = net;
+
         const balance = net - prev.amountPaid - amountToPay;
         next.balance = balance > 0 ? balance : 0;
       }
@@ -700,7 +708,15 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     const method = String(paymentForm.paymentMethod || "").trim();
     const amountToPay = toNum(paymentForm.amountToPay);
-    const discount = Math.max(0, toNum(paymentForm.discount));
+    const rawDiscount = Math.max(0, toNum(paymentForm.discount));
+    const discount = clampDiscountQar(paymentForm.totalAmount, rawDiscount, maxPaymentDiscountPercent);
+
+    const maxDiscountQar = (Math.max(0, paymentForm.totalAmount) * maxPaymentDiscountPercent) / 100;
+    if (rawDiscount > maxDiscountQar + 0.00001) {
+      setErrorMessage(`Discount exceeds limit. Max allowed is ${fmtQar(maxDiscountQar)} (${maxPaymentDiscountPercent}%).`);
+      setShowErrorPopup(true);
+      return;
+    }
 
     if (!method) {
       setErrorMessage("Please select a payment method.");
@@ -722,7 +738,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     try {
       const actor = String(currentUser?.name ?? currentUser?.email ?? "user");
 
-      // 1) Upload transfer proof first (so we can store document path)
       let newDoc: DocItem | null = null;
       if (method === "Transfer" && paymentForm.transferProofDataUrl) {
         const blob = dataUrlToBlob(paymentForm.transferProofDataUrl);
@@ -741,7 +756,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         };
       }
 
-      // 2) Persist billing discount/net + method + documents into JobOrder.dataJson (via jobOrderSave lambda)
       const parsed = safeJsonParse<any>(selectedOrder?._parsed ?? selectedOrder?.dataJson, {});
       const existingDocs: DocItem[] = Array.isArray(selectedOrder?.documents)
         ? selectedOrder.documents
@@ -754,8 +768,15 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       const totalAmount = Math.max(0, toNum(selectedOrder?.billing?.totalAmount));
       const netAmount = Math.max(0, totalAmount - discount);
 
+      // ✅ IMPORTANT: write TOP-LEVEL fields that the Lambda actually consumes
       const updatedOrder = {
         ...selectedOrder,
+
+        discount,                 // numeric
+        netAmount,                // numeric
+        paymentMethod: method,    // top-level
+        billId: String(selectedOrder?.billing?.billId ?? ""), // keep if exists
+
         documents: updatedDocs,
         billing: {
           ...(selectedOrder.billing || {}),
@@ -764,7 +785,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
           netAmount: fmtQar(netAmount),
           paymentMethod: method,
         },
-        // update json too (your repo reads from dataJson)
         dataJson: JSON.stringify({
           ...parsed,
           documents: updatedDocs,
@@ -781,7 +801,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
       await upsertJobOrder(updatedOrder);
 
-      // 3) Create payment row (audited) -> triggers recomputeJobOrderPaymentSummary
+      // audited payment row -> recomputeJobOrderPaymentSummary
       await (client.mutations as any).jobOrderPaymentCreate({
         jobOrderId: String(paymentForm.jobOrderId),
         amount: Number(amountToPay),
@@ -803,7 +823,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       setShowSuccessPopup(true);
       closePaymentPopup();
 
-      // refresh UI from backend truth
       await refreshDetails();
     } catch (e) {
       setErrorMessage(`Payment failed: ${errMsg(e)}`);
@@ -813,7 +832,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     }
   };
 
-  // -------------------- refund popup (backend-safe) --------------------
+  // -------------------- refund popup --------------------
   const openRefundPopup = () => {
     if (!selectedOrder) return;
 
@@ -827,7 +846,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       return;
     }
 
-    // compute max from payments sum (source of truth for recompute)
     const paidSum = paymentRowsRaw.reduce((acc, p) => acc + toNum(p.amount), 0);
     if (paidSum <= 0) {
       setErrorMessage("No payments exist for this order. Refund is not possible.");
@@ -871,14 +889,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     });
   };
 
-  /**
-   * ✅ Refund Implementation (100% compatible with your backend):
-   * - Your create-payment handler does NOT allow negative amounts.
-   * - So we refund by reducing/deleting existing payment rows:
-   *   - If refund < lastPayment.amount => UPDATE lastPayment.amount to (amount - refund)
-   *   - Else DELETE last payments until refund is satisfied
-   * - Each mutation triggers recomputeJobOrderPaymentSummary automatically.
-   */
   const handleSaveRefund = async () => {
     if (!refundForm || !selectedOrder) return;
 
@@ -896,7 +906,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     setLoading(true);
     try {
-      // newest first by paidAt/createdAt
       const payments = [...paymentRowsRaw].sort((a, b) =>
         String(b.paidAt ?? b.createdAt ?? "").localeCompare(String(a.paidAt ?? a.createdAt ?? ""))
       );
@@ -911,7 +920,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
         if (remaining < amt) {
           const newAmt = amt - remaining;
-          // UPDATE payment amount
           await (client.mutations as any).jobOrderPaymentUpdate({
             id: String(p.id),
             amount: Number(newAmt),
@@ -919,7 +927,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
           remaining = 0;
           break;
         } else {
-          // DELETE payment row
           await (client.mutations as any).jobOrderPaymentDelete({
             id: String(p.id),
           });
@@ -951,7 +958,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     }
   };
 
-  // -------------------- generate bill (Storage + documents) --------------------
+  // -------------------- generate bill --------------------
   const generateBillHTML = (order: any) => {
     const billing = order?.billing ?? {};
     const billId = String(billing.billId || order?.id || "BILL");
@@ -1161,6 +1168,10 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     const docs: DocItem[] = Array.isArray(selectedOrder.documents) ? selectedOrder.documents : [];
 
+    const maxDiscountQarUi = paymentForm
+      ? (Math.max(0, paymentForm.totalAmount) * maxPaymentDiscountPercent) / 100
+      : 0;
+
     return (
       <div className="pim-details-screen">
         <div className="pim-details-header">
@@ -1174,7 +1185,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
         <div className="pim-details-body">
           <div className="pim-details-grid">
-            {/* Summary */}
             <div className="pim-card">
               <h3><i className="fas fa-info-circle"></i> Job Order Summary</h3>
               <div className="pim-card-content">
@@ -1185,7 +1195,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
               </div>
             </div>
 
-            {/* Customer */}
             <PermissionGate moduleId="payment" optionId="payment_customer">
               <div className="pim-card">
                 <h3><i className="fas fa-user"></i> Customer Information</h3>
@@ -1197,7 +1206,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
               </div>
             </PermissionGate>
 
-            {/* Vehicle */}
             <PermissionGate moduleId="payment" optionId="payment_vehicle">
               <div className="pim-card">
                 <h3><i className="fas fa-car"></i> Vehicle Information</h3>
@@ -1212,7 +1220,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
               </div>
             </PermissionGate>
 
-            {/* Service Approvals */}
             <PermissionGate moduleId="payment" optionId="payment_services">
               {approvalRequests.length > 0 && (
                 <div className="pim-card pim-card-full">
@@ -1239,7 +1246,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
               )}
             </PermissionGate>
 
-            {/* Billing & Invoices */}
             <PermissionGate moduleId="payment" optionId="payment_billing">
               <div className="pim-card pim-card-full">
                 <div className="pim-card-head-row">
@@ -1276,7 +1282,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                   <div className="pim-billing-item"><span>Balance Due</span><strong className="pim-red">{selectedOrder.billing?.balanceDue || "—"}</strong></div>
                 </div>
 
-                {/* ✅ NORMALIZED INVOICES */}
                 <PermissionGate moduleId="payment" optionId="payment_invoices">
                   <div className="pim-subcard">
                     <div className="pim-subtitle">
@@ -1330,7 +1335,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                   </div>
                 </PermissionGate>
 
-                {/* Payment Activity Log */}
                 <PermissionGate moduleId="payment" optionId="payment_paymentlog">
                   <div className="pim-subcard">
                     <div className="pim-subtitle"><i className="fas fa-history"></i> Payment Activity Log</div>
@@ -1368,7 +1372,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
               </div>
             </PermissionGate>
 
-            {/* Documents */}
             <PermissionGate moduleId="payment" optionId="payment_documents">
               <div className="pim-card pim-card-full">
                 <h3><i className="fas fa-folder-open"></i> Documents</h3>
@@ -1412,7 +1415,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
           </div>
         </div>
 
-        {/* Portals */}
         {createPortal(
           <>
             <ErrorPopup isVisible={showErrorPopup} onClose={() => setShowErrorPopup(false)} message={errorMessage} />
@@ -1435,7 +1437,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
               <SuccessPopup isVisible={true} onClose={() => setShowSuccessPopup(false)} message={successMessage} />
             )}
 
-            {/* Payment Modal */}
             {showPaymentPopup && paymentForm && (
               <div className="pim-modal-overlay">
                 <div className="pim-modal">
@@ -1455,7 +1456,16 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                       <PermissionGate moduleId="payment" optionId="payment_discountfield">
                         <div className="pim-field">
                           <label>Total Discount (QAR)</label>
-                          <input type="number" name="discount" value={paymentForm.discount} onChange={handlePaymentChange} min={0} step={0.01} />
+                          <input
+                            type="number"
+                            name="discount"
+                            value={paymentForm.discount}
+                            onChange={handlePaymentChange}
+                            min={0}
+                            max={maxDiscountQarUi}
+                            step={0.01}
+                          />
+                          <div className="pim-help">Max discount: {maxPaymentDiscountPercent}% ({fmtQar(maxDiscountQarUi)})</div>
                         </div>
                       </PermissionGate>
 
@@ -1496,7 +1506,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
               </div>
             )}
 
-            {/* Refund Modal */}
             {showRefundPopup && refundForm && (
               <div className="pim-modal-overlay">
                 <div className="pim-modal">
@@ -1743,7 +1752,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
           <p>Service Management System © 2023 | Payment & Invoice Management Module</p>
         </footer>
 
-        {/* Cancel Confirmation Modal */}
         <div className={`cancel-modal-overlay ${showCancelConfirmation && cancelOrderId ? "active" : ""}`}>
           <div className="cancel-modal">
             <div className="cancel-modal-header">

@@ -1,8 +1,9 @@
 /* src/layout/mainLayout.css
-   ✅ FINAL: Header is FULL WIDTH (100%), content centered, fully responsive
-   ✅ Header fixed + content offset (no overlap)
-   ✅ Body container is 98% width on ALL screens
-   ✅ Drawer (sidebar) is FULLY responsive + scrollable on ALL screens (fixes mobile Safari 100vh issues)
+   ✅ Premium, clean layout
+   ✅ Sidebar items BIGGER + touch-friendly
+   ✅ Sidebar is scrollable (header sticky)
+   ✅ Fully responsive on ALL screens (mobile/tablet/desktop)
+   ✅ Mobile-safe viewport (100dvh) + safe areas
 */
 
 :root {
@@ -34,7 +35,7 @@
   --grad-accent: linear-gradient(135deg, var(--a1), var(--a4) 45%, var(--a3));
 
   /* Layout */
-  --drawer-w: 308px;
+  --drawer-w: 324px; /* slightly wider */
   --radius: 18px;
   --radius-lg: 22px;
 
@@ -42,10 +43,17 @@
   --container-w: 98%;
 
   /* Header sizing + spacing */
-  --topbar-pad-y: 8px;       /* reduced */
-  --topbar-inner-pad-y: 8px; /* reduced */
-  --topbar-min-h: 66px;      /* stable header card height */
-  --content-gap: 8px;        /* reduced gap under header */
+  --topbar-pad-y: 8px;
+  --topbar-inner-pad-y: 8px;
+  --topbar-min-h: 66px;
+  --content-gap: 8px;
+
+  /* Sidebar item sizing (bigger!) */
+  --nav-item-h: 46px;       /* ✅ bigger height */
+  --nav-item-pad-x: 14px;
+  --nav-item-radius: 16px;
+  --nav-font: 14.5px;       /* ✅ bigger font */
+  --nav-weight: 900;
 
   /* Motion */
   --ease: cubic-bezier(.22, 1, .36, 1);
@@ -59,6 +67,7 @@
 /* ===== Global ===== */
 * { box-sizing: border-box; }
 html, body { height: 100%; }
+
 body {
   margin: 0;
   color: var(--text);
@@ -74,7 +83,7 @@ body {
   box-shadow:
     0 0 0 4px rgba(47, 125, 225, 0.18),
     0 0 0 1px rgba(47, 125, 225, 0.42);
-  border-radius: 12px;
+  border-radius: 14px;
 }
 
 /* ===== Layout root background ===== */
@@ -105,12 +114,12 @@ body {
 
 /* ===== Main container (98% width always) ===== */
 .layout-main {
-  width: var(--container-w);      /* ✅ EXACT 98% */
+  width: var(--container-w);
   max-width: 1440px;
   margin: 0 auto;
   padding-bottom: 18px;
 
-  /* ✅ offset main content under fixed header (no overlap) */
+  /* offset under fixed header */
   padding-top: calc(
     (var(--topbar-pad-y) * 2) +
     var(--topbar-min-h) +
@@ -126,19 +135,16 @@ body {
   left: 0;
   right: 0;
 
-  width: 100%;                    /* ✅ FULL WIDTH */
+  width: 100%;
   z-index: 30;
 
-  /* ✅ NO horizontal padding here (prevents off-center shift) */
   padding: var(--topbar-pad-y) 0;
-
-  /* safe area */
   padding-top: calc(var(--topbar-pad-y) + env(safe-area-inset-top));
 }
 
-/* ✅ Header inner: centered + same width as body (98%) */
+/* Header inner centered */
 .topbar-inner {
-  width: var(--container-w);      /* ✅ EXACT 98% */
+  width: var(--container-w);
   max-width: 1440px;
   margin: 0 auto;
 
@@ -183,7 +189,7 @@ body {
   opacity: 0.55;
 }
 
-/* ===== Header Controls ===== */
+/* Menu toggle */
 .menu-toggle {
   width: 46px;
   height: 46px;
@@ -211,6 +217,7 @@ body {
   flex-direction: column;
   gap: 6px;
 }
+
 .menu-toggle-icon span {
   width: 18px;
   height: 2px;
@@ -220,10 +227,8 @@ body {
 }
 
 /* Center title */
-.topbar-center {
-  text-align: center;
-  min-width: 0;
-}
+.topbar-center { text-align: center; min-width: 0; }
+
 .topbar-title {
   font-weight: 950;
   letter-spacing: 0.2px;
@@ -238,6 +243,7 @@ body {
   background-clip: text;
   color: transparent;
 }
+
 .topbar-sub {
   margin-top: 3px;
   font-size: 12.5px;
@@ -254,6 +260,7 @@ body {
   position: relative;
   z-index: 1;
 }
+
 .avatar {
   width: 42px;
   height: 42px;
@@ -270,6 +277,7 @@ body {
   position: relative;
   overflow: hidden;
 }
+
 .avatar::before {
   content: "";
   position: absolute;
@@ -281,12 +289,10 @@ body {
   pointer-events: none;
 }
 
-/* ===== Body ===== */
-.content {
-  padding: 10px 12px 18px; /* reduced top padding */
-}
+/* ===== Main content body ===== */
+.content { padding: 10px 12px 18px; }
 
-/* Optional no access */
+/* no access card */
 .no-access {
   border-radius: var(--radius-lg);
   border: 1px solid transparent;
@@ -306,28 +312,23 @@ body {
   background: rgba(2, 6, 23, 0.55);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-
-  /* ✅ mobile safe viewport */
   height: var(--vh);
-
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--t-med);
 }
+
 .drawer-overlay.show {
   opacity: 1;
   pointer-events: auto;
 }
 
-/* ===== Drawer (Sidebar) ===== */
+/* ===== Drawer ===== */
 .drawer {
   position: fixed;
   inset: 0 auto 0 0;
 
-  /* ✅ responsive width */
   width: min(var(--drawer-w), 92vw);
-
-  /* ✅ safe mobile viewport (fixes iOS address bar/100vh issues) */
   height: var(--vh);
   min-height: 100vh;
 
@@ -346,37 +347,32 @@ body {
   transform: translateX(-106%);
   transition: transform var(--t-med);
 
-  /* ✅ makes header fixed and nav scrollable reliably */
+  /* ✅ make header sticky + nav scrollable */
   display: flex;
   flex-direction: column;
 
-  /* ✅ safe-area padding for phones */
   padding-bottom: env(safe-area-inset-bottom);
-
-  /* ✅ prevents scroll chaining + improves performance */
   overscroll-behavior: contain;
   contain: layout paint;
 }
+
 .drawer.open { transform: translateX(0); }
 
+/* drawer header */
 .drawer-head {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
+  gap: 12px;
 
-  /* ✅ safe-area top for notch phones */
   padding: calc(16px + env(safe-area-inset-top)) 16px 14px;
-
   border-bottom: 1px solid rgba(255,255,255,0.10);
 
-  /* ✅ stays visible while sidebar scrolls */
   position: sticky;
   top: 0;
   z-index: 2;
 
-  /* match drawer background so sticky looks clean */
   background:
     linear-gradient(180deg, rgba(7,10,18,0.98), rgba(11,16,32,0.98));
   backdrop-filter: blur(10px);
@@ -389,42 +385,48 @@ body {
   gap: 12px;
   min-width: 0;
 }
+
 .brand-logo {
-  width: 48px;
-  height: 48px;
-  border-radius: 16px;
+  width: 52px;
+  height: 52px;
+  border-radius: 18px;
   object-fit: cover;
   border: 1px solid rgba(255,255,255,0.18);
   box-shadow: 0 16px 30px rgba(0,0,0,0.28);
 }
+
 .brand-text { min-width: 0; }
+
 .brand-title {
   font-weight: 950;
-  font-size: 15px;
+  font-size: 16px;
   line-height: 1.1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
 .brand-sub {
   margin-top: 4px;
-  font-size: 12px;
+  font-size: 12.5px;
   color: rgba(255,255,255,0.72);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
+/* close button */
 .drawer-close {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border-radius: 16px;
   border: 1px solid rgba(255,255,255,0.16);
   background: rgba(255,255,255,0.06);
   color: rgba(255,255,255,0.94);
   cursor: pointer;
-  transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast);
+  transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast), opacity var(--t-fast);
 }
+
 .drawer-close:hover {
   background: rgba(255,255,255,0.10);
   border-color: rgba(255,255,255,0.24);
@@ -432,30 +434,30 @@ body {
 }
 .drawer-close:active { transform: translateY(0px) scale(0.98); }
 
-/* ✅ NAV AREA: scrollable, responsive, smooth on mobile */
+/* ===== NAV (scrollable) ===== */
 .drawer-nav {
   flex: 1 1 auto;
-  min-height: 0;                 /* IMPORTANT: allows scrolling inside flex container */
+  min-height: 0; /* IMPORTANT for scroll in flex */
+
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 10px;
 
-  padding: 12px 12px 16px;
+  padding: 14px 14px 18px;
 
   overflow-y: auto;
   overflow-x: hidden;
 
-  /* better mobile scroll */
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 
-  /* safe-area bottom so last buttons are reachable */
-  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  /* safe area bottom so last buttons are reachable */
+  padding-bottom: calc(18px + env(safe-area-inset-bottom));
 
-  /* Firefox */
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.22) rgba(255,255,255,0.05);
 }
+
 .drawer-nav::-webkit-scrollbar { width: 10px; }
 .drawer-nav::-webkit-scrollbar-track { background: rgba(255,255,255,0.04); border-radius: 999px; }
 .drawer-nav::-webkit-scrollbar-thumb {
@@ -466,65 +468,104 @@ body {
 }
 .drawer-nav::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.22); }
 
+/* ✅ BIGGER sidebar buttons */
 .drawer-nav button {
   width: 100%;
-  padding: 12px 12px;
-  border: 1px solid transparent;
-  border-radius: 14px;
-  background: rgba(255,255,255,0.03);
-  color: rgba(255,255,255,0.92);
+  min-height: var(--nav-item-h);
+  padding: 0 var(--nav-item-pad-x);
+
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: var(--nav-item-radius);
+
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.94);
+
   text-align: left;
   cursor: pointer;
-  font-size: 14px;
-  font-weight: 800;
+
+  font-size: var(--nav-font);
+  font-weight: var(--nav-weight);
   letter-spacing: 0.1px;
+
+  display: flex;
+  align-items: center;
+  gap: 10px;
+
   transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
   position: relative;
   overflow: hidden;
 
-  /* ✅ text behaves better on small screens */
-  line-height: 1.25;
+  line-height: 1.2;
   white-space: normal;
   word-break: break-word;
 }
 
-.drawer-nav button:hover {
-  background: rgba(255,255,255,0.06);
-  border-color: rgba(255,255,255,0.10);
-  transform: translateX(3px);
-  box-shadow: 0 14px 26px rgba(0,0,0,0.24);
-}
-.drawer-nav button.active {
-  background: linear-gradient(180deg, rgba(47,125,225,0.18), rgba(6,182,212,0.10));
-  border-color: rgba(47,125,225,0.30);
-  box-shadow:
-    0 18px 38px rgba(0,0,0,0.28),
-    0 0 0 1px rgba(47,125,225,0.16) inset;
+/* subtle left indicator */
+.drawer-nav button::before{
+  content:"";
+  width: 4px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255,255,255,0.18);
+  opacity: 0.0;
+  transform: translateX(-6px);
+  transition: opacity var(--t-fast), transform var(--t-fast), background var(--t-fast);
 }
 
+.drawer-nav button:hover {
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.14);
+  transform: translateX(4px);
+  box-shadow: 0 14px 26px rgba(0,0,0,0.24);
+}
+
+.drawer-nav button:hover::before{
+  opacity: 0.9;
+  transform: translateX(0);
+  background: rgba(255,255,255,0.22);
+}
+
+.drawer-nav button.active {
+  background:
+    linear-gradient(180deg, rgba(47,125,225,0.22), rgba(6,182,212,0.12));
+  border-color: rgba(47,125,225,0.38);
+  box-shadow:
+    0 18px 38px rgba(0,0,0,0.28),
+    0 0 0 1px rgba(47,125,225,0.18) inset;
+}
+
+.drawer-nav button.active::before{
+  opacity: 1;
+  transform: translateX(0);
+  background: linear-gradient(180deg, var(--a1), var(--a4));
+}
+
+/* section label */
 .drawer-section {
-  margin-top: 10px;
-  padding-top: 12px;
+  margin-top: 6px;
+  padding-top: 14px;
   border-top: 1px solid rgba(255,255,255,0.10);
 }
+
 .drawer-section-label {
-  padding: 0 8px 8px;
-  font-size: 11.5px;
+  padding: 0 8px 10px;
+  font-size: 12px;             /* bigger label */
   font-weight: 950;
-  color: rgba(255,255,255,0.70);
+  color: rgba(255,255,255,0.72);
   text-transform: uppercase;
   letter-spacing: 0.14em;
 }
 
 .drawer-spacer { flex: 1; }
 
+/* danger (sign out) */
 .drawer-nav button.danger {
-  background: rgba(239, 68, 68, 0.14);
-  border: 1px solid rgba(239, 68, 68, 0.18);
+  background: rgba(239, 68, 68, 0.16);
+  border-color: rgba(239, 68, 68, 0.22);
 }
 .drawer-nav button.danger:hover {
-  background: rgba(239, 68, 68, 0.20);
-  border-color: rgba(239, 68, 68, 0.26);
+  background: rgba(239, 68, 68, 0.22);
+  border-color: rgba(239, 68, 68, 0.30);
 }
 
 /* ===== Responsive ===== */
@@ -542,8 +583,9 @@ body {
     --topbar-min-h: 62px;
     --content-gap: 6px;
 
-    /* slightly narrower drawer on tablets */
-    --drawer-w: 300px;
+    --drawer-w: 340px;   /* slightly wider on phones */
+    --nav-item-h: 48px;  /* bigger touch target */
+    --nav-font: 15px;
   }
 
   .topbar-inner {
@@ -559,34 +601,40 @@ body {
 
   .content { padding: 8px 10px 16px; }
 
-  /* make drawer touch-friendly */
-  .drawer-close { width: 44px; height: 44px; border-radius: 14px; }
-  .drawer-nav button { padding: 12px 12px; border-radius: 14px; }
+  .drawer-close { width: 46px; height: 46px; border-radius: 16px; }
+  .brand-logo { width: 50px; height: 50px; border-radius: 18px; }
 }
 
 @media (max-width: 520px) {
-  :root { --drawer-w: 320px; }
+  :root { --drawer-w: 100vw; }
 
-  /* give a bit more width on phones */
-  .drawer { width: min(var(--drawer-w), 94vw); }
+  .drawer {
+    width: 100vw;        /* full width on small phones */
+    border-right: none;
+  }
 
-  .brand-logo { width: 46px; height: 46px; border-radius: 15px; }
+  .drawer-nav { padding-left: 12px; padding-right: 12px; }
+
+  .brand-title { font-size: 15.5px; }
+  .brand-sub { font-size: 12px; }
 }
 
 @media (max-width: 420px) {
   .topbar-title { font-size: 15px; }
   .topbar-sub { font-size: 11.5px; }
 
-  /* ✅ tiny phones: drawer can become full width */
-  .drawer { width: 100vw; border-right: none; }
-  .drawer-nav { padding-left: 10px; padding-right: 10px; }
+  :root{
+    --nav-item-h: 50px;  /* even easier to tap */
+    --nav-font: 15px;
+  }
 }
 
-/* Short screens (small laptop / landscape phones) */
+/* Short screens (landscape phones) */
 @media (max-height: 700px) {
   .drawer-head { padding: calc(12px + env(safe-area-inset-top)) 12px 10px; }
-  .brand-logo { width: 44px; height: 44px; }
-  .drawer-nav button { padding: 10px 12px; }
+  .brand-logo { width: 46px; height: 46px; }
+  .drawer-nav { gap: 8px; }
+  .drawer-nav button { min-height: 44px; }
 }
 
 /* Reduced motion */

@@ -79,13 +79,6 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function safeFileName(name: string) {
-  return String(name || "file")
-    .trim()
-    .replace(/\s+/g, "_")
-    .replace(/[^a-zA-Z0-9._-]/g, "");
-}
-
 async function resolveMaybeStorageUrl(urlOrPath: string): Promise<string> {
   const v = String(urlOrPath || "").trim();
   if (!v) return "";
@@ -145,13 +138,6 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   // popups
   const [showPopup, setShowPopup] = useState(false);
   const [popupMessage, setPopupMessage] = useState("");
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [confirmationData, setConfirmationData] = useState({
-    message: "",
-    onConfirm: null as null | (() => void | Promise<void>),
-    confirmText: "Yes",
-    cancelText: "No",
-  });
 
   // cancel modal
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
@@ -170,7 +156,6 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
             const orderNumber = String(row.orderNumber ?? "").trim();
 
             const workStatus = normalizeWorkStatus(row.status, row.workStatusLabel ?? parsed?.workStatusLabel);
-            const paymentStatus = normalizePaymentLabel(row.paymentStatus, row.paymentStatusLabel ?? parsed?.paymentStatusLabel);
 
             // show only QC stage
             // QC is driven by label (workStatusLabel) in your UI.
