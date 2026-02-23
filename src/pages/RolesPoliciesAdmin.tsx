@@ -41,13 +41,30 @@ const MODULE_DEFINITIONS = [
     category: "core",
     options: [{ id: "dashboard_list", label: "Show Dashboard in sidebar", prefix: "-" }],
   },
-  {
-    id: "customers",
-    title: "Customers",
-    icon: "fas fa-users",
-    category: "core",
-    options: [{ id: "customers_list", label: "Show Customers in sidebar", prefix: "-" }],
-  },
+{
+  id: "customers",
+  title: "Customers",
+  icon: "fas fa-users",
+  category: "core",
+  options: [
+    { id: "customers_list", label: "Show Customers page in sidebar", prefix: "-" },
+
+    { id: "customers_search", label: "Search & Filter", prefix: "a." },
+    { id: "customers_refresh", label: "Refresh Button", prefix: "b." },
+    { id: "customers_add", label: "Add New Customer Button", prefix: "c." },
+
+    { id: "customers_actions", label: "Row Actions Dropdown", prefix: "d." },
+    { id: "customers_viewdetails", label: "View Details", prefix: "e." },
+    { id: "customers_edit", label: "Edit Customer", prefix: "f." },
+    { id: "customers_delete", label: "Delete Customer", prefix: "g." },
+
+    { id: "customers_details_info", label: "Details: Customer Information Card", prefix: "-" },
+    { id: "customers_details_related", label: "Details: Related Records Card", prefix: "-" },
+    { id: "customers_related_contacts", label: "Related Records: Contacts Section", prefix: "-" },
+    { id: "customers_related_deals", label: "Related Records: Deals Section", prefix: "-" },
+    { id: "customers_related_tickets", label: "Related Records: Tickets Section", prefix: "-" },
+  ],
+},
   {
     id: "vehicles",
     title: "Vehicles",

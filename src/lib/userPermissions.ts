@@ -12,8 +12,21 @@ export type Permission = {
   canApprove: boolean;
 };
 
-const EMPTY: Permission = { canRead: false, canCreate: false, canUpdate: false, canDelete: false, canApprove: false };
-const FULL: Permission = { canRead: true, canCreate: true, canUpdate: true, canDelete: true, canApprove: true };
+const EMPTY: Permission = {
+  canRead: false,
+  canCreate: false,
+  canUpdate: false,
+  canDelete: false,
+  canApprove: false,
+};
+
+const FULL: Permission = {
+  canRead: true,
+  canCreate: true,
+  canUpdate: true,
+  canDelete: true,
+  canApprove: true,
+};
 
 const ADMIN_GROUP_NAME = "Admins";
 const DEPT_PREFIX = "DEPT_";
@@ -34,7 +47,10 @@ export const POLICY_KEYS = [
 ] as const;
 
 function normalizeKey(x: unknown) {
-  return String(x ?? "").trim().toUpperCase().replace(/\s+/g, "_");
+  return String(x ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "_");
 }
 
 function pickGroups(payload: any): string[] {
@@ -72,6 +88,7 @@ async function listAll<T>(
     nextToken = res?.nextToken;
     if (!nextToken) break;
   }
+
   return out.slice(0, max);
 }
 
@@ -134,6 +151,16 @@ export function usePermissions() {
       return k in optionToggleMap ? Boolean(optionToggleMap[k]) : fallback;
     },
     [isAdminGroup, optionToggleMap, isModuleEnabled]
+  );
+
+  // ✅ IMPORTANT: PermissionGate needs this to know whether a toggle exists explicitly
+  const hasOptionToggle = useCallback(
+    (moduleId: string, optionId: string) => {
+      if (isAdminGroup) return true;
+      const k = optKey(moduleId, optionId);
+      return Object.prototype.hasOwnProperty.call(optionToggleMap, k);
+    },
+    [isAdminGroup, optionToggleMap]
   );
 
   const getOptionNumber = useCallback(
@@ -297,7 +324,7 @@ export function usePermissions() {
         }
         setPermMap(nextPermMap);
 
-        // ✅ Option toggles/numbers per role (fast)
+        // Option toggles + numeric limits per role
         const mergedToggles: Record<string, boolean> = {};
         const mergedNums: Record<string, number> = {};
 
@@ -371,8 +398,9 @@ export function usePermissions() {
 
     can,
 
-    // ✅ NEW
+    // option-level
     canOption,
+    hasOptionToggle, // ✅ required by PermissionGate
     getOptionNumber,
     isModuleEnabled,
 

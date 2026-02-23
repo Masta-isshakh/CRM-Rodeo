@@ -6,6 +6,7 @@ import { getCurrentUser } from "aws-amplify/auth";
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
 import { logActivity } from "../utils/activityLogger";
+import { usePermissions } from "../lib/userPermissions";
 import "./Customer.css";
 
 const client = generateClient<Schema>();
@@ -47,7 +48,6 @@ type CountsMap = Record<
   }
 >;
 
-// ✅ replaceAll-safe helper
 function replaceAllSafe(str: string, search: string, replacement: string) {
   return str.split(search).join(replacement);
 }
@@ -218,10 +218,23 @@ function CustomersTable(props: {
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
   searchQuery: string;
+  canViewDetails: boolean;
   canUpdate: boolean;
   canDelete: boolean;
+  canShowActions: boolean;
 }) {
-  const { data, counts, onViewDetails, onEdit, onDelete, searchQuery, canUpdate, canDelete } = props;
+  const {
+    data,
+    counts,
+    onViewDetails,
+    onEdit,
+    onDelete,
+    searchQuery,
+    canViewDetails,
+    canUpdate,
+    canDelete,
+    canShowActions,
+  } = props;
 
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
@@ -273,6 +286,8 @@ function CustomersTable(props: {
     );
   }
 
+  const showAnyRowAction = canShowActions && (canViewDetails || canUpdate || canDelete);
+
   return (
     <div className="table-wrapper">
       <table className="customers-table">
@@ -298,9 +313,7 @@ function CustomersTable(props: {
                 <td>{c.id}</td>
 
                 <td dangerouslySetInnerHTML={{ __html: highlight(fullName || "—", searchQuery) }} />
-
                 <td dangerouslySetInnerHTML={{ __html: highlight(c.phone ?? "—", searchQuery) }} />
-
                 <td dangerouslySetInnerHTML={{ __html: highlight(c.company ?? "—", searchQuery) }} />
 
                 <td>
@@ -314,28 +327,32 @@ function CustomersTable(props: {
                 </td>
 
                 <td>
-                  <div className="action-dropdown-container">
-                    <button
-                      className={`btn-action-dropdown ${activeDropdown === c.id ? "active" : ""}`}
-                      onClick={(e) => {
-                        const isActive = activeDropdown === c.id;
-                        if (isActive) return setActiveDropdown(null);
+                  {showAnyRowAction ? (
+                    <div className="action-dropdown-container">
+                      <button
+                        className={`btn-action-dropdown ${activeDropdown === c.id ? "active" : ""}`}
+                        onClick={(e) => {
+                          const isActive = activeDropdown === c.id;
+                          if (isActive) return setActiveDropdown(null);
 
-                        const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                        const menuHeight = 150;
-                        const menuWidth = 210;
-                        const spaceBelow = window.innerHeight - rect.bottom;
-                        const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
-                        const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+                          const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                          const menuHeight = 160;
+                          const menuWidth = 220;
+                          const spaceBelow = window.innerHeight - rect.bottom;
+                          const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
+                          const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
 
-                        setDropdownPosition({ top, left });
-                        setActiveDropdown(c.id);
-                      }}
-                      type="button"
-                    >
-                      <i className="fas fa-cogs" /> Actions <i className="fas fa-chevron-down" />
-                    </button>
-                  </div>
+                          setDropdownPosition({ top, left });
+                          setActiveDropdown(c.id);
+                        }}
+                        type="button"
+                      >
+                        <i className="fas fa-cogs" /> Actions <i className="fas fa-chevron-down" />
+                      </button>
+                    </div>
+                  ) : (
+                    <span className="muted">—</span>
+                  )}
                 </td>
               </tr>
             );
@@ -343,23 +360,27 @@ function CustomersTable(props: {
         </tbody>
       </table>
 
-      {activeDropdown && typeof document !== "undefined" &&
+      {activeDropdown &&
+        showAnyRowAction &&
+        typeof document !== "undefined" &&
         createPortal(
           <div
             className="action-dropdown-menu show action-dropdown-menu-fixed"
             style={{ top: `${dropdownPosition.top}px`, left: `${dropdownPosition.left}px` }}
           >
-            <button
-              className="dropdown-item view"
-              onClick={() => {
-                onViewDetails(activeDropdown);
-                setActiveDropdown(null);
-              }}
-            >
-              <i className="fas fa-eye" /> View Details
-            </button>
+            {canViewDetails && (
+              <button
+                className="dropdown-item view"
+                onClick={() => {
+                  onViewDetails(activeDropdown);
+                  setActiveDropdown(null);
+                }}
+              >
+                <i className="fas fa-eye" /> View Details
+              </button>
+            )}
 
-            {(canUpdate || canDelete) && <div className="dropdown-divider" />}
+            {canViewDetails && (canUpdate || canDelete) && <div className="dropdown-divider" />}
 
             {canUpdate && (
               <>
@@ -407,8 +428,28 @@ function DetailsView(props: {
   onClose: () => void;
   onEdit: (id: string) => void;
   canUpdate: boolean;
+  canViewInfoCard: boolean;
+  canViewRelatedCard: boolean;
+  canViewRelatedContacts: boolean;
+  canViewRelatedDeals: boolean;
+  canViewRelatedTickets: boolean;
 }) {
-  const { customer, counts, contacts, deals, tickets, loadingRelations, onClose, onEdit, canUpdate } = props;
+  const {
+    customer,
+    counts,
+    contacts,
+    deals,
+    tickets,
+    loadingRelations,
+    onClose,
+    onEdit,
+    canUpdate,
+    canViewInfoCard,
+    canViewRelatedCard,
+    canViewRelatedContacts,
+    canViewRelatedDeals,
+    canViewRelatedTickets,
+  } = props;
 
   const fullName = `${customer.name ?? ""} ${customer.lastname ?? ""}`.trim();
   const createdAt = customer.createdAt ? new Date(customer.createdAt).toLocaleString() : "—";
@@ -429,153 +470,175 @@ function DetailsView(props: {
 
       <div className="pim-details-body">
         <div className="pim-details-grid">
-          <div className="pim-detail-card">
-            <div className="details-card-header">
-              <h3>
-                <i className="fas fa-user" /> Customer Information
-              </h3>
+          {canViewInfoCard && (
+            <div className="pim-detail-card">
+              <div className="details-card-header">
+                <h3>
+                  <i className="fas fa-user" /> Customer Information
+                </h3>
 
-              {canUpdate && (
-                <button className="btn-action btn-edit" onClick={() => onEdit(customer.id)} type="button">
-                  <i className="fas fa-edit" /> Edit Customer
-                </button>
-              )}
-            </div>
-
-            <div className="pim-card-content">
-              <div className="pim-info-item">
-                <span className="pim-info-label">Customer ID</span>
-                <span className="pim-info-value">{customer.id}</span>
-              </div>
-
-              <div className="pim-info-item">
-                <span className="pim-info-label">Customer Name</span>
-                <span className="pim-info-value">{fullName || "—"}</span>
-              </div>
-
-              <div className="pim-info-item">
-                <span className="pim-info-label">Mobile Number</span>
-                <span className="pim-info-value">{customer.phone || "Not provided"}</span>
-              </div>
-
-              <div className="pim-info-item">
-                <span className="pim-info-label">Email Address</span>
-                <span className="pim-info-value">{customer.email || "Not provided"}</span>
-              </div>
-
-              <div className="pim-info-item">
-                <span className="pim-info-label">Company</span>
-                <span className="pim-info-value">{customer.company || "Not provided"}</span>
-              </div>
-
-              <div className="pim-info-item">
-                <span className="pim-info-label">Notes</span>
-                <span className="pim-info-value">{customer.notes || "Not provided"}</span>
-              </div>
-
-              <div className="pim-info-item">
-                <span className="pim-info-label">Contacts</span>
-                <span className="pim-info-value">
-                  <span className="count-badge">{ct.contacts} contacts</span>
-                </span>
-              </div>
-
-              <div className="pim-info-item">
-                <span className="pim-info-label">Deals</span>
-                <span className="pim-info-value">
-                  <span className="count-badge">{ct.deals} deals</span>
-                </span>
-              </div>
-
-              <div className="pim-info-item">
-                <span className="pim-info-label">Tickets</span>
-                <span className="pim-info-value">
-                  <span className="count-badge">{ct.tickets} tickets</span>
-                </span>
-              </div>
-
-              <div className="pim-info-item">
-                <span className="pim-info-label">Created At</span>
-                <span className="pim-info-value">{createdAt}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pim-detail-card">
-            <div className="details-card-header">
-              <h3>
-                <i className="fas fa-layer-group" /> Related Records
-              </h3>
-              <div className="details-card-subtitle">
-                {loadingRelations ? <span className="muted">Loading…</span> : <span className="muted">Latest 10 items per section</span>}
-              </div>
-            </div>
-
-            <div className="pim-card-content">
-              <div className="related-section">
-                <div className="related-title">
-                  <i className="fas fa-address-book" /> Contacts
-                </div>
-                {loadingRelations ? (
-                  <div className="related-empty">Loading contacts…</div>
-                ) : contacts.length ? (
-                  <ul className="related-list">
-                    {contacts.slice(0, 10).map((x) => (
-                      <li key={x.id}>
-                        <b>{x.fullName}</b>
-                        <span className="muted"> • {x.phone || "—"} • {x.email || "—"}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="related-empty">No contacts.</div>
+                {canUpdate && (
+                  <button className="btn-action btn-edit" onClick={() => onEdit(customer.id)} type="button">
+                    <i className="fas fa-edit" /> Edit Customer
+                  </button>
                 )}
               </div>
 
-              <div className="related-section">
-                <div className="related-title">
-                  <i className="fas fa-handshake" /> Deals
+              <div className="pim-card-content">
+                <div className="pim-info-item">
+                  <span className="pim-info-label">Customer ID</span>
+                  <span className="pim-info-value">{customer.id}</span>
                 </div>
-                {loadingRelations ? (
-                  <div className="related-empty">Loading deals…</div>
-                ) : deals.length ? (
-                  <ul className="related-list">
-                    {deals.slice(0, 10).map((x) => (
-                      <li key={x.id}>
-                        <b>{x.title}</b>
-                        <span className="muted">
-                          {" "}
-                          • {x.stage || "—"} • {typeof x.value === "number" ? `${x.value} QAR` : "—"}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="related-empty">No deals.</div>
-                )}
+
+                <div className="pim-info-item">
+                  <span className="pim-info-label">Customer Name</span>
+                  <span className="pim-info-value">{fullName || "—"}</span>
+                </div>
+
+                <div className="pim-info-item">
+                  <span className="pim-info-label">Mobile Number</span>
+                  <span className="pim-info-value">{customer.phone || "Not provided"}</span>
+                </div>
+
+                <div className="pim-info-item">
+                  <span className="pim-info-label">Email Address</span>
+                  <span className="pim-info-value">{customer.email || "Not provided"}</span>
+                </div>
+
+                <div className="pim-info-item">
+                  <span className="pim-info-label">Company</span>
+                  <span className="pim-info-value">{customer.company || "Not provided"}</span>
+                </div>
+
+                <div className="pim-info-item">
+                  <span className="pim-info-label">Notes</span>
+                  <span className="pim-info-value">{customer.notes || "Not provided"}</span>
+                </div>
+
+                <div className="pim-info-item">
+                  <span className="pim-info-label">Contacts</span>
+                  <span className="pim-info-value">
+                    <span className="count-badge">{ct.contacts} contacts</span>
+                  </span>
+                </div>
+
+                <div className="pim-info-item">
+                  <span className="pim-info-label">Deals</span>
+                  <span className="pim-info-value">
+                    <span className="count-badge">{ct.deals} deals</span>
+                  </span>
+                </div>
+
+                <div className="pim-info-item">
+                  <span className="pim-info-label">Tickets</span>
+                  <span className="pim-info-value">
+                    <span className="count-badge">{ct.tickets} tickets</span>
+                  </span>
+                </div>
+
+                <div className="pim-info-item">
+                  <span className="pim-info-label">Created At</span>
+                  <span className="pim-info-value">{createdAt}</span>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {canViewRelatedCard && (
+            <div className="pim-detail-card">
+              <div className="details-card-header">
+                <h3>
+                  <i className="fas fa-layer-group" /> Related Records
+                </h3>
+                <div className="details-card-subtitle">
+                  {loadingRelations ? <span className="muted">Loading…</span> : <span className="muted">Latest 10 items per section</span>}
+                </div>
               </div>
 
-              <div className="related-section">
-                <div className="related-title">
-                  <i className="fas fa-ticket-alt" /> Tickets
-                </div>
-                {loadingRelations ? (
-                  <div className="related-empty">Loading tickets…</div>
-                ) : tickets.length ? (
-                  <ul className="related-list">
-                    {tickets.slice(0, 10).map((x) => (
-                      <li key={x.id}>
-                        <b>{x.title}</b>
-                        <span className="muted"> • {x.status || "—"} • {x.priority || "—"}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="related-empty">No tickets.</div>
+              <div className="pim-card-content">
+                {canViewRelatedContacts && (
+                  <div className="related-section">
+                    <div className="related-title">
+                      <i className="fas fa-address-book" /> Contacts
+                    </div>
+                    {loadingRelations ? (
+                      <div className="related-empty">Loading contacts…</div>
+                    ) : contacts.length ? (
+                      <ul className="related-list">
+                        {contacts.slice(0, 10).map((x) => (
+                          <li key={x.id}>
+                            <b>{x.fullName}</b>
+                            <span className="muted"> • {x.phone || "—"} • {x.email || "—"}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="related-empty">No contacts.</div>
+                    )}
+                  </div>
+                )}
+
+                {canViewRelatedDeals && (
+                  <div className="related-section">
+                    <div className="related-title">
+                      <i className="fas fa-handshake" /> Deals
+                    </div>
+                    {loadingRelations ? (
+                      <div className="related-empty">Loading deals…</div>
+                    ) : deals.length ? (
+                      <ul className="related-list">
+                        {deals.slice(0, 10).map((x) => (
+                          <li key={x.id}>
+                            <b>{x.title}</b>
+                            <span className="muted">
+                              {" "}
+                              • {x.stage || "—"} • {typeof x.value === "number" ? `${x.value} QAR` : "—"}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="related-empty">No deals.</div>
+                    )}
+                  </div>
+                )}
+
+                {canViewRelatedTickets && (
+                  <div className="related-section">
+                    <div className="related-title">
+                      <i className="fas fa-ticket-alt" /> Tickets
+                    </div>
+                    {loadingRelations ? (
+                      <div className="related-empty">Loading tickets…</div>
+                    ) : tickets.length ? (
+                      <ul className="related-list">
+                        {tickets.slice(0, 10).map((x) => (
+                          <li key={x.id}>
+                            <b>{x.title}</b>
+                            <span className="muted"> • {x.status || "—"} • {x.priority || "—"}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <div className="related-empty">No tickets.</div>
+                    )}
+                  </div>
+                )}
+
+                {!canViewRelatedContacts && !canViewRelatedDeals && !canViewRelatedTickets && (
+                  <div className="related-empty">No related sections are enabled for your role.</div>
                 )}
               </div>
             </div>
-          </div>
+          )}
+
+          {!canViewInfoCard && !canViewRelatedCard && (
+            <div className="pim-detail-card">
+              <div className="pim-card-content">
+                <div className="related-empty">You don’t have permission to view customer detail sections.</div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -586,7 +649,107 @@ function DetailsView(props: {
 // Main Page
 // -----------------------------
 export default function Customers({ permissions }: PageProps) {
+  const {
+    can: rbacCan,
+    canOption,
+    hasOptionToggle,
+    isAdminGroup,
+    loading: permissionsLoading,
+  } = usePermissions();
+
   if (!permissions.canRead) {
+    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+  }
+
+  // ✅ Same concept as PermissionGate (option-level + explicit toggle override + policy fallback)
+  const allowCustomersOption = (optionId: string, fallback = true): boolean => {
+    const o = String(optionId ?? "").toLowerCase().trim();
+
+    // While permissions are still loading, fall back to page policy prop to avoid false-negative flicker
+    if (permissionsLoading) {
+      if (
+        o === "customers_list" ||
+        o === "customers_search" ||
+        o === "customers_refresh" ||
+        o === "customers_actions" ||
+        o === "customers_viewdetails" ||
+        o === "customers_details_info" ||
+        o === "customers_details_related" ||
+        o === "customers_related_contacts" ||
+        o === "customers_related_deals" ||
+        o === "customers_related_tickets"
+      ) {
+        return Boolean(permissions.canRead);
+      }
+      if (o === "customers_add" || o === "customers_create") {
+        return Boolean(permissions.canCreate || permissions.canUpdate);
+      }
+      if (o === "customers_edit" || o === "customers_update") {
+        return Boolean(permissions.canUpdate);
+      }
+      if (o === "customers_delete" || o === "customers_remove") {
+        return Boolean(permissions.canDelete);
+      }
+      return fallback;
+    }
+
+    if (isAdminGroup) return true;
+
+    // 1) option-level (includes module enabled gate)
+    const optionAllowed = canOption("customers", optionId, fallback);
+    if (!optionAllowed) return false;
+
+    // 2) explicit toggle row => authoritative
+    if (hasOptionToggle("customers", optionId)) return true;
+
+    // 3) fallback to policy-level CRUD
+    const p = rbacCan("CUSTOMERS");
+
+    if (
+      o === "customers_list" ||
+      o === "customers_search" ||
+      o === "customers_refresh" ||
+      o === "customers_actions" ||
+      o === "customers_viewdetails" ||
+      o === "customers_details_info" ||
+      o === "customers_details_related" ||
+      o === "customers_related_contacts" ||
+      o === "customers_related_deals" ||
+      o === "customers_related_tickets"
+    ) {
+      return Boolean(p.canRead);
+    }
+
+    if (o === "customers_add" || o === "customers_create") {
+      return Boolean(p.canCreate || p.canUpdate); // compat fallback
+    }
+
+    if (o === "customers_edit" || o === "customers_update") {
+      return Boolean(p.canUpdate);
+    }
+
+    if (o === "customers_delete" || o === "customers_remove") {
+      return Boolean(p.canDelete);
+    }
+
+    return fallback;
+  };
+
+  const canCustomersList = allowCustomersOption("customers_list");
+  const canCustomersSearch = allowCustomersOption("customers_search");
+  const canCustomersRefresh = allowCustomersOption("customers_refresh");
+  const canCustomersAdd = allowCustomersOption("customers_add");
+  const canCustomersActions = allowCustomersOption("customers_actions");
+  const canCustomersViewDetails = allowCustomersOption("customers_viewdetails");
+  const canCustomersEdit = allowCustomersOption("customers_edit");
+  const canCustomersDelete = allowCustomersOption("customers_delete");
+  const canCustomersDetailsInfo = allowCustomersOption("customers_details_info");
+  const canCustomersDetailsRelated = allowCustomersOption("customers_details_related");
+  const canCustomersRelatedContacts = allowCustomersOption("customers_related_contacts");
+  const canCustomersRelatedDeals = allowCustomersOption("customers_related_deals");
+  const canCustomersRelatedTickets = allowCustomersOption("customers_related_tickets");
+
+  if (!canCustomersList) {
     return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
   }
 
@@ -670,6 +833,8 @@ export default function Customers({ permissions }: PageProps) {
   }, []);
 
   const load = useCallback(async () => {
+    if (!canCustomersList) return;
+
     setLoading(true);
     try {
       const [cRes, contactRes, dealRes, ticketRes] = await Promise.all([
@@ -693,7 +858,7 @@ export default function Customers({ permissions }: PageProps) {
     } finally {
       setLoading(false);
     }
-  }, [computeCounts, showAlert]);
+  }, [canCustomersList, computeCounts, showAlert]);
 
   useEffect(() => {
     void load();
@@ -721,7 +886,10 @@ export default function Customers({ permissions }: PageProps) {
     return results;
   }, []);
 
-  const searchResults = useMemo(() => performSmartSearch(searchQuery, customers), [searchQuery, customers, performSmartSearch]);
+  const searchResults = useMemo(
+    () => (canCustomersSearch ? performSmartSearch(searchQuery, customers) : customers),
+    [canCustomersSearch, searchQuery, customers, performSmartSearch]
+  );
 
   const totalPages = Math.ceil(searchResults.length / pageSize) || 1;
   const paginatedData = searchResults.slice((currentPage - 1) * pageSize, currentPage * pageSize);
@@ -733,13 +901,13 @@ export default function Customers({ permissions }: PageProps) {
   };
 
   const openAddModal = () => {
-    if (!permissions.canCreate) return;
+    if (!canCustomersAdd) return;
     resetForm();
     setShowAddCustomerModal(true);
   };
 
   const openEditModal = (id: string) => {
-    if (!permissions.canUpdate) return;
+    if (!canCustomersEdit) return;
     const c = customers.find((x) => x.id === id);
     if (!c) return;
 
@@ -757,20 +925,34 @@ export default function Customers({ permissions }: PageProps) {
   };
 
   const openDeleteConfirm = (id: string) => {
-    if (!permissions.canDelete) return;
+    if (!canCustomersDelete) return;
     setDeleteCustomerId(id);
   };
 
   const openDetailsView = async (id: string) => {
-    if (!permissions.canRead) return;
+    if (!canCustomersViewDetails) return;
 
     setSelectedCustomerId(id);
     setViewMode("details");
+
+    // only load relations if at least one related section is enabled
+    const shouldLoadRelations =
+      canCustomersDetailsRelated &&
+      (canCustomersRelatedContacts || canCustomersRelatedDeals || canCustomersRelatedTickets);
+
+    if (!shouldLoadRelations) {
+      setLoadingRelations(false);
+      setContacts([]);
+      setDeals([]);
+      setTickets([]);
+      return;
+    }
 
     setLoadingRelations(true);
     setContacts([]);
     setDeals([]);
     setTickets([]);
+
     try {
       const [contactRes, dealRes, ticketRes] = await Promise.all([
         client.models.Contact.list({ filter: { customerId: { eq: id } }, limit: 2000 }),
@@ -803,7 +985,7 @@ export default function Customers({ permissions }: PageProps) {
   };
 
   const handleAddCustomer = async () => {
-    if (!permissions.canCreate) return;
+    if (!canCustomersAdd) return;
     if (saving) return;
     if (!validate()) return;
 
@@ -842,7 +1024,7 @@ export default function Customers({ permissions }: PageProps) {
   };
 
   const handleSaveCustomer = async () => {
-    if (!permissions.canUpdate) return;
+    if (!canCustomersEdit) return;
     if (saving) return;
     if (!editingCustomerId) return;
     if (!validate()) return;
@@ -889,7 +1071,7 @@ export default function Customers({ permissions }: PageProps) {
   };
 
   const handleConfirmDelete = async () => {
-    if (!permissions.canDelete) return;
+    if (!canCustomersDelete) return;
     if (saving) return;
     if (!deleteCustomerId) return;
 
@@ -932,7 +1114,12 @@ export default function Customers({ permissions }: PageProps) {
           loadingRelations={loadingRelations}
           onClose={closeDetailsView}
           onEdit={openEditModal}
-          canUpdate={permissions.canUpdate}
+          canUpdate={canCustomersEdit}
+          canViewInfoCard={canCustomersDetailsInfo}
+          canViewRelatedCard={canCustomersDetailsRelated}
+          canViewRelatedContacts={canCustomersRelatedContacts}
+          canViewRelatedDeals={canCustomersRelatedDeals}
+          canViewRelatedTickets={canCustomersRelatedTickets}
         />
 
         <Modal
@@ -943,7 +1130,7 @@ export default function Customers({ permissions }: PageProps) {
           onSave={handleSaveCustomer}
           isEdit
           saving={saving}
-          saveDisabled={!permissions.canUpdate}
+          saveDisabled={!canCustomersEdit}
           saveLabel="Save Changes"
         >
           <form className="modal-form" onSubmit={(e) => e.preventDefault()}>
@@ -955,7 +1142,7 @@ export default function Customers({ permissions }: PageProps) {
               onChange={(v) => setFormData((p) => ({ ...p, name: v }))}
               error={formErrors.name}
               required
-              disabled={!permissions.canUpdate}
+              disabled={!canCustomersEdit}
             />
             <FormField
               label="Last Name"
@@ -965,7 +1152,7 @@ export default function Customers({ permissions }: PageProps) {
               onChange={(v) => setFormData((p) => ({ ...p, lastname: v }))}
               error={formErrors.lastname}
               required
-              disabled={!permissions.canUpdate}
+              disabled={!canCustomersEdit}
             />
             <FormField
               label="Mobile Number"
@@ -974,7 +1161,7 @@ export default function Customers({ permissions }: PageProps) {
               placeholder="Enter mobile number"
               value={formData.phone}
               onChange={(v) => setFormData((p) => ({ ...p, phone: v }))}
-              disabled={!permissions.canUpdate}
+              disabled={!canCustomersEdit}
             />
             <FormField
               label="Email Address"
@@ -983,7 +1170,7 @@ export default function Customers({ permissions }: PageProps) {
               placeholder="Enter email address"
               value={formData.email}
               onChange={(v) => setFormData((p) => ({ ...p, email: v }))}
-              disabled={!permissions.canUpdate}
+              disabled={!canCustomersEdit}
             />
             <FormField
               label="Company"
@@ -991,7 +1178,7 @@ export default function Customers({ permissions }: PageProps) {
               placeholder="Enter company name"
               value={formData.company}
               onChange={(v) => setFormData((p) => ({ ...p, company: v }))}
-              disabled={!permissions.canUpdate}
+              disabled={!canCustomersEdit}
             />
             <FormField
               label="Notes"
@@ -1000,7 +1187,7 @@ export default function Customers({ permissions }: PageProps) {
               placeholder="Enter notes"
               value={formData.notes}
               onChange={(v) => setFormData((p) => ({ ...p, notes: v }))}
-              disabled={!permissions.canUpdate}
+              disabled={!canCustomersEdit}
             />
           </form>
         </Modal>
@@ -1027,28 +1214,44 @@ export default function Customers({ permissions }: PageProps) {
           </h1>
         </div>
         <div className="header-right">
-          <button className="btn-refresh" onClick={() => void load()} disabled={loading}>
-            <i className="fas fa-sync" /> {loading ? "Loading..." : "Refresh"}
-          </button>
+          {canCustomersRefresh && (
+            <button className="btn-refresh" onClick={() => void load()} disabled={loading}>
+              <i className="fas fa-sync" /> {loading ? "Loading..." : "Refresh"}
+            </button>
+          )}
         </div>
       </header>
 
       <main className="main-content">
         <section className="search-section">
-          <div className="search-container">
-            <i className="fas fa-search search-icon" />
-            <input
-              type="text"
-              className="smart-search-input"
-              placeholder="Search by any customer details"
-              value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-                setCurrentPage(1);
-              }}
-              autoComplete="off"
-            />
-          </div>
+          {canCustomersSearch ? (
+            <div className="search-container">
+              <i className="fas fa-search search-icon" />
+              <input
+                type="text"
+                className="smart-search-input"
+                placeholder="Search by any customer details"
+                value={searchQuery}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
+                autoComplete="off"
+              />
+            </div>
+          ) : (
+            <div className="search-container" style={{ opacity: 0.8 }}>
+              <i className="fas fa-lock search-icon" />
+              <input
+                type="text"
+                className="smart-search-input"
+                placeholder="Search is disabled for your role"
+                value=""
+                disabled
+                readOnly
+              />
+            </div>
+          )}
 
           <div className="search-stats">
             {loading ? (
@@ -1059,7 +1262,9 @@ export default function Customers({ permissions }: PageProps) {
               <>
                 Showing {Math.min((currentPage - 1) * pageSize + 1, searchResults.length)}-
                 {Math.min(currentPage * pageSize, searchResults.length)} of {searchResults.length} customers
-                {searchQuery && <span style={{ color: "var(--secondary-color)" }}> (Filtered by: "{searchQuery}")</span>}
+                {canCustomersSearch && searchQuery && (
+                  <span style={{ color: "var(--secondary-color)" }}> (Filtered by: "{searchQuery}")</span>
+                )}
               </>
             )}
           </div>
@@ -1089,7 +1294,7 @@ export default function Customers({ permissions }: PageProps) {
                 </select>
               </div>
 
-              {permissions.canCreate && (
+              {canCustomersAdd && (
                 <button className="btn-new-customer" onClick={openAddModal} type="button">
                   <i className="fas fa-plus-circle" /> Add New Customer
                 </button>
@@ -1103,9 +1308,11 @@ export default function Customers({ permissions }: PageProps) {
             onViewDetails={openDetailsView}
             onEdit={openEditModal}
             onDelete={openDeleteConfirm}
-            searchQuery={searchQuery}
-            canUpdate={permissions.canUpdate}
-            canDelete={permissions.canDelete}
+            searchQuery={canCustomersSearch ? searchQuery : ""}
+            canViewDetails={canCustomersViewDetails}
+            canUpdate={canCustomersEdit}
+            canDelete={canCustomersDelete}
+            canShowActions={canCustomersActions}
           />
 
           {totalPages > 1 && (
@@ -1165,7 +1372,7 @@ export default function Customers({ permissions }: PageProps) {
         onClose={() => setShowAddCustomerModal(false)}
         onSave={handleAddCustomer}
         saving={saving}
-        saveDisabled={!permissions.canCreate}
+        saveDisabled={!canCustomersAdd}
         saveLabel="Add Customer"
       >
         <form className="modal-form" onSubmit={(e) => e.preventDefault()}>
@@ -1177,7 +1384,7 @@ export default function Customers({ permissions }: PageProps) {
             onChange={(v) => setFormData((p) => ({ ...p, name: v }))}
             error={formErrors.name}
             required
-            disabled={!permissions.canCreate}
+            disabled={!canCustomersAdd}
           />
           <FormField
             label="Last Name"
@@ -1187,7 +1394,7 @@ export default function Customers({ permissions }: PageProps) {
             onChange={(v) => setFormData((p) => ({ ...p, lastname: v }))}
             error={formErrors.lastname}
             required
-            disabled={!permissions.canCreate}
+            disabled={!canCustomersAdd}
           />
           <FormField
             label="Mobile Number"
@@ -1196,7 +1403,7 @@ export default function Customers({ permissions }: PageProps) {
             placeholder="Enter mobile number"
             value={formData.phone}
             onChange={(v) => setFormData((p) => ({ ...p, phone: v }))}
-            disabled={!permissions.canCreate}
+            disabled={!canCustomersAdd}
           />
           <FormField
             label="Email Address"
@@ -1205,7 +1412,7 @@ export default function Customers({ permissions }: PageProps) {
             placeholder="Enter email address"
             value={formData.email}
             onChange={(v) => setFormData((p) => ({ ...p, email: v }))}
-            disabled={!permissions.canCreate}
+            disabled={!canCustomersAdd}
           />
           <FormField
             label="Company"
@@ -1213,7 +1420,7 @@ export default function Customers({ permissions }: PageProps) {
             placeholder="Enter company name"
             value={formData.company}
             onChange={(v) => setFormData((p) => ({ ...p, company: v }))}
-            disabled={!permissions.canCreate}
+            disabled={!canCustomersAdd}
           />
           <FormField
             label="Notes"
@@ -1222,7 +1429,7 @@ export default function Customers({ permissions }: PageProps) {
             placeholder="Enter notes"
             value={formData.notes}
             onChange={(v) => setFormData((p) => ({ ...p, notes: v }))}
-            disabled={!permissions.canCreate}
+            disabled={!canCustomersAdd}
           />
         </form>
       </Modal>
@@ -1235,7 +1442,7 @@ export default function Customers({ permissions }: PageProps) {
         onSave={handleSaveCustomer}
         isEdit
         saving={saving}
-        saveDisabled={!permissions.canUpdate}
+        saveDisabled={!canCustomersEdit}
         saveLabel="Save Changes"
       >
         <form className="modal-form" onSubmit={(e) => e.preventDefault()}>
@@ -1247,7 +1454,7 @@ export default function Customers({ permissions }: PageProps) {
             onChange={(v) => setFormData((p) => ({ ...p, name: v }))}
             error={formErrors.name}
             required
-            disabled={!permissions.canUpdate}
+            disabled={!canCustomersEdit}
           />
           <FormField
             label="Last Name"
@@ -1257,7 +1464,7 @@ export default function Customers({ permissions }: PageProps) {
             onChange={(v) => setFormData((p) => ({ ...p, lastname: v }))}
             error={formErrors.lastname}
             required
-            disabled={!permissions.canUpdate}
+            disabled={!canCustomersEdit}
           />
           <FormField
             label="Mobile Number"
@@ -1266,7 +1473,7 @@ export default function Customers({ permissions }: PageProps) {
             placeholder="Enter mobile number"
             value={formData.phone}
             onChange={(v) => setFormData((p) => ({ ...p, phone: v }))}
-            disabled={!permissions.canUpdate}
+            disabled={!canCustomersEdit}
           />
           <FormField
             label="Email Address"
@@ -1275,7 +1482,7 @@ export default function Customers({ permissions }: PageProps) {
             placeholder="Enter email address"
             value={formData.email}
             onChange={(v) => setFormData((p) => ({ ...p, email: v }))}
-            disabled={!permissions.canUpdate}
+            disabled={!canCustomersEdit}
           />
           <FormField
             label="Company"
@@ -1283,7 +1490,7 @@ export default function Customers({ permissions }: PageProps) {
             placeholder="Enter company name"
             value={formData.company}
             onChange={(v) => setFormData((p) => ({ ...p, company: v }))}
-            disabled={!permissions.canUpdate}
+            disabled={!canCustomersEdit}
           />
           <FormField
             label="Notes"
@@ -1292,12 +1499,12 @@ export default function Customers({ permissions }: PageProps) {
             placeholder="Enter notes"
             value={formData.notes}
             onChange={(v) => setFormData((p) => ({ ...p, notes: v }))}
-            disabled={!permissions.canUpdate}
+            disabled={!canCustomersEdit}
           />
         </form>
       </Modal>
 
-      {deleteCustomerId && (
+      {deleteCustomerId && canCustomersDelete && (
         <div className="delete-modal-overlay" onClick={() => setDeleteCustomerId(null)}>
           <div className="delete-modal" onClick={(e) => e.stopPropagation()}>
             <div className="delete-modal-header">

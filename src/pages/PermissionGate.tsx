@@ -14,16 +14,50 @@ type PermOp = keyof Permission;
 type ResolvedRule = {
   policyKey: string;
   op: PermOp;
-  fallbackOps?: PermOp[]; // compatibility fallback(s)
+  fallbackOps?: PermOp[];
 };
 
-function resolvePolicyAndOp(moduleId: string, optionId: string): ResolvedRule | null {
+// ✅ exported so pages can reuse the same mapping logic if needed
+export function resolvePolicyAndOp(moduleId: string, optionId: string): ResolvedRule | null {
   const m = String(moduleId ?? "").toLowerCase().trim();
   const o = String(optionId ?? "").toLowerCase().trim();
 
-  // ---------------------------------------------------------------------------
-  // JOB ORDERS (JOB_CARDS policy family)
-  // ---------------------------------------------------------------------------
+  // -----------------------------
+  // CUSTOMERS
+  // -----------------------------
+  if (m === "customers" || m === "customer" || m === "customermanagement") {
+    if (
+      o === "customers_list" ||
+      o === "customers_search" ||
+      o === "customers_refresh" ||
+      o === "customers_actions" ||
+      o === "customers_viewdetails" ||
+      o === "customers_details_info" ||
+      o === "customers_details_related" ||
+      o === "customers_related_contacts" ||
+      o === "customers_related_deals" ||
+      o === "customers_related_tickets"
+    ) {
+      return { policyKey: "CUSTOMERS", op: "canRead" };
+    }
+
+    if (o === "customers_add" || o === "customers_create") {
+      // legacy compatibility: some old roles may only have update on this module
+      return { policyKey: "CUSTOMERS", op: "canCreate", fallbackOps: ["canUpdate"] };
+    }
+
+    if (o === "customers_edit" || o === "customers_update") {
+      return { policyKey: "CUSTOMERS", op: "canUpdate" };
+    }
+
+    if (o === "customers_delete" || o === "customers_remove") {
+      return { policyKey: "CUSTOMERS", op: "canDelete" };
+    }
+
+    return null;
+  }
+
+  // JOB ORDERS
   if (m === "joborder" || m === "joborders") {
     if (
       o === "joborder_viewdetails" ||
@@ -39,10 +73,6 @@ function resolvePolicyAndOp(moduleId: string, optionId: string): ResolvedRule | 
       return { policyKey: "JOB_CARDS", op: "canRead" };
     }
 
-    // ✅ Important compatibility:
-    // Some roles are configured with canUpdate=true but canCreate=false for JOB_CARDS.
-    // "New Job Order" is a create action, but to avoid hiding the button for legacy roles,
-    // we allow canCreate OR canUpdate (option toggle still must be enabled).
     if (o === "joborder_add" || o === "joborder_create") {
       return { policyKey: "JOB_CARDS", op: "canCreate", fallbackOps: ["canUpdate"] };
     }
@@ -53,13 +83,10 @@ function resolvePolicyAndOp(moduleId: string, optionId: string): ResolvedRule | 
     if (o === "joborder_servicediscount") return { policyKey: "JOB_CARDS", op: "canUpdate" };
     if (o === "joborder_servicediscount_percent") return { policyKey: "JOB_CARDS", op: "canUpdate" };
     if (o === "joborder_discount_percent") return { policyKey: "JOB_CARDS", op: "canUpdate" };
-
     return null;
   }
 
-  // ---------------------------------------------------------------------------
   // QUALITY CHECK
-  // ---------------------------------------------------------------------------
   if (m === "qualitycheck" || m === "qc") {
     if (
       o === "qualitycheck_list" ||
@@ -93,9 +120,7 @@ function resolvePolicyAndOp(moduleId: string, optionId: string): ResolvedRule | 
     return null;
   }
 
-  // ---------------------------------------------------------------------------
   // EXIT PERMIT
-  // ---------------------------------------------------------------------------
   if (m === "exitpermit" || m === "exitpermitmanagement") {
     if (
       o === "exitpermit_list" ||
@@ -117,7 +142,6 @@ function resolvePolicyAndOp(moduleId: string, optionId: string): ResolvedRule | 
       return { policyKey: "JOB_CARDS", op: "canRead" };
     }
 
-    // keep as update (your existing logic)
     if (o === "exitpermit_create" || o === "exitpermit_cancelorder") {
       return { policyKey: "JOB_CARDS", op: "canUpdate" };
     }
@@ -125,9 +149,7 @@ function resolvePolicyAndOp(moduleId: string, optionId: string): ResolvedRule | 
     return null;
   }
 
-  // ---------------------------------------------------------------------------
   // PAYMENT
-  // ---------------------------------------------------------------------------
   if (m === "payment" || m === "paymentinvoice" || m === "paymentinvoices") {
     if (
       o === "payment_list" ||
@@ -166,9 +188,7 @@ function resolvePolicyAndOp(moduleId: string, optionId: string): ResolvedRule | 
     return null;
   }
 
-  // ---------------------------------------------------------------------------
   // SERVICE EXECUTION
-  // ---------------------------------------------------------------------------
   if (m === "serviceexec" || m === "serviceexecution") {
     if (
       o === "serviceexec_list" ||
@@ -202,9 +222,7 @@ function resolvePolicyAndOp(moduleId: string, optionId: string): ResolvedRule | 
     return null;
   }
 
-  // ---------------------------------------------------------------------------
   // JOB HISTORY
-  // ---------------------------------------------------------------------------
   if (m === "jobhistory" || m === "joborderhistory") {
     if (
       o === "jobhistory_list" ||
@@ -229,9 +247,7 @@ function resolvePolicyAndOp(moduleId: string, optionId: string): ResolvedRule | 
     return null;
   }
 
-  // ---------------------------------------------------------------------------
   // INSPECTION
-  // ---------------------------------------------------------------------------
   if (m === "inspection" || m === "inspectionmodule") {
     if (
       o === "inspection_list" ||
@@ -267,7 +283,6 @@ function resolvePolicyAndOp(moduleId: string, optionId: string): ResolvedRule | 
     }
 
     if (o === "inspection_serviceprice") return { policyKey: "JOB_CARDS", op: "canRead" };
-
     return null;
   }
 
@@ -280,33 +295,39 @@ export default function PermissionGate({
   children,
   fallback = null,
 }: Props) {
-  const { can, canOption, loading, isAdminGroup } = usePermissions();
+  const {
+    can,
+    canOption,
+    hasOptionToggle,
+    loading,
+    isAdminGroup,
+  } = usePermissions();
 
-  const rule = useMemo(
-    () => resolvePolicyAndOp(moduleId, optionId),
-    [moduleId, optionId]
-  );
+  const rule = useMemo(() => resolvePolicyAndOp(moduleId, optionId), [moduleId, optionId]);
 
   if (loading) return null;
   if (isAdminGroup) return <>{children}</>;
 
-  // ✅ 1) Option-level toggle check (including module enabled/disabled)
+  // 1) Option-level check (includes module enabled gate)
   const optionAllowed = canOption(moduleId, optionId, true);
   if (!optionAllowed) return <>{fallback}</>;
 
-  // ✅ 2) If no policy mapping exists, option-level is enough
+  // If this exact option is explicitly configured in RoleOptionToggle,
+  // option-level RBAC becomes authoritative for visibility.
+  const optionIsExplicitlyConfigured = hasOptionToggle(moduleId, optionId);
+  if (optionIsExplicitlyConfigured) {
+    return <>{children}</>;
+  }
+
+  // 2) No policy mapping? option-level is enough.
   if (!rule) return <>{children}</>;
 
-  // ✅ 3) Policy-level CRUD check
+  // 3) Legacy fallback to policy-level CRUD
   const perm = can(rule.policyKey);
-
   const primaryAllowed = Boolean(perm?.[rule.op]);
-
   const compatAllowed =
-    !primaryAllowed &&
-    (rule.fallbackOps?.some((op) => Boolean(perm?.[op])) ?? false);
+    !primaryAllowed && (rule.fallbackOps?.some((op) => Boolean(perm?.[op])) ?? false);
 
   const allowed = primaryAllowed || compatAllowed;
-
   return <>{allowed ? children : fallback}</>;
 }
