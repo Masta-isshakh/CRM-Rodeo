@@ -1,3 +1,4 @@
+// src/pages/RoleAccessControl.tsx
 import { useEffect, useMemo, useState } from "react";
 import SuccessPopup from "./SuccessPopup";
 import "./RoleAccessControl.css";
@@ -28,12 +29,62 @@ async function listAll<T>(
   return out.slice(0, max);
 }
 
-/* =========================
-   ✅ YOUR MODULE DEFINITIONS
-   (keep your huge MODULE_DEFINITIONS as-is)
-========================= */
-
+/**
+ * ✅ Add *_list options for ANY sidebar page you want to hide/show.
+ * Your PermissionGate optionIds already exist for JobOrder/Payment/etc.
+ */
 const MODULE_DEFINITIONS = [
+  {
+    id: "dashboard",
+    title: "Dashboard",
+    icon: "fas fa-gauge-high",
+    category: "core",
+    options: [{ id: "dashboard_list", label: "Show Dashboard in sidebar", prefix: "-" }],
+  },
+  {
+    id: "customers",
+    title: "Customers",
+    icon: "fas fa-users",
+    category: "core",
+    options: [{ id: "customers_list", label: "Show Customers in sidebar", prefix: "-" }],
+  },
+  {
+    id: "vehicles",
+    title: "Vehicles",
+    icon: "fas fa-car",
+    category: "core",
+    options: [{ id: "vehicles_list", label: "Show Vehicles in sidebar", prefix: "-" }],
+  },
+  {
+    id: "tickets",
+    title: "Tickets",
+    icon: "fas fa-ticket",
+    category: "core",
+    options: [{ id: "tickets_list", label: "Show Tickets in sidebar", prefix: "-" }],
+  },
+  {
+    id: "employees",
+    title: "Employees",
+    icon: "fas fa-id-badge",
+    category: "core",
+    options: [{ id: "employees_list", label: "Show Employees in sidebar", prefix: "-" }],
+  },
+  {
+    id: "activitylog",
+    title: "Activity Log",
+    icon: "fas fa-clipboard",
+    category: "core",
+    options: [{ id: "activitylog_list", label: "Show Activity Log in sidebar", prefix: "-" }],
+  },
+  {
+    id: "calltracking",
+    title: "Call Tracking",
+    icon: "fas fa-phone",
+    category: "core",
+    options: [{ id: "calltracking_list", label: "Show Call Tracking in sidebar", prefix: "-" }],
+  },
+
+  // ✅ Job Order page (your JOB_CARDS family)
   {
     id: "joborder",
     title: "Job Order Management",
@@ -52,6 +103,7 @@ const MODULE_DEFINITIONS = [
       { id: "joborder_addservice", label: "Add Service Button", prefix: "-" },
       { id: "joborder_serviceprice", label: "View Service Price", prefix: "-" },
       { id: "joborder_servicediscount", label: "Service Discount", prefix: "-" },
+
       {
         kind: "percent",
         id: "joborder_servicediscount_percent",
@@ -66,7 +118,68 @@ const MODULE_DEFINITIONS = [
         prefix: "-",
         defaultValue: 20,
       },
+
       { id: "joborder_cancel", label: "Cancel Order", prefix: "-" },
+    ],
+  },
+
+  {
+    id: "jobhistory",
+    title: "Job History",
+    icon: "fas fa-clock-rotate-left",
+    category: "core",
+    options: [{ id: "jobhistory_list", label: "Show Job History page in sidebar", prefix: "-" }],
+  },
+
+  {
+    id: "serviceexec",
+    title: "Service Execution",
+    icon: "fas fa-screwdriver-wrench",
+    category: "core",
+    options: [{ id: "serviceexec_list", label: "Show Service Execution page in sidebar", prefix: "-" }],
+  },
+
+  {
+    id: "inspection",
+    title: "Inspection",
+    icon: "fas fa-magnifying-glass",
+    category: "core",
+    options: [{ id: "inspection_list", label: "Show Inspection page in sidebar", prefix: "-" }],
+  },
+
+  {
+    id: "payment",
+    title: "Payment & Invoices",
+    icon: "fas fa-file-invoice-dollar",
+    category: "financial",
+    options: [
+      { id: "payment_list", label: "Show Payment & Invoices page in sidebar", prefix: "-" },
+
+      { id: "payment_actions", label: "Actions Dropdown", prefix: "a." },
+      { id: "payment_viewdetails", label: "View Details", prefix: "b." },
+      { id: "payment_pay", label: "Record Payment Button", prefix: "c." },
+      { id: "payment_discountfield", label: "Discount Field", prefix: "-" },
+      { id: "payment_generatebill", label: "Generate Bill", prefix: "-" },
+      { id: "payment_refund", label: "Refund", prefix: "-" },
+      { id: "payment_cancel", label: "Cancel Order", prefix: "-" },
+
+      { id: "payment_customer", label: "Customer Card", prefix: "-" },
+      { id: "payment_vehicle", label: "Vehicle Card", prefix: "-" },
+      { id: "payment_services", label: "Service Approvals", prefix: "-" },
+      { id: "payment_billing", label: "Billing Section", prefix: "-" },
+      { id: "payment_invoices", label: "Invoices Section", prefix: "-" },
+      { id: "payment_paymentlog", label: "Payment Log", prefix: "-" },
+      { id: "payment_documents", label: "Documents Section", prefix: "-" },
+      { id: "payment_download", label: "Download Button", prefix: "-" },
+
+      // optional numeric limit (if you enforce in UI): max discount percent of total
+      {
+        kind: "percent",
+        id: "payment_max_discount_percent",
+        label: "Max Discount % (Payment)",
+        prefix: "-",
+        defaultValue: 100,
+      },
     ],
   },
 
@@ -101,10 +214,6 @@ const MODULE_DEFINITIONS = [
   },
 ] as const;
 
-/* =========================
-   Helpers
-========================= */
-
 type PermissionsState = Record<
   string,
   {
@@ -125,14 +234,12 @@ const buildDefaultPermissions = (): PermissionsState => {
   return base;
 };
 
-// ✅ IMPORTANT: store percent defaults by FULL KEY (MODULE::OPTION)
+// ✅ percent defaults by FULL KEY
 const buildPercentDefaults = (): Record<string, number> => {
   const out: Record<string, number> = {};
   for (const mod of MODULE_DEFINITIONS as any) {
     for (const opt of mod.options ?? []) {
-      if (opt.kind === "percent") {
-        out[optKey(mod.id, opt.id)] = Number(opt.defaultValue ?? 0);
-      }
+      if (opt.kind === "percent") out[optKey(mod.id, opt.id)] = Number(opt.defaultValue ?? 0);
     }
   }
   return out;
@@ -157,15 +264,13 @@ const OptionNode = ({
 }: any) => {
   const isPercent = option.kind === "percent";
 
-  const parentOn = parentEnabled !== false; // default true
+  const parentOn = parentEnabled !== false;
   const storedToggle = Boolean(permissions?.[moduleId]?.options?.[option.id]);
 
-  // ✅ effective enabled state for styling
   const effectiveEnabled = isPercent
     ? moduleEnabled && parentOn
     : moduleEnabled && parentOn && storedToggle;
 
-  // ✅ disable checkbox/field if module or parent is off
   const disabled = !moduleEnabled || !parentOn;
 
   const percentKey = optKey(moduleId, option.id);
@@ -230,7 +335,6 @@ const OptionNode = ({
 
 export default function RoleAccessControl() {
   const client = useMemo(() => getDataClient(), []);
-
   const [loading, setLoading] = useState(false);
 
   const [roles, setRoles] = useState<any[]>([]);
@@ -246,23 +350,31 @@ export default function RoleAccessControl() {
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
-  const showSuccessMessage = (msg: string) => {
+  // ✅ Create Role UI
+  const [showCreateRole, setShowCreateRole] = useState(false);
+  const [newRoleName, setNewRoleName] = useState("");
+  const [newRoleDesc, setNewRoleDesc] = useState("");
+
+  const showMsg = (msg: string) => {
     setSuccessMessage(msg);
     setShowSuccessPopup(true);
   };
 
-  // Load roles
+  const loadRoles = async () => {
+    const res = await client.models.AppRole.list({ limit: 1000 });
+    const list = res.data ?? [];
+    setRoles(list);
+    if (!currentRoleId && list.length) setCurrentRoleId(String(list[0].id));
+  };
+
   useEffect(() => {
     (async () => {
       setLoading(true);
       try {
-        const res = await client.models.AppRole.list({ limit: 1000 });
-        const list = res.data ?? [];
-        setRoles(list);
-
-        if (!currentRoleId && list.length) {
-          setCurrentRoleId(String(list[0].id));
-        }
+        await loadRoles();
+      } catch (e: any) {
+        console.error(e);
+        showMsg(`Failed to load roles: ${e?.message ?? "Unknown error"}`);
       } finally {
         setLoading(false);
       }
@@ -277,7 +389,6 @@ export default function RoleAccessControl() {
     (async () => {
       setLoading(true);
       try {
-        // ✅ prefer index queryField if exists
         const [toggles, nums] = await Promise.all([
           (async () => {
             try {
@@ -338,11 +449,9 @@ export default function RoleAccessControl() {
           for (const opt of mod.options ?? []) {
             if (opt.kind === "percent") {
               const k = optKey(mod.id, opt.id);
-              if (numMap.has(k)) {
-                nextPercents[k] = clampPercent(numMap.get(k), Number(opt.defaultValue ?? 0));
-              } else {
-                nextPercents[k] = clampPercent(nextPercents[k], Number(opt.defaultValue ?? 0));
-              }
+              const fallback = Number(opt.defaultValue ?? 0);
+              const stored = numMap.has(k) ? numMap.get(k) : nextPercents[k];
+              nextPercents[k] = clampPercent(stored, fallback);
               continue;
             }
 
@@ -354,6 +463,9 @@ export default function RoleAccessControl() {
         setPermissions(nextPerms);
         setPercentValues(nextPercents);
         setExpandedModules({});
+      } catch (e: any) {
+        console.error(e);
+        showMsg(`Failed to load role settings: ${e?.message ?? "Unknown error"}`);
       } finally {
         setLoading(false);
       }
@@ -421,6 +533,41 @@ export default function RoleAccessControl() {
     }));
   };
 
+  // ✅ Create role (AppRole)
+  const createRole = async () => {
+    const name = String(newRoleName || "").trim();
+    const description = String(newRoleDesc || "").trim();
+
+    if (!name) {
+      showMsg("Role name is required.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const now = new Date().toISOString();
+      await client.models.AppRole.create({
+        name,
+        description: description || undefined,
+        isActive: true,
+        createdAt: now,
+      } as any);
+
+      setShowCreateRole(false);
+      setNewRoleName("");
+      setNewRoleDesc("");
+
+      await loadRoles();
+      showMsg(`Role created: ${name}`);
+    } catch (e: any) {
+      console.error(e);
+      showMsg(`Create role failed: ${e?.message ?? "Unknown error"}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ✅ Save to backend
   const handleSave = async () => {
     if (!currentRoleId) return;
     setLoading(true);
@@ -557,16 +704,16 @@ export default function RoleAccessControl() {
       }
 
       window.dispatchEvent(new Event("rbac:refresh"));
-
-      showSuccessMessage(`Saved option permissions for role: ${selectedRole?.name ?? currentRoleId}`);
+      showMsg(`Saved option permissions for role: ${selectedRole?.name ?? currentRoleId}`);
     } catch (e: any) {
       console.error(e);
-      showSuccessMessage(`Save failed: ${e?.message ?? "Unknown error"}`);
+      showMsg(`Save failed: ${e?.message ?? "Unknown error"}`);
     } finally {
       setLoading(false);
     }
   };
 
+  // ✅ Reset: delete all role option rows
   const handleReset = async () => {
     if (!currentRoleId) return;
     const ok = window.confirm("Reset option permissions for this role (delete stored settings)?");
@@ -607,10 +754,10 @@ export default function RoleAccessControl() {
       setExpandedModules({});
 
       window.dispatchEvent(new Event("rbac:refresh"));
-      showSuccessMessage("Option permissions reset to defaults (backend rows removed).");
+      showMsg("Option permissions reset to defaults (backend rows removed).");
     } catch (e: any) {
       console.error(e);
-      showSuccessMessage(`Reset failed: ${e?.message ?? "Unknown error"}`);
+      showMsg(`Reset failed: ${e?.message ?? "Unknown error"}`);
     } finally {
       setLoading(false);
     }
@@ -628,23 +775,36 @@ export default function RoleAccessControl() {
 
         <section className="rac-role-section">
           <div className="rac-role-selector">
-            <label htmlFor="rac-role-select">Select Role to Modify:</label>
-            <select
-              id="rac-role-select"
-              value={currentRoleId}
-              onChange={(e) => setCurrentRoleId(e.target.value)}
-              disabled={loading}
-            >
-              {roles.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
+            <div>
+              <label htmlFor="rac-role-select">Select Role to Modify:</label>
+              <select
+                id="rac-role-select"
+                value={currentRoleId}
+                onChange={(e) => setCurrentRoleId(e.target.value)}
+                disabled={loading}
+              >
+                {roles.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <div className="rac-current-role">
               <i className="fas fa-user-shield" />
               Currently editing: <span>{selectedRole?.name ?? "—"}</span>
+            </div>
+
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button
+                type="button"
+                className="rac-btn rac-btn-primary"
+                onClick={() => setShowCreateRole(true)}
+                disabled={loading}
+              >
+                <i className="fas fa-plus" /> Create Role
+              </button>
             </div>
           </div>
         </section>
@@ -664,7 +824,6 @@ export default function RoleAccessControl() {
             { id: "all", label: "All Modules" },
             { id: "core", label: "Core Operations" },
             { id: "financial", label: "Financial" },
-            { id: "management", label: "Management" },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -691,6 +850,12 @@ export default function RoleAccessControl() {
                 <div
                   className={`rac-module-header ${isExpanded ? "expanded" : ""}`}
                   onClick={() => handleToggleModule(module.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      handleToggleModule(module.id);
+                    }
+                  }}
                   role="button"
                   tabIndex={0}
                 >
@@ -746,11 +911,109 @@ export default function RoleAccessControl() {
         </section>
       </div>
 
-      <SuccessPopup
-        isVisible={showSuccessPopup}
-        onClose={() => setShowSuccessPopup(false)}
-        message={successMessage}
-      />
+      {/* Create role modal (inline styles so you don't need new CSS) */}
+      {showCreateRole && (
+        <div
+          onClick={() => setShowCreateRole(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(0,0,0,0.55)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+            zIndex: 9999,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "min(520px, 100%)",
+              borderRadius: 16,
+              border: "1px solid rgba(255,255,255,0.15)",
+              background: "rgba(15, 23, 42, 0.95)",
+              boxShadow: "0 18px 50px rgba(0,0,0,0.45)",
+              padding: 16,
+              color: "white",
+            }}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+              <div style={{ fontWeight: 800, fontSize: 16 }}>Create New Role</div>
+              <button
+                type="button"
+                onClick={() => setShowCreateRole(false)}
+                style={{
+                  background: "transparent",
+                  border: "none",
+                  color: "rgba(255,255,255,0.8)",
+                  fontSize: 18,
+                  cursor: "pointer",
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
+              <div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginBottom: 6 }}>Role Name *</div>
+                <input
+                  value={newRoleName}
+                  onChange={(e) => setNewRoleName(e.target.value)}
+                  placeholder="e.g. Cashier"
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    borderRadius: 12,
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    background: "rgba(255,255,255,0.06)",
+                    color: "white",
+                  }}
+                />
+              </div>
+
+              <div>
+                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginBottom: 6 }}>Description</div>
+                <input
+                  value={newRoleDesc}
+                  onChange={(e) => setNewRoleDesc(e.target.value)}
+                  placeholder="Optional"
+                  style={{
+                    width: "100%",
+                    padding: "12px",
+                    borderRadius: 12,
+                    border: "1px solid rgba(255,255,255,0.15)",
+                    background: "rgba(255,255,255,0.06)",
+                    color: "white",
+                  }}
+                />
+              </div>
+
+              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 6 }}>
+                <button
+                  type="button"
+                  className="rac-btn rac-btn-ghost"
+                  onClick={() => setShowCreateRole(false)}
+                  disabled={loading}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  className="rac-btn rac-btn-primary"
+                  onClick={() => void createRole()}
+                  disabled={loading}
+                >
+                  <i className="fas fa-plus" /> {loading ? "Creating..." : "Create Role"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <SuccessPopup isVisible={showSuccessPopup} onClose={() => setShowSuccessPopup(false)} message={successMessage} />
     </div>
   );
 }

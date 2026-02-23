@@ -27,82 +27,75 @@ function resolvePolicyAndOp(
       o === "joborder_billing" ||
       o === "joborder_paymentlog" ||
       o === "joborder_actions" ||
-      o === "joborder_serviceprice"
-    ) return { policyKey: "JOB_CARDS", op: "canRead" };
+      o === "joborder_list"
+    )
+      return { policyKey: "JOB_CARDS", op: "canRead" };
 
     if (o === "joborder_add") return { policyKey: "JOB_CARDS", op: "canCreate" };
+    if (o === "joborder_cancel") return { policyKey: "JOB_CARDS", op: "canUpdate" };
+    if (o === "joborder_addservice") return { policyKey: "JOB_CARDS", op: "canUpdate" };
+    if (o === "joborder_serviceprice") return { policyKey: "JOB_CARDS", op: "canRead" };
+    if (o === "joborder_servicediscount") return { policyKey: "JOB_CARDS", op: "canUpdate" };
+    if (o === "joborder_servicediscount_percent") return { policyKey: "JOB_CARDS", op: "canUpdate" };
+    if (o === "joborder_discount_percent") return { policyKey: "JOB_CARDS", op: "canUpdate" };
+    return null;
+  }
+
+  // QUALITY CHECK
+  if (m === "qualitycheck" || m === "qc") {
+    if (
+      o === "qualitycheck_list" ||
+      o === "qualitycheck_actions" ||
+      o === "qualitycheck_viewdetails" ||
+      o === "qualitycheck_summary" ||
+      o === "qualitycheck_customer" ||
+      o === "qualitycheck_vehicle" ||
+      o === "qualitycheck_services" ||
+      o === "qualitycheck_quality" ||
+      o === "qualitycheck_roadmap" ||
+      o === "qualitycheck_billing" ||
+      o === "qualitycheck_paymentlog" ||
+      o === "qualitycheck_exitpermit" ||
+      o === "qualitycheck_documents" ||
+      o === "qualitycheck_notes" ||
+      o === "qualitycheck_download"
+    )
+      return { policyKey: "JOB_CARDS", op: "canRead" };
 
     if (
-      o === "joborder_cancel" ||
-      o === "joborder_addservice" ||
-      o === "joborder_servicediscount" ||
-      o === "joborder_servicediscount_percent" ||
-      o === "joborder_discount_percent"
-    ) return { policyKey: "JOB_CARDS", op: "canUpdate" };
+      o === "qualitycheck_finish" ||
+      o === "qualitycheck_approve" ||
+      o === "qualitycheck_reject" ||
+      o === "qualitycheck_cancel"
+    )
+      return { policyKey: "JOB_CARDS", op: "canUpdate" };
 
     return null;
   }
 
-  // INSPECTION
-  if (m === "inspection" || m === "inspectionmodule") {
+  // EXIT PERMIT
+  if (m === "exitpermit" || m === "exitpermitmanagement") {
     if (
-      o === "inspection_summary" ||
-      o === "inspection_customer" ||
-      o === "inspection_vehicle" ||
-      o === "inspection_services" ||
-      o === "inspection_billing" ||
-      o === "inspection_paymentlog" ||
-      o === "inspection_documents" ||
-      o === "inspection_exitpermit" ||
-      o === "inspection_roadmap" ||
-      o === "inspection_list" ||
-      o === "inspection_quality" ||
-      o === "inspection_download" ||
-      o === "inspection_viewdetails" ||
-      o === "inspection_actions" ||
-      o === "inspection_serviceprice"
-    ) return { policyKey: "JOB_CARDS", op: "canRead" };
+      o === "exitpermit_list" ||
+      o === "exitpermit_actions" ||
+      o === "exitpermit_viewdetails" ||
+      o === "exitpermit_summary" ||
+      o === "exitpermit_customer" ||
+      o === "exitpermit_vehicle" ||
+      o === "exitpermit_services" ||
+      o === "exitpermit_notes" ||
+      o === "exitpermit_quality" ||
+      o === "exitpermit_billing" ||
+      o === "exitpermit_paymentlog" ||
+      o === "exitpermit_exitpermit" ||
+      o === "exitpermit_documents" ||
+      o === "exitpermit_download" ||
+      o === "exitpermit_roadmap"
+    )
+      return { policyKey: "JOB_CARDS", op: "canRead" };
 
-    if (
-      o === "inspection_start" ||
-      o === "inspection_resume" ||
-      o === "inspection_complete" ||
-      o === "inspection_notrequired" ||
-      o === "inspection_finish" ||
-      o === "inspection_cancel" ||
-      o === "inspection_addservice" ||
-      o === "inspection_servicediscount" ||
-      o === "inspection_discount_percent"
-    ) return { policyKey: "JOB_CARDS", op: "canUpdate" };
-
-    return null;
-  }
-
-  // SERVICE EXECUTION
-  if (m === "serviceexec" || m === "serviceexecution") {
-    if (
-      o === "serviceexec_actions" ||
-      o === "serviceexec_viewdetails" ||
-      o === "serviceexec_summary" ||
-      o === "serviceexec_roadmap" ||
-      o === "serviceexec_customer" ||
-      o === "serviceexec_vehicle" ||
-      o === "serviceexec_services" ||
-      o === "serviceexec_notes" ||
-      o === "serviceexec_quality" ||
-      o === "serviceexec_billing" ||
-      o === "serviceexec_paymentlog" ||
-      o === "serviceexec_exitpermit" ||
-      o === "serviceexec_documents"
-    ) return { policyKey: "JOB_CARDS", op: "canRead" };
-
-    if (
-      o === "serviceexec_edit" ||
-      o === "serviceexec_update" ||
-      o === "serviceexec_finish" ||
-      o === "serviceexec_addservice" ||
-      o === "serviceexec_cancel"
-    ) return { policyKey: "JOB_CARDS", op: "canUpdate" };
+    if (o === "exitpermit_create" || o === "exitpermit_cancelorder")
+      return { policyKey: "JOB_CARDS", op: "canUpdate" };
 
     return null;
   }
@@ -125,7 +118,8 @@ function resolvePolicyAndOp(
       o === "payment_exitpermit" ||
       o === "payment_documents" ||
       o === "payment_download"
-    ) return { policyKey: "JOB_CARDS", op: "canRead" };
+    )
+      return { policyKey: "JOB_CARDS", op: "canRead" };
 
     if (
       o === "payment_pay" ||
@@ -133,7 +127,38 @@ function resolvePolicyAndOp(
       o === "payment_generatebill" ||
       o === "payment_cancel" ||
       o === "payment_refund"
-    ) return { policyKey: "JOB_CARDS", op: "canUpdate" };
+    )
+      return { policyKey: "JOB_CARDS", op: "canUpdate" };
+
+    // numeric limit options are still under JOB_CARDS UPDATE
+    if (o === "payment_discount_percent" || o === "payment_max_discount_percent")
+      return { policyKey: "JOB_CARDS", op: "canUpdate" };
+
+    return null;
+  }
+
+  // SERVICE EXECUTION
+  if (m === "serviceexec" || m === "serviceexecution") {
+    if (
+      o === "serviceexec_list" ||
+      o === "serviceexec_actions" ||
+      o === "serviceexec_viewdetails" ||
+      o === "serviceexec_summary" ||
+      o === "serviceexec_roadmap" ||
+      o === "serviceexec_customer" ||
+      o === "serviceexec_vehicle" ||
+      o === "serviceexec_services" ||
+      o === "serviceexec_notes" ||
+      o === "serviceexec_quality" ||
+      o === "serviceexec_billing" ||
+      o === "serviceexec_paymentlog" ||
+      o === "serviceexec_exitpermit" ||
+      o === "serviceexec_documents"
+    )
+      return { policyKey: "JOB_CARDS", op: "canRead" };
+
+    if (o === "serviceexec_edit" || o === "serviceexec_update" || o === "serviceexec_finish" || o === "serviceexec_addservice" || o === "serviceexec_cancel")
+      return { policyKey: "JOB_CARDS", op: "canUpdate" };
 
     return null;
   }
@@ -157,73 +182,45 @@ function resolvePolicyAndOp(
       o === "jobhistory_download" ||
       o === "jobhistory_roadmap" ||
       o === "jobhistory_export"
-    ) return { policyKey: "JOB_CARDS", op: "canRead" };
+    )
+      return { policyKey: "JOB_CARDS", op: "canRead" };
     return null;
   }
 
-  // QUALITY CHECK
-  if (m === "qualitycheck" || m === "qc") {
+  // INSPECTION
+  if (m === "inspection" || m === "inspectionmodule") {
     if (
-      o === "qualitycheck_list" ||
-      o === "qualitycheck_actions" ||
-      o === "qualitycheck_viewdetails" ||
-      o === "qualitycheck_summary" ||
-      o === "qualitycheck_customer" ||
-      o === "qualitycheck_vehicle" ||
-      o === "qualitycheck_services" ||
-      o === "qualitycheck_quality" ||
-      o === "qualitycheck_roadmap" ||
-      o === "qualitycheck_billing" ||
-      o === "qualitycheck_paymentlog" ||
-      o === "qualitycheck_exitpermit" ||
-      o === "qualitycheck_documents" ||
-      o === "qualitycheck_notes" ||
-      o === "qualitycheck_download"
-    ) return { policyKey: "JOB_CARDS", op: "canRead" };
+      o === "inspection_list" ||
+      o === "inspection_summary" ||
+      o === "inspection_customer" ||
+      o === "inspection_vehicle" ||
+      o === "inspection_services" ||
+      o === "inspection_billing" ||
+      o === "inspection_paymentlog" ||
+      o === "inspection_documents" ||
+      o === "inspection_exitpermit" ||
+      o === "inspection_roadmap" ||
+      o === "inspection_quality" ||
+      o === "inspection_download" ||
+      o === "inspection_viewdetails" ||
+      o === "inspection_actions"
+    )
+      return { policyKey: "JOB_CARDS", op: "canRead" };
 
     if (
-      o === "qualitycheck_finish" ||
-      o === "qualitycheck_approve" ||
-      o === "qualitycheck_reject" ||
-      o === "qualitycheck_cancel"
-    ) return { policyKey: "JOB_CARDS", op: "canUpdate" };
-
-    return null;
-  }
-
-  // EXIT PERMIT
-  if (m === "exitpermit" || m === "exitpermitmanagement") {
-    if (
-      o === "exitpermit_list" ||
-      o === "exitpermit_actions" ||
-      o === "exitpermit_viewdetails" ||
-      o === "exitpermit_summary" ||
-      o === "exitpermit_customer" ||
-      o === "exitpermit_vehicle" ||
-      o === "exitpermit_services" ||
-      o === "exitpermit_notes" ||
-      o === "exitpermit_quality" ||
-      o === "exitpermit_billing" ||
-      o === "exitpermit_paymentlog" ||
-      o === "exitpermit_exitpermit" ||
-      o === "exitpermit_documents" ||
-      o === "exitpermit_download" ||
-      o === "exitpermit_roadmap"
-    ) return { policyKey: "JOB_CARDS", op: "canRead" };
-
-    if (o === "exitpermit_create" || o === "exitpermit_cancelorder")
+      o === "inspection_start" ||
+      o === "inspection_resume" ||
+      o === "inspection_complete" ||
+      o === "inspection_notrequired" ||
+      o === "inspection_finish" ||
+      o === "inspection_cancel" ||
+      o === "inspection_addservice" ||
+      o === "inspection_servicediscount" ||
+      o === "inspection_discount_percent"
+    )
       return { policyKey: "JOB_CARDS", op: "canUpdate" };
 
-    return null;
-  }
-
-  // APPROVAL HISTORY
-  if (m === "approvalhistory" || m === "serviceapprovalhistory") {
-    if (
-      o === "approvalhistory_view" ||
-      o === "approvalhistory_viewdetails" ||
-      o === "approvalhistory_list"
-    ) return { policyKey: "JOB_CARDS", op: "canRead" };
+    if (o === "inspection_serviceprice") return { policyKey: "JOB_CARDS", op: "canRead" };
     return null;
   }
 
@@ -231,19 +228,19 @@ function resolvePolicyAndOp(
 }
 
 export default function PermissionGate({ moduleId, optionId, children, fallback = null }: Props) {
-  const { can, loading, isAdminGroup, canOption, isModuleEnabled } = usePermissions();
+  const { can, canOption, loading, isAdminGroup } = usePermissions();
+
   const rule = useMemo(() => resolvePolicyAndOp(moduleId, optionId), [moduleId, optionId]);
 
   if (loading) return null;
   if (isAdminGroup) return <>{children}</>;
 
-  // ✅ Option-level + module-level (default allow if not configured)
-  const moduleOn = isModuleEnabled ? isModuleEnabled(moduleId, true) : true;
-  const optionOn = canOption ? canOption(moduleId, optionId, true) : true;
+  // ✅ Option-level toggle must pass first (including module disable)
+  const optionAllowed = canOption(moduleId, optionId, true);
+  if (!optionAllowed) return <>{fallback}</>;
 
-  if (!moduleOn || !optionOn) return <>{fallback}</>;
-
-  if (!rule) return <>{fallback}</>;
+  // ✅ If there is no policy mapping, allow by option-level only
+  if (!rule) return <>{children}</>;
 
   const perm = can(rule.policyKey);
   const allowed = Boolean(perm?.[rule.op]);

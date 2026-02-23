@@ -17,19 +17,18 @@ import RolesPoliciesAdmin from "../pages/RolesPoliciesAdmin";
 
 import JobOrderHistory from "../pages/JobOrderHistory";
 import QualityCheckModule from "../pages/QualityCheckModule";
-import ExitPermitManagement from "../pages/ExitPermitManagement"; // ✅ ADDED
+import ExitPermitManagement from "../pages/ExitPermitManagement";
+
+import InspectionModule from "../pages/InspectionModule";
+import PaymentInvoiceManagment from "../pages/PaymentInvoiceManagment";
+
+import RoleAccessControl from "../pages/RoleAccessControl"; // ✅ ADD THIS
 
 import logo from "../assets/logo.jpeg";
 import "./mainLayout.css";
 
 import { usePermissions } from "../lib/userPermissions";
-import InspectionModule from "../pages/InspectionModule";
-
-// ✅ wrap app so useApprovalRequests() never crashes
 import { ApprovalRequestsProvider } from "../pages/ApprovalRequestsContext";
-
-// ✅ Payment & Invoice module
-import PaymentInvoiceManagment from "../pages/PaymentInvoiceManagment";
 
 type Page =
   | "dashboard"
@@ -43,12 +42,13 @@ type Page =
   | "serviceexecution"
   | "paymentinvoices"
   | "qualitycheck"
-  | "exitpermit" // ✅ ADDED
+  | "exitpermit"
   | "calltracking"
   | "inspection"
   | "users"
   | "departments"
-  | "rolespolicies";
+  | "rolespolicies"
+  | "roleaccesscontrol"; // ✅ ADD THIS
 
 const EMPTY = {
   canRead: false,
@@ -62,7 +62,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   const [page, setPage] = useState<Page>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const { loading, email, isAdminGroup, can } = usePermissions();
+  const { loading, email, isAdminGroup, can, canOption } = usePermissions();
   const canAny = (key: string) => ((can as any)(key) ?? EMPTY) as typeof EMPTY;
 
   const go = (p: Page) => {
@@ -70,36 +70,46 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     setSidebarOpen(false);
   };
 
+  // ✅ helper: sidebar “list” toggle gate (defaults to true if key not stored)
+  const listOn = (moduleId: string, listOptionId: string) => {
+    if (isAdminGroup) return true;
+    return canOption(moduleId, listOptionId, true);
+  };
+
   /**
-   * Job modules => use JOB_CARDS visibility.
+   * Policy-level visibility + option-level sidebar list toggles
    */
   const show = useMemo(() => {
     const jobCardsRead = isAdminGroup || canAny("JOB_CARDS").canRead;
 
     return {
-      dashboard: isAdminGroup || canAny("DASHBOARD").canRead,
-      customers: isAdminGroup || canAny("CUSTOMERS").canRead,
-      vehicles: isAdminGroup || canAny("VEHICLES").canRead,
-      tickets: isAdminGroup || canAny("TICKETS").canRead,
-      employees: isAdminGroup || canAny("EMPLOYEES").canRead,
-      activitylog: isAdminGroup || canAny("ACTIVITY_LOG").canRead,
+      // Core
+      dashboard: (isAdminGroup || canAny("DASHBOARD").canRead) && listOn("dashboard", "dashboard_list"),
+      customers: (isAdminGroup || canAny("CUSTOMERS").canRead) && listOn("customers", "customers_list"),
+      vehicles: (isAdminGroup || canAny("VEHICLES").canRead) && listOn("vehicles", "vehicles_list"),
+      tickets: (isAdminGroup || canAny("TICKETS").canRead) && listOn("tickets", "tickets_list"),
+      employees: (isAdminGroup || canAny("EMPLOYEES").canRead) && listOn("employees", "employees_list"),
+      activitylog: (isAdminGroup || canAny("ACTIVITY_LOG").canRead) && listOn("activitylog", "activitylog_list"),
+      calltracking: (isAdminGroup || canAny("CALL_TRACKING").canRead) && listOn("calltracking", "calltracking_list"),
 
-      jobcards: jobCardsRead,
-      jobhistory: jobCardsRead,
-      serviceexecution: jobCardsRead,
-      paymentinvoices: jobCardsRead,
-      qualitycheck: jobCardsRead,
-      exitpermit: jobCardsRead, // ✅ ADDED
-      calltracking: isAdminGroup || canAny("CALL_TRACKING").canRead,
-      inspection: jobCardsRead,
+      // Job ecosystem (policy JOB_CARDS)
+      jobcards: jobCardsRead && listOn("joborder", "joborder_list"),
+      jobhistory: jobCardsRead && listOn("jobhistory", "jobhistory_list"),
+      serviceexecution: jobCardsRead && listOn("serviceexec", "serviceexec_list"),
+      paymentinvoices: jobCardsRead && listOn("payment", "payment_list"),
+      qualitycheck: jobCardsRead && listOn("qualitycheck", "qualitycheck_list"),
+      exitpermit: jobCardsRead && listOn("exitpermit", "exitpermit_list"),
+      inspection: jobCardsRead && listOn("inspection", "inspection_list"),
     };
-  }, [isAdminGroup, can]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isAdminGroup, can, canOption]);
 
   const showAdmin = useMemo(() => {
     return {
       users: isAdminGroup,
       departments: isAdminGroup,
       rolespolicies: isAdminGroup,
+      roleaccesscontrol: isAdminGroup, // ✅ add
     };
   }, [isAdminGroup]);
 
@@ -110,18 +120,19 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !show.vehicles &&
     !show.tickets &&
     !show.employees &&
+    !show.activitylog &&
+    !show.calltracking &&
+    !show.jobcards &&
+    !show.jobhistory &&
     !show.serviceexecution &&
     !show.paymentinvoices &&
-    !show.jobhistory &&
     !show.qualitycheck &&
-    !show.exitpermit && // ✅ ADDED
-    !show.activitylog &&
-    !show.jobcards &&
-    !show.calltracking &&
+    !show.exitpermit &&
     !show.inspection &&
     !showAdmin.users &&
     !showAdmin.departments &&
-    !showAdmin.rolespolicies;
+    !showAdmin.rolespolicies &&
+    !showAdmin.roleaccesscontrol;
 
   useEffect(() => {
     if (loading) return;
@@ -130,16 +141,14 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.dashboard) allowedPages.push("dashboard");
     if (show.customers) allowedPages.push("customers");
     if (show.vehicles) allowedPages.push("vehicles");
-
     if (show.jobcards) allowedPages.push("jobcards");
     if (show.jobhistory) allowedPages.push("jobhistory");
     if (show.serviceexecution) allowedPages.push("serviceexecution");
     if (show.paymentinvoices) allowedPages.push("paymentinvoices");
     if (show.qualitycheck) allowedPages.push("qualitycheck");
-    if (show.exitpermit) allowedPages.push("exitpermit"); // ✅ ADDED
-    if (show.calltracking) allowedPages.push("calltracking");
+    if (show.exitpermit) allowedPages.push("exitpermit");
     if (show.inspection) allowedPages.push("inspection");
-
+    if (show.calltracking) allowedPages.push("calltracking");
     if (show.tickets) allowedPages.push("tickets");
     if (show.employees) allowedPages.push("employees");
     if (show.activitylog) allowedPages.push("activitylog");
@@ -147,6 +156,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (showAdmin.users) allowedPages.push("users");
     if (showAdmin.departments) allowedPages.push("departments");
     if (showAdmin.rolespolicies) allowedPages.push("rolespolicies");
+    if (showAdmin.roleaccesscontrol) allowedPages.push("roleaccesscontrol");
 
     const isCurrentAllowed =
       (page === "dashboard" && show.dashboard) ||
@@ -157,15 +167,16 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       (page === "serviceexecution" && show.serviceexecution) ||
       (page === "paymentinvoices" && show.paymentinvoices) ||
       (page === "qualitycheck" && show.qualitycheck) ||
-      (page === "exitpermit" && show.exitpermit) || // ✅ ADDED
-      (page === "calltracking" && show.calltracking) ||
+      (page === "exitpermit" && show.exitpermit) ||
       (page === "inspection" && show.inspection) ||
+      (page === "calltracking" && show.calltracking) ||
       (page === "tickets" && show.tickets) ||
       (page === "employees" && show.employees) ||
       (page === "activitylog" && show.activitylog) ||
       (page === "users" && showAdmin.users) ||
       (page === "departments" && showAdmin.departments) ||
-      (page === "rolespolicies" && showAdmin.rolespolicies);
+      (page === "rolespolicies" && showAdmin.rolespolicies) ||
+      (page === "roleaccesscontrol" && showAdmin.roleaccesscontrol);
 
     if (!isCurrentAllowed) {
       setPage(allowedPages[0] ?? "dashboard");
@@ -271,7 +282,6 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               </button>
             )}
 
-            {/* ✅ EXIT PERMIT */}
             {show.exitpermit && (
               <button className={page === "exitpermit" ? "active" : ""} onClick={() => go("exitpermit")}>
                 Exit Permit
@@ -308,7 +318,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               </button>
             )}
 
-            {(showAdmin.users || showAdmin.departments || showAdmin.rolespolicies) && (
+            {(showAdmin.users || showAdmin.departments || showAdmin.rolespolicies || showAdmin.roleaccesscontrol) && (
               <div className="drawer-section">
                 <div className="drawer-section-label">Admin</div>
 
@@ -325,6 +335,11 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
                 {showAdmin.rolespolicies && (
                   <button className={page === "rolespolicies" ? "active" : ""} onClick={() => go("rolespolicies")}>
                     Roles & Policies
+                  </button>
+                )}
+                {showAdmin.roleaccesscontrol && (
+                  <button className={page === "roleaccesscontrol" ? "active" : ""} onClick={() => go("roleaccesscontrol")}>
+                    Role Access Control
                   </button>
                 )}
               </div>
@@ -378,7 +393,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
                 permissions={canAny("DASHBOARD")}
                 email={email}
                 visibility={{ ...show, admin: showAdmin }}
-                onNavigate={(p) => setPage(p)}
+                onNavigate={(p: any) => setPage(p)}
               />
             )}
 
@@ -397,8 +412,6 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             )}
 
             {page === "qualitycheck" && show.qualitycheck && <QualityCheckModule currentUser={currentUser} />}
-
-            {/* ✅ EXIT PERMIT */}
             {page === "exitpermit" && show.exitpermit && <ExitPermitManagement currentUser={currentUser} />}
 
             {page === "calltracking" && show.calltracking && <CallTracking permissions={canAny("CALL_TRACKING")} />}
@@ -414,9 +427,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             {page === "departments" && showAdmin.departments && (
               <DepartmentsAdmin permissions={{ ...EMPTY, canRead: true, canCreate: true, canUpdate: true, canDelete: true, canApprove: true }} />
             )}
-            {page === "rolespolicies" && showAdmin.rolespolicies && (
-              <RolesPoliciesAdmin />
-            )}
+            {page === "rolespolicies" && showAdmin.rolespolicies && <RolesPoliciesAdmin />}
+            {page === "roleaccesscontrol" && showAdmin.roleaccesscontrol && <RoleAccessControl />}
           </main>
         </div>
       </div>
