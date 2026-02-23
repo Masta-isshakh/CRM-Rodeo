@@ -17,6 +17,7 @@ import RolesPoliciesAdmin from "../pages/RolesPoliciesAdmin";
 
 import JobOrderHistory from "../pages/JobOrderHistory";
 import QualityCheckModule from "../pages/QualityCheckModule";
+import ExitPermitManagement from "../pages/ExitPermitManagement"; // ✅ ADDED
 
 import logo from "../assets/logo.jpeg";
 import "./mainLayout.css";
@@ -42,6 +43,7 @@ type Page =
   | "serviceexecution"
   | "paymentinvoices"
   | "qualitycheck"
+  | "exitpermit" // ✅ ADDED
   | "calltracking"
   | "inspection"
   | "users"
@@ -86,7 +88,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       jobhistory: jobCardsRead,
       serviceexecution: jobCardsRead,
       paymentinvoices: jobCardsRead,
-      qualitycheck: jobCardsRead, // ✅ ADDED
+      qualitycheck: jobCardsRead,
+      exitpermit: jobCardsRead, // ✅ ADDED
       calltracking: isAdminGroup || canAny("CALL_TRACKING").canRead,
       inspection: jobCardsRead,
     };
@@ -110,7 +113,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !show.serviceexecution &&
     !show.paymentinvoices &&
     !show.jobhistory &&
-    !show.qualitycheck && // ✅ ADDED
+    !show.qualitycheck &&
+    !show.exitpermit && // ✅ ADDED
     !show.activitylog &&
     !show.jobcards &&
     !show.calltracking &&
@@ -131,7 +135,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.jobhistory) allowedPages.push("jobhistory");
     if (show.serviceexecution) allowedPages.push("serviceexecution");
     if (show.paymentinvoices) allowedPages.push("paymentinvoices");
-    if (show.qualitycheck) allowedPages.push("qualitycheck"); // ✅ ADDED
+    if (show.qualitycheck) allowedPages.push("qualitycheck");
+    if (show.exitpermit) allowedPages.push("exitpermit"); // ✅ ADDED
     if (show.calltracking) allowedPages.push("calltracking");
     if (show.inspection) allowedPages.push("inspection");
 
@@ -151,7 +156,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       (page === "jobhistory" && show.jobhistory) ||
       (page === "serviceexecution" && show.serviceexecution) ||
       (page === "paymentinvoices" && show.paymentinvoices) ||
-      (page === "qualitycheck" && show.qualitycheck) || // ✅ ADDED
+      (page === "qualitycheck" && show.qualitycheck) ||
+      (page === "exitpermit" && show.exitpermit) || // ✅ ADDED
       (page === "calltracking" && show.calltracking) ||
       (page === "inspection" && show.inspection) ||
       (page === "tickets" && show.tickets) ||
@@ -259,10 +265,16 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               </button>
             )}
 
-            {/* ✅ QUALITY CHECK */}
             {show.qualitycheck && (
               <button className={page === "qualitycheck" ? "active" : ""} onClick={() => go("qualitycheck")}>
                 Quality Check
+              </button>
+            )}
+
+            {/* ✅ EXIT PERMIT */}
+            {show.exitpermit && (
+              <button className={page === "exitpermit" ? "active" : ""} onClick={() => go("exitpermit")}>
+                Exit Permit
               </button>
             )}
 
@@ -384,8 +396,10 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               <PaymentInvoiceManagment permissions={canAny("JOB_CARDS")} currentUser={currentUser} />
             )}
 
-            {/* ✅ QUALITY CHECK */}
             {page === "qualitycheck" && show.qualitycheck && <QualityCheckModule currentUser={currentUser} />}
+
+            {/* ✅ EXIT PERMIT */}
+            {page === "exitpermit" && show.exitpermit && <ExitPermitManagement currentUser={currentUser} />}
 
             {page === "calltracking" && show.calltracking && <CallTracking permissions={canAny("CALL_TRACKING")} />}
             {page === "inspection" && show.inspection && <InspectionModule permissions={canAny("JOB_CARDS")} />}

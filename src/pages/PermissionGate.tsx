@@ -159,7 +159,6 @@ function resolvePolicyAndOp(
 
   // ✅ QUALITY CHECK (ADDED)
   if (m === "qualitycheck" || m === "qc") {
-    // read-only sections
     if (
       o === "qualitycheck_list" ||
       o === "qualitycheck_actions" ||
@@ -178,12 +177,39 @@ function resolvePolicyAndOp(
       o === "qualitycheck_download"
     ) return { policyKey: "JOB_CARDS", op: "canRead" };
 
-    // mutations / actions
     if (
       o === "qualitycheck_finish" ||
       o === "qualitycheck_approve" ||
       o === "qualitycheck_reject" ||
       o === "qualitycheck_cancel"
+    ) return { policyKey: "JOB_CARDS", op: "canUpdate" };
+
+    return null;
+  }
+
+  // ✅ EXIT PERMIT (ADDED)
+  if (m === "exitpermit" || m === "exitpermitmanagement") {
+    if (
+      o === "exitpermit_list" ||
+      o === "exitpermit_actions" ||
+      o === "exitpermit_viewdetails" ||
+      o === "exitpermit_summary" ||
+      o === "exitpermit_customer" ||
+      o === "exitpermit_vehicle" ||
+      o === "exitpermit_services" ||
+      o === "exitpermit_notes" ||
+      o === "exitpermit_quality" ||
+      o === "exitpermit_billing" ||
+      o === "exitpermit_paymentlog" ||
+      o === "exitpermit_exitpermit" ||
+      o === "exitpermit_documents" ||
+      o === "exitpermit_download" ||
+      o === "exitpermit_roadmap"
+    ) return { policyKey: "JOB_CARDS", op: "canRead" };
+
+    if (
+      o === "exitpermit_create" ||
+      o === "exitpermit_cancelorder"
     ) return { policyKey: "JOB_CARDS", op: "canUpdate" };
 
     return null;

@@ -68,26 +68,73 @@ function mapWorkStatusToDbStatus(
   return "OPEN";
 }
 
+function mapEnumStatusToUi(status: any) {
+  const s = String(status ?? "").toUpperCase();
+  if (s === "OPEN") return "New Request";
+  if (s === "IN_PROGRESS") return "Inprogress";
+  if (s === "READY") return "Ready";
+  if (s === "COMPLETED") return "Completed";
+  if (s === "CANCELLED") return "Cancelled";
+  if (s === "DRAFT") return "Draft";
+  return String(status ?? "New Request");
+}
+
 function deriveUiWorkStatus(job: any, parsed: any) {
-  return (
-    String(parsed?.workStatusLabel ?? "").trim() ||
-    String(job?.workStatusLabel ?? "").trim() ||
-    (job?.status === "OPEN" ? "New Request" : String(job?.status ?? "New Request"))
-  );
+  const fromParsed = String(parsed?.workStatusLabel ?? "").trim();
+  if (fromParsed) return fromParsed;
+
+  const fromLabel = String(job?.workStatusLabel ?? "").trim();
+  if (fromLabel) return fromLabel;
+
+  return mapEnumStatusToUi(job?.status);
 }
 
 function deriveUiPaymentStatus(job: any, parsed: any) {
-  // ✅ enum FIRST
+  // ✅ enum FIRST, BUT allow "refund" label to win when enum=UNPAID
   const ps = String(job?.paymentStatus ?? "").toUpperCase();
+
+  const label = String(parsed?.paymentStatusLabel ?? job?.paymentStatusLabel ?? "").trim();
+  const labelLower = label.toLowerCase();
+
   if (ps === "PAID") return "Fully Paid";
   if (ps === "PARTIAL") return "Partially Paid";
-  if (ps === "UNPAID") return "Unpaid";
 
-  // fallback label (legacy)
-  const fromLabel = String(parsed?.paymentStatusLabel ?? job?.paymentStatusLabel ?? "").trim();
-  if (fromLabel) return fromLabel;
+  if (ps === "UNPAID") {
+    if (label && labelLower.includes("refund")) return label; // e.g. Fully Refunded
+    return "Unpaid";
+  }
 
+  if (label) return label;
   return "Unpaid";
+}
+
+function deriveExitPermitStatus(job: any, parsed: any) {
+  const s = String(parsed?.exitPermitStatus ?? "").trim();
+  if (s) return s;
+  const permitId = String(parsed?.exitPermit?.permitId ?? "").trim();
+  return permitId ? "Created" : "Not Created";
+}
+
+function unwrapAwsJsonMaybe(raw: any): any {
+  const parsed = safeJsonParse<any>(raw);
+  return parsed ?? raw;
+}
+
+function parseJobOrderSaveResult(res: any): { id?: string; orderNumber?: string } {
+  let x = res?.data ?? res;
+  x = unwrapAwsJsonMaybe(x);
+
+  if (x && typeof x === "object" && (x as any).jobOrderSave != null) {
+    x = unwrapAwsJsonMaybe((x as any).jobOrderSave);
+  }
+
+  if (x && typeof x === "object") {
+    const id = String((x as any).id ?? "").trim();
+    const orderNumber = String((x as any).orderNumber ?? "").trim();
+    return { id: id || undefined, orderNumber: orderNumber || undefined };
+  }
+
+  return {};
 }
 
 async function findJobOrderRowByAnyKey(keyRaw: string): Promise<any | null> {
@@ -135,29 +182,6 @@ async function findJobOrderRowByAnyKey(keyRaw: string): Promise<any | null> {
   }
 }
 
-function unwrapAwsJsonMaybe(raw: any): any {
-  const parsed = safeJsonParse<any>(raw);
-  return parsed ?? raw;
-}
-
-function parseJobOrderSaveResult(res: any): { id?: string; orderNumber?: string } {
-  let x = res?.data ?? res;
-  x = unwrapAwsJsonMaybe(x);
-
-  // wrapper case
-  if (x && typeof x === "object" && (x as any).jobOrderSave != null) {
-    x = unwrapAwsJsonMaybe((x as any).jobOrderSave);
-  }
-
-  if (x && typeof x === "object") {
-    const id = String((x as any).id ?? "").trim();
-    const orderNumber = String((x as any).orderNumber ?? "").trim();
-    return { id: id || undefined, orderNumber: orderNumber || undefined };
-  }
-
-  return {};
-}
-
 // -------------------------
 // CUSTOMER / VEHICLES
 // -------------------------
@@ -170,7 +194,6 @@ export async function searchCustomers(term: string): Promise<any[]> {
   const results: CustomerRow[] = [];
   const seen = new Set<string>();
 
-  // 1) If looks like id, try get
   if (q.length >= 8 && /[a-z0-9-]/i.test(q)) {
     try {
       const g = await client.models.Customer.get({ id: q } as any);
@@ -182,7 +205,6 @@ export async function searchCustomers(term: string): Promise<any[]> {
     } catch {}
   }
 
-  // 2) Server-side filters
   const [byPhone, byEmail, byName, byLast] = await Promise.all([
     client.models.Customer.list({ filter: { phone: { contains: q } } as any, limit: 50 }),
     client.models.Customer.list({ filter: { email: { contains: q } } as any, limit: 50 }),
@@ -202,7 +224,6 @@ export async function searchCustomers(term: string): Promise<any[]> {
     results.push(r as any);
   }
 
-  // 3) full name "First Last"
   const parts = q.split(/\s+/).filter(Boolean);
   if (parts.length >= 2) {
     const first = parts[0];
@@ -221,7 +242,6 @@ export async function searchCustomers(term: string): Promise<any[]> {
     } catch {}
   }
 
-  // 4) fallback scan (small)
   if (!results.length) {
     const all = await listAll<CustomerRow>((args) => client.models.Customer.list(args), 2000);
     const ql = q.toLowerCase();
@@ -276,7 +296,6 @@ export async function getCustomerWithVehicles(customerId: string): Promise<any |
   const c = (cRes as any)?.data as CustomerRow | undefined;
   if (!c?.id) return null;
 
-  // prefer index if exists
   let vData: any[] = [];
   try {
     const byIndex = await (client.models.Vehicle as any)?.vehiclesByCustomer?.({
@@ -325,9 +344,6 @@ export async function getCustomerWithVehicles(customerId: string): Promise<any |
   };
 }
 
-/**
- * ✅ RESTORED: createCustomer (was missing in your current file)
- */
 export async function createCustomer(input: {
   fullName: string;
   phone: string;
@@ -378,9 +394,6 @@ export async function createCustomer(input: {
   };
 }
 
-/**
- * ✅ RESTORED: createVehicleForCustomer (was missing in your current file)
- */
 export async function createVehicleForCustomer(input: {
   customerId: string;
   ownedBy: string;
@@ -407,7 +420,7 @@ export async function createVehicleForCustomer(input: {
     year: String(input.year).trim() || "",
     vehicleType: String(input.vehicleType).trim() || "",
     color: String(input.color).trim() || "",
-    plateNumber: String(input.plateNumber).trim(), // required by schema
+    plateNumber: String(input.plateNumber).trim(),
     vin: String(input.vin).trim() || undefined,
     createdAt: ts,
     updatedAt: ts,
@@ -443,19 +456,21 @@ export async function listJobOrdersForMain(): Promise<any[]> {
   );
 
   return sorted.map((job: any) => {
-    const parsed = safeJsonParse<any>(job.dataJson) ?? null;
+    const parsed = safeJsonParse<any>(job.dataJson) ?? {};
     const workStatus = deriveUiWorkStatus(job, parsed);
     const paymentStatus = deriveUiPaymentStatus(job, parsed);
+    const exitPermitStatus = deriveExitPermitStatus(job, parsed);
 
     return {
       _backendId: job.id,
-      id: job.orderNumber, // UI uses orderNumber
+      id: job.orderNumber,
       orderType: job.orderType ?? parsed?.orderType ?? "Job Order",
       customerName: job.customerName ?? parsed?.customerName ?? "",
       mobile: job.customerPhone ?? parsed?.customerPhone ?? "",
       vehiclePlate: job.plateNumber ?? parsed?.plateNumber ?? "",
       workStatus,
       paymentStatus,
+      exitPermitStatus,
       createDate: job.createdAt
         ? new Date(String(job.createdAt)).toLocaleDateString("en-GB", {
             day: "numeric",
@@ -477,7 +492,6 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
 
   const parsed = safeJsonParse<any>(job.dataJson) ?? {};
 
-  // preserve service execution fields
   const parsedServices = Array.isArray(parsed?.services) ? parsed.services : [];
   const services = parsedServices.map((s: any, idx: number) => {
     const qty = Math.max(1, toNum(s.qty ?? 1));
@@ -547,8 +561,20 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
     : [];
 
   const documents = Array.isArray(parsed?.documents) ? parsed.documents : [];
+  const additionalServiceRequests = Array.isArray(parsed?.additionalServiceRequests)
+    ? parsed.additionalServiceRequests
+    : [];
 
-  // Payments log
+  const exitPermitStatus = deriveExitPermitStatus(job, parsed);
+  const exitPermit = parsed?.exitPermit ?? {
+    permitId: null,
+    createDate: null,
+    nextServiceDate: null,
+    createdBy: null,
+    collectedBy: null,
+    collectedByMobile: null,
+  };
+
   let paymentRows: any[] = [];
   try {
     const byIdx = await (client.models.JobOrderPayment as any)?.listPaymentsByJobOrder?.({
@@ -592,6 +618,30 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
   const workStatus = deriveUiWorkStatus(job, parsed);
   const paymentStatus = deriveUiPaymentStatus(job, parsed);
 
+  // ✅ Add customerDetails & vehicleDetails for Exit Permit details UI
+  const customerDetails = parsed?.customerDetails ?? {
+    customerId: job.customerId ?? parsed?.customerId ?? "N/A",
+    email: job.customerEmail ?? parsed?.customerEmail ?? "",
+    address: parsed?.address ?? null,
+    registeredVehiclesCount: parsed?.registeredVehiclesCount ?? 0,
+    completedServicesCount: parsed?.completedServicesCount ?? 0,
+    customerSince: parsed?.customerSince ?? "",
+  };
+
+  const vehicleDetails = parsed?.vehicleDetails ?? {
+    vehicleId: parsed?.vehicleId ?? "N/A",
+    ownedBy: parsed?.ownedBy ?? job.customerName ?? "",
+    make: job.vehicleMake ?? parsed?.vehicleMake ?? "",
+    model: job.vehicleModel ?? parsed?.vehicleModel ?? "",
+    year: job.vehicleYear ?? parsed?.vehicleYear ?? "",
+    type: parsed?.type ?? job.vehicleType ?? "",
+    color: job.color ?? parsed?.color ?? "",
+    vin: job.vin ?? parsed?.vin ?? "",
+    registrationDate: parsed?.registrationDate ?? "",
+    mileage: job.mileage ?? parsed?.mileage ?? "",
+    plateNumber: job.plateNumber ?? parsed?.plateNumber ?? "",
+  };
+
   return {
     _backendId: job.id,
     id: job.orderNumber,
@@ -601,6 +651,8 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
     vehiclePlate: job.plateNumber ?? parsed?.plateNumber ?? "",
     workStatus,
     paymentStatus,
+    exitPermitStatus,
+    exitPermit,
     createDate,
 
     jobOrderSummary: {
@@ -608,6 +660,9 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
       createdBy: job.createdBy ?? "System User",
       expectedDelivery,
     },
+
+    customerDetails,
+    vehicleDetails,
 
     billing: {
       billId,
@@ -623,6 +678,7 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
     services,
     roadmap,
     documents,
+    additionalServiceRequests,
     paymentActivityLog,
 
     customerNotes: parsed?.customerNotes ?? job.customerNotes ?? null,
@@ -637,8 +693,11 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
   const orderNumber = String(order?.id ?? order?.orderNumber ?? "").trim();
   if (!orderNumber) throw new Error("Missing Job Order ID (orderNumber).");
 
+  const backendIdExisting = String(order?._backendId ?? "").trim();
+
   const services = Array.isArray(order?.services) ? order.services : [];
-  if (!services.length) throw new Error("Select at least one service.");
+  // ✅ Do not break updates if older order dataJson has no services
+  if (!services.length && !backendIdExisting) throw new Error("Select at least one service.");
 
   const workStatusLabel = String(order?.workStatus ?? order?.workStatusLabel ?? "").trim() || "New Request";
   const paymentStatusLabel = String(order?.paymentStatus ?? order?.paymentStatusLabel ?? "").trim() || "Unpaid";
@@ -657,8 +716,12 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
   const billId = String(order?.billing?.billId ?? "").trim() || undefined;
   const paymentMethod = String(order?.billing?.paymentMethod ?? "").trim() || undefined;
 
+  // ✅ exit permit fields stored in dataJson via Lambda input
+  const exitPermitStatus = String(order?.exitPermitStatus ?? "").trim() || undefined;
+  const exitPermit = order?.exitPermit ?? undefined;
+
   const payload: any = {
-    id: String(order?._backendId ?? "").trim() || undefined,
+    id: backendIdExisting || undefined,
     orderNumber,
     orderType: String(order?.orderType ?? "Job Order"),
 
@@ -684,6 +747,7 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
     discount: discountNum,
     vatRate: 0,
 
+    // keep existing structure
     services: services.map((s: any, idx: number) => {
       const price = toNum(s.price);
       return {
@@ -721,6 +785,14 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
     documents: Array.isArray(order?.documents) ? order.documents : [],
     billing: order?.billing ?? {},
     roadmap: Array.isArray(order?.roadmap) ? order.roadmap : [],
+
+    // ✅ NEW: persist exit permit fields in dataJson
+    exitPermitStatus,
+    exitPermit,
+
+    additionalServiceRequests: Array.isArray(order?.additionalServiceRequests)
+      ? order.additionalServiceRequests
+      : [],
 
     expectedDeliveryDate: String(order?.expectedDeliveryDate ?? "").trim() || undefined,
     expectedDeliveryTime: String(order?.expectedDeliveryTime ?? "").trim() || undefined,
@@ -763,8 +835,12 @@ export async function cancelJobOrderByOrderNumber(orderKey: string): Promise<voi
 
   order.workStatus = "Cancelled";
   order.workStatusLabel = "Cancelled";
+
   order.paymentStatus = order.paymentStatus ?? "Unpaid";
   order.paymentStatusLabel = order.paymentStatusLabel ?? order.paymentStatus ?? "Unpaid";
+
+  // do not change exit permit status here (keep if already created)
+  order.exitPermitStatus = order.exitPermitStatus ?? "Not Created";
 
   await upsertJobOrder(order);
 }
@@ -796,4 +872,129 @@ export async function listCompletedOrdersByPlateNumber(plateNumber: string): Pro
       vehiclePlate: r.plateNumber,
       workStatus: r.workStatusLabel ?? "Completed",
     }));
+}
+
+/**
+ * ✅ NEW: Exit Permit - list eligible orders (Ready+Paid or Cancelled+Unpaid/Refunded) and Not Created
+ */
+export async function listJobOrdersForExitPermit(): Promise<any[]> {
+  const all = await listJobOrdersForMain();
+
+  return (all ?? []).filter((o: any) => {
+    const work = String(o.workStatus ?? "").trim().toLowerCase();
+    const pay = String(o.paymentStatus ?? "").trim().toLowerCase();
+    const permit = String(o.exitPermitStatus ?? "Not Created").trim().toLowerCase();
+
+    if (permit === "created") return false;
+
+    const readyOk = work === "ready" && pay === "fully paid";
+    const cancelledOk =
+      work === "cancelled" && (pay === "unpaid" || pay.includes("refund"));
+
+    return readyOk || cancelledOk;
+  });
+}
+
+/**
+ * ✅ NEW: Exit Permit - create permit and persist to backend via upsertJobOrder()
+ */
+export async function createExitPermitForOrderNumber(input: {
+  orderNumber: string;
+  collectedBy: string;
+  mobileNumber: string;
+  nextServiceDate?: string; // yyyy-mm-dd
+  actor?: string;
+}): Promise<{ permitId: string; orderNumber: string }> {
+  const order = await getJobOrderByOrderNumber(input.orderNumber);
+  if (!order) throw new Error("Order not found.");
+
+  const currentStatus = String(order.exitPermitStatus ?? "Not Created").toLowerCase();
+  if (currentStatus === "created" || String(order.exitPermit?.permitId ?? "").trim()) {
+    throw new Error("Exit permit already exists for this order.");
+  }
+
+  const work = String(order.workStatus ?? "").trim().toLowerCase();
+  const pay = String(order.paymentStatus ?? "").trim().toLowerCase();
+
+  const eligibleReady = work === "ready" && pay === "fully paid";
+  const eligibleCancelled = work === "cancelled" && (pay === "unpaid" || pay.includes("refund"));
+
+  if (!eligibleReady && !eligibleCancelled) {
+    throw new Error("This order is not eligible for Exit Permit.");
+  }
+
+  const collectedBy = String(input.collectedBy ?? "").trim();
+  const mobileNumber = String(input.mobileNumber ?? "").trim();
+  if (!collectedBy || !mobileNumber) throw new Error("Collected By and Mobile Number are required.");
+
+  if (work !== "cancelled" && !String(input.nextServiceDate ?? "").trim()) {
+    throw new Error("Next Service Date is required for non-cancelled orders.");
+  }
+
+  const permitId = `PERMIT-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+  const createDate = new Date().toLocaleString("en-GB");
+  const actor = String(input.actor ?? "System User");
+
+  const nextServiceDateDisplay =
+    work === "cancelled"
+      ? "N/A"
+      : (() => {
+          const d = new Date(String(input.nextServiceDate));
+          if (Number.isNaN(d.getTime())) return String(input.nextServiceDate);
+          const day = d.getDate();
+          const month = d.toLocaleString("en-US", { month: "short" });
+          const year = d.getFullYear();
+          return `${day} ${month} ${year}`;
+        })();
+
+  const roadmap = Array.isArray(order.roadmap) ? [...order.roadmap] : [];
+
+  // mark Ready for Delivery as completed if present
+  const updatedRoadmap = roadmap.map((step: any) => {
+    if (String(step?.step ?? "").toLowerCase() === "ready for delivery") {
+      return {
+        ...step,
+        stepStatus: "completed",
+        status: "Completed",
+        endTimestamp: step.endTimestamp || createDate,
+      };
+    }
+    return step;
+  });
+
+  const hasExit = updatedRoadmap.some((s: any) => String(s?.step ?? "").toLowerCase() === "exit permit issued");
+  const finalRoadmap = hasExit
+    ? updatedRoadmap
+    : [
+        ...updatedRoadmap,
+        {
+          step: "Exit Permit Issued",
+          stepStatus: "completed",
+          startTimestamp: createDate,
+          endTimestamp: createDate,
+          actionBy: actor,
+          status: "Completed",
+        },
+      ];
+
+  // Ready -> Completed, Cancelled stays Cancelled
+  if (work === "ready") {
+    order.workStatus = "Completed";
+    order.workStatusLabel = "Completed";
+  }
+
+  order.exitPermitStatus = "Created";
+  order.exitPermit = {
+    permitId,
+    createDate,
+    nextServiceDate: nextServiceDateDisplay,
+    createdBy: actor,
+    collectedBy,
+    collectedByMobile: mobileNumber,
+  };
+
+  order.roadmap = finalRoadmap;
+
+  await upsertJobOrder(order);
+  return { permitId, orderNumber: String(order.id) };
 }
