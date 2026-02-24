@@ -108,11 +108,31 @@ function deriveUiPaymentStatus(job: any, parsed: any) {
   return "Unpaid";
 }
 
-function deriveExitPermitStatus(parsed: any) {
-  const s = String(parsed?.exitPermitStatus ?? "").trim();
-  if (s) return s;
+function normalizeExitPermitStatus(raw: any): "NOT_REQUIRED" | "PENDING" | "APPROVED" | "REJECTED" {
+  const s = String(raw ?? "").trim().toUpperCase();
+  if (s === "APPROVED" || s === "CREATED") return "APPROVED";
+  if (s === "PENDING" || s === "NOT CREATED" || s === "NOT_CREATED") return "PENDING";
+  if (s === "REJECTED") return "REJECTED";
+  return "NOT_REQUIRED";
+}
+
+function mapExitPermitStatusToUi(status: any): string {
+  const s = normalizeExitPermitStatus(status);
+  if (s === "APPROVED") return "Created";
+  if (s === "PENDING") return "Pending";
+  if (s === "REJECTED") return "Rejected";
+  return "Not Required";
+}
+
+function deriveExitPermitStatus(job: any, parsed: any) {
+  const fromSchema = String(job?.exitPermitStatus ?? "").trim();
+  if (fromSchema) return mapExitPermitStatusToUi(fromSchema);
+
+  const fromParsed = String(parsed?.exitPermitStatus ?? "").trim();
+  if (fromParsed) return mapExitPermitStatusToUi(fromParsed);
+
   const permitId = String(parsed?.exitPermit?.permitId ?? "").trim();
-  return permitId ? "Created" : "Not Created";
+  return permitId ? "Created" : "Not Required";
 }
 
 // ✅ NEW: Quality Check Status Display
@@ -550,7 +570,7 @@ export async function listJobOrdersForMain(): Promise<any[]> {
     const parsed = safeJsonParse<any>(job.dataJson) ?? {};
     const workStatus = deriveUiWorkStatus(job, parsed);
     const paymentStatus = deriveUiPaymentStatus(job, parsed);
-    const exitPermitStatus = deriveExitPermitStatus(parsed);
+    const exitPermitStatus = deriveExitPermitStatus(job, parsed);
     
     // ✅ NEW: Get values from new schema fields
     const priorityLevel = String(job?.priorityLevel ?? "NORMAL").toUpperCase();
@@ -670,7 +690,7 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
     ? parsed.additionalServiceRequests
     : [];
 
-  const exitPermitStatus = deriveExitPermitStatus(parsed);
+  const exitPermitStatus = deriveExitPermitStatus(job, parsed);
   const exitPermit = parsed?.exitPermit ?? {
     permitId: null,
     createDate: null,
@@ -768,13 +788,15 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
   const nextServiceDate = String(job?.nextServiceDate ?? "").trim() || "Not scheduled";
 
   // ✅ Add customerDetails & vehicleDetails for Exit Permit details UI
-  const customerDetails = parsed?.customerDetails ?? {
-    customerId: job.customerId ?? parsed?.customerId ?? "N/A",
-    email: job.customerEmail ?? parsed?.customerEmail ?? "",
-    address: parsed?.address ?? null,
-    registeredVehiclesCount: parsed?.registeredVehiclesCount ?? 0,
-    completedServicesCount: parsed?.completedServicesCount ?? 0,
-    customerSince: parsed?.customerSince ?? "",
+  const customerDetails = {
+    ...(parsed?.customerDetails ?? {}),
+    customerId: job.customerId ?? parsed?.customerId ?? parsed?.customerDetails?.customerId ?? "N/A",
+    email: job.customerEmail ?? parsed?.customerEmail ?? parsed?.customerDetails?.email ?? "",
+    address: job.customerAddress ?? parsed?.customerDetails?.address ?? parsed?.address ?? null,
+    company: job.customerCompany ?? parsed?.customerDetails?.company ?? null,
+    registeredVehiclesCount: job.registeredVehiclesCount ?? parsed?.customerDetails?.registeredVehiclesCount ?? 0,
+    completedServicesCount: job.completedServicesCount ?? parsed?.customerDetails?.completedServicesCount ?? 0,
+    customerSince: job.customerSince ?? parsed?.customerDetails?.customerSince ?? parsed?.customerSince ?? "",
   };
 
   const vehicleDetails = parsed?.vehicleDetails ?? {
@@ -945,22 +967,32 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
     vatRate: 0,
     
     // ✅ NEW: Priority & Technician Assignment
-    priorityLevel: String(order?.priorityLevel ?? "NORMAL").trim(),
+    priorityLevel: String(order?.priorityLevel ?? "NORMAL").trim().toUpperCase(),
     assignedTechnicianId: String(order?.technicianAssignment?.id ?? "").trim() || undefined,
     assignedTechnicianName: String(order?.technicianAssignment?.name ?? "").trim() || undefined,
-    assignmentDate: order?.technicianAssignment?.assignedDate ? new Date(String(order.technicianAssignment.assignedDate)) : undefined,
+    assignmentDate: order?.technicianAssignment?.assignedDate
+      ? new Date(String(order.technicianAssignment.assignedDate))
+      : order?.assignmentDate
+      ? new Date(String(order.assignmentDate))
+      : undefined,
     
     // ✅ NEW: Quality Check Fields
-    qualityCheckStatus: String(order?.qualityCheck?.status ?? "PENDING").trim(),
+    qualityCheckStatus: String(order?.qualityCheck?.status ?? "PENDING").trim().toUpperCase(),
     qualityCheckDate: order?.qualityCheck?.date ? new Date(String(order.qualityCheck.date)) : undefined,
     qualityCheckNotes: String(order?.qualityCheck?.notes ?? "").trim() || undefined,
     qualityCheckedBy: String(order?.qualityCheck?.checkedBy ?? "").trim() || undefined,
     
     // ✅ NEW: Exit Permit Fields
     exitPermitRequired: order?.exitPermitInfo?.required ?? false,
-    exitPermitStatus: String(order?.exitPermitInfo?.status ?? "NOT_REQUIRED").trim(),
-    exitPermitDate: order?.exitPermitInfo?.date ? new Date(String(order.exitPermitInfo.date)) : undefined,
-    nextServiceDate: String(order?.exitPermitInfo?.nextServiceDate ?? "").trim() || undefined,
+    exitPermitStatus: normalizeExitPermitStatus(
+      order?.exitPermitInfo?.status ?? order?.exitPermitStatus ?? (order?.exitPermit?.permitId ? "APPROVED" : "NOT_REQUIRED")
+    ),
+    exitPermitDate: order?.exitPermitInfo?.date
+      ? new Date(String(order.exitPermitInfo.date))
+      : order?.exitPermit?.createDate
+      ? new Date(String(order.exitPermit.createDate))
+      : undefined,
+    nextServiceDate: String(order?.exitPermitInfo?.nextServiceDate ?? order?.exitPermit?.nextServiceDate ?? "").trim() || undefined,
     
     // ✅ NEW: Service Tracking
     totalServiceCount: toNum(order?.serviceProgressInfo?.total ?? order?.services?.length ?? 0),
@@ -984,11 +1016,11 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
     internalNotes: String(order?.internalNotes ?? "").trim() || undefined,
     
     // ✅ NEW: Customer Details (stored as schema fields)
-    customerAddress: String(order?.customerDetails?.address ?? "").trim() || undefined,
-    customerCompany: String(order?.customerDetails?.company ?? "").trim() || undefined,
-    customerSince: String(order?.customerDetails?.customerSince ?? "").trim() || undefined,
-    registeredVehiclesCount: toNum(order?.customerDetails?.registeredVehiclesCount),
-    completedServicesCount: toNum(order?.customerDetails?.completedServicesCount),
+    customerAddress: String(order?.customerDetails?.address ?? order?.customerAddress ?? "").trim() || undefined,
+    customerCompany: String(order?.customerDetails?.company ?? order?.customerCompany ?? "").trim() || undefined,
+    customerSince: String(order?.customerDetails?.customerSince ?? order?.customerSince ?? "").trim() || undefined,
+    registeredVehiclesCount: toNum(order?.customerDetails?.registeredVehiclesCount ?? order?.registeredVehiclesCount),
+    completedServicesCount: toNum(order?.customerDetails?.completedServicesCount ?? order?.completedServicesCount),
 
     // keep existing structure
     services: services.map((s: any, idx: number) => {
@@ -1140,9 +1172,9 @@ export async function listJobOrdersForExitPermit(): Promise<any[]> {
   return (all ?? []).filter((o: any) => {
     const work = String(o.workStatus ?? "").trim().toLowerCase();
     const pay = String(o.paymentStatus ?? "").trim().toLowerCase();
-    const permit = String(o.exitPermitStatus ?? "Not Created").trim().toLowerCase();
+    const permit = normalizeExitPermitStatus(o.exitPermitStatus);
 
-    if (permit === "created") return false;
+    if (permit === "APPROVED") return false;
 
     const readyOk = work === "ready" && pay === "fully paid";
     const cancelledOk =
@@ -1165,8 +1197,8 @@ export async function createExitPermitForOrderNumber(input: {
   const order = await getJobOrderByOrderNumber(input.orderNumber);
   if (!order) throw new Error("Order not found.");
 
-  const currentStatus = String(order.exitPermitStatus ?? "Not Created").toLowerCase();
-  if (currentStatus === "created" || String(order.exitPermit?.permitId ?? "").trim()) {
+  const currentStatus = normalizeExitPermitStatus(order.exitPermitStatus);
+  if (currentStatus === "APPROVED" || String(order.exitPermit?.permitId ?? "").trim()) {
     throw new Error("Exit permit already exists for this order.");
   }
 
@@ -1240,7 +1272,14 @@ export async function createExitPermitForOrderNumber(input: {
     order.workStatusLabel = "Completed";
   }
 
-  order.exitPermitStatus = "Created";
+  order.exitPermitStatus = "APPROVED";
+  order.exitPermitInfo = {
+    ...(order.exitPermitInfo ?? {}),
+    required: true,
+    status: "APPROVED",
+    date: new Date().toISOString(),
+    nextServiceDate: work === "cancelled" ? undefined : String(input.nextServiceDate ?? "").trim() || undefined,
+  };
   order.exitPermit = {
     permitId,
     createDate,
