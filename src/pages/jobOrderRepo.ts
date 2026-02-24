@@ -202,19 +202,29 @@ function unwrapAwsJsonMaybe(raw: any): any {
 }
 
 function parseJobOrderSaveResult(res: any): { id?: string; orderNumber?: string } {
+  console.log("[parseJobOrderSaveResult] Full response:", JSON.stringify(res, null, 2));
+
+  // Try multiple paths to extract the result
   let x = res?.data ?? res;
+  console.log("[parseJobOrderSaveResult] After res.data check:", x);
+  
   x = unwrapAwsJsonMaybe(x);
+  console.log("[parseJobOrderSaveResult] After unwrapAwsJsonMaybe:", x);
 
   if (x && typeof x === "object" && (x as any).jobOrderSave != null) {
+    console.log("[parseJobOrderSaveResult] Found jobOrderSave in response, unwrapping...");
     x = unwrapAwsJsonMaybe((x as any).jobOrderSave);
+    console.log("[parseJobOrderSaveResult] After unwrapping jobOrderSave:", x);
   }
 
   if (x && typeof x === "object") {
     const id = String((x as any).id ?? "").trim();
     const orderNumber = String((x as any).orderNumber ?? "").trim();
+    console.log("[parseJobOrderSaveResult] Extracted id:", id, "orderNumber:", orderNumber);
     return { id: id || undefined, orderNumber: orderNumber || undefined };
   }
 
+  console.warn("[parseJobOrderSaveResult] Could not extract id/orderNumber from response");
   return {};
 }
 
@@ -871,12 +881,17 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
 }
 
 export async function upsertJobOrder(order: any): Promise<{ backendId: string; orderNumber: string }> {
+  console.log("[upsertJobOrder] Starting with order:", order);
+  
   const client = getDataClient();
 
   const orderNumber = String(order?.id ?? order?.orderNumber ?? "").trim();
   if (!orderNumber) throw new Error("Missing Job Order ID (orderNumber).");
+  
+  console.log("[upsertJobOrder] Order number:", orderNumber);
 
   const backendIdExisting = String(order?._backendId ?? "").trim();
+  console.log("[upsertJobOrder] Existing backend ID:", backendIdExisting);
 
   const services = Array.isArray(order?.services) ? order.services : [];
   // ✅ Do not break updates if older order dataJson has no services
@@ -1024,28 +1039,50 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
     totalAmount: Number.isFinite(totalFromBilling) ? totalFromBilling : undefined,
   };
 
+  console.log("[upsertJobOrder] Payload constructed with keys:", Object.keys(payload));
+  console.log("[upsertJobOrder] Payload summary:", {
+    id: payload.id,
+    orderNumber: payload.orderNumber,
+    status: payload.status,
+    priorityLevel: payload.priorityLevel,
+    exitPermitStatus: payload.exitPermitStatus,
+    qualityCheckStatus: payload.qualityCheckStatus,
+    serviceCount: payload.services?.length ?? 0,
+  });
+
   const res: any = await (client.mutations as any).jobOrderSave({
     input: JSON.stringify(payload),
   });
 
+  console.log("[upsertJobOrder] Mutation response received:", res);
+  console.log("[upsertJobOrder] Response has errors:", res?.errors);
+
   if (res?.errors?.length) {
+    console.error("[upsertJobOrder] Mutation errors:", res.errors);
     throw new Error(res.errors.map((e: any) => e.message).join(" | "));
   }
 
   const parsed = parseJobOrderSaveResult(res);
+  console.log("[upsertJobOrder] Parsed result:", parsed);
 
   let backendId = String(parsed?.id ?? payload.id ?? "").trim();
   let returnedOrderNumber = String(parsed?.orderNumber ?? payload.orderNumber ?? "").trim();
 
+  console.log("[upsertJobOrder] After parsing - backendId:", backendId, "returnedOrderNumber:", returnedOrderNumber);
+
   if (!backendId) {
+    console.log("[upsertJobOrder] No backendId found, searching by orderNumber:", returnedOrderNumber || orderNumber);
     const row = await findJobOrderRowByAnyKey(returnedOrderNumber || orderNumber);
     backendId = String(row?.id ?? "").trim();
+    console.log("[upsertJobOrder] Found row by orderNumber:", row?.id);
   }
 
   if (!backendId) {
+    console.error("[upsertJobOrder] CRITICAL: Could not resolve backend ID after save");
     throw new Error("Saved but backend id could not be resolved (check jobOrderSave return type).");
   }
 
+  console.log("[upsertJobOrder] SUCCESS - backendId:", backendId, "orderNumber:", returnedOrderNumber || orderNumber);
   return { backendId, orderNumber: returnedOrderNumber || orderNumber };
 }
 
