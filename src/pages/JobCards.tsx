@@ -811,6 +811,38 @@ function DetailsScreen({ order, onClose, onAddService }: any) {
           <h2>
             <i className="fas fa-clipboard-list"></i> Job Order Details - {order.id}
           </h2>
+          {/* ✅ NEW: Header Status Indicators */}
+          <div className="pim-details-header-badges">
+            {order.priorityLevel && (
+              <span 
+                className="pim-priority-badge" 
+                style={{ 
+                  backgroundColor: order.priorityBg, 
+                  color: order.priorityColor,
+                  borderLeft: `3px solid ${order.priorityColor}`
+                }}
+              >
+                <i className="fas fa-exclamation-circle"></i> {order.priorityLevel}
+              </span>
+            )}
+            {order.qualityCheck && (
+              <span className={`pim-qc-badge ${order.qualityCheck.status.toLowerCase()}`}>
+                <i className={order.qualityCheck.status === 'PASSED' ? 'fas fa-check-circle' : order.qualityCheck.status === 'FAILED' ? 'fas fa-times-circle' : 'fas fa-hourglass-half'}></i>
+                {order.qualityCheck.displayText}
+              </span>
+            )}
+            {order.exitPermitInfo && (
+              <span className={`pim-permit-badge ${order.exitPermitInfo.required ? 'required' : 'not-required'}`}>
+                <i className={order.exitPermitInfo.status === 'APPROVED' ? 'fas fa-certificate' : 'fas fa-file'}></i>
+                Exit Permit: {order.exitPermitInfo.status}
+              </span>
+            )}
+            {order.technicianAssignment && order.technicianAssignment.name && (
+              <span className="pim-tech-badge">
+                <i className="fas fa-user-tie"></i> {order.technicianAssignment.displayText}
+              </span>
+            )}
+          </div>
         </div>
         <button className="pim-btn-close-details" onClick={onClose}>
           <i className="fas fa-times"></i> Close Details
@@ -834,6 +866,21 @@ function DetailsScreen({ order, onClose, onAddService }: any) {
           <PermissionGate moduleId="joborder" optionId="joborder_billing">
             <BillingCard order={order} />
           </PermissionGate>
+          
+          {/* ✅ NEW: Quality Check Card */}
+          {order.qualityCheck && (
+            <PermissionGate moduleId="joborder" optionId="joborder_quality">
+              <QualityCheckCard order={order} />
+            </PermissionGate>
+          )}
+          
+          {/* ✅ NEW: Delivery Tracking Card */}
+          {order.deliveryInfo && (
+            <PermissionGate moduleId="joborder" optionId="joborder_delivery">
+              <DeliveryTrackingCard order={order} />
+            </PermissionGate>
+          )}
+          
           <PermissionGate moduleId="joborder" optionId="joborder_paymentlog">
             <PaymentActivityLogCard order={order} />
           </PermissionGate>
@@ -2091,6 +2138,8 @@ function StepFourConfirm({ customerData, vehicleData, selectedServices, discount
 // ============================================
 function JobOrderSummaryCard({ order }: any) {
   const summary = order.jobOrderSummary || {};
+  const delivery = order.deliveryInfo || {};
+  const serviceProgress = order.serviceProgressInfo || {};
   
   return (
     <div className="epm-detail-card">
@@ -2114,6 +2163,44 @@ function JobOrderSummaryCard({ order }: any) {
           <span className="epm-info-label">Payment Status</span>
           <span className={`epm-status-badge status-badge ${getPaymentStatusClass(order.paymentStatus)}`}>{order.paymentStatus}</span>
         </div>
+        
+        {/* ✅ NEW: Priority Level */}
+        {order.priorityLevel && (
+          <div className="epm-info-item">
+            <span className="epm-info-label">Priority</span>
+            <span 
+              className="epm-priority-badge"
+              style={{ 
+                backgroundColor: order.priorityBg, 
+                color: order.priorityColor,
+                padding: '4px 12px',
+                borderRadius: '4px',
+                fontWeight: '600'
+              }}
+            >
+              {order.priorityLevel}
+            </span>
+          </div>
+        )}
+        
+        {/* ✅ NEW: Service Progress */}
+        {serviceProgress.progress && (
+          <div className="epm-info-item" style={{ gridColumn: 'span 2' }}>
+            <span className="epm-info-label">Service Progress</span>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', width: '100%' }}>
+              <div style={{ flex: 1 }}>
+                <div className="epm-progress-bar">
+                  <div 
+                    className="epm-progress-fill" 
+                    style={{ width: `${serviceProgress.progress.percent}%` }}
+                  ></div>
+                </div>
+              </div>
+              <span className="epm-progress-text">{serviceProgress.progress.label}</span>
+            </div>
+          </div>
+        )}
+        
         {summary.createDate && (
           <div className="epm-info-item">
             <span className="epm-info-label">Created On</span>
@@ -2132,6 +2219,17 @@ function JobOrderSummaryCard({ order }: any) {
             <span className="epm-info-value">{summary.expectedDelivery}</span>
           </div>
         )}
+        
+        {/* ✅ NEW: Estimated vs Actual Hours */}
+        {(delivery.estimatedHours || delivery.actualHours) && (
+          <div className="epm-info-item">
+            <span className="epm-info-label">Time Estimate</span>
+            <span className="epm-info-value">
+              Est: {delivery.estimatedHours || 'N/A'} {delivery.actualHours && `| Actual: ${delivery.actualHours}`}
+            </span>
+          </div>
+        )}
+        
         {order.customerNotes && (
           <div className="epm-info-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
             <span className="epm-info-label">Customer Notes</span>
@@ -2172,22 +2270,43 @@ function CustomerDetailsCard({ order }: any) {
             <span className="pim-info-value">{customerDetails.customerId}</span>
           </div>
         )}
-        {customerDetails.registeredVehicles && (
+        
+        {/* ✅ NEW: Customer Address */}
+        {customerDetails.address && (
           <div className="pim-info-item">
-            <span className="pim-info-label">Registered Vehicles</span>
-            <span className="pim-info-value">{customerDetails.registeredVehicles}</span>
+            <span className="pim-info-label">Address</span>
+            <span className="pim-info-value">{customerDetails.address}</span>
           </div>
         )}
-        {customerDetails.completedServicesCount !== undefined && (
+        
+        {/* ✅ NEW: Customer Company */}
+        {customerDetails.company && (
           <div className="pim-info-item">
-            <span className="pim-info-label">Completed Services</span>
-            <span className="pim-info-value">{customerDetails.completedServicesCount}</span>
+            <span className="pim-info-label">Company</span>
+            <span className="pim-info-value">{customerDetails.company}</span>
           </div>
         )}
+        
+        {/* ✅ NEW: Customer Since */}
         {customerDetails.customerSince && (
           <div className="pim-info-item">
             <span className="pim-info-label">Customer Since</span>
             <span className="pim-info-value">{customerDetails.customerSince}</span>
+          </div>
+        )}
+        
+        {/* ✅ NEW: Registered Vehicles Count */}
+        {customerDetails.registeredVehiclesCount !== undefined && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Registered Vehicles</span>
+            <span className="pim-info-value">{customerDetails.registeredVehiclesCount}</span>
+          </div>
+        )}
+        
+        {customerDetails.completedServicesCount !== undefined && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Completed Services</span>
+            <span className="pim-info-value">{customerDetails.completedServicesCount}</span>
           </div>
         )}
       </div>
@@ -2244,6 +2363,19 @@ function VehicleDetailsCard({ order }: any) {
             <span className="pim-info-value">{vehicleDetails.vin}</span>
           </div>
         )}
+        {/* ✅ NEW: Registration Date */}
+        {vehicleDetails.registrationDate && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Registration Date</span>
+            <span className="pim-info-value">{vehicleDetails.registrationDate}</span>
+          </div>
+        )}
+        {vehicleDetails.mileage && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Mileage</span>
+            <span className="pim-info-value">{vehicleDetails.mileage}</span>
+          </div>
+        )}
         {vehicleDetails.ownedBy && (
           <div className="pim-info-item">
             <span className="pim-info-label">Owned By</span>
@@ -2256,12 +2388,32 @@ function VehicleDetailsCard({ order }: any) {
 }
 
 function ServicesCard({ order, onAddService }: any) {
+  const serviceProgress = order.serviceProgressInfo || {};
+  
   return (
     <div className="pim-detail-card" style={{ gridColumn: 'span 12' }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
-        <h3 style={{ margin: 0 }}>
-          <i className="fas fa-tasks"></i> Services Summary ({order.services?.length || 0})
-        </h3>
+        <div style={{ flex: 1 }}>
+          <h3 style={{ margin: '0 0 12px 0' }}>
+            <i className="fas fa-tasks"></i> Services Summary ({order.services?.length || 0})
+          </h3>
+          {/* ✅ NEW: Service Progress Bar */}
+          {serviceProgress.progress && (
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <div style={{ flex: 1, minHeight: '8px' }}>
+                <div className="epm-progress-bar" style={{ height: '8px' }}>
+                  <div 
+                    className="epm-progress-fill" 
+                    style={{ width: `${serviceProgress.progress.percent}%`, height: '100%' }}
+                  ></div>
+                </div>
+              </div>
+              <span className="epm-progress-text" style={{ fontSize: '12px', color: '#666' }}>
+                {serviceProgress.progress.label}
+              </span>
+            </div>
+          )}
+        </div>
         <PermissionGate moduleId="joborder" optionId="joborder_addservice">
           <button className="btn-add-service" onClick={onAddService} style={{ padding: "8px 16px", fontSize: "14px" }}>
             <i className="fas fa-plus-circle"></i> Add Service
@@ -2440,10 +2592,22 @@ function PaymentActivityLogCard({ order }: any) {
           <tr>
             <th>Serial</th>
             <th>Amount</th>
-            <th>Discount</th>
-            <th>Payment Method</th>
+            <th>Method</th>
+            <th>Timestamps</th>
+            {/* ✅ NEW: Show receipt/transaction fields if available */}
+            {order.paymentActivityLog.some((p: any) => p.receiptNumber || p.transactionId) && (
+              <>
+                <th>Receipt #</th>
+                <th>Transaction ID</th>
+              </>
+            )}
+            {order.paymentActivityLog.some((p: any) => p.paymentStatus) && (
+              <th>Status</th>
+            )}
+            {order.paymentActivityLog.some((p: any) => p.approvedBy) && (
+              <th>Approved By</th>
+            )}
             <th>Cashier</th>
-            <th>Timestamp</th>
           </tr>
         </thead>
         <tbody>
@@ -2451,14 +2615,167 @@ function PaymentActivityLogCard({ order }: any) {
             <tr key={idx}>
               <td className="pim-serial-column">{payment.serial}</td>
               <td className="pim-amount-column">{payment.amount}</td>
-              <td className="pim-discount-column">{payment.discount}</td>
               <td className="pim-cashier-column">{payment.paymentMethod}</td>
+              <td className="pim-timestamp-column">{payment.timestamp}</td>
+              {/* ✅ NEW: Receipt and Transaction Info */}
+              {order.paymentActivityLog.some((p: any) => p.receiptNumber || p.transactionId) && (
+                <>
+                  <td className="pim-receipt-column">
+                    {payment.receiptNumber ? (
+                      <span className="pim-payment-detail">
+                        <i className="fas fa-receipt"></i> {payment.receiptNumber}
+                      </span>
+                    ) : '-'}
+                  </td>
+                  <td className="pim-transaction-column">
+                    {payment.transactionId ? (
+                      <span className="pim-payment-detail">
+                        <i className="fas fa-exchange-alt"></i> {payment.transactionId}
+                      </span>
+                    ) : '-'}
+                  </td>
+                </>
+              )}
+              {/* ✅ NEW: Payment Status */}
+              {order.paymentActivityLog.some((p: any) => p.paymentStatus) && (
+                <td className="pim-status-column">
+                  <span className={`pim-payment-status ${(payment.paymentStatus || '').toLowerCase()}`}>
+                    {payment.paymentStatus || '-'}
+                  </span>
+                </td>
+              )}
+              {/* ✅ NEW: Approval Info */}
+              {order.paymentActivityLog.some((p: any) => p.approvedBy) && (
+                <td className="pim-approver-column">
+                  {payment.approvedBy ? (
+                    <span>
+                      {payment.approvedBy}
+                      {payment.approvalDate && <br />}
+                      {payment.approvalDate && <small style={{ color: '#666' }}>{payment.approvalDate}</small>}
+                    </span>
+                  ) : '-'}
+                </td>
+              )}
               <td className="pim-cashier-column">{payment.cashierName}</td>
-              <td>{payment.timestamp}</td>
             </tr>
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// ============================================
+// ✅ NEW: QUALITY CHECK CARD
+// ============================================
+function QualityCheckCard({ order }: any) {
+  const qc = order.qualityCheck || {};
+  
+  if (!qc.status) return null;
+
+  const getQCStatusClass = (status: string) => {
+    const s = String(status || '').toUpperCase();
+    if (s === 'PASSED') return 'passed';
+    if (s === 'FAILED') return 'failed';
+    if (s === 'IN_PROGRESS') return 'in-progress';
+    return 'pending';
+  };
+
+  return (
+    <div className="pim-detail-card">
+      <h3>
+        <i className="fas fa-check-double"></i> Quality Check
+      </h3>
+      <div className="pim-card-content">
+        <div className="pim-info-item">
+          <span className="pim-info-label">Status</span>
+          <span className={`pim-qc-status-badge ${getQCStatusClass(qc.status)}`}>
+            {qc.displayText || qc.status}
+          </span>
+        </div>
+        {qc.date && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Checked On</span>
+            <span className="pim-info-value">{qc.date}</span>
+          </div>
+        )}
+        {qc.checkedBy && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Checked By</span>
+            <span className="pim-info-value">{qc.checkedBy}</span>
+          </div>
+        )}
+        {qc.notes && (
+          <div className="pim-info-item" style={{ gridColumn: 'span 2', flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
+            <span className="pim-info-label">Notes</span>
+            <span className="pim-info-value" style={{ whiteSpace: 'pre-wrap', fontSize: '13px', padding: '8px', backgroundColor: '#f9fafb', borderRadius: '4px' }}>
+              {qc.notes}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================
+// ✅ NEW: DELIVERY TRACKING CARD
+// ============================================
+function DeliveryTrackingCard({ order }: any) {
+  const delivery = order.deliveryInfo || {};
+  
+  if (!delivery.expected && !delivery.actual && !delivery.estimatedHours && !delivery.actualHours) return null;
+
+  return (
+    <div className="pim-detail-card">
+      <h3>
+        <i className="fas fa-truck"></i> Delivery & Time Tracking
+      </h3>
+      <div className="pim-card-content">
+        <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '12px', marginBottom: '12px' }}>
+          <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>
+            <i className="fas fa-calendar"></i> Delivery Dates
+          </h4>
+          <div className="pim-info-item">
+            <span className="pim-info-label">Expected</span>
+            <span className="pim-info-value">{delivery.expectedDate || 'Not set'}</span>
+          </div>
+          {delivery.expectedTime && (
+            <div className="pim-info-item">
+              <span className="pim-info-label">Expected Time</span>
+              <span className="pim-info-value">{delivery.expectedTime}</span>
+            </div>
+          )}
+          {delivery.actualDate && (
+            <div className="pim-info-item">
+              <span className="pim-info-label">Actual Delivery</span>
+              <span className="pim-info-value">{delivery.actualDate}</span>
+            </div>
+          )}
+          {delivery.actualTime && (
+            <div className="pim-info-item">
+              <span className="pim-info-label">Actual Time</span>
+              <span className="pim-info-value">{delivery.actualTime}</span>
+            </div>
+          )}
+        </div>
+        
+        <div>
+          <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>
+            <i className="fas fa-hourglass-half"></i> Time Estimates
+          </h4>
+          <div className="pim-info-item">
+            <span className="pim-info-label">Estimated Duration</span>
+            <span className="pim-info-value">{delivery.estimatedHours || 'Not set'}</span>
+          </div>
+          {delivery.actualHours && (
+            <div className="pim-info-item">
+              <span className="pim-info-label">Actual Duration</span>
+              <span className="pim-info-value">{delivery.actualHours}</span>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

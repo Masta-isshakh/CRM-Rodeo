@@ -17,35 +17,63 @@ type Payload = {
   id?: string;
   orderNumber?: string;
   orderType?: string;
-
   status?: string;
   workStatusLabel?: string;
   paymentStatusLabel?: string;
-
   customerId?: string;
   customerName?: string;
   customerPhone?: string;
   customerEmail?: string;
-
-  vehicleType?: string;
+  plateNumber?: string;
+  vehicleId?: string;
   vehicleMake?: string;
   vehicleModel?: string;
   vehicleYear?: string;
-  plateNumber?: string;
   vin?: string;
   mileage?: string;
   color?: string;
-
+  registrationDate?: string;
+  vehicleType?: string;
   billId?: string;
   netAmount?: number;
   paymentMethod?: string;
-
+  discount?: number;
+  discountPercent?: number;
+  vatRate?: number;
+  
+  // ✅ NEW: All new fields from schema
+  priorityLevel?: string;
+  assignedTechnicianId?: string;
+  assignedTechnicianName?: string;
+  assignmentDate?: string | Date;
+  qualityCheckStatus?: string;
+  qualityCheckDate?: string | Date;
+  qualityCheckNotes?: string;
+  qualityCheckedBy?: string;
+  exitPermitRequired?: boolean;
+  exitPermitStatus?: string;
+  exitPermitDate?: string | Date;
+  nextServiceDate?: string;
+  totalServiceCount?: number;
+  completedServiceCount?: number;
+  pendingServiceCount?: number;
   expectedDeliveryDate?: string;
   expectedDeliveryTime?: string;
+  actualDeliveryDate?: string;
+  actualDeliveryTime?: string;
+  estimatedCompletionHours?: number;
+  actualCompletionHours?: number;
+  customerNotified?: boolean;
+  lastNotificationDate?: string | Date;
   customerNotes?: string;
-
-  vatRate?: number;
-  discount?: number;
+  jobDescription?: string;
+  specialInstructions?: string;
+  internalNotes?: string;
+  customerAddress?: string;
+  customerCompany?: string;
+  customerSince?: string;
+  registeredVehiclesCount?: number;
+  completedServicesCount?: number;
 
   services?: ServiceLine[];
   documents?: any[];
@@ -57,11 +85,15 @@ type Payload = {
 
 function safeParseInput(raw: any): Payload {
   if (raw == null) throw new Error("Missing input");
+  
+  // ✅ NEW: Handle both direct object and JSON string for backwards compatibility
   if (typeof raw === "string") {
     const s = raw.trim();
     if (!s) throw new Error("Empty input");
     return JSON.parse(s) as Payload;
   }
+  
+  // If it's already an object, use it directly
   return raw as Payload;
 }
 
@@ -170,17 +202,20 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
 
   const { paymentStatus, balanceDue } = computePaymentStatus(totalAmount, amountPaid);
 
-  // snapshot json
-  const { payments, ...payloadNoPayments } = payload as any;
+  // ✅ NEW: Minimal dataJson - only store non-schema data (services, documents, roadmap, billing)
+  // All other data is in schema fields, no need to duplicate
   const dataJson = JSON.stringify({
-    ...payloadNoPayments,
-    customerName,
-    services,
+    services: services.map((s: any, idx: number) => {
+      const price = toNum((s as any).price);
+      return {
+        id: String(s.id ?? `SVC-${idx + 1}`),
+        name: String(s.name ?? "").trim(),
+        price,
+      };
+    }),
     documents: Array.isArray(payload.documents) ? payload.documents : [],
     roadmap: Array.isArray(payload.roadmap) ? payload.roadmap : [],
     billing: payload.billing ?? {},
-    vatRate,
-    discount,
   });
 
   const common: any = {
@@ -204,6 +239,7 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
     vin: String(payload.vin ?? existing?.vin ?? "").trim() || undefined,
     mileage: String(payload.mileage ?? existing?.mileage ?? "").trim() || undefined,
     color: String(payload.color ?? existing?.color ?? "").trim() || undefined,
+    registrationDate: String(payload.registrationDate ?? existing?.registrationDate ?? "").trim() || undefined,
 
     subtotal,
     discount,
@@ -219,10 +255,53 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
     netAmount:
       payload.netAmount != null ? Math.max(0, toNum(payload.netAmount)) : existing?.netAmount ?? undefined,
     paymentMethod: String(payload.paymentMethod ?? existing?.paymentMethod ?? "").trim() || undefined,
+    discountPercent: payload.discountPercent != null ? Math.max(0, toNum(payload.discountPercent)) : existing?.discountPercent ?? 0,
 
+    // ✅ NEW: Customer Details
+    customerAddress: String(payload.customerAddress ?? existing?.customerAddress ?? "").trim() || undefined,
+    customerCompany: String(payload.customerCompany ?? existing?.customerCompany ?? "").trim() || undefined,
+    customerSince: String(payload.customerSince ?? existing?.customerSince ?? "").trim() || undefined,
+    completedServicesCount: payload.completedServicesCount != null ? Math.max(0, toNum(payload.completedServicesCount)) : existing?.completedServicesCount ?? 0,
+    registeredVehiclesCount: payload.registeredVehiclesCount != null ? Math.max(1, toNum(payload.registeredVehiclesCount)) : existing?.registeredVehiclesCount ?? 1,
+
+    // ✅ NEW: Service Tracking
+    totalServiceCount: payload.totalServiceCount != null ? Math.max(0, toNum(payload.totalServiceCount)) : existing?.totalServiceCount ?? 0,
+    completedServiceCount: payload.completedServiceCount != null ? Math.max(0, toNum(payload.completedServiceCount)) : existing?.completedServiceCount ?? 0,
+    pendingServiceCount: payload.pendingServiceCount != null ? Math.max(0, toNum(payload.pendingServiceCount)) : existing?.pendingServiceCount ?? 0,
+
+    // ✅ NEW: Delivery Information
     expectedDeliveryDate: String(payload.expectedDeliveryDate ?? existing?.expectedDeliveryDate ?? "").trim() || undefined,
     expectedDeliveryTime: String(payload.expectedDeliveryTime ?? existing?.expectedDeliveryTime ?? "").trim() || undefined,
+    actualDeliveryDate: String(payload.actualDeliveryDate ?? existing?.actualDeliveryDate ?? "").trim() || undefined,
+    actualDeliveryTime: String(payload.actualDeliveryTime ?? existing?.actualDeliveryTime ?? "").trim() || undefined,
+    estimatedCompletionHours: payload.estimatedCompletionHours != null ? toNum(payload.estimatedCompletionHours) : existing?.estimatedCompletionHours ?? undefined,
+    actualCompletionHours: payload.actualCompletionHours != null ? toNum(payload.actualCompletionHours) : existing?.actualCompletionHours ?? undefined,
+
+    // ✅ NEW: Quality Check Fields
+    qualityCheckStatus: (payload.qualityCheckStatus as any) ?? existing?.qualityCheckStatus ?? "PENDING",
+    qualityCheckDate: payload.qualityCheckDate ?? existing?.qualityCheckDate ?? undefined,
+    qualityCheckNotes: String(payload.qualityCheckNotes ?? existing?.qualityCheckNotes ?? "").trim() || undefined,
+    qualityCheckedBy: String(payload.qualityCheckedBy ?? existing?.qualityCheckedBy ?? "").trim() || undefined,
+
+    // ✅ NEW: Exit Permit Fields
+    exitPermitRequired: payload.exitPermitRequired ?? existing?.exitPermitRequired ?? false,
+    exitPermitStatus: (payload.exitPermitStatus as any) ?? existing?.exitPermitStatus ?? "NOT_REQUIRED",
+    exitPermitDate: payload.exitPermitDate ?? existing?.exitPermitDate ?? undefined,
+    nextServiceDate: String(payload.nextServiceDate ?? existing?.nextServiceDate ?? "").trim() || undefined,
+
+    // ✅ NEW: Priority & Assignment
+    priorityLevel: (payload.priorityLevel as any) ?? existing?.priorityLevel ?? "NORMAL",
+    assignedTechnicianId: String(payload.assignedTechnicianId ?? existing?.assignedTechnicianId ?? "").trim() || undefined,
+    assignedTechnicianName: String(payload.assignedTechnicianName ?? existing?.assignedTechnicianName ?? "").trim() || undefined,
+    assignmentDate: payload.assignmentDate ?? existing?.assignmentDate ?? undefined,
+
+    // ✅ NEW: Customer Communication
     customerNotes: String(payload.customerNotes ?? existing?.customerNotes ?? "").trim() || undefined,
+    internalNotes: String(payload.internalNotes ?? existing?.internalNotes ?? "").trim() || undefined,
+    customerNotified: payload.customerNotified ?? existing?.customerNotified ?? false,
+    lastNotificationDate: payload.lastNotificationDate ?? existing?.lastNotificationDate ?? undefined,
+    jobDescription: String(payload.jobDescription ?? existing?.jobDescription ?? "").trim() || undefined,
+    specialInstructions: String(payload.specialInstructions ?? existing?.specialInstructions ?? "").trim() || undefined,
 
     notes: String(payload.notes ?? existing?.notes ?? "").trim() || undefined,
     dataJson,
@@ -242,6 +321,9 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
     });
 
     const row = out?.data ?? out;
+    console.log("[jobOrderSave] CREATE - out:", out);
+    console.log("[jobOrderSave] CREATE - row:", row);
+    console.log("[jobOrderSave] CREATE - returning:", { id: row?.id, orderNumber: row?.orderNumber });
     return { id: row?.id, orderNumber: row?.orderNumber };
   }
 
@@ -251,5 +333,8 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
   });
 
   const row = out?.data ?? out;
+  console.log("[jobOrderSave] UPDATE - out:", out);
+  console.log("[jobOrderSave] UPDATE - row:", row);
+  console.log("[jobOrderSave] UPDATE - returning:", { id: row?.id, orderNumber: row?.orderNumber });
   return { id: row?.id, orderNumber: row?.orderNumber };
 };
