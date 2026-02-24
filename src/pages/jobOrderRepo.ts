@@ -115,6 +115,87 @@ function deriveExitPermitStatus(parsed: any) {
   return permitId ? "Created" : "Not Created";
 }
 
+// ✅ NEW: Quality Check Status Display
+function mapQualityCheckStatus(status: any) {
+  const s = String(status ?? "").toUpperCase();
+  if (s === "PASSED") return "Passed ✓";
+  if (s === "FAILED") return "Failed ✗";
+  if (s === "IN_PROGRESS") return "In Progress...";
+  return "Pending";
+}
+
+// ✅ NEW: Priority Level Display with Colors
+function mapPriorityLevel(level: any) {
+  const p = String(level ?? "NORMAL").toUpperCase();
+  if (p === "URGENT") return { label: "URGENT", color: "#DC2626", bgColor: "#FEE2E2" };
+  if (p === "HIGH") return { label: "HIGH", color: "#F97316", bgColor: "#FFEDD5" };
+  if (p === "NORMAL") return { label: "NORMAL", color: "#6366F1", bgColor: "#E0E7FF" };
+  if (p === "LOW") return { label: "LOW", color: "#6B7280", bgColor: "#F3F4F6" };
+  return { label: "NORMAL", color: "#6366F1", bgColor: "#E0E7FF" };
+}
+
+// ✅ NEW: Service Progress Calculation
+function calculateServiceProgress(completed: number, total: number): { percent: number; label: string } {
+  const total_safe = Math.max(1, total || 0);
+  const completed_safe = Math.max(0, completed || 0);
+  const percent = Math.round((completed_safe / total_safe) * 100);
+  return {
+    percent: Math.min(100, percent),
+    label: `${completed_safe}/${total_safe} completed`,
+  };
+}
+
+// ✅ NEW: Technician Assignment Display
+function formatTechnicianAssignment(name: string | null, assignDate: any) {
+  const techName = String(name ?? "").trim();
+  if (!techName) return "Unassigned";
+  
+  let dateStr = "";
+  if (assignDate) {
+    try {
+      dateStr = new Date(String(assignDate)).toLocaleDateString("en-GB", {
+        day: "numeric",
+        month: "short",
+      });
+      return `${techName} (${dateStr})`;
+    } catch {}
+  }
+  return techName;
+}
+
+// ✅ NEW: Time Duration Format
+function formatTime(timeStr: any): string {
+  const t = String(timeStr ?? "").trim();
+  if (!t) return "Not set";
+  // If it's already formatted like "2h 30m", return as-is
+  if (t.includes("h") || t.includes("m")) return t;
+  // If it's minutes, format it
+  const mins = toNum(t);
+  if (mins < 60) return `${mins}m`;
+  const hours = Math.floor(mins / 60);
+  const remainder = mins % 60;
+  return remainder ? `${hours}h ${remainder}m` : `${hours}h`;
+}
+
+// ✅ NEW: Payment Status and Receipt Info
+function formatPaymentInfo(payment: any) {
+  return {
+    amount: formatQar(toNum(payment?.amount ?? 0)),
+    method: payment?.paymentSource ?? payment?.method ?? "Cash",
+    receiptNumber: payment?.receiptNumber ? `Receipt: ${payment.receiptNumber}` : null,
+    transactionId: payment?.transactionId ? `Txn: ${payment.transactionId}` : null,
+    verificationCode: payment?.verificationCode ? `Verify: ${payment.verificationCode}` : null,
+    paymentStatus: String(payment?.paymentStatus ?? "COMPLETED").toUpperCase(),
+    approvedBy: payment?.approvedBy ?? null,
+    approvalDate: payment?.approvalDate
+      ? new Date(String(payment.approvalDate)).toLocaleDateString()
+      : null,
+    paidAt: payment?.paidAt
+      ? new Date(String(payment.paidAt)).toLocaleString()
+      : "",
+  };
+}
+
 function unwrapAwsJsonMaybe(raw: any): any {
   const parsed = safeJsonParse<any>(raw);
   return parsed ?? raw;
@@ -460,6 +541,13 @@ export async function listJobOrdersForMain(): Promise<any[]> {
     const workStatus = deriveUiWorkStatus(job, parsed);
     const paymentStatus = deriveUiPaymentStatus(job, parsed);
     const exitPermitStatus = deriveExitPermitStatus(parsed);
+    
+    // ✅ NEW: Get values from new schema fields
+    const priorityLevel = String(job?.priorityLevel ?? "NORMAL").toUpperCase();
+    const priority = mapPriorityLevel(priorityLevel);
+    const assignedTechnicianName = String(job?.assignedTechnicianName ?? "").trim() || "Unassigned";
+    const qualityStatus = mapQualityCheckStatus(job?.qualityCheckStatus);
+    const serviceProgress = calculateServiceProgress(job?.completedServiceCount ?? 0, job?.totalServiceCount ?? 0);
 
     return {
       _backendId: job.id,
@@ -471,6 +559,13 @@ export async function listJobOrdersForMain(): Promise<any[]> {
       workStatus,
       paymentStatus,
       exitPermitStatus,
+      // ✅ NEW FIELDS
+      priorityLevel: priority.label,
+      priorityColor: priority.color,
+      priorityBg: priority.bgColor,
+      assignedTechnicianName,
+      qualityCheckStatus: qualityStatus,
+      serviceProgress,
       createDate: job.createdAt
         ? new Date(String(job.createdAt)).toLocaleDateString("en-GB", {
             day: "numeric",
@@ -590,14 +685,23 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
     paymentRows = pRes.data ?? [];
   }
 
-  const paymentActivityLog = (paymentRows ?? []).map((p: any, idx: number) => ({
-    serial: idx + 1,
-    amount: formatQar(toNum(p.amount)),
-    discount: formatQar(0),
-    paymentMethod: p.method ?? "Cash",
-    cashierName: p.createdBy ?? "System",
-    timestamp: p.paidAt ? new Date(String(p.paidAt)).toLocaleString() : "",
-  }));
+  const paymentActivityLog = (paymentRows ?? []).map((p: any, idx: number) => {
+    const info = formatPaymentInfo(p);
+    return {
+      serial: idx + 1,
+      amount: info.amount,
+      discount: formatQar(0),
+      paymentMethod: info.method,
+      cashierName: info.approvedBy ?? p.createdBy ?? "System",
+      timestamp: info.paidAt,
+      // ✅ NEW: Payment details
+      receiptNumber: info.receiptNumber,
+      transactionId: info.transactionId,
+      verificationCode: info.verificationCode,
+      paymentStatus: info.paymentStatus,
+      approvalDate: info.approvalDate,
+    };
+  });
 
   const createDate = job.createdAt
     ? new Date(String(job.createdAt)).toLocaleDateString("en-GB", {
@@ -609,14 +713,49 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
 
   const expectedDeliveryDate = String(parsed?.expectedDeliveryDate ?? job.expectedDeliveryDate ?? "").trim();
   const expectedDeliveryTime = String(parsed?.expectedDeliveryTime ?? job.expectedDeliveryTime ?? "").trim();
+  const actualDeliveryDate = String(job?.actualDeliveryDate ?? "").trim();
+  const actualDeliveryTime = String(job?.actualDeliveryTime ?? "").trim();
 
   const expectedDelivery =
     expectedDeliveryDate || expectedDeliveryTime
       ? `${expectedDeliveryDate} ${expectedDeliveryTime}`.trim()
       : new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleString();
 
+  const actualDelivery = actualDeliveryDate || actualDeliveryTime
+    ? `${actualDeliveryDate} ${actualDeliveryTime}`.trim()
+    : "Not completed";
+
   const workStatus = deriveUiWorkStatus(job, parsed);
   const paymentStatus = deriveUiPaymentStatus(job, parsed);
+  
+  // ✅ NEW: Quality Check, Priority, Technician Assignment, Service Progress
+  const qualityCheckStatus = String(job?.qualityCheckStatus ?? "PENDING").toUpperCase();
+  const qualityCheckDate = job?.qualityCheckDate
+    ? new Date(String(job.qualityCheckDate)).toLocaleString()
+    : "Not checked";
+  const qualityCheckNotes = String(job?.qualityCheckNotes ?? "").trim();
+  const qualityCheckedBy = String(job?.qualityCheckedBy ?? "").trim() || "Not yet";
+  
+  const priorityLevel = String(job?.priorityLevel ?? "NORMAL").toUpperCase();
+  const priority = mapPriorityLevel(priorityLevel);
+  
+  const assignedTechnicianName = String(job?.assignedTechnicianName ?? "").trim();
+  const assignmentDate = job?.assignmentDate
+    ? new Date(String(job.assignmentDate)).toLocaleDateString()
+    : "Not assigned";
+  const technicianInfo = formatTechnicianAssignment(assignedTechnicianName || null, job?.assignmentDate);
+  
+  const totalServiceCount = toNum(job?.totalServiceCount ?? 0);
+  const completedServiceCount = toNum(job?.completedServiceCount ?? 0);
+  const pendingServiceCount = totalServiceCount - completedServiceCount;
+  const serviceProgress = calculateServiceProgress(completedServiceCount, totalServiceCount);
+  
+  const estimatedHours = formatTime(job?.estimatedCompletionHours);
+  const actualHours = formatTime(job?.actualCompletionHours);
+  
+  const exitPermitRequired = job?.exitPermitRequired ?? false;
+  const exitPermitStatus2 = String(job?.exitPermitStatus ?? "NOT_REQUIRED").toUpperCase();
+  const nextServiceDate = String(job?.nextServiceDate ?? "").trim() || "Not scheduled";
 
   // ✅ Add customerDetails & vehicleDetails for Exit Permit details UI
   const customerDetails = parsed?.customerDetails ?? {
@@ -659,10 +798,54 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
       createDate: job.createdAt ? new Date(String(job.createdAt)).toLocaleString() : "",
       createdBy: job.createdBy ?? "System User",
       expectedDelivery,
+      actualDelivery,
     },
 
     customerDetails,
     vehicleDetails,
+    
+    // ✅ NEW: Priority, Technician, Quality Check, Service Progress
+    priorityLevel: priority.label,
+    priorityColor: priority.color,
+    priorityBg: priority.bgColor,
+    
+    technicianAssignment: {
+      name: assignedTechnicianName,
+      assignedDate: assignmentDate,
+      displayText: technicianInfo,
+    },
+    
+    qualityCheck: {
+      status: qualityCheckStatus,
+      displayText: mapQualityCheckStatus(qualityCheckStatus),
+      date: qualityCheckDate,
+      notes: qualityCheckNotes,
+      checkedBy: qualityCheckedBy,
+    },
+    
+    deliveryInfo: {
+      expected: expectedDelivery,
+      actual: actualDelivery,
+      expectedDate: expectedDeliveryDate,
+      expectedTime: expectedDeliveryTime,
+      actualDate: actualDeliveryDate,
+      actualTime: actualDeliveryTime,
+      estimatedHours,
+      actualHours,
+    },
+    
+    exitPermitInfo: {
+      required: exitPermitRequired,
+      status: exitPermitStatus2,
+      nextServiceDate,
+    },
+    
+    serviceProgressInfo: {
+      total: totalServiceCount,
+      completed: completedServiceCount,
+      pending: pendingServiceCount,
+      progress: serviceProgress,
+    },
 
     billing: {
       billId,
@@ -716,10 +899,6 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
   const billId = String(order?.billing?.billId ?? "").trim() || undefined;
   const paymentMethod = String(order?.billing?.paymentMethod ?? "").trim() || undefined;
 
-  // ✅ exit permit fields stored in dataJson via Lambda input
-  const exitPermitStatus = String(order?.exitPermitStatus ?? "").trim() || undefined;
-  const exitPermit = order?.exitPermit ?? undefined;
-
   const payload: any = {
     id: backendIdExisting || undefined,
     orderNumber,
@@ -735,17 +914,66 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
     customerEmail: String(order?.customerDetails?.email ?? "").trim() || undefined,
 
     plateNumber: String(order?.vehiclePlate ?? order?.vehicleDetails?.plateNumber ?? "").trim() || undefined,
+    vehicleId: String(order?.vehicleDetails?.vehicleId ?? "").trim() || undefined,
     vehicleMake: String(order?.vehicleDetails?.make ?? "").trim() || undefined,
     vehicleModel: String(order?.vehicleDetails?.model ?? "").trim() || undefined,
     vehicleYear: String(order?.vehicleDetails?.year ?? "").trim() || undefined,
     vin: String(order?.vehicleDetails?.vin ?? "").trim() || undefined,
     color: String(order?.vehicleDetails?.color ?? "").trim() || undefined,
     mileage: String(order?.vehicleDetails?.mileage ?? "").trim() || undefined,
+    registrationDate: String(order?.vehicleDetails?.registrationDate ?? "").trim() || undefined,
 
-    vehicleType: "SUV_4X4",
+    vehicleType: String(order?.vehicleDetails?.type ?? "SUV_4X4"),
 
     discount: discountNum,
+    discountPercent: toNum(order?.billing?.discountPercent),
     vatRate: 0,
+    
+    // ✅ NEW: Priority & Technician Assignment
+    priorityLevel: String(order?.priorityLevel ?? "NORMAL").trim(),
+    assignedTechnicianId: String(order?.technicianAssignment?.id ?? "").trim() || undefined,
+    assignedTechnicianName: String(order?.technicianAssignment?.name ?? "").trim() || undefined,
+    assignmentDate: order?.technicianAssignment?.assignedDate ? new Date(String(order.technicianAssignment.assignedDate)) : undefined,
+    
+    // ✅ NEW: Quality Check Fields
+    qualityCheckStatus: String(order?.qualityCheck?.status ?? "PENDING").trim(),
+    qualityCheckDate: order?.qualityCheck?.date ? new Date(String(order.qualityCheck.date)) : undefined,
+    qualityCheckNotes: String(order?.qualityCheck?.notes ?? "").trim() || undefined,
+    qualityCheckedBy: String(order?.qualityCheck?.checkedBy ?? "").trim() || undefined,
+    
+    // ✅ NEW: Exit Permit Fields
+    exitPermitRequired: order?.exitPermitInfo?.required ?? false,
+    exitPermitStatus: String(order?.exitPermitInfo?.status ?? "NOT_REQUIRED").trim(),
+    exitPermitDate: order?.exitPermitInfo?.date ? new Date(String(order.exitPermitInfo.date)) : undefined,
+    nextServiceDate: String(order?.exitPermitInfo?.nextServiceDate ?? "").trim() || undefined,
+    
+    // ✅ NEW: Service Tracking
+    totalServiceCount: toNum(order?.serviceProgressInfo?.total ?? order?.services?.length ?? 0),
+    completedServiceCount: toNum(order?.serviceProgressInfo?.completed ?? 0),
+    pendingServiceCount: toNum(order?.serviceProgressInfo?.pending ?? 0),
+    
+    // ✅ NEW: Delivery Information
+    expectedDeliveryDate: String(order?.expectedDeliveryDate ?? order?.deliveryInfo?.expectedDate ?? "").trim() || undefined,
+    expectedDeliveryTime: String(order?.expectedDeliveryTime ?? order?.deliveryInfo?.expectedTime ?? "").trim() || undefined,
+    actualDeliveryDate: String(order?.deliveryInfo?.actualDate ?? "").trim() || undefined,
+    actualDeliveryTime: String(order?.deliveryInfo?.actualTime ?? "").trim() || undefined,
+    estimatedCompletionHours: toNum(order?.deliveryInfo?.estimatedHours),
+    actualCompletionHours: toNum(order?.deliveryInfo?.actualHours),
+    
+    // ✅ NEW: Customer Communication
+    customerNotified: order?.customerNotified ?? false,
+    lastNotificationDate: order?.lastNotificationDate ? new Date(String(order.lastNotificationDate)) : undefined,
+    customerNotes: String(order?.customerNotes ?? "").trim() || undefined,
+    jobDescription: String(order?.jobDescription ?? "").trim() || undefined,
+    specialInstructions: String(order?.specialInstructions ?? "").trim() || undefined,
+    internalNotes: String(order?.internalNotes ?? "").trim() || undefined,
+    
+    // ✅ NEW: Customer Details (stored as schema fields)
+    customerAddress: String(order?.customerDetails?.address ?? "").trim() || undefined,
+    customerCompany: String(order?.customerDetails?.company ?? "").trim() || undefined,
+    customerSince: String(order?.customerDetails?.customerSince ?? "").trim() || undefined,
+    registeredVehiclesCount: toNum(order?.customerDetails?.registeredVehiclesCount),
+    completedServicesCount: toNum(order?.customerDetails?.completedServicesCount),
 
     // keep existing structure
     services: services.map((s: any, idx: number) => {
@@ -786,17 +1014,9 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
     billing: order?.billing ?? {},
     roadmap: Array.isArray(order?.roadmap) ? order.roadmap : [],
 
-    // ✅ NEW: persist exit permit fields in dataJson
-    exitPermitStatus,
-    exitPermit,
-
     additionalServiceRequests: Array.isArray(order?.additionalServiceRequests)
       ? order.additionalServiceRequests
       : [],
-
-    expectedDeliveryDate: String(order?.expectedDeliveryDate ?? "").trim() || undefined,
-    expectedDeliveryTime: String(order?.expectedDeliveryTime ?? "").trim() || undefined,
-    customerNotes: String(order?.customerNotes ?? "").trim() || undefined,
 
     billId,
     netAmount: Number.isFinite(netFromBilling) ? netFromBilling : undefined,

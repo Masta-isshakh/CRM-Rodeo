@@ -22,7 +22,7 @@ import ExitPermitManagement from "../pages/ExitPermitManagement";
 import InspectionModule from "../pages/InspectionModule";
 import PaymentInvoiceManagment from "../pages/PaymentInvoiceManagment";
 
-import RoleAccessControl from "../pages/RoleAccessControl"; // ✅ ADD THIS
+import RoleAccessControl from "../pages/RoleAccessControl";
 
 import logo from "../assets/logo.jpeg";
 import "./mainLayout.css";
@@ -48,7 +48,7 @@ type Page =
   | "users"
   | "departments"
   | "rolespolicies"
-  | "roleaccesscontrol"; // ✅ ADD THIS
+  | "roleaccesscontrol";
 
 const EMPTY = {
   canRead: false,
@@ -58,12 +58,31 @@ const EMPTY = {
   canApprove: false,
 };
 
+type CrudPerm = typeof EMPTY;
+
+function mergePerms(...items: CrudPerm[]): CrudPerm {
+  return {
+    canRead: items.some((p) => !!p?.canRead),
+    canCreate: items.some((p) => !!p?.canCreate),
+    canUpdate: items.some((p) => !!p?.canUpdate),
+    canDelete: items.some((p) => !!p?.canDelete),
+    canApprove: items.some((p) => !!p?.canApprove),
+  };
+}
+
 export default function MainLayout({ signOut }: { signOut: () => void }) {
   const [page, setPage] = useState<Page>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const { loading, email, isAdminGroup, can, canOption } = usePermissions();
-  const canAny = (key: string) => ((can as any)(key) ?? EMPTY) as typeof EMPTY;
+  const canAny = (key: string) => ((can as any)(key) ?? EMPTY) as CrudPerm;
+
+  // ✅ Customer permission resolver (supports both CUSTOMER and CUSTOMERS keys safely)
+  const customerPerms = useMemo(
+    () => mergePerms(canAny("CUSTOMERS"), canAny("CUSTOMER")),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [can]
+  );
 
   const go = (p: Page) => {
     setPage(p);
@@ -85,7 +104,10 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     return {
       // Core
       dashboard: (isAdminGroup || canAny("DASHBOARD").canRead) && listOn("dashboard", "dashboard_list"),
-      customers: (isAdminGroup || canAny("CUSTOMERS").canRead) && listOn("customers", "customers_list"),
+
+      // ✅ Customers now uses normalized customerPerms
+      customers: (isAdminGroup || customerPerms.canRead) && listOn("customers", "customers_list"),
+
       vehicles: (isAdminGroup || canAny("VEHICLES").canRead) && listOn("vehicles", "vehicles_list"),
       tickets: (isAdminGroup || canAny("TICKETS").canRead) && listOn("tickets", "tickets_list"),
       employees: (isAdminGroup || canAny("EMPLOYEES").canRead) && listOn("employees", "employees_list"),
@@ -102,14 +124,14 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       inspection: jobCardsRead && listOn("inspection", "inspection_list"),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdminGroup, can, canOption]);
+  }, [isAdminGroup, can, canOption, customerPerms]);
 
   const showAdmin = useMemo(() => {
     return {
       users: isAdminGroup,
       departments: isAdminGroup,
       rolespolicies: isAdminGroup,
-      roleaccesscontrol: isAdminGroup, // ✅ add
+      roleaccesscontrol: isAdminGroup,
     };
   }, [isAdminGroup]);
 
@@ -397,7 +419,9 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               />
             )}
 
-            {page === "customers" && show.customers && <Customers permissions={canAny("CUSTOMERS")} />}
+            {/* ✅ Customers uses normalized customer perms */}
+            {page === "customers" && show.customers && <Customers permissions={customerPerms} />}
+
             {page === "vehicles" && show.vehicles && <Vehicles permissions={canAny("VEHICLES")} />}
 
             {page === "jobcards" && show.jobcards && <JobCards permissions={canAny("JOB_CARDS")} />}

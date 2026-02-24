@@ -838,6 +838,11 @@ function DetailsScreen({ order, onClose, onAddService }: any) {
             <PaymentActivityLogCard order={order} />
           </PermissionGate>
         </div>
+
+        {/* Roadmap Timeline - Full Width */}
+        <PermissionGate moduleId="joborder" optionId="joborder_roadmap">
+          <RoadmapCard order={order} />
+        </PermissionGate>
       </div>
     </div>
   );
@@ -2085,6 +2090,8 @@ function StepFourConfirm({ customerData, vehicleData, selectedServices, discount
 // SIMPLE DISPLAY CARDS
 // ============================================
 function JobOrderSummaryCard({ order }: any) {
+  const summary = order.jobOrderSummary || {};
+  
   return (
     <div className="epm-detail-card">
       <h3>
@@ -2101,18 +2108,44 @@ function JobOrderSummaryCard({ order }: any) {
         </div>
         <div className="epm-info-item">
           <span className="epm-info-label">Work Status</span>
-          <span className={`epm-status-badge ${getWorkStatusClass(order.workStatus)}`}>{order.workStatus}</span>
+          <span className={`epm-status-badge status-badge ${getWorkStatusClass(order.workStatus)}`}>{order.workStatus}</span>
         </div>
         <div className="epm-info-item">
           <span className="epm-info-label">Payment Status</span>
-          <span className={`epm-status-badge ${getPaymentStatusClass(order.paymentStatus)}`}>{order.paymentStatus}</span>
+          <span className={`epm-status-badge status-badge ${getPaymentStatusClass(order.paymentStatus)}`}>{order.paymentStatus}</span>
         </div>
+        {summary.createDate && (
+          <div className="epm-info-item">
+            <span className="epm-info-label">Created On</span>
+            <span className="epm-info-value">{summary.createDate}</span>
+          </div>
+        )}
+        {summary.createdBy && (
+          <div className="epm-info-item">
+            <span className="epm-info-label">Created By</span>
+            <span className="epm-info-value">{summary.createdBy}</span>
+          </div>
+        )}
+        {summary.expectedDelivery && (
+          <div className="epm-info-item">
+            <span className="epm-info-label">Expected Delivery</span>
+            <span className="epm-info-value">{summary.expectedDelivery}</span>
+          </div>
+        )}
+        {order.customerNotes && (
+          <div className="epm-info-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
+            <span className="epm-info-label">Customer Notes</span>
+            <span className="epm-info-value" style={{ whiteSpace: 'pre-wrap', fontSize: '13px' }}>{order.customerNotes}</span>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 function CustomerDetailsCard({ order }: any) {
+  const customerDetails = order.customerDetails || {};
+  
   return (
     <div className="pim-detail-card">
       <h3>
@@ -2127,12 +2160,44 @@ function CustomerDetailsCard({ order }: any) {
           <span className="pim-info-label">Mobile</span>
           <span className="pim-info-value">{order.mobile}</span>
         </div>
+        {customerDetails.email && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Email</span>
+            <span className="pim-info-value">{customerDetails.email}</span>
+          </div>
+        )}
+        {customerDetails.customerId && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Customer ID</span>
+            <span className="pim-info-value">{customerDetails.customerId}</span>
+          </div>
+        )}
+        {customerDetails.registeredVehicles && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Registered Vehicles</span>
+            <span className="pim-info-value">{customerDetails.registeredVehicles}</span>
+          </div>
+        )}
+        {customerDetails.completedServicesCount !== undefined && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Completed Services</span>
+            <span className="pim-info-value">{customerDetails.completedServicesCount}</span>
+          </div>
+        )}
+        {customerDetails.customerSince && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Customer Since</span>
+            <span className="pim-info-value">{customerDetails.customerSince}</span>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
 function VehicleDetailsCard({ order }: any) {
+  const vehicleDetails = order.vehicleDetails || {};
+  
   return (
     <div className="pim-detail-card">
       <h3>
@@ -2140,9 +2205,51 @@ function VehicleDetailsCard({ order }: any) {
       </h3>
       <div className="pim-card-content">
         <div className="pim-info-item">
-          <span className="pim-info-label">Plate</span>
-          <span className="pim-info-value">{order.vehiclePlate}</span>
+          <span className="pim-info-label">Plate Number</span>
+          <span className="pim-info-value">{order.vehiclePlate || vehicleDetails.plateNumber}</span>
         </div>
+        {vehicleDetails.vehicleId && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Vehicle ID</span>
+            <span className="pim-info-value">{vehicleDetails.vehicleId}</span>
+          </div>
+        )}
+        {vehicleDetails.make && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Make & Model</span>
+            <span className="pim-info-value">{vehicleDetails.make} {vehicleDetails.model}</span>
+          </div>
+        )}
+        {vehicleDetails.year && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Year</span>
+            <span className="pim-info-value">{vehicleDetails.year}</span>
+          </div>
+        )}
+        {vehicleDetails.type && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Vehicle Type</span>
+            <span className="pim-info-value">{vehicleDetails.type}</span>
+          </div>
+        )}
+        {vehicleDetails.color && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Color</span>
+            <span className="pim-info-value">{vehicleDetails.color}</span>
+          </div>
+        )}
+        {vehicleDetails.vin && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">VIN</span>
+            <span className="pim-info-value">{vehicleDetails.vin}</span>
+          </div>
+        )}
+        {vehicleDetails.ownedBy && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Owned By</span>
+            <span className="pim-info-value">{vehicleDetails.ownedBy}</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -2150,10 +2257,10 @@ function VehicleDetailsCard({ order }: any) {
 
 function ServicesCard({ order, onAddService }: any) {
   return (
-    <div className="pim-detail-card">
+    <div className="pim-detail-card" style={{ gridColumn: 'span 12' }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
         <h3 style={{ margin: 0 }}>
-          <i className="fas fa-tasks"></i> Services Summary
+          <i className="fas fa-tasks"></i> Services Summary ({order.services?.length || 0})
         </h3>
         <PermissionGate moduleId="joborder" optionId="joborder_addservice">
           <button className="btn-add-service" onClick={onAddService} style={{ padding: "8px 16px", fontSize: "14px" }}>
@@ -2168,12 +2275,54 @@ function ServicesCard({ order, onAddService }: any) {
             <div key={idx} className="pim-service-item">
               <div className="pim-service-header">
                 <span className="pim-service-name">{service.name}</span>
-                <span className="pim-status-badge pim-status-new">{service.status}</span>
+                <span className="pim-service-price">{service.price ? `QAR ${service.price.toLocaleString()}` : 'N/A'}</span>
+              </div>
+              <div className="pim-service-meta">
+                <div className="pim-service-meta-row">
+                  <span className="pim-service-meta-label">Status:</span>
+                  <span className="pim-service-meta-value">{service.status || 'N/A'}</span>
+                </div>
+                {service.technician && (
+                  <div className="pim-service-meta-row">
+                    <span className="pim-service-meta-label">Technician:</span>
+                    <span className="pim-service-meta-value">{service.technician}</span>
+                  </div>
+                )}
+                {service.started && (
+                  <div className="pim-service-meta-row">
+                    <span className="pim-service-meta-label">Started:</span>
+                    <span className="pim-service-meta-value">{service.started}</span>
+                  </div>
+                )}
+                {service.ended && (
+                  <div className="pim-service-meta-row">
+                    <span className="pim-service-meta-label">Ended:</span>
+                    <span className="pim-service-meta-value">{service.ended}</span>
+                  </div>
+                )}
+                {service.duration && (
+                  <div className="pim-service-meta-row">
+                    <span className="pim-service-meta-label">Duration:</span>
+                    <span className="pim-service-meta-value">{service.duration}</span>
+                  </div>
+                )}
+                {service.notes && (
+                  <div className="pim-service-meta-row" style={{ gridColumn: 'span 2' }}>
+                    <span className="pim-service-meta-label">Notes:</span>
+                    <span className="pim-service-meta-value">{service.notes}</span>
+                  </div>
+                )}
               </div>
             </div>
           ))
         ) : (
-          <div style={{ padding: "20px", textAlign: "center", color: "#999" }}>No services added yet</div>
+          <div className="empty-state" style={{ padding: "30px", margin: '0' }}>
+            <div className="empty-icon">
+              <i className="fas fa-clipboard-list"></i>
+            </div>
+            <div className="empty-text">No services added yet</div>
+            <div className="empty-subtext">Click "Add Service" to add services to this job order</div>
+          </div>
         )}
       </div>
     </div>
@@ -2181,30 +2330,99 @@ function ServicesCard({ order, onAddService }: any) {
 }
 
 function BillingCard({ order }: any) {
+  const billing = order.billing || {};
+  
   return (
-    <div className="epm-detail-card">
+    <div className="epm-detail-card" style={{ gridColumn: 'span 12' }}>
       <h3>
         <i className="fas fa-receipt"></i> Billing & Invoices
       </h3>
 
-      <div className="epm-card-content">
-        <div className="epm-info-item">
-          <span className="epm-info-label">Bill ID</span>
-          <span className="epm-info-value">{order.billing?.billId || "N/A"}</span>
+      {/* Billing Summary */}
+      <div className="pim-billing-summary">
+        <h4>
+          <i className="fas fa-calculator"></i> Billing Summary
+        </h4>
+        <div className="pim-billing-row">
+          <span className="pim-billing-label">Bill ID:</span>
+          <span className="pim-billing-value">{billing.billId || "N/A"}</span>
         </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Net Amount</span>
-          <span className="epm-info-value">{order.billing?.netAmount || "N/A"}</span>
+        <div className="pim-billing-row">
+          <span className="pim-billing-label">Total Amount:</span>
+          <span className="pim-billing-value">{billing.totalAmount || "N/A"}</span>
         </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Amount Paid</span>
-          <span className="epm-info-value">{order.billing?.amountPaid || "N/A"}</span>
+        {billing.discount && (
+          <div className="pim-billing-row">
+            <span className="pim-billing-label">Discount:</span>
+            <span className="pim-billing-value">-{billing.discount}</span>
+          </div>
+        )}
+        <div className="pim-billing-row">
+          <span className="pim-billing-label">Net Amount:</span>
+          <span className="pim-billing-value">{billing.netAmount || "N/A"}</span>
         </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Balance Due</span>
-          <span className="epm-info-value">{order.billing?.balanceDue || "N/A"}</span>
+        <div className="pim-billing-row">
+          <span className="pim-billing-label">Amount Paid:</span>
+          <span className="pim-billing-value">{billing.amountPaid || "QAR 0"}</span>
+        </div>
+        <div className="pim-billing-row">
+          <span className="pim-billing-label">Balance Due:</span>
+          <span className="pim-billing-value">{billing.balanceDue || "N/A"}</span>
         </div>
       </div>
+
+      {/* Invoices List */}
+      {billing.invoices && billing.invoices.length > 0 && (
+        <div>
+          <h4 style={{ marginTop: '20px', marginBottom: '12px', fontSize: '15px', fontWeight: '700', color: '#1e293b' }}>
+            <i className="fas fa-file-invoice" style={{ marginRight: '8px' }}></i>
+            Invoices ({billing.invoices.length})
+          </h4>
+          <div className="pim-invoices-list">
+            {billing.invoices.map((invoice: any, idx: number) => (
+              <div key={idx} className="pim-invoice-card">
+                <div className="pim-invoice-header">
+                  <div className="pim-invoice-number">
+                    <i className="fas fa-file-alt"></i>
+                    {invoice.number}
+                  </div>
+                  <span className={`pim-invoice-status ${invoice.status?.toLowerCase() || 'unpaid'}`}>
+                    {invoice.status || 'Unpaid'}
+                  </span>
+                </div>
+                <div className="pim-invoice-details">
+                  <div className="pim-invoice-detail-item">
+                    <span className="pim-invoice-detail-label">Amount:</span>
+                    <span className="pim-invoice-detail-value">{invoice.amount}</span>
+                  </div>
+                  {invoice.discount && (
+                    <div className="pim-invoice-detail-item">
+                      <span className="pim-invoice-detail-label">Discount:</span>
+                      <span className="pim-invoice-detail-value">-{invoice.discount}</span>
+                    </div>
+                  )}
+                  {invoice.paymentMethod && (
+                    <div className="pim-invoice-detail-item">
+                      <span className="pim-invoice-detail-label">Payment Method:</span>
+                      <span className="pim-invoice-detail-value">{invoice.paymentMethod}</span>
+                    </div>
+                  )}
+                </div>
+                {invoice.services && invoice.services.length > 0 && (
+                  <div className="pim-invoice-services">
+                    <div className="pim-invoice-services-title">Services Included:</div>
+                    <div className="pim-invoice-services-list">
+                      {invoice.services.map((service: string, sidx: number) => (
+                        <span key={sidx} className="pim-invoice-service-tag">{service}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2241,6 +2459,81 @@ function PaymentActivityLogCard({ order }: any) {
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+// ============================================
+// ROADMAP CARD - Timeline Visualization
+// ============================================
+function RoadmapCard({ order }: any) {
+  if (!order.roadmap || order.roadmap.length === 0) return null;
+
+  const getStepIcon = (stepName: string) => {
+    const iconMap: any = {
+      'New Request': 'fa-plus-circle',
+      'Inspection': 'fa-search',
+      'Inprogress': 'fa-cogs',
+      'Quality Check': 'fa-check-double',
+      'Ready': 'fa-flag-checkered',
+      'Completed': 'fa-check-circle',
+      'Cancelled': 'fa-ban',
+    };
+    return iconMap[stepName] || 'fa-circle';
+  };
+
+  const getStepClass = (status: string) => {
+    if (status === 'InProgress' || status === 'Active') return 'active';
+    if (status === 'Completed') return 'completed';
+    return 'pending';
+  };
+
+  return (
+    <div className="pim-roadmap-container">
+      <div className="pim-roadmap-title">
+        <i className="fas fa-route"></i>
+        Order Progress Timeline
+      </div>
+      <div className="pim-roadmap-steps">
+        {order.roadmap.map((step: any, idx: number) => (
+          <div key={idx} className={`pim-roadmap-step ${getStepClass(step.status)}`}>
+            <div className="pim-roadmap-icon">
+              <i className={`fas ${getStepIcon(step.step)}`}></i>
+            </div>
+            <div className="pim-roadmap-content">
+              <div className="pim-roadmap-step-title">
+                {step.step}
+                <span className={`pim-roadmap-step-status ${getStepClass(step.status)}`}>
+                  {step.stepStatus}
+                </span>
+              </div>
+              <div className="pim-roadmap-step-meta">
+                {step.startTimestamp && (
+                  <div className="pim-roadmap-meta-item">
+                    <i className="fas fa-play-circle"></i>
+                    <span className="pim-roadmap-meta-label">Started:</span>
+                    <span>{step.startTimestamp}</span>
+                  </div>
+                )}
+                {step.endTimestamp && (
+                  <div className="pim-roadmap-meta-item">
+                    <i className="fas fa-stop-circle"></i>
+                    <span className="pim-roadmap-meta-label">Completed:</span>
+                    <span>{step.endTimestamp}</span>
+                  </div>
+                )}
+                {step.actionBy && (
+                  <div className="pim-roadmap-meta-item">
+                    <i className="fas fa-user"></i>
+                    <span className="pim-roadmap-meta-label">By:</span>
+                    <span>{step.actionBy}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

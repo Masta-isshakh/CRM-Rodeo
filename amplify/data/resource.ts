@@ -240,24 +240,40 @@ const schema = a
       })
       .authorization((allow) => [allow.authenticated()]),
 
-    // -----------------------------
-    // Job Orders
-    // -----------------------------
+    // ========================================
+    // JOB ORDERS - Complete Enhanced Model
+    // ========================================
     JobOrder: a
       .model({
+        // ✅ CORE IDENTIFIERS
         orderNumber: a.string().required(),
         orderType: a.string(),
         status: a.enum(["DRAFT", "OPEN", "IN_PROGRESS", "READY", "COMPLETED", "CANCELLED"]),
         paymentStatus: a.enum(["UNPAID", "PARTIAL", "PAID"]),
-
+        
+        // ✅ UI LABELS (derived from status, but stored for consistency)
         workStatusLabel: a.string(),
         paymentStatusLabel: a.string(),
 
+        // ========================================
+        // CUSTOMER INFORMATION
+        // ========================================
         customerId: a.id(),
         customerName: a.string().required(),
         customerPhone: a.string(),
         customerEmail: a.string(),
+        
+        // ✅ NEW: Customer metadata for detail card
+        customerAddress: a.string(),
+        customerCompany: a.string(),
+        customerSince: a.string(),
+        completedServicesCount: a.integer().default(0),
+        registeredVehiclesCount: a.integer().default(1),
 
+        // ========================================
+        // VEHICLE INFORMATION
+        // ========================================
+        vehicleId: a.string(),
         vehicleType: a.enum(["SEDAN", "SUV_4X4", "TRUCK", "MOTORBIKE", "OTHER"]),
         vehicleMake: a.string(),
         vehicleModel: a.string(),
@@ -266,7 +282,11 @@ const schema = a
         vin: a.string(),
         mileage: a.string(),
         color: a.string(),
+        registrationDate: a.string(),
 
+        // ========================================
+        // BILLING & FINANCIAL INFORMATION
+        // ========================================
         subtotal: a.float(),
         discount: a.float(),
         vatRate: a.float(),
@@ -276,41 +296,107 @@ const schema = a
         amountPaid: a.float(),
         balanceDue: a.float(),
 
+        // ✅ ENHANCED: More billing metadata
         billId: a.string(),
         netAmount: a.float(),
         paymentMethod: a.string(),
+        discountPercent: a.float().default(0),
 
+        // ========================================
+        // SERVICE TRACKING
+        // ========================================
+        totalServiceCount: a.integer().default(0),
+        completedServiceCount: a.integer().default(0),
+        pendingServiceCount: a.integer().default(0),
+
+        // ========================================
+        // DELIVERY & TIMELINE INFORMATION
+        // ========================================
         expectedDeliveryDate: a.date(),
         expectedDeliveryTime: a.string(),
-        customerNotes: a.string(),
+        actualDeliveryDate: a.date(),
+        actualDeliveryTime: a.string(),
+        
+        // ✅ NEW: Estimated times
+        estimatedCompletionHours: a.float(),
+        actualCompletionHours: a.float(),
 
+        // ========================================
+        // QUALITY & INSPECTION
+        // ========================================
+        qualityCheckStatus: a.enum(["PENDING", "IN_PROGRESS", "PASSED", "FAILED"]),
+        qualityCheckDate: a.datetime(),
+        qualityCheckNotes: a.string(),
+        qualityCheckedBy: a.string(),
+
+        // ========================================
+        // EXIT PERMIT
+        // ========================================
+        exitPermitRequired: a.boolean().default(false),
+        exitPermitStatus: a.enum(["NOT_REQUIRED", "PENDING", "APPROVED", "REJECTED"]),
+        exitPermitDate: a.datetime(),
+        nextServiceDate: a.string(),
+
+        // ========================================
+        // PRIORITY & ASSIGNMENT
+        // ========================================
+        priorityLevel: a.enum(["LOW", "NORMAL", "HIGH", "URGENT"]),  // Default: NORMAL in application logic
+        assignedTechnicianId: a.string(),
+        assignedTechnicianName: a.string(),
+        assignmentDate: a.datetime(),
+
+        // ========================================
+        // CUSTOMER COMMUNICATION
+        // ========================================
+        customerNotes: a.string(),
+        internalNotes: a.string(),
+        customerNotified: a.boolean().default(false),
+        lastNotificationDate: a.datetime(),
+        
+        // ✅ NEW: More fields for details
+        jobDescription: a.string(),
+        specialInstructions: a.string(),
+
+        // ========================================
+        // DATA STORAGE
+        // ========================================
         notes: a.string(),
         dataJson: a.string(),
+        tags: a.string(), // JSON array as string for categorization
 
+        // ========================================
+        // RELATIONSHIPS
+        // ========================================
         payments: a.hasMany("JobOrderPayment", "jobOrderId"),
         servicesItems: a.hasMany("JobOrderServiceItem", "jobOrderId"),
         invoicesItems: a.hasMany("JobOrderInvoice", "jobOrderId"),
         roadmapItems: a.hasMany("JobOrderRoadmapStep", "jobOrderId"),
         docsItems: a.hasMany("JobOrderDocumentItem", "jobOrderId"),
 
-        // ✅ REQUIRED inverse relations (fixes Inspection belongsTo CDK errors)
+        // ✅ INSPECTION RELATIONS
         inspectionStates: a.hasMany("InspectionState", "jobOrderId"),
         inspectionPhotos: a.hasMany("InspectionPhoto", "jobOrderId"),
         inspectionReports: a.hasMany("InspectionReport", "jobOrderId"),
 
-        // ✅ Service approvals (optional but recommended)
+        // ✅ SERVICE APPROVALS
         serviceApprovalRequests: a.hasMany("ServiceApprovalRequest", "jobOrderId"),
 
+        // ========================================
+        // AUDIT INFORMATION
+        // ========================================
         createdBy: a.string(),
         createdAt: a.datetime(),
         updatedAt: a.datetime(),
+        updatedBy: a.string(),
       })
       .secondaryIndexes((index) => [
         index("orderNumber").queryField("jobOrdersByOrderNumber"),
         index("plateNumber").queryField("jobOrdersByPlateNumber"),
         index("status").queryField("jobOrdersByStatus"),
+        index("priorityLevel").queryField("jobOrdersByPriority"),
+        index("qualityCheckStatus").queryField("jobOrdersByQualityCheck"),
       ])
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
 
     // -----------------------------
     // ✅ INSPECTION MODULE
@@ -435,13 +521,21 @@ const schema = a
         jobOrderId: a.id().required(),
         name: a.string().required(),
         qty: a.integer().default(1),
+        quantityCompleted: a.integer().default(0),
+        quantityRemaining: a.integer().default(1),
         unitPrice: a.float().default(0),
         price: a.float().default(0),
 
         status: a.string(),
+        qualityCheckResult: a.enum(["PENDING", "PASSED", "FAILED"]),
+        qualityCheckNotes: a.string(),
+        
         started: a.string(),
         ended: a.string(),
         duration: a.string(),
+        estimatedTime: a.string(),
+        actualTime: a.string(),
+        
         technician: a.string(),
         notes: a.string(),
 
@@ -451,7 +545,7 @@ const schema = a
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
       })
       .secondaryIndexes((index) => [index("jobOrderId").queryField("listServicesByJobOrder")])
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
 
     JobOrderInvoice: a
       .model({
@@ -461,13 +555,21 @@ const schema = a
         discount: a.float().default(0),
         status: a.string(),
         paymentMethod: a.string(),
+        
+        // ✅ NEW: Date tracking
+        invoiceDate: a.datetime(),
+        dueDate: a.date(),
+        paidDate: a.datetime(),
+        invoiceNotes: a.string(),
+        
         createdAt: a.datetime(),
+        updatedAt: a.datetime(),
 
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
         services: a.hasMany("JobOrderInvoiceService", "invoiceId"),
       })
       .secondaryIndexes((index) => [index("jobOrderId").queryField("listInvoicesByJobOrder")])
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
 
     JobOrderInvoiceService: a
       .model({
@@ -525,6 +627,16 @@ const schema = a
         amount: a.float().required(),
         method: a.string(),
         reference: a.string(),
+        
+        // ✅ NEW: Enhanced transaction tracking
+        receiptNumber: a.string(),
+        transactionId: a.string(),
+        verificationCode: a.string(),
+        paymentSource: a.enum(["CASH", "CHECK", "CARD", "TRANSFER", "WALLET", "OTHER"]),
+        paymentStatus: a.enum(["PENDING", "COMPLETED", "FAILED", "CANCELLED"]),  // Default: COMPLETED in application logic
+        approvalDate: a.datetime(),
+        approvedBy: a.string(),
+        
         paidAt: a.datetime().required(),
         notes: a.string(),
         createdBy: a.string(),
@@ -534,7 +646,7 @@ const schema = a
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
       })
       .secondaryIndexes((index) => [index("jobOrderId").queryField("listPaymentsByJobOrder")])
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
 
     // -----------------------------
     // Existing legacy/demo models
