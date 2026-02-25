@@ -4,6 +4,7 @@
 import { useEffect,  useState } from "react";
 import { createPortal } from "react-dom";
 import "./JobCards.css";
+import { getUrl } from "aws-amplify/storage";
 
 import SuccessPopup from "./SuccessPopup";
 import ErrorPopup from "./ErrorPopup";
@@ -60,6 +61,20 @@ const YOUR_PRODUCTS = [
 function errMsg(e: unknown) {
   const anyE = e as any;
   return String(anyE?.message ?? anyE?.errors?.[0]?.message ?? anyE ?? "Unknown error");
+}
+
+async function resolveMaybeStorageUrl(urlOrPath: string): Promise<string> {
+  const v = String(urlOrPath || "").trim();
+  if (!v) return "";
+
+  // ✅ Your storage resource uses "job-orders/*"
+  if (v.startsWith("job-orders/")) {
+    const out = await getUrl({ path: v });
+    return out.url.toString();
+  }
+
+  // already a full URL (or something else)
+  return v;
 }
 
 // ============================================
@@ -890,6 +905,11 @@ function DetailsScreen({ order, onClose, onAddService }: any) {
         <PermissionGate moduleId="joborder" optionId="joborder_roadmap">
           <RoadmapCard order={order} />
         </PermissionGate>
+
+        {/* ✅ Documents (Billing docs if available) - Full Width at bottom */}
+<PermissionGate moduleId="joborder" optionId="joborder_documents">
+  <JobOrderDocumentsCard order={order} />
+</PermissionGate>
       </div>
     </div>
   );
@@ -2791,6 +2811,141 @@ function PaymentActivityLogCard({ order }: any) {
   );
 }
 
+
+
+type DocUi = {
+  id?: string;
+  name?: string;
+  type?: string;
+  category?: string;
+  addedAt?: string;
+  uploadedBy?: string;
+  storagePath?: string;   // e.g. "job-orders/....pdf"
+  url?: string;           // full url or fallback
+  paymentReference?: string;
+  billReference?: string;
+};
+
+function JobOrderDocumentsCard({ order }: any) {
+  const allDocs: DocUi[] = Array.isArray(order?.documents) ? order.documents : [];
+
+  // ✅ If you really mean "billing documents", prefer those first
+  const billingDocs = allDocs.filter((d) => {
+    const hay = [
+      d?.category,
+      d?.type,
+      d?.name,
+      d?.paymentReference,
+      d?.billReference,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return (
+      hay.includes("bill") ||
+      hay.includes("invoice") ||
+      hay.includes("receipt") ||
+      Boolean(d?.paymentReference) ||
+      Boolean(d?.billReference)
+    );
+  });
+
+  // If we found billing docs, show them; else show all docs
+  const docs = billingDocs.length ? billingDocs : allDocs;
+
+  if (!docs.length) return null;
+
+  return (
+    <div className="pim-detail-card" style={{ gridColumn: "span 12" }}>
+      <h3>
+        <i className="fas fa-folder-open"></i>{" "}
+        {billingDocs.length ? "Billing Documents" : "Documents"}
+      </h3>
+
+      <div className="pim-card-content">
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          {docs.map((d, idx) => {
+            const name = String(d?.name ?? "").trim() || `Document ${idx + 1}`;
+            const meta = [
+              d?.type,
+              d?.category,
+              d?.billReference,
+              d?.paymentReference,
+              d?.uploadedBy,
+              d?.addedAt,
+            ]
+              .filter(Boolean)
+              .join(" • ");
+
+            const raw = String(d?.storagePath || d?.url || "").trim();
+
+            return (
+              <div
+                key={d?.id ?? `${name}-${idx}`}
+                style={{
+                  border: "1px solid #e2e8f0",
+                  borderRadius: 10,
+                  padding: 12,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  gap: 12,
+                  alignItems: "center",
+                }}
+              >
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, color: "#0f172a" }}>{name}</div>
+                  <div style={{ fontSize: 12, color: "#64748b", marginTop: 4, wordBreak: "break-word" }}>
+                    {meta || (raw ? raw : "—")}
+                  </div>
+                </div>
+
+                <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+                  {/* Optional: allow opening in new tab (no permission gate needed) */}
+                  {raw ? (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={async () => {
+                        const linkUrl = await resolveMaybeStorageUrl(raw);
+                        if (!linkUrl) return;
+                        window.open(linkUrl, "_blank", "noopener,noreferrer");
+                      }}
+                    >
+                      <i className="fas fa-external-link-alt"></i> Open
+                    </button>
+                  ) : null}
+
+                  {/* ✅ Download button with PermissionGate like your JobHistory */}
+                  <PermissionGate moduleId="joborder" optionId="joborder_download">
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={async () => {
+                        const linkUrl = await resolveMaybeStorageUrl(raw);
+                        if (!linkUrl) return;
+
+                        const a = document.createElement("a");
+                        a.href = linkUrl;
+                        a.download = name || "document";
+                        a.click();
+                      }}
+                      disabled={!raw}
+                      title={!raw ? "No file path/url available" : "Download"}
+                    >
+                      <i className="fas fa-download"></i> Download
+                    </button>
+                  </PermissionGate>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ============================================
 // ✅ NEW: QUALITY CHECK CARD
 // ============================================
@@ -2931,6 +3086,7 @@ function RoadmapCard({ order }: any) {
     if (s === "completed") return "completed";
     return "pending";
   };
+  
 
   // ✅ FIX: better actor resolution to avoid wrong field
   const resolveActor = (step: any) => {
