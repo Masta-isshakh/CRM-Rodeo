@@ -1915,3 +1915,874 @@ i {
     page-break-inside: avoid;
   }
 }
+
+/* =========================================================
+   JOB ORDER UI REFINEMENT - SCREENSHOT STYLE OVERRIDES
+   (safe append-only overrides)
+========================================================= */
+
+/* ---------- Generic visibility / overflow improvements ---------- */
+.job-order-management,
+.pim-details-screen,
+.app-container {
+  width: 100%;
+  max-width: 100%;
+}
+
+.table-wrapper,
+.jo-confirm-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.job-order-table,
+.pim-payment-log-table,
+.jo-confirm-services-table {
+  min-width: 760px;
+}
+
+.pim-info-item,
+.epm-info-item,
+.verified-row,
+.pim-service-meta-row {
+  align-items: flex-start;
+}
+
+.pim-info-value,
+.epm-info-value,
+.verified-value {
+  word-break: break-word;
+  text-align: right;
+}
+
+/* ---------- Wizard shell (Create Job Order) ---------- */
+.jo-wizard-screen {
+  max-width: 100%;
+}
+
+.jo-wizard-screen .pim-details-header {
+  background: #2b435d;
+  color: #fff;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 18px 22px;
+  border-bottom: 3px solid #2ea3ff;
+}
+
+.jo-wizard-screen .pim-details-title-container h2 {
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.jo-wizard-cancel-btn,
+.jo-wizard-screen .pim-btn-close-details {
+  background: #ef4d3c !important;
+  border: 1px solid #ef4d3c !important;
+  color: #fff !important;
+  border-radius: 6px !important;
+  padding: 10px 14px !important;
+  font-weight: 700;
+}
+
+.jo-wizard-cancel-btn:hover,
+.jo-wizard-screen .pim-btn-close-details:hover {
+  background: #db3f30 !important;
+  border-color: #db3f30 !important;
+}
+
+.jo-wizard-body {
+  background: #f2f4f7;
+  padding: 14px;
+  border-radius: 0 0 12px 12px;
+}
+
+/* ---------- Stepper (process bar like screenshot) ---------- */
+.jo-wizard-stepper {
+  position: relative;
+  display: grid !important;
+  grid-template-columns: repeat(5, minmax(120px, 1fr));
+  gap: 0 !important;
+  margin: 8px 0 18px 0 !important;
+  padding: 50px;
+  background: transparent;
+  overflow-x: auto;
+}
+
+.jo-wizard-stepper::before {
+  content: "";
+  position: absolute;
+  left: 32px;
+  right: 32px;
+  top: 39px;
+  height: 2px;
+  background: #dbe4ee;
+  z-index: 0;
+}
+
+.jo-wizard-stepper .progress-step {
+  position: relative;
+  z-index: 1;
+  min-width: 120px;
+  background: transparent !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 6px !important;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.jo-wizard-stepper .progress-step span {
+  width: 40px;
+  height: 40px;
+  border: 2px solid #b9c7d7;
+  background: #fff;
+  color: #8aa0b7;
+  font-weight: 700;
+  font-size: 18px;
+  border-radius: 999px;
+}
+
+.jo-wizard-stepper .progress-step .step-label {
+  color: #23364a;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.jo-wizard-stepper .progress-step.completed span {
+  background: #29b35f;
+  border-color: #29b35f;
+  color: #fff;
+}
+
+.jo-wizard-stepper .progress-step.active span {
+  background: #3498db;
+  border-color: #3498db;
+  color: #fff;
+}
+
+.jo-wizard-stepper .progress-step.completed .step-label,
+.jo-wizard-stepper .progress-step.active .step-label {
+  color: #1e2f40;
+  font-weight: 600;
+}
+
+/* ---------- Wizard card styling ---------- */
+.jo-wizard-screen .form-card {
+  background: #fff;
+  border: 1px solid #e6eaf0;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+  padding: 0;
+  overflow: hidden;
+}
+
+.jo-wizard-screen .form-card-title {
+  margin: 0;
+  padding: 16px 20px;
+  border-bottom: 1px solid #e6eaf0;
+  color: #243b53;
+}
+
+.jo-wizard-screen .form-card-title h2 {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.jo-wizard-screen .form-card-content {
+  padding: 18px 20px;
+  background: #fff;
+}
+
+.jo-wizard-screen .action-buttons {
+  margin: 0;
+  padding: 14px 20px 18px;
+  border-top: 1px solid #e6eaf0;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.jo-wizard-screen .action-buttons .btn {
+  min-width: 120px;
+}
+
+.jo-wizard-screen .option-selector {
+  gap: 14px;
+}
+
+.jo-wizard-screen .option-btn {
+  min-height: 56px;
+  border-radius: 8px;
+  border: 2px solid #d7dee8;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: #223b55;
+}
+
+.jo-wizard-screen .option-btn.selected {
+  border-color: #3498db;
+  background: #ebf6ff;
+  color: #1d6fa5;
+}
+
+/* ---------- Confirm / Review page ---------- */
+.confirm-review-card .form-card-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.jo-confirm-top-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #60a5fa;
+  background: #eff6ff;
+  border-radius: 6px;
+}
+
+.jo-confirm-order-type-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #1e3a5f;
+}
+
+.jo-confirm-order-type-line i {
+  color: #2563eb;
+  font-size: 14px;
+}
+
+.jo-confirm-strip-title {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: #0f172a;
+}
+
+.jo-confirm-strip-subtitle {
+  font-size: 12px;
+  color: #475569;
+  margin-top: 2px;
+}
+
+.jo-confirm-change-type-btn {
+  font-size: 12px;
+  border-radius: 6px !important;
+  padding: 8px 10px !important;
+  white-space: nowrap;
+}
+
+.jo-confirm-section {
+  border: 1px solid #e6eaf0;
+  border-radius: 10px;
+  background: #fff;
+  overflow: hidden;
+}
+
+.jo-confirm-section h3 {
+  margin: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid #e6eaf0;
+  background: #fafbfd;
+  color: #223b55;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.jo-confirm-section h3 i {
+  margin-right: 8px;
+  color: #2f89d8;
+}
+
+.jo-confirm-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+}
+
+.jo-confirm-item {
+  padding: 12px 14px;
+  border-bottom: 1px solid #eef2f6;
+  border-right: 1px solid #eef2f6;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-height: 64px;
+}
+
+.jo-confirm-item:nth-child(4n) {
+  border-right: none;
+}
+
+.jo-confirm-item span {
+  font-size: 11px;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  font-weight: 700;
+}
+
+.jo-confirm-item strong {
+  font-size: 13px;
+  color: #0f172a;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.jo-confirm-item-wide {
+  grid-column: span 2;
+}
+
+.jo-confirm-table-wrap {
+  padding: 10px 12px 12px;
+}
+
+.jo-confirm-services-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  overflow: hidden;
+  min-width: 500px;
+}
+
+.jo-confirm-services-table thead {
+  background: #f8fafc;
+}
+
+.jo-confirm-services-table th,
+.jo-confirm-services-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #eef2f6;
+  font-size: 13px;
+}
+
+.jo-confirm-services-table th {
+  font-weight: 700;
+  color: #475569;
+}
+
+.jo-confirm-services-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.jo-price-summary-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 12px;
+  padding: 12px;
+}
+
+.jo-price-box {
+  border: 1px solid #e6eaf0;
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 12px;
+}
+
+.jo-price-box-total {
+  background: #f0fdf4;
+  border-color: #bbf7d0;
+}
+
+.jo-price-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px dashed #e5e7eb;
+  font-size: 13px;
+}
+
+.jo-price-row:last-child {
+  border-bottom: none;
+}
+
+.jo-price-box-total .jo-price-row strong {
+  color: #16a34a;
+  font-size: 18px;
+}
+
+.confirm-action-buttons {
+  justify-content: flex-end !important;
+}
+
+.confirm-action-buttons .btn-success {
+  min-width: 150px;
+  border-radius: 6px !important;
+}
+
+/* ---------- Details page (compact, screenshot-like) ---------- */
+.jo-details-v3 {
+  max-width: 100%;
+}
+
+.jo-details-v3 .pim-details-header {
+  background: #2b435d;
+  color: #fff;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  padding: 10px 14px;
+  border-bottom: 3px solid #2ea3ff;
+}
+
+.jo-details-v3 .pim-details-title-container h2 {
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.jo-details-v3 .pim-btn-close-details {
+  background: #ef4d3c;
+  border-color: #ef4d3c;
+  color: #fff;
+  border-radius: 4px;
+  padding: 7px 10px;
+  font-size: 12px;
+}
+
+.jo-details-v3 .pim-btn-close-details:hover {
+  background: #db3f30;
+  border-color: #db3f30;
+}
+
+.jo-details-v3 .pim-details-body {
+  background: #f2f4f7;
+  padding: 10px;
+  border-radius: 0 0 10px 10px;
+}
+
+.jo-details-v3 .pim-details-grid {
+  gap: 10px;
+}
+
+.jo-details-v3 .pim-detail-card,
+.jo-details-v3 .epm-detail-card {
+  grid-column: span 12 !important;
+  border-radius: 8px;
+  padding: 10px 12px;
+  box-shadow: none;
+  border: 1px solid #dde5ef;
+  transform: none !important;
+}
+
+.jo-details-v3 .pim-detail-card:hover,
+.jo-details-v3 .epm-detail-card:hover {
+  transform: none !important;
+  box-shadow: none !important;
+  border-color: #d5dde8;
+}
+
+.jo-details-v3 .pim-detail-card h3,
+.jo-details-v3 .epm-detail-card h3 {
+  font-size: 13px;
+  margin: 0 0 10px 0;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e8edf3;
+  color: #243b53;
+}
+
+.jo-details-v3 .pim-card-content,
+.jo-details-v3 .epm-card-content {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  border: 1px solid #edf2f7;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.jo-details-v3 .pim-info-item,
+.jo-details-v3 .epm-info-item {
+  border-right: 1px solid #edf2f7;
+  border-bottom: 1px solid #edf2f7;
+  padding: 10px 12px;
+  min-height: 58px;
+  flex-direction: column;
+  gap: 4px;
+  justify-content: center;
+}
+
+.jo-details-v3 .pim-info-item:nth-child(4n),
+.jo-details-v3 .epm-info-item:nth-child(4n) {
+  border-right: none;
+}
+
+.jo-details-v3 .pim-info-label,
+.jo-details-v3 .epm-info-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #64748b;
+  font-weight: 700;
+}
+
+.jo-details-v3 .pim-info-value,
+.jo-details-v3 .epm-info-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  text-align: left;
+}
+
+/* Services card in details: flatter, more readable */
+.jo-details-v3 .pim-services-list {
+  gap: 8px;
+}
+
+.jo-details-v3 .pim-service-item {
+  background: #fbfcfe;
+  border: 1px solid #e5ebf2;
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.jo-details-v3 .pim-service-header {
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.jo-details-v3 .pim-service-name {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.jo-details-v3 .pim-service-price {
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* Billing section compact */
+.jo-details-v3 .pim-billing-summary {
+  border-radius: 8px;
+  border-width: 1px;
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.jo-details-v3 .pim-billing-row {
+  font-size: 13px;
+  padding: 8px 0;
+}
+
+.jo-details-v3 .pim-billing-row:last-child {
+  font-size: 15px;
+}
+
+/* ---------- Compact roadmap (more like image 3) ---------- */
+.jo-roadmap-compact {
+  margin-top: 10px;
+  background: #fff;
+  border: 1px solid #dde5ef;
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.jo-roadmap-compact .pim-roadmap-title {
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: #243b53;
+  font-weight: 700;
+}
+
+.jo-roadmap-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.jo-roadmap-row {
+  border: 1px solid #e6ebf2;
+  border-radius: 8px;
+  background: #fafbfd;
+  padding: 10px;
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.jo-roadmap-row-stage {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.jo-roadmap-icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #cbd5e1;
+  background: #fff;
+  color: #64748b;
+  flex-shrink: 0;
+  font-size: 12px;
+}
+
+.jo-roadmap-icon.completed {
+  background: #22c55e;
+  border-color: #22c55e;
+  color: #fff;
+}
+
+.jo-roadmap-icon.active {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+.jo-roadmap-stage-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+.jo-roadmap-status-chip {
+  display: inline-flex;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.jo-roadmap-status-chip.completed {
+  background: rgba(34, 197, 94, 0.12);
+  color: #166534;
+}
+
+.jo-roadmap-status-chip.active {
+  background: rgba(59, 130, 246, 0.12);
+  color: #1d4ed8;
+}
+
+.jo-roadmap-status-chip.pending {
+  background: rgba(148, 163, 184, 0.12);
+  color: #475569;
+}
+
+.jo-roadmap-row-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.jo-roadmap-meta-block {
+  border: 1px solid #edf2f7;
+  background: #fff;
+  border-radius: 6px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 52px;
+}
+
+.jo-roadmap-meta-block span {
+  font-size: 10px;
+  text-transform: uppercase;
+  color: #64748b;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.jo-roadmap-meta-block strong {
+  font-size: 12px;
+  color: #0f172a;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
+/* ---------- Responsive improvements ---------- */
+@media (max-width: 1200px) {
+  .jo-confirm-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .jo-confirm-item:nth-child(4n) {
+    border-right: 1px solid #eef2f6;
+  }
+
+  .jo-confirm-item:nth-child(3n) {
+    border-right: none;
+  }
+
+  .jo-details-v3 .pim-card-content,
+  .jo-details-v3 .epm-card-content {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .jo-details-v3 .pim-info-item:nth-child(4n),
+  .jo-details-v3 .epm-info-item:nth-child(4n) {
+    border-right: 1px solid #edf2f7;
+  }
+
+  .jo-details-v3 .pim-info-item:nth-child(3n),
+  .jo-details-v3 .epm-info-item:nth-child(3n) {
+    border-right: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .jo-wizard-stepper {
+    grid-template-columns: repeat(5, 140px);
+    min-width: 700px;
+    padding-bottom: 10px;
+  }
+
+  .jo-confirm-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .jo-confirm-item:nth-child(3n) {
+    border-right: 1px solid #eef2f6;
+  }
+
+  .jo-confirm-item:nth-child(2n) {
+    border-right: none;
+  }
+
+  .jo-confirm-item-wide {
+    grid-column: span 2;
+  }
+
+  .jo-price-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .jo-roadmap-row {
+    grid-template-columns: 1fr;
+  }
+
+  .jo-roadmap-row-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .jo-details-v3 .pim-card-content,
+  .jo-details-v3 .epm-card-content {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .jo-details-v3 .pim-info-item:nth-child(3n),
+  .jo-details-v3 .epm-info-item:nth-child(3n) {
+    border-right: 1px solid #edf2f7;
+  }
+
+  .jo-details-v3 .pim-info-item:nth-child(2n),
+  .jo-details-v3 .epm-info-item:nth-child(2n) {
+    border-right: none;
+  }
+    .jo-wizard-stepper {
+
+  padding: 50px;
+
+}
+}
+
+@media (max-width: 640px) {
+  .job-order-management {
+    padding: 8px;
+  }
+
+  .jo-wizard-screen .pim-details-header,
+  .jo-details-v3 .pim-details-header {
+    padding: 10px 12px;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .jo-wizard-screen .pim-details-title-container h2,
+  .jo-details-v3 .pim-details-title-container h2 {
+    font-size: 14px;
+  }
+
+  .jo-wizard-body,
+  .jo-details-v3 .pim-details-body {
+    padding: 8px;
+  }
+
+  .jo-wizard-screen .form-card-title,
+  .jo-wizard-screen .form-card-content,
+  .jo-wizard-screen .action-buttons {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .jo-confirm-top-strip {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .jo-confirm-change-type-btn {
+    width: 100%;
+  }
+
+  .jo-confirm-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .jo-confirm-item {
+    border-right: none !important;
+  }
+
+  .jo-confirm-item-wide {
+    grid-column: span 1;
+  }
+
+  .jo-details-v3 .pim-card-content,
+  .jo-details-v3 .epm-card-content {
+    grid-template-columns: 1fr;
+  }
+
+  .jo-details-v3 .pim-info-item,
+  .jo-details-v3 .epm-info-item {
+    border-right: none !important;
+  }
+
+  .jo-details-v3 .pim-service-meta {
+    grid-template-columns: 1fr;
+  }
+
+  .jo-details-v3 .pim-service-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .jo-wizard-screen .action-buttons,
+  .confirm-action-buttons {
+    flex-direction: column;
+  }
+
+  .jo-wizard-screen .action-buttons .btn,
+  .confirm-action-buttons .btn {
+    width: 100%;
+    min-width: 100%;
+  }
+
+
+  .jo-wizard-stepper {
+
+  padding: 50px;
+
+}
+
+}

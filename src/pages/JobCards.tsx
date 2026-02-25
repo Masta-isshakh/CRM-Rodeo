@@ -805,7 +805,7 @@ function MainScreen({
 // ============================================
 function DetailsScreen({ order, onClose, onAddService }: any) {
   return (
-    <div className="pim-details-screen">
+<div className="pim-details-screen jo-details-v3">
       <div className="pim-details-header">
         <div className="pim-details-title-container">
           <h2>
@@ -1061,111 +1061,109 @@ function NewJobScreen({ currentUser, onClose, onSubmit, prefill }: any) {
     onSubmit(newOrder);
   };
 
-  return (
-    <div className="pim-details-screen">
-      {/* ... keep your existing UI exactly as you have it ... */}
-      {/* IMPORTANT: I kept your logic; UI components below must exist in this same file (as in your current version). */}
-      {/* You already pasted them earlier; keep them unchanged. */}
-      <div className="pim-details-header">
-        <div className="pim-details-title-container">
-          <h2>
-            <i className="fas fa-plus-circle"></i> Create New Job Order
-          </h2>
-        </div>
-        <button className="pim-btn-close-details" onClick={onClose}>
-          <i className="fas fa-times"></i> Cancel
-        </button>
+return (
+  <div className="pim-details-screen jo-wizard-screen">
+    <div className="pim-details-header jo-wizard-header">
+      <div className="pim-details-title-container">
+        <h2>
+          <i className="fas fa-plus-circle"></i> Create New Job Order
+        </h2>
       </div>
-
-      <div className="pim-details-body">
-        <div className="progress-bar">
-          {[1, 2, 3, 4, 5].map((s) => (
-            <div key={s} className={`progress-step ${s < step ? "completed" : s === step ? "active" : ""}`}>
-              <span>{s}</span>
-              <div className="step-label">{["Customer", "Vehicle", "Order Type", "Services", "Confirm"][s - 1]}</div>
-            </div>
-          ))}
-        </div>
-
-        {step === 1 && (
-          <StepOneCustomer
-            customerType={customerType}
-            setCustomerType={setCustomerType}
-            customerData={customerData}
-            setCustomerData={setCustomerData}
-            onNext={() => setStep(2)}
-            onCancel={onClose}
-          />
-        )}
-
-        {step === 2 && (
-          <StepTwoVehicle
-            vehicleData={vehicleData}
-            setVehicleData={setVehicleData}
-            customerData={customerData}
-            setCustomerData={setCustomerData}
-            onVehicleSelected={handleVehicleSelected}
-            onNext={() => setStep(3)}
-            onBack={() => setStep(1)}
-          />
-        )}
-
-        {step === 3 && vehicleCompletedServices.length > 0 && (
-          <OrderTypeSelection
-            vehicleCompletedServices={vehicleCompletedServices}
-            orderType={orderType}
-            onSelectOrderType={(type: any) => {
-              setOrderType(type);
-              setStep(4);
-            }}
-            onBack={() => setStep(2)}
-          />
-        )}
-
-        {step === 3 && vehicleCompletedServices.length === 0 && (
-          <NoCompletedServicesMessage
-            onNext={() => {
-              setOrderType("new");
-              setStep(4);
-            }}
-            onBack={() => setStep(2)}
-          />
-        )}
-
-        {step === 4 && (
-          <StepThreeServices
-            selectedServices={orderType === "service" ? additionalServices : selectedServices}
-            setSelectedServices={orderType === "service" ? setAdditionalServices : setSelectedServices}
-            vehicleType={vehicleData?.carType || vehicleData?.vehicleType || "SUV"}
-            discountPercent={discountPercent}
-            setDiscountPercent={setDiscountPercent}
-            orderNotes={orderNotes}
-            setOrderNotes={setOrderNotes}
-            expectedDeliveryDate={expectedDeliveryDate}
-            setExpectedDeliveryDate={setExpectedDeliveryDate}
-            expectedDeliveryTime={expectedDeliveryTime}
-            setExpectedDeliveryTime={setExpectedDeliveryTime}
-            onNext={() => setStep(5)}
-            onBack={() => setStep(3)}
-          />
-        )}
-
-        {step === 5 && (
-          <StepFourConfirm
-            customerData={customerData}
-            vehicleData={vehicleData}
-            selectedServices={orderType === "service" ? additionalServices : selectedServices}
-            discountPercent={discountPercent}
-            orderNotes={orderNotes}
-            expectedDeliveryDate={expectedDeliveryDate}
-            expectedDeliveryTime={expectedDeliveryTime}
-            onBack={() => setStep(4)}
-            onSubmit={handleSubmit}
-          />
-        )}
-      </div>
+      <button className="pim-btn-close-details jo-wizard-cancel-btn" onClick={onClose}>
+        <i className="fas fa-times"></i> Cancel
+      </button>
     </div>
-  );
+
+    <div className="pim-details-body jo-wizard-body">
+      <div className="progress-bar jo-wizard-stepper">
+        {[1, 2, 3, 4, 5].map((s) => (
+          <div key={s} className={`progress-step ${s < step ? "completed" : s === step ? "active" : ""}`}>
+            <span>{s}</span>
+            <div className="step-label">{["Customer", "Vehicle", "Order Type", "Services", "Confirm"][s - 1]}</div>
+          </div>
+        ))}
+      </div>
+
+      {step === 1 && (
+        <StepOneCustomer
+          customerType={customerType}
+          setCustomerType={setCustomerType}
+          customerData={customerData}
+          setCustomerData={setCustomerData}
+          onNext={() => setStep(2)}
+          onCancel={onClose}
+        />
+      )}
+
+      {step === 2 && (
+        <StepTwoVehicle
+          vehicleData={vehicleData}
+          setVehicleData={setVehicleData}
+          customerData={customerData}
+          setCustomerData={setCustomerData}
+          onVehicleSelected={handleVehicleSelected}
+          onNext={() => setStep(3)}
+          onBack={() => setStep(1)}
+        />
+      )}
+
+      {step === 3 && vehicleCompletedServices.length > 0 && (
+        <OrderTypeSelection
+          vehicleCompletedServices={vehicleCompletedServices}
+          orderType={orderType}
+          onSelectOrderType={(type: any) => {
+            setOrderType(type);
+            setStep(4);
+          }}
+          onBack={() => setStep(2)}
+        />
+      )}
+
+      {step === 3 && vehicleCompletedServices.length === 0 && (
+        <NoCompletedServicesMessage
+          onNext={() => {
+            setOrderType("new");
+            setStep(4);
+          }}
+          onBack={() => setStep(2)}
+        />
+      )}
+
+      {step === 4 && (
+        <StepThreeServices
+          selectedServices={orderType === "service" ? additionalServices : selectedServices}
+          setSelectedServices={orderType === "service" ? setAdditionalServices : setSelectedServices}
+          vehicleType={vehicleData?.carType || vehicleData?.vehicleType || "SUV"}
+          discountPercent={discountPercent}
+          setDiscountPercent={setDiscountPercent}
+          orderNotes={orderNotes}
+          setOrderNotes={setOrderNotes}
+          expectedDeliveryDate={expectedDeliveryDate}
+          setExpectedDeliveryDate={setExpectedDeliveryDate}
+          expectedDeliveryTime={expectedDeliveryTime}
+          setExpectedDeliveryTime={setExpectedDeliveryTime}
+          onNext={() => setStep(5)}
+          onBack={() => setStep(3)}
+        />
+      )}
+
+      {step === 5 && (
+        <StepFourConfirm
+          orderType={orderType}
+          customerData={customerData}
+          vehicleData={vehicleData}
+          selectedServices={orderType === "service" ? additionalServices : selectedServices}
+          discountPercent={discountPercent}
+          orderNotes={orderNotes}
+          expectedDeliveryDate={expectedDeliveryDate}
+          expectedDeliveryTime={expectedDeliveryTime}
+          onBack={() => setStep(4)}
+          onSubmit={handleSubmit}
+        />
+      )}
+    </div>
+  </div>
+);
 }
 
 // ======================================================================
@@ -1531,6 +1529,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
   const [license, setLicense] = useState("");
   const [carType, setCarType] = useState("SUV");
   const [color, setColor] = useState("");
+  const [vinNumber, setVinNumber] = useState(""); // ✅ NEW manual VIN
 
   const hasVehicles = customerData?.vehicles && customerData.vehicles.length > 0;
 
@@ -1539,7 +1538,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
   }, [hasVehicles]);
 
   const handleSaveNewVehicle = async () => {
-    if (!(factory && model && year && license && carType && color)) return;
+    if (!(factory && model && year && license && carType && color && vinNumber)) return;
 
     const created = await createVehicleForCustomer({
       customerId: customerData.id,
@@ -1550,7 +1549,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
       color,
       plateNumber: license,
       vehicleType: carType,
-      vin: "VIN" + Math.random().toString(36).slice(2, 16).toUpperCase(),
+      vin: vinNumber.trim().toUpperCase(), // ✅ manual VIN saved
     });
 
     const updatedCustomer = {
@@ -1580,8 +1579,8 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
       <div className="form-card-content">
         {hasVehicles && !showNewVehicleForm && !vehicleData && (
           <div>
-            <div className="info-banner" style={{ marginBottom: "20px", padding: "15px", backgroundColor: "#e3f2fd", borderRadius: "8px", border: "1px solid #2196f3" }}>
-              <i className="fas fa-info-circle" style={{ color: "#2196f3", marginRight: "8px" }}></i>
+            <div className="info-banner" style={{ marginBottom: "20px" }}>
+              <i className="fas fa-info-circle"></i>
               <span>This customer has {customerData.vehicles.length} registered vehicle(s). Select one or add a new vehicle.</span>
             </div>
 
@@ -1671,7 +1670,17 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
               </div>
             </div>
 
+            {/* ✅ NEW ROW: VIN + Vehicle Type */}
             <div className="form-row">
+              <div className="form-group">
+                <label>VIN Number *</label>
+                <input
+                  value={vinNumber}
+                  onChange={(e) => setVinNumber(e.target.value.toUpperCase())}
+                  placeholder="e.g., JTDBR32E720054321"
+                  maxLength={30}
+                />
+              </div>
               <div className="form-group">
                 <label>Vehicle Type *</label>
                 <select value={carType} onChange={(e) => setCarType(e.target.value)}>
@@ -1682,13 +1691,20 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
                   <option>Truck</option>
                 </select>
               </div>
+            </div>
+
+            <div className="form-row">
               <div className="form-group">
                 <label>Color *</label>
                 <input value={color} onChange={(e) => setColor(e.target.value)} placeholder="e.g., Silver Metallic" />
               </div>
             </div>
 
-            <button className="btn btn-success" onClick={() => void handleSaveNewVehicle()}>
+            <button
+              className="btn btn-success"
+              onClick={() => void handleSaveNewVehicle()}
+              disabled={!(factory && model && year && license && carType && color && vinNumber)}
+            >
               <i className="fas fa-save"></i> Save Vehicle
             </button>
           </div>
@@ -1902,7 +1918,7 @@ function AddServiceScreen({ order, onClose, onSubmit }: any) {
   const total = subtotal - discount;
 
   return (
-    <div className="pim-details-screen">
+<div className="pim-details-screen jo-details-v3">
       <div className="pim-details-header">
         <div className="pim-details-title-container">
           <h2>
@@ -2014,114 +2030,224 @@ function InspectionModal({ item, onClose }: any) {
 // ============================================
 // CONFIRM STEP
 // ============================================
-function StepFourConfirm({ customerData, vehicleData, selectedServices, discountPercent, orderNotes, expectedDeliveryDate, expectedDeliveryTime, onBack, onSubmit }: any) {
+function StepFourConfirm({
+  orderType,
+  customerData,
+  vehicleData,
+  selectedServices,
+  discountPercent,
+  orderNotes,
+  expectedDeliveryDate,
+  expectedDeliveryTime,
+  onBack,
+  onSubmit,
+}: any) {
   const formatPrice = (price: number) => `QAR ${price.toLocaleString()}`;
   const subtotal = selectedServices.reduce((sum: number, s: any) => sum + s.price, 0);
   const discount = (subtotal * discountPercent) / 100;
   const total = subtotal - discount;
 
+  const customerMobile = customerData?.mobile || customerData?.phone || "Not provided";
+  const vehicleType = vehicleData?.vehicleType || vehicleData?.carType || "N/A";
+  const vehicleId = vehicleData?.vehicleId || "N/A";
+  const plate = vehicleData?.plateNumber || vehicleData?.license || "N/A";
+  const vin = vehicleData?.vin || "Not provided";
+
   return (
-    <div className="form-card">
+    <div className="form-card confirm-review-card">
       <div className="form-card-title">
         <i className="fas fa-check-circle"></i>
         <h2>Order Confirmation</h2>
       </div>
+
       <div className="form-card-content">
-        <div className="pim-details-grid">
-          <div className="pim-detail-card">
-            <h3>
-              <i className="fas fa-user"></i> Customer Information
-            </h3>
-            <div className="pim-card-content">
-              <div className="pim-info-item">
-                <span className="pim-info-label">Customer ID</span>
-                <span className="pim-info-value">{customerData.id}</span>
-              </div>
-              <div className="pim-info-item">
-                <span className="pim-info-label">Customer Name</span>
-                <span className="pim-info-value">{customerData.name}</span>
-              </div>
-              <div className="pim-info-item">
-                <span className="pim-info-label">Mobile Number</span>
-                <span className="pim-info-value">{customerData.mobile || customerData.phone}</span>
-              </div>
-            </div>
-          </div>
-
-          <div className="pim-detail-card">
-            <h3>
-              <i className="fas fa-car"></i> Vehicle Information
-            </h3>
-            <div className="pim-card-content">
-              <div className="pim-info-item">
-                <span className="pim-info-label">Vehicle ID</span>
-                <span className="pim-info-value">{vehicleData.vehicleId}</span>
-              </div>
-              <div className="pim-info-item">
-                <span className="pim-info-label">Plate Number</span>
-                <span className="pim-info-value">{vehicleData.plateNumber}</span>
-              </div>
-            </div>
-          </div>
-
-          {orderNotes && (
-            <div className="pim-detail-card">
-              <h3>
-                <i className="fas fa-sticky-note"></i> Notes / Comments
-              </h3>
-              <div className="pim-card-content">
-                <div style={{ padding: "12px", backgroundColor: "#f9f9f9", borderRadius: "4px", whiteSpace: "pre-wrap" }}>{orderNotes}</div>
-              </div>
-            </div>
-          )}
-
-          {(expectedDeliveryDate || expectedDeliveryTime) && (
-            <div className="pim-detail-card">
-              <h3>
-                <i className="fas fa-calendar-check"></i> Expected Delivery
-              </h3>
-              <div className="pim-card-content">
-                <div className="pim-info-item">
-                  <span className="pim-info-label">Delivery Date</span>
-                  <span className="pim-info-value">{expectedDeliveryDate || "Not specified"}</span>
-                </div>
-                <div className="pim-info-item">
-                  <span className="pim-info-label">Delivery Time</span>
-                  <span className="pim-info-value">{expectedDeliveryTime || "Not specified"}</span>
+        {/* Top summary strip similar to screenshot */}
+        <div className="jo-confirm-top-strip">
+          <div className="jo-confirm-top-strip-left">
+            <div className="jo-confirm-order-type-line">
+              <i className="fas fa-file-alt"></i>
+              <div>
+                <div className="jo-confirm-strip-title">{orderType === "service" ? "Service Order" : "New Job Order"}</div>
+                <div className="jo-confirm-strip-subtitle">
+                  {[vehicleData?.make, vehicleData?.model].filter(Boolean).join(" ")} {plate ? `• ${plate}` : ""}
                 </div>
               </div>
             </div>
-          )}
-
-          <div className="pim-detail-card">
-            <h3>
-              <i className="fas fa-calculator"></i> Price Summary
-            </h3>
-            <div className="pim-card-content">
-              <div className="pim-info-item">
-                <span className="pim-info-label">Subtotal</span>
-                <span className="pim-info-value">{formatPrice(subtotal)}</span>
-              </div>
-              {discountPercent > 0 && (
-                <div className="pim-info-item">
-                  <span className="pim-info-label">Discount ({discountPercent}%)</span>
-                  <span className="pim-info-value">-{formatPrice(discount)}</span>
-                </div>
-              )}
-              <div className="pim-info-item" style={{ paddingTop: "10px", borderTop: "2px solid #ddd" }}>
-                <span className="pim-info-label" style={{ fontSize: "18px", fontWeight: "bold" }}>
-                  Total
-                </span>
-                <span className="pim-info-value" style={{ fontSize: "18px", fontWeight: "bold" }}>
-                  {formatPrice(total)}
-                </span>
-              </div>
-            </div>
           </div>
+          <button className="btn btn-secondary jo-confirm-change-type-btn" onClick={onBack}>
+            <i className="fas fa-exchange-alt"></i> Change Selection
+          </button>
         </div>
+
+        {/* Customer */}
+        <section className="jo-confirm-section">
+          <h3>
+            <i className="fas fa-user"></i> Customer Information
+          </h3>
+          <div className="jo-confirm-grid">
+            <div className="jo-confirm-item">
+              <span>Customer ID</span>
+              <strong>{customerData?.id || "N/A"}</strong>
+            </div>
+            <div className="jo-confirm-item">
+              <span>Customer Name</span>
+              <strong>{customerData?.name || "N/A"}</strong>
+            </div>
+            <div className="jo-confirm-item">
+              <span>Mobile Number</span>
+              <strong>{customerMobile}</strong>
+            </div>
+            <div className="jo-confirm-item">
+              <span>Email Address</span>
+              <strong>{customerData?.email || "Not provided"}</strong>
+            </div>
+            <div className="jo-confirm-item jo-confirm-item-wide">
+              <span>Home Address</span>
+              <strong>{customerData?.address || "Not provided"}</strong>
+            </div>
+            <div className="jo-confirm-item">
+              <span>Registered Vehicles</span>
+              <strong>{customerData?.vehicles?.length ?? customerData?.registeredVehiclesCount ?? 0}</strong>
+            </div>
+            <div className="jo-confirm-item">
+              <span>Completed Services</span>
+              <strong>{customerData?.completedServicesCount ?? 0}</strong>
+            </div>
+            <div className="jo-confirm-item">
+              <span>Customer Since</span>
+              <strong>{customerData?.customerSince || "N/A"}</strong>
+            </div>
+          </div>
+        </section>
+
+        {/* Vehicle */}
+        <section className="jo-confirm-section">
+          <h3>
+            <i className="fas fa-car"></i> Vehicle Information
+          </h3>
+          <div className="jo-confirm-grid">
+            <div className="jo-confirm-item">
+              <span>Vehicle ID</span>
+              <strong>{vehicleId}</strong>
+            </div>
+            <div className="jo-confirm-item">
+              <span>Owned By</span>
+              <strong>{customerData?.name || "N/A"}</strong>
+            </div>
+            <div className="jo-confirm-item">
+              <span>Make</span>
+              <strong>{vehicleData?.make || vehicleData?.factory || "N/A"}</strong>
+            </div>
+            <div className="jo-confirm-item">
+              <span>Model</span>
+              <strong>{vehicleData?.model || "N/A"}</strong>
+            </div>
+            <div className="jo-confirm-item">
+              <span>Year</span>
+              <strong>{vehicleData?.year || "N/A"}</strong>
+            </div>
+            <div className="jo-confirm-item">
+              <span>Color</span>
+              <strong>{vehicleData?.color || "N/A"}</strong>
+            </div>
+            <div className="jo-confirm-item">
+              <span>Plate Number</span>
+              <strong>{plate}</strong>
+            </div>
+            <div className="jo-confirm-item">
+              <span>VIN</span>
+              <strong>{vin}</strong>
+            </div>
+            <div className="jo-confirm-item">
+              <span>Vehicle Type</span>
+              <strong>{vehicleType}</strong>
+            </div>
+          </div>
+        </section>
+
+        {/* Selected services table */}
+        <section className="jo-confirm-section">
+          <h3>
+            <i className="fas fa-clipboard-list"></i> Selected Services
+          </h3>
+
+          <div className="jo-confirm-table-wrap">
+            <table className="jo-confirm-services-table">
+              <thead>
+                <tr>
+                  <th>Service Name</th>
+                  <th style={{ textAlign: "right" }}>Price</th>
+                </tr>
+              </thead>
+              <tbody>
+                {selectedServices.map((service: any, idx: number) => (
+                  <tr key={`${service.name}-${idx}`}>
+                    <td>{service.name}</td>
+                    <td style={{ textAlign: "right", fontWeight: 700 }}>{formatPrice(service.price || 0)}</td>
+                  </tr>
+                ))}
+                {selectedServices.length === 0 && (
+                  <tr>
+                    <td colSpan={2} style={{ textAlign: "center", color: "#64748b" }}>
+                      No services selected
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        {/* Price summary */}
+        <section className="jo-confirm-section">
+          <h3>
+            <i className="fas fa-calculator"></i> Price Summary
+          </h3>
+          <div className="jo-price-summary-grid">
+            <div className="jo-price-box">
+              <div className="jo-price-row">
+                <span>Subtotal</span>
+                <strong>{formatPrice(subtotal)}</strong>
+              </div>
+              <div className="jo-price-row">
+                <span>Discount ({discountPercent || 0}%)</span>
+                <strong>- {formatPrice(discount)}</strong>
+              </div>
+            </div>
+
+            <div className="jo-price-box jo-price-box-total">
+              <div className="jo-price-row">
+                <span>Total</span>
+                <strong>{formatPrice(total)}</strong>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {(orderNotes || expectedDeliveryDate || expectedDeliveryTime) && (
+          <section className="jo-confirm-section">
+            <h3>
+              <i className="fas fa-info-circle"></i> Additional Information
+            </h3>
+            <div className="jo-confirm-grid">
+              <div className="jo-confirm-item">
+                <span>Expected Delivery Date</span>
+                <strong>{expectedDeliveryDate || "Not specified"}</strong>
+              </div>
+              <div className="jo-confirm-item">
+                <span>Expected Delivery Time</span>
+                <strong>{expectedDeliveryTime || "Not specified"}</strong>
+              </div>
+              <div className="jo-confirm-item jo-confirm-item-wide">
+                <span>Notes / Comments</span>
+                <strong style={{ whiteSpace: "pre-wrap" }}>{orderNotes || "No notes"}</strong>
+              </div>
+            </div>
+          </section>
+        )}
       </div>
 
-      <div className="action-buttons">
+      <div className="action-buttons confirm-action-buttons">
         <button className="btn btn-secondary" onClick={onBack}>
           Back
         </button>
@@ -2788,68 +2914,84 @@ function RoadmapCard({ order }: any) {
 
   const getStepIcon = (stepName: string) => {
     const iconMap: any = {
-      'New Request': 'fa-plus-circle',
-      'Inspection': 'fa-search',
-      'Inprogress': 'fa-cogs',
-      'Quality Check': 'fa-check-double',
-      'Ready': 'fa-flag-checkered',
-      'Completed': 'fa-check-circle',
-      'Cancelled': 'fa-ban',
+      "New Request": "fa-plus-circle",
+      Inspection: "fa-search",
+      Inprogress: "fa-cogs",
+      "Quality Check": "fa-check-double",
+      Ready: "fa-flag-checkered",
+      Completed: "fa-check-circle",
+      Cancelled: "fa-ban",
     };
-    return iconMap[stepName] || 'fa-circle';
+    return iconMap[stepName] || "fa-circle";
   };
 
   const getStepClass = (status: string) => {
-    if (status === 'InProgress' || status === 'Active') return 'active';
-    if (status === 'Completed') return 'completed';
-    return 'pending';
+    const s = String(status || "").toLowerCase();
+    if (s === "inprogress" || s === "active") return "active";
+    if (s === "completed") return "completed";
+    return "pending";
   };
 
+  // ✅ FIX: better actor resolution to avoid wrong field
+  const resolveActor = (step: any) => {
+    return (
+      step?.actionByName ||
+      step?.doneBy ||
+      step?.performedBy ||
+      step?.updatedByName ||
+      step?.assignedToName ||
+      step?.assignedTo ||
+      step?.technicianName ||
+      step?.technician ||
+      step?.actionBy ||
+      (step?.step === "New Request" ? order?.jobOrderSummary?.createdBy : null) ||
+      "Not assigned"
+    );
+  };
+
+  const getStatusLabel = (step: any) => step?.stepStatus || step?.status || "Pending";
+
   return (
-    <div className="pim-roadmap-container">
+    <div className="pim-roadmap-container jo-roadmap-compact">
       <div className="pim-roadmap-title">
         <i className="fas fa-route"></i>
-        Order Progress Timeline
+        Job Order Roadmap
       </div>
-      <div className="pim-roadmap-steps">
-        {order.roadmap.map((step: any, idx: number) => (
-          <div key={idx} className={`pim-roadmap-step ${getStepClass(step.status)}`}>
-            <div className="pim-roadmap-icon">
-              <i className={`fas ${getStepIcon(step.step)}`}></i>
-            </div>
-            <div className="pim-roadmap-content">
-              <div className="pim-roadmap-step-title">
-                {step.step}
-                <span className={`pim-roadmap-step-status ${getStepClass(step.status)}`}>
-                  {step.stepStatus}
-                </span>
+
+      <div className="jo-roadmap-list">
+        {order.roadmap.map((step: any, idx: number) => {
+          const actor = resolveActor(step);
+          const stepClass = getStepClass(step.status);
+
+          return (
+            <div key={idx} className={`jo-roadmap-row ${stepClass}`}>
+              <div className="jo-roadmap-row-stage">
+                <div className={`jo-roadmap-icon ${stepClass}`}>
+                  <i className={`fas ${getStepIcon(step.step)}`}></i>
+                </div>
+                <div>
+                  <div className="jo-roadmap-stage-title">{step.step}</div>
+                  <div className={`jo-roadmap-status-chip ${stepClass}`}>{getStatusLabel(step)}</div>
+                </div>
               </div>
-              <div className="pim-roadmap-step-meta">
-                {step.startTimestamp && (
-                  <div className="pim-roadmap-meta-item">
-                    <i className="fas fa-play-circle"></i>
-                    <span className="pim-roadmap-meta-label">Started:</span>
-                    <span>{step.startTimestamp}</span>
-                  </div>
-                )}
-                {step.endTimestamp && (
-                  <div className="pim-roadmap-meta-item">
-                    <i className="fas fa-stop-circle"></i>
-                    <span className="pim-roadmap-meta-label">Completed:</span>
-                    <span>{step.endTimestamp}</span>
-                  </div>
-                )}
-                {step.actionBy && (
-                  <div className="pim-roadmap-meta-item">
-                    <i className="fas fa-user"></i>
-                    <span className="pim-roadmap-meta-label">By:</span>
-                    <span>{step.actionBy}</span>
-                  </div>
-                )}
+
+              <div className="jo-roadmap-row-meta">
+                <div className="jo-roadmap-meta-block">
+                  <span>Started</span>
+                  <strong>{step.startTimestamp || "Not started"}</strong>
+                </div>
+                <div className="jo-roadmap-meta-block">
+                  <span>Completed</span>
+                  <strong>{step.endTimestamp || "Not completed"}</strong>
+                </div>
+                <div className="jo-roadmap-meta-block">
+                  <span>Action done by</span>
+                  <strong>{actor}</strong>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
