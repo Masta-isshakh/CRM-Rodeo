@@ -2788,139 +2788,146 @@ i {
 }
 
 
-/* ================================
-   JobOrderManagement - Documents table (full width, clean rows)
-   Targets the table inside .pim-detail-card that has NO specific table class.
-   ================================ */
+/* ===========================
+   Job Order Documents (Details)
+   Full width + stable table layout
+   =========================== */
 
-/* Wrapper: smooth horizontal scroll if needed */
-.pim-detail-card .pim-card-content > div {
+.jo-docs-card{
+  /* ✅ forces full-width row in your details page grid */
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.jo-docs-title{
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+}
+
+.jo-docs-title-left{
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* top padding like your inline style */
+.jo-docs-content{
+  padding-top: 8px;
+}
+
+/* scroll only when needed */
+.jo-docs-table-wrap{
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
 
-/* The documents table (exclude your other known tables) */
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) {
-  width: 100% !important;
-  border-collapse: separate !important;
-  border-spacing: 0 !important;
-  table-layout: fixed !important; /* ✅ prevents columns from exploding */
-  background: #ffffff;
+/* ✅ stable predictable columns */
+.jo-docs-table{
+  width: 100%;
+  min-width: 820px;      /* same as your inline version */
+  border-collapse: collapse;
+  table-layout: fixed;   /* ✅ prevents broken stretching */
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   overflow: hidden;
+  background: #fff;
 }
 
-/* Header */
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) thead th {
-  position: sticky;
-  top: 0;
-  z-index: 2;
+.jo-docs-table thead tr{
   background: #f8fafc;
-  color: #334155;
-  font-weight: 700;
-  font-size: 12px;
-  letter-spacing: 0.2px;
-  text-transform: none;
-  border-bottom: 1px solid #e2e8f0;
 }
 
-/* Cells */
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) th,
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) td {
+.jo-docs-th,
+.jo-docs-td{
   padding: 10px 12px;
+  border-bottom: 1px solid #e2e8f0;
   vertical-align: middle;
-  border-bottom: 1px solid #eef2f7;
+  font-size: 13px;
+  color: #0f172a;
 }
 
-/* Zebra rows */
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) tbody tr:nth-child(even) {
-  background: #fbfdff;
+/* header typography */
+.jo-docs-th{
+  font-weight: 700;
+  color: #334155;
+  text-align: left;
 }
 
-/* Hover */
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) tbody tr:hover {
-  background: #f1f5f9;
-}
-
-/* Column widths (6 columns total) */
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) th:nth-child(1),
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) td:nth-child(1) {
-  width: 42%;
-  white-space: normal;       /* ✅ allow wrapping for doc name */
-  word-break: break-word;
-}
-
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) th:nth-child(2),
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) td:nth-child(2) {
-  width: 10%;
-}
-
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) th:nth-child(3),
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) td:nth-child(3) {
-  width: 12%;
-}
-
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) th:nth-child(4),
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) td:nth-child(4) {
-  width: 12%;
-}
-
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) th:nth-child(5),
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) td:nth-child(5) {
-  width: 12%;
-}
-
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) th:nth-child(6),
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) td:nth-child(6) {
-  width: 12%;
+/* align right for actions header/cell */
+.jo-docs-right{
   text-align: right;
 }
 
-/* Keep metadata line inside the first column neat */
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) td:nth-child(1) div:last-child {
+/* zebra + hover */
+.jo-docs-table tbody tr:nth-child(even){
+  background: #fbfdff;
+}
+.jo-docs-table tbody tr:hover{
+  background: #f1f5f9;
+}
+
+/* ===== Column sizing (6 cols) ===== */
+.jo-docs-col-doc{ width: 42%; }
+.jo-docs-col-type{ width: 10%; }
+.jo-docs-col-cat{ width: 12%; }
+.jo-docs-col-added{ width: 12%; }
+.jo-docs-col-by{ width: 12%; }
+.jo-docs-col-actions{ width: 12%; }
+
+/* Keep small columns single-line */
+.jo-docs-col-type,
+.jo-docs-col-cat,
+.jo-docs-col-added,
+.jo-docs-col-by,
+.jo-docs-col-actions{
+  white-space: nowrap;
+}
+
+/* Document column wraps nicely */
+.jo-docs-col-doc{
+  white-space: normal;
+  word-break: break-word;
+}
+
+.jo-docs-docname{
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.jo-docs-docmeta{
   margin-top: 4px;
   font-size: 12px;
   color: #64748b;
   line-height: 1.35;
+  word-break: break-word;
 }
 
-/* Buttons in Actions cell */
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) td:nth-child(6) .btn {
-  padding: 8px 10px;
-  font-size: 12px;
-  line-height: 1;
-  border-radius: 10px;
+/* Actions: tidy and consistent */
+.jo-docs-actions{
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.jo-docs-btn{
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  padding: 8px 10px;
+  font-size: 12px;
+  line-height: 1;
   white-space: nowrap;
 }
 
-.pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) td:nth-child(6) .btn i {
-  font-size: 12px;
-}
-
-/* Stack action buttons nicely on small widths */
-@media (max-width: 900px) {
-  .pim-detail-card table:not(.pim-payment-log-table):not(.jo-confirm-services-table):not(.job-order-table) td:nth-child(6) > div {
-    display: flex !important;
+/* Mobile: stack buttons */
+@media (max-width: 900px){
+  .jo-docs-actions{
     flex-direction: column;
     align-items: flex-end;
-    gap: 8px;
   }
-}
-
-/* Optional: nicer scrollbar (WebKit browsers) */
-.pim-detail-card .pim-card-content > div::-webkit-scrollbar {
-  height: 10px;
-}
-.pim-detail-card .pim-card-content > div::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 999px;
-}
-.pim-detail-card .pim-card-content > div::-webkit-scrollbar-track {
-  background: #f1f5f9;
-  border-radius: 999px;
 }

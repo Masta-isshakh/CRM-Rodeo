@@ -2830,80 +2830,67 @@ function JobOrderDocumentsCard({ order }: any) {
   const docs: DocUi[] = Array.isArray(order?.documents) ? order.documents : [];
   if (!docs.length) return null;
 
-  const cell: React.CSSProperties = {
-    padding: "10px 12px",
-    borderBottom: "1px solid #e2e8f0",
-    verticalAlign: "middle",
-    fontSize: 13,
-    color: "#0f172a",
-    whiteSpace: "nowrap",
-  };
-
-  const cellWrap: React.CSSProperties = {
-    ...cell,
-    whiteSpace: "normal",
-    wordBreak: "break-word",
-  };
-
   return (
-    <div className="pim-detail-card" style={{ gridColumn: "span 12", width: "100%" }}>
-      <h3 style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-        <span>
+    <div className="pim-detail-card jo-docs-card">
+      <h3 className="jo-docs-title">
+        <span className="jo-docs-title-left">
           <i className="fas fa-folder-open"></i> Documents ({docs.length})
         </span>
       </h3>
 
-      <div className="pim-card-content" style={{ paddingTop: 8 }}>
-        {/* Full-width, row-based layout */}
-        <div style={{ width: "100%", overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 820 }}>
+      <div className="pim-card-content jo-docs-content">
+        <div className="jo-docs-table-wrap">
+          <table className="jo-docs-table">
             <thead>
-              <tr style={{ background: "#f8fafc" }}>
-                <th style={{ ...cell, fontWeight: 700, color: "#334155" }}>Document</th>
-                <th style={{ ...cell, fontWeight: 700, color: "#334155" }}>Type</th>
-                <th style={{ ...cell, fontWeight: 700, color: "#334155" }}>Category</th>
-                <th style={{ ...cell, fontWeight: 700, color: "#334155" }}>Added</th>
-                <th style={{ ...cell, fontWeight: 700, color: "#334155" }}>Uploaded By</th>
-                <th style={{ ...cell, fontWeight: 700, color: "#334155", textAlign: "right" }}>Actions</th>
+              <tr>
+                <th className="jo-docs-th jo-docs-col-doc">Document</th>
+                <th className="jo-docs-th jo-docs-col-type">Type</th>
+                <th className="jo-docs-th jo-docs-col-cat">Category</th>
+                <th className="jo-docs-th jo-docs-col-added">Added</th>
+                <th className="jo-docs-th jo-docs-col-by">Uploaded By</th>
+                <th className="jo-docs-th jo-docs-col-actions jo-docs-right">Actions</th>
               </tr>
             </thead>
 
             <tbody>
               {docs.map((d, idx) => {
                 const name = String(d?.name ?? "").trim() || `Document ${idx + 1}`;
-                const raw = String(d?.storagePath || d?.url || "").trim(); // ✅ order-related documents only
+                const raw = String(d?.storagePath || d?.url || "").trim();
                 const type = String(d?.type ?? "").trim() || "—";
                 const category = String(d?.category ?? "").trim() || "—";
                 const addedAt = String(d?.addedAt ?? "").trim() || "—";
                 const uploadedBy = String(d?.uploadedBy ?? "").trim() || "—";
 
+                const refs = [
+                  d?.paymentReference ? `PaymentRef: ${d.paymentReference}` : null,
+                  d?.billReference ? `BillRef: ${d.billReference}` : null,
+                ].filter(Boolean);
+
                 return (
-                  <tr key={d?.id ?? `${name}-${idx}`}>
-                    <td style={cellWrap}>
-                      <div style={{ fontWeight: 700 }}>{name}</div>
-                      {/* Optional secondary line showing reference fields if present */}
-                      {([d?.paymentReference, d?.billReference].filter(Boolean).length > 0 || raw) ? (
-                        <div style={{ marginTop: 4, fontSize: 12, color: "#64748b" }}>
-                          {[d?.paymentReference && `PaymentRef: ${d.paymentReference}`, d?.billReference && `BillRef: ${d.billReference}`]
-                            .filter(Boolean)
-                            .join(" • ")}
-                          {raw ? (raw && ([d?.paymentReference, d?.billReference].filter(Boolean).length ? " • " : "")) : ""}
+                  <tr key={d?.id ?? `${name}-${idx}`} className="jo-docs-row">
+                    <td className="jo-docs-td jo-docs-col-doc">
+                      <div className="jo-docs-docname">{name}</div>
+
+                      {(refs.length > 0 || raw) ? (
+                        <div className="jo-docs-docmeta">
+                          {refs.join(" • ")}
+                          {raw ? (refs.length ? " • " : "") : ""}
                           {raw ? raw : ""}
                         </div>
                       ) : null}
                     </td>
 
-                    <td style={cell}>{type}</td>
-                    <td style={cell}>{category}</td>
-                    <td style={cell}>{addedAt}</td>
-                    <td style={cell}>{uploadedBy}</td>
+                    <td className="jo-docs-td jo-docs-col-type">{type}</td>
+                    <td className="jo-docs-td jo-docs-col-cat">{category}</td>
+                    <td className="jo-docs-td jo-docs-col-added">{addedAt}</td>
+                    <td className="jo-docs-td jo-docs-col-by">{uploadedBy}</td>
 
-                    <td style={{ ...cell, textAlign: "right" }}>
+                    <td className="jo-docs-td jo-docs-col-actions jo-docs-right">
                       <PermissionGate moduleId="joborder" optionId="joborder_download">
-                        <div style={{ display: "inline-flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                        <div className="jo-docs-actions">
                           <button
                             type="button"
-                            className="btn btn-secondary"
+                            className="btn btn-secondary jo-docs-btn"
                             disabled={!raw}
                             onClick={async () => {
                               const linkUrl = await resolveMaybeStorageUrl(raw);
@@ -2917,12 +2904,11 @@ function JobOrderDocumentsCard({ order }: any) {
 
                           <button
                             type="button"
-                            className="btn btn-primary"
+                            className="btn btn-primary jo-docs-btn"
                             disabled={!raw}
                             onClick={async () => {
                               const linkUrl = await resolveMaybeStorageUrl(raw);
                               if (!linkUrl) return;
-
                               const a = document.createElement("a");
                               a.href = linkUrl;
                               a.download = name || "document";
