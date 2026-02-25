@@ -2820,132 +2820,131 @@ type DocUi = {
   category?: string;
   addedAt?: string;
   uploadedBy?: string;
-  storagePath?: string;   // e.g. "job-orders/....pdf"
-  url?: string;           // full url or fallback
+  storagePath?: string; // e.g. "job-orders/....pdf"
+  url?: string;         // full url or fallback
   paymentReference?: string;
   billReference?: string;
 };
 
 function JobOrderDocumentsCard({ order }: any) {
-  const allDocs: DocUi[] = Array.isArray(order?.documents) ? order.documents : [];
-
-  // ✅ If you really mean "billing documents", prefer those first
-  const billingDocs = allDocs.filter((d) => {
-    const hay = [
-      d?.category,
-      d?.type,
-      d?.name,
-      d?.paymentReference,
-      d?.billReference,
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase();
-
-    return (
-      hay.includes("bill") ||
-      hay.includes("invoice") ||
-      hay.includes("receipt") ||
-      Boolean(d?.paymentReference) ||
-      Boolean(d?.billReference)
-    );
-  });
-
-  // If we found billing docs, show them; else show all docs
-  const docs = billingDocs.length ? billingDocs : allDocs;
-
+  const docs: DocUi[] = Array.isArray(order?.documents) ? order.documents : [];
   if (!docs.length) return null;
 
+  const cell: React.CSSProperties = {
+    padding: "10px 12px",
+    borderBottom: "1px solid #e2e8f0",
+    verticalAlign: "middle",
+    fontSize: 13,
+    color: "#0f172a",
+    whiteSpace: "nowrap",
+  };
+
+  const cellWrap: React.CSSProperties = {
+    ...cell,
+    whiteSpace: "normal",
+    wordBreak: "break-word",
+  };
+
   return (
-    <div className="pim-detail-card" style={{ gridColumn: "span 12" }}>
-      <h3>
-        <i className="fas fa-folder-open"></i>{" "}
-        {billingDocs.length ? "Billing Documents" : "Documents"}
+    <div className="pim-detail-card" style={{ gridColumn: "span 12", width: "100%" }}>
+      <h3 style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <span>
+          <i className="fas fa-folder-open"></i> Documents ({docs.length})
+        </span>
       </h3>
 
-      <div className="pim-card-content">
-        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-          {docs.map((d, idx) => {
-            const name = String(d?.name ?? "").trim() || `Document ${idx + 1}`;
-            const meta = [
-              d?.type,
-              d?.category,
-              d?.billReference,
-              d?.paymentReference,
-              d?.uploadedBy,
-              d?.addedAt,
-            ]
-              .filter(Boolean)
-              .join(" • ");
+      <div className="pim-card-content" style={{ paddingTop: 8 }}>
+        {/* Full-width, row-based layout */}
+        <div style={{ width: "100%", overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 820 }}>
+            <thead>
+              <tr style={{ background: "#f8fafc" }}>
+                <th style={{ ...cell, fontWeight: 700, color: "#334155" }}>Document</th>
+                <th style={{ ...cell, fontWeight: 700, color: "#334155" }}>Type</th>
+                <th style={{ ...cell, fontWeight: 700, color: "#334155" }}>Category</th>
+                <th style={{ ...cell, fontWeight: 700, color: "#334155" }}>Added</th>
+                <th style={{ ...cell, fontWeight: 700, color: "#334155" }}>Uploaded By</th>
+                <th style={{ ...cell, fontWeight: 700, color: "#334155", textAlign: "right" }}>Actions</th>
+              </tr>
+            </thead>
 
-            const raw = String(d?.storagePath || d?.url || "").trim();
+            <tbody>
+              {docs.map((d, idx) => {
+                const name = String(d?.name ?? "").trim() || `Document ${idx + 1}`;
+                const raw = String(d?.storagePath || d?.url || "").trim(); // ✅ order-related documents only
+                const type = String(d?.type ?? "").trim() || "—";
+                const category = String(d?.category ?? "").trim() || "—";
+                const addedAt = String(d?.addedAt ?? "").trim() || "—";
+                const uploadedBy = String(d?.uploadedBy ?? "").trim() || "—";
 
-            return (
-              <div
-                key={d?.id ?? `${name}-${idx}`}
-                style={{
-                  border: "1px solid #e2e8f0",
-                  borderRadius: 10,
-                  padding: 12,
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  alignItems: "center",
-                }}
-              >
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontWeight: 700, color: "#0f172a" }}>{name}</div>
-                  <div style={{ fontSize: 12, color: "#64748b", marginTop: 4, wordBreak: "break-word" }}>
-                    {meta || (raw ? raw : "—")}
-                  </div>
-                </div>
+                return (
+                  <tr key={d?.id ?? `${name}-${idx}`}>
+                    <td style={cellWrap}>
+                      <div style={{ fontWeight: 700 }}>{name}</div>
+                      {/* Optional secondary line showing reference fields if present */}
+                      {([d?.paymentReference, d?.billReference].filter(Boolean).length > 0 || raw) ? (
+                        <div style={{ marginTop: 4, fontSize: 12, color: "#64748b" }}>
+                          {[d?.paymentReference && `PaymentRef: ${d.paymentReference}`, d?.billReference && `BillRef: ${d.billReference}`]
+                            .filter(Boolean)
+                            .join(" • ")}
+                          {raw ? (raw && ([d?.paymentReference, d?.billReference].filter(Boolean).length ? " • " : "")) : ""}
+                          {raw ? raw : ""}
+                        </div>
+                      ) : null}
+                    </td>
 
-                <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
-                  {/* Optional: allow opening in new tab (no permission gate needed) */}
-                  {raw ? (
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={async () => {
-                        const linkUrl = await resolveMaybeStorageUrl(raw);
-                        if (!linkUrl) return;
-                        window.open(linkUrl, "_blank", "noopener,noreferrer");
-                      }}
-                    >
-                      <i className="fas fa-external-link-alt"></i> Open
-                    </button>
-                  ) : null}
+                    <td style={cell}>{type}</td>
+                    <td style={cell}>{category}</td>
+                    <td style={cell}>{addedAt}</td>
+                    <td style={cell}>{uploadedBy}</td>
 
-                  {/* ✅ Download button with PermissionGate like your JobHistory */}
-                  <PermissionGate moduleId="joborder" optionId="joborder_download">
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={async () => {
-                        const linkUrl = await resolveMaybeStorageUrl(raw);
-                        if (!linkUrl) return;
+                    <td style={{ ...cell, textAlign: "right" }}>
+                      <PermissionGate moduleId="joborder" optionId="joborder_download">
+                        <div style={{ display: "inline-flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                          <button
+                            type="button"
+                            className="btn btn-secondary"
+                            disabled={!raw}
+                            onClick={async () => {
+                              const linkUrl = await resolveMaybeStorageUrl(raw);
+                              if (!linkUrl) return;
+                              window.open(linkUrl, "_blank", "noopener,noreferrer");
+                            }}
+                            title={!raw ? "No file path/url available" : "Open"}
+                          >
+                            <i className="fas fa-external-link-alt"></i> Open
+                          </button>
 
-                        const a = document.createElement("a");
-                        a.href = linkUrl;
-                        a.download = name || "document";
-                        a.click();
-                      }}
-                      disabled={!raw}
-                      title={!raw ? "No file path/url available" : "Download"}
-                    >
-                      <i className="fas fa-download"></i> Download
-                    </button>
-                  </PermissionGate>
-                </div>
-              </div>
-            );
-          })}
+                          <button
+                            type="button"
+                            className="btn btn-primary"
+                            disabled={!raw}
+                            onClick={async () => {
+                              const linkUrl = await resolveMaybeStorageUrl(raw);
+                              if (!linkUrl) return;
+
+                              const a = document.createElement("a");
+                              a.href = linkUrl;
+                              a.download = name || "document";
+                              a.click();
+                            }}
+                            title={!raw ? "No file path/url available" : "Download"}
+                          >
+                            <i className="fas fa-download"></i> Download
+                          </button>
+                        </div>
+                      </PermissionGate>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   );
 }
-
 // ============================================
 // ✅ NEW: QUALITY CHECK CARD
 // ============================================
