@@ -2816,6 +2816,8 @@ i {
 /* top padding like your inline style */
 .jo-docs-content{
   padding-top: 8px;
+    width: 100%;
+
 }
 
 /* scroll only when needed */

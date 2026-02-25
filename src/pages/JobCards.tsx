@@ -77,6 +77,104 @@ async function resolveMaybeStorageUrl(urlOrPath: string): Promise<string> {
   return v;
 }
 
+
+function joStr(v: any) {
+  return String(v ?? "").trim();
+}
+
+function joFirst(...vals: any[]) {
+  for (const v of vals) {
+    const s = joStr(v);
+    if (s) return s;
+  }
+  return "";
+}
+
+function joIsPlaceholderName(s: string) {
+  const t = joStr(s).toLowerCase();
+  return (
+    !t ||
+    t === "system user" ||
+    t === "system" ||
+    t === "n/a" ||
+    t === "na" ||
+    t === "not assigned" ||
+    t === "unknown"
+  );
+}
+
+/** ✅ Best creator name for the order (handles different payload shapes) */
+function resolveCreatedBy(order: any) {
+  const summary = order?.jobOrderSummary ?? {};
+
+  // Prefer explicit creator fields
+  const primary = joFirst(
+    summary.createdByName,
+    summary.createdBy,
+    summary.createBy,
+    summary.createdByUser,
+    summary.createdByUserName,
+    order?.createdByName,
+    order?.createdBy,
+    order?.createdByUserName
+  );
+
+  // If primary is placeholder (e.g., "System User"), try better alternatives
+  if (joIsPlaceholderName(primary)) {
+    const alt = joFirst(
+      order?.jobOrderSummary?.actionByName,
+      order?.jobOrderSummary?.actionBy,
+      order?.createdByDisplay,
+      order?.createdByEmail
+    );
+    return alt && !joIsPlaceholderName(alt) ? alt : (primary || "—");
+  }
+
+  return primary || "—";
+}
+
+/** ✅ Roadmap actor should represent who performed the step (NOT assignment) */
+function resolveRoadmapActor(step: any, order: any) {
+  const actor = joFirst(
+    // ✅ action performer fields first
+    step?.actionByName,
+    step?.actionBy,
+    step?.performedBy,
+    step?.doneBy,
+    step?.updatedByName,
+    step?.updatedBy,
+
+    // ✅ only then allow technician fields (some steps may use it as performer)
+    step?.technicianName,
+    step?.technician,
+
+    // ✅ New Request fallback to createdBy
+    step?.step === "New Request" ? resolveCreatedBy(order) : ""
+  );
+
+  return actor || "Not assigned";
+}
+
+/** ✅ Cashier name resolver (never use paymentMethod as fallback) */
+function resolveCashierName(payment: any) {
+  const cashier = joFirst(
+    payment?.cashierName,
+    payment?.cashier,
+    payment?.cashierUserName,
+    payment?.cashierUsername,
+    payment?.createdByName,
+    payment?.createdBy,
+    payment?.performedBy,
+    payment?.doneBy,
+    payment?.userName,
+    payment?.user,
+    payment?.staffName,
+    payment?.employeeName
+  );
+
+  return cashier || "—";
+}
+
 // ============================================
 // MAIN COMPONENT
 // ============================================
@@ -128,6 +226,8 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
 
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
+
+  
 
   async function refreshMainOrders() {
     setLoadingOrders(true);
@@ -2073,6 +2173,7 @@ function StepFourConfirm({
   const plate = vehicleData?.plateNumber || vehicleData?.license || "N/A";
   const vin = vehicleData?.vin || "Not provided";
 
+
   return (
     <div className="form-card confirm-review-card">
       <div className="form-card-title">
@@ -2286,6 +2387,8 @@ function JobOrderSummaryCard({ order }: any) {
   const summary = order.jobOrderSummary || {};
   const delivery = order.deliveryInfo || {};
   const serviceProgress = order.serviceProgressInfo || {};
+    const createdBy = resolveCreatedBy(order);
+
   
   return (
     <div className="epm-detail-card">
@@ -2353,12 +2456,13 @@ function JobOrderSummaryCard({ order }: any) {
             <span className="epm-info-value">{summary.createDate}</span>
           </div>
         )}
-        {summary.createdBy && (
-          <div className="epm-info-item">
-            <span className="epm-info-label">Created By</span>
-            <span className="epm-info-value">{summary.createdBy}</span>
-          </div>
-        )}
+
+{createdBy && createdBy !== "—" && (
+  <div className="epm-info-item">
+    <span className="epm-info-label">Created By</span>
+    <span className="epm-info-value">{createdBy}</span>
+  </div>
+)}
         {summary.expectedDelivery && (
           <div className="epm-info-item">
             <span className="epm-info-label">Expected Delivery</span>
@@ -2802,8 +2906,7 @@ function PaymentActivityLogCard({ order }: any) {
                   ) : '-'}
                 </td>
               )}
-              <td className="pim-cashier-column">{payment.cashierName}</td>
-            </tr>
+<td className="pim-cashier-column">{resolveCashierName(payment)}</td>            </tr>
           ))}
         </tbody>
       </table>
@@ -3074,21 +3177,6 @@ function RoadmapCard({ order }: any) {
   
 
   // ✅ FIX: better actor resolution to avoid wrong field
-  const resolveActor = (step: any) => {
-    return (
-      step?.actionByName ||
-      step?.doneBy ||
-      step?.performedBy ||
-      step?.updatedByName ||
-      step?.assignedToName ||
-      step?.assignedTo ||
-      step?.technicianName ||
-      step?.technician ||
-      step?.actionBy ||
-      (step?.step === "New Request" ? order?.jobOrderSummary?.createdBy : null) ||
-      "Not assigned"
-    );
-  };
 
   const getStatusLabel = (step: any) => step?.stepStatus || step?.status || "Pending";
 
@@ -3101,7 +3189,8 @@ function RoadmapCard({ order }: any) {
 
       <div className="jo-roadmap-list">
         {order.roadmap.map((step: any, idx: number) => {
-          const actor = resolveActor(step);
+          const actor = resolveRoadmapActor(step, order);
+
           const stepClass = getStepClass(step.status);
 
           return (
