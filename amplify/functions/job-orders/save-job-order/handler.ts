@@ -207,10 +207,36 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
   const dataJson = JSON.stringify({
     services: services.map((s: any, idx: number) => {
       const price = toNum((s as any).price);
+      const assignedTo = String((s as any).assignedTo ?? "").trim().toLowerCase() || null;
+      const technicians = Array.isArray((s as any).technicians)
+        ? (s as any).technicians.map((t: any) => String(t ?? "").trim()).filter(Boolean)
+        : [];
+
       return {
         id: String(s.id ?? `SVC-${idx + 1}`),
+        order: Number((s as any).order ?? idx + 1),
         name: String(s.name ?? "").trim(),
         price,
+
+        qty: Math.max(1, toNum((s as any).qty ?? 1)),
+        unitPrice: Math.max(0, toNum((s as any).unitPrice ?? price)),
+
+        status: String((s as any).status ?? "Pending"),
+        priority: String((s as any).priority ?? "normal"),
+        assignedTo,
+        technicians,
+
+        startTime: (s as any).startTime ?? null,
+        endTime: (s as any).endTime ?? null,
+        started: (s as any).started ?? ((s as any).startTime ?? "Not started"),
+        ended: (s as any).ended ?? ((s as any).endTime ?? "Not completed"),
+        duration: (s as any).duration ?? "Not started",
+        technician: assignedTo ?? String((s as any).technician ?? "Not assigned"),
+
+        requestedAction: (s as any).requestedAction ?? null,
+        approvalStatus: (s as any).approvalStatus ?? null,
+        qualityCheckResult: (s as any).qualityCheckResult ?? (s as any).qcResult ?? null,
+        notes: String((s as any).notes ?? ""),
       };
     }),
     documents: Array.isArray(payload.documents) ? payload.documents : [],
