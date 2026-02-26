@@ -24,6 +24,7 @@ import {
   getInspectionReport,
   buildInspectionReportHtml,
 } from "./inspectionRepo";
+import { resolveActorUsername } from "../utils/actorIdentity";
 
 // ============================================
 // CATALOG
@@ -89,11 +90,8 @@ function filterInspectionRows(rows: AnyObj[]) {
   return rows.filter((r) => ["New Request", "Inspection"].includes(String(r.workStatus || "")));
 }
 
-function resolveActorEmail(user: AnyObj) {
-  const raw = String(
-    user?.email ?? user?.attributes?.email ?? user?.signInDetails?.loginId ?? user?.name ?? user?.username ?? ""
-  ).trim();
-  return raw.includes("@") ? raw : "";
+function resolveActorName(user: AnyObj) {
+  return resolveActorUsername(user, "inspector");
 }
 
 function ensureRoadmap(order: AnyObj, currentUser: AnyObj) {
@@ -110,7 +108,7 @@ function ensureRoadmap(order: AnyObj, currentUser: AnyObj) {
   });
 
   return [
-    { step: "New Request", stepStatus: "Active", startTimestamp: now, endTimestamp: null, actionBy: resolveActorEmail(currentUser) || "System", status: "InProgress" },
+    { step: "New Request", stepStatus: "Active", startTimestamp: now, endTimestamp: null, actionBy: resolveActorName(currentUser), status: "InProgress" },
     { step: "Inspection", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
     { step: "Inprogress", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
     { step: "Quality Check", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
@@ -468,7 +466,7 @@ function InspectionModule({ currentUser }: any) {
           sectionKey,
           itemId,
           file: f,
-          actor: currentUser?.name || currentUser?.email || "inspector",
+          actor: resolveActorName(currentUser),
         });
         paths.push(p);
       }
@@ -500,7 +498,7 @@ function InspectionModule({ currentUser }: any) {
 
     const t = setTimeout(() => {
       const status: any = inspectionState?.exterior?.paused || inspectionState?.interior?.paused ? "PAUSED" : "IN_PROGRESS";
-      const actorEmail = resolveActorEmail(currentUser) || "inspector";
+      const actorEmail = resolveActorName(currentUser);
       void upsertInspectionState({
         jobOrderId: activeOrder._backendId,
         orderNumber: activeRow.id,
@@ -525,7 +523,7 @@ function InspectionModule({ currentUser }: any) {
     setLoading(true);
     try {
       const now = new Date().toLocaleString();
-      const actorEmail = resolveActorEmail(currentUser) || "inspector";
+      const actorEmail = resolveActorName(currentUser);
       let rm = ensureRoadmap(activeOrder, currentUser);
 
       rm = roadmapMark(rm, "New Request", {
@@ -683,11 +681,11 @@ function InspectionModule({ currentUser }: any) {
             jobOrderId: activeOrder._backendId,
             orderNumber: activeRow.id,
             html,
-            actor: currentUser?.name || currentUser?.email || "inspector",
+            actor: resolveActorName(currentUser),
           });
 
           const now = new Date().toLocaleString();
-          const actorEmail = resolveActorEmail(currentUser) || "inspector";
+          const actorEmail = resolveActorName(currentUser);
           let rm = ensureRoadmap(activeOrder, currentUser);
 
           rm = roadmapMark(rm, "Inspection", {

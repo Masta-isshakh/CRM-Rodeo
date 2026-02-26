@@ -7,6 +7,7 @@ import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
 import { getCurrentUser } from "aws-amplify/auth";
+import { resolveActorUsername } from "../utils/actorIdentity";
 import { logActivity } from "../utils/activityLogger";
 import type { ReactNode } from "react";
 
@@ -700,7 +701,7 @@ export default function VehicleManagement({
     setSaving(true);
     try {
       const u = await getCurrentUser();
-      const createdBy = (u.signInDetails?.loginId || u.username || "").toLowerCase();
+      const createdBy = resolveActorUsername(u, "system");
 
       const ownerName = `${customer.name} ${customer.lastname}`.trim();
 

@@ -17,6 +17,7 @@ import {
 
 import { getUrl } from "aws-amplify/storage";
 import { getUserDirectory, normalizeIdentity } from "../utils/userDirectoryCache";
+import { resolveActorUsername } from "../utils/actorIdentity";
 
 // -------------------- helpers --------------------
 function safeJsonParse<T>(raw: any, fallback: T): T {
@@ -59,6 +60,10 @@ function resolveActorEmail(user: any) {
     user?.email ?? user?.attributes?.email ?? user?.signInDetails?.loginId ?? user?.name ?? user?.username ?? ""
   ).trim();
   return raw.includes("@") ? raw : "";
+}
+
+function resolveActorName(user: any) {
+  return resolveActorUsername(user, "serviceexec");
 }
 
 type AssigneeOption = { value: string; label: string };
@@ -592,7 +597,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
         serviceId: String(newService.id),
         serviceName: String(serviceName),
         price: Number(price || 0),
-        requestedBy: resolveActorEmail(currentUser) || String(currentUser?.name ?? "user"),
+        requestedBy: resolveActorName(currentUser),
         requestedAt: new Date().toISOString(),
         status: "PENDING",
       });
@@ -616,7 +621,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
     const updated = { ...currentDetailsJob };
     const now = new Date().toLocaleString();
-    const actorEmail = resolveActorEmail(currentUser) || "serviceexec";
+    const actorEmail = resolveActorName(currentUser);
 
     const roadmap = Array.isArray(updated.roadmap) ? [...updated.roadmap] : [];
     const inprogressStep = roadmap.find((s: any) => s.step === "Inprogress");

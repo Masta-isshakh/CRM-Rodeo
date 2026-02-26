@@ -19,6 +19,7 @@ import {
 
 import { getDataClient } from "../lib/amplifyClient";
 import { getUserDirectory } from "../utils/userDirectoryCache";
+import { resolveActorUsername } from "../utils/actorIdentity";
 
 function safeLower(v: any) {
   return String(v ?? "").trim().toLowerCase();
@@ -28,11 +29,8 @@ function normalizeIdentity(v: any) {
   return String(v ?? "").trim().toLowerCase();
 }
 
-function resolveActorEmail(user: any) {
-  const raw = String(
-    user?.email ?? user?.attributes?.email ?? user?.signInDetails?.loginId ?? user?.name ?? user?.username ?? ""
-  ).trim();
-  return raw.includes("@") ? raw : "";
+function resolveActorName(user: any) {
+  return resolveActorUsername(user, "system user");
 }
 
 function safeJsonParse<T>(raw: any, fallback: T): T {
@@ -555,7 +553,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
     setLoading(true);
     try {
       const orderNumber = String(currentOrderForPermit.id);
-      const actor = resolveActorEmail(currentUser) || "System User";
+      const actor = resolveActorName(currentUser);
 
       const res = await createExitPermitForOrderNumber({
         orderNumber,

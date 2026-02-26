@@ -6,6 +6,7 @@ import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
 import { getCurrentUser } from "aws-amplify/auth";
 import type { PageProps } from "../lib/PageProps";
+import { resolveActorUsername } from "../utils/actorIdentity";
 
 const client = generateClient<Schema>();
 
@@ -80,7 +81,7 @@ export default function CallTracking({ permissions }: PageProps) {
       }
 
       const u = await getCurrentUser();
-      const createdBy = u.signInDetails?.loginId || u.username;
+      const createdBy = resolveActorUsername(u, "system");
 
       await Model.create({
         customerName: customerName.trim(),

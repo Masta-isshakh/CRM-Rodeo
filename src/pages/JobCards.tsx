@@ -5,6 +5,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import "./JobCards.css";
 import { getUrl } from "aws-amplify/storage";
+import { resolveActorUsername } from "../utils/actorIdentity";
 
 import SuccessPopup from "./SuccessPopup";
 import ErrorPopup from "./ErrorPopup";
@@ -106,16 +107,7 @@ function joIsPlaceholderName(s: string) {
 }
 
 function resolveAuthenticatedEmail(user: any) {
-  const direct = joFirst(
-    user?.email,
-    user?.name,
-    user?.username,
-    user?.userName,
-    user?.attributes?.email,
-    user?.signInDetails?.loginId
-  );
-
-  return direct.includes("@") ? direct : "";
+  return resolveActorUsername(user, "");
 }
 
 /** ✅ Best creator name for the order (handles different payload shapes) */

@@ -9,6 +9,7 @@ import PermissionGate from "./PermissionGate";
 import { usePermissions } from "../lib/userPermissions";
 import { getDataClient } from "../lib/amplifyClient";
 import { getUserDirectory } from "../utils/userDirectoryCache";
+import { resolveActorUsername } from "../utils/actorIdentity";
 
 import {
   cancelJobOrderByOrderNumber,
@@ -774,7 +775,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     setLoading(true);
     try {
-      const actor = String(currentUser?.name ?? currentUser?.email ?? "user");
+      const actor = resolveActorUsername(currentUser, "user");
 
       let newDoc: DocItem | null = null;
       if (method === "Transfer" && paymentForm.transferProofDataUrl) {
@@ -1123,7 +1124,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
       await uploadData({ path: key, data: blob, options: { contentType: "text/html" } }).result;
 
-      const actor = String(currentUser?.name ?? currentUser?.email ?? "user");
+      const actor = resolveActorUsername(currentUser, "user");
 
       const newDoc: DocItem = {
         id: `DOC-${Date.now()}`,

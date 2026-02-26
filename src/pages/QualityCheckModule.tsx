@@ -11,6 +11,7 @@ import "./QualityCheckModule.css";
 import { getDataClient } from "../lib/amplifyClient";
 import { cancelJobOrderByOrderNumber, getJobOrderByOrderNumber, upsertJobOrder } from "./jobOrderRepo";
 import { getUserDirectory } from "../utils/userDirectoryCache";
+import { resolveActorUsername } from "../utils/actorIdentity";
 
 import { getUrl, uploadData } from "aws-amplify/storage";
 
@@ -84,11 +85,8 @@ function nowIso() {
   return new Date().toISOString();
 }
 
-function resolveActorEmail(user: any) {
-  const raw = String(
-    user?.email ?? user?.attributes?.email ?? user?.signInDetails?.loginId ?? user?.name ?? user?.username ?? ""
-  ).trim();
-  return raw.includes("@") ? raw : "";
+function resolveActorName(user: any) {
+  return resolveActorUsername(user, "qc");
 }
 
 async function resolveMaybeStorageUrl(urlOrPath: string): Promise<string> {
@@ -493,7 +491,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
 
     await uploadData({ path: key, data: blob, options: { contentType: "text/html" } }).result;
 
-    const actor = resolveActorEmail(currentUser) || "qc";
+    const actor = resolveActorName(currentUser);
     return {
       id: `DOC-${Date.now()}`,
       name: `QC_Report_${orderNumber}.html`,
@@ -543,7 +541,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
 
     // roadmap update is optional; keep safe: mark quality check done if roadmap exists
     const roadmap = Array.isArray(parsed?.roadmap) ? parsed.roadmap : Array.isArray(detailed.roadmap) ? detailed.roadmap : [];
-    const actor = resolveActorEmail(currentUser) || "qc";
+    const actor = resolveActorName(currentUser);
 
     const nextRoadmap = roadmap.map((step: any) => {
       const stepName = safeLower(step?.step);

@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
+import { getCurrentUser } from "aws-amplify/auth";
 import SuccessPopup from "./SuccessPopup";
 import "./RoleAccessControl.css";
 import { getDataClient } from "../lib/amplifyClient";
+import { resolveActorUsername } from "../utils/actorIdentity";
 
 function normalizeKey(x: unknown) {
   return String(x ?? "").trim().toUpperCase().replace(/\s+/g, "_");
@@ -454,7 +456,8 @@ export default function RoleAccessControl() {
       for (const n of existingNums ?? []) numByKey.set(normalizeKey(n.key), n);
 
       const now = new Date().toISOString();
-      const actor = "admin";
+      const me = await getCurrentUser().catch(() => null);
+      const actor = resolveActorUsername(me, "admin");
 
       const desiredToggleKeys = new Set<string>();
       const desiredNumKeys = new Set<string>();

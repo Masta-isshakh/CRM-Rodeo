@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { generateClient } from "aws-amplify/data";
 import { getCurrentUser } from "aws-amplify/auth";
+import { resolveActorUsername } from "../utils/actorIdentity";
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
 import { logActivity } from "../utils/activityLogger";
@@ -992,7 +993,7 @@ export default function Customers({ permissions }: PageProps) {
     setSaving(true);
     try {
       const u = await getCurrentUser();
-      const createdBy = (u.signInDetails?.loginId || u.username || "").toLowerCase();
+      const createdBy = resolveActorUsername(u, "system");
 
       const created = await client.models.Customer.create({
         name: formData.name.trim(),

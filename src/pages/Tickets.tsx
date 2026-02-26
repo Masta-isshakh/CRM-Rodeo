@@ -5,6 +5,7 @@ import "@aws-amplify/ui-react/styles.css";
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
 import { getCurrentUser } from "aws-amplify/auth";
+import { resolveActorUsername } from "../utils/actorIdentity";
 
 import { getDataClient } from "../lib/amplifyClient";
 const client = getDataClient();
@@ -68,7 +69,7 @@ export default function Tickets({ permissions }: PageProps) {
 
       // Only include fields that are very likely in your model: title/status/createdAt/createdBy
       const u = await getCurrentUser();
-      const createdBy = u.signInDetails?.loginId || u.username;
+        const createdBy = resolveActorUsername(u, "system");
 
       await client.models.Ticket.create({
         title: t,

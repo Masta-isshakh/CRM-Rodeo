@@ -161,8 +161,15 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
 
   const payload = safeParseInput(event.arguments?.input);
   const isUpdate = Boolean(payload.id);
+  const identity = event.identity as any;
   const actorFromIdentity =
-    String((event.identity as any)?.claims?.email ?? (event.identity as any)?.username ?? "")
+    String(
+      identity?.username ??
+        identity?.claims?.["cognito:username"] ??
+        identity?.claims?.preferred_username ??
+        identity?.claims?.email ??
+        ""
+    )
       .toLowerCase()
       .trim() || "system";
 
