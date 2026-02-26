@@ -53,6 +53,19 @@ function stableServiceId(orderNumber: string, raw: any, idx: number) {
   return `SVC-${orderNumber}-${idx + 1}-${name || "x"}`;
 }
 
+function resolveActorEmail(user: any) {
+  const raw = String(
+    user?.email ?? user?.attributes?.email ?? user?.signInDetails?.loginId ?? user?.name ?? user?.username ?? ""
+  ).trim();
+  return raw.includes("@") ? raw : "";
+}
+
+function normalizeIdentity(v: any) {
+  return String(v ?? "").trim().toLowerCase();
+}
+
+type AssigneeOption = { value: string; label: string };
+
 function normalizeServices(orderNumber: string, services: any[]) {
   const list = Array.isArray(services) ? services : [];
   return list.map((s: any, idx: number) => {
@@ -113,11 +126,109 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   // user lists (optional)
   const [systemUsers, setSystemUsers] = useState<any[]>([]);
   const technicianNames = useMemo(() => systemUsers.map((u) => u.name).filter(Boolean), [systemUsers]);
-  const assigneeNames = useMemo(() => {
-    const base = systemUsers.map((u) => u.name).filter(Boolean);
-    const me = currentUser?.name ? [currentUser.name] : [];
-    return Array.from(new Set([...me, ...base]));
+  const assigneeOptions = useMemo<AssigneeOption[]>(() => {
+    const out: AssigneeOption[] = [];
+    const seen = new Set<string>();
+
+    const add = (value: any, label: any) => {
+      const normalizedValue = normalizeIdentity(value);
+      if (!normalizedValue || seen.has(normalizedValue)) return;
+      seen.add(normalizedValue);
+      out.push({
+        value: normalizedValue,
+        label: String(label ?? value ?? normalizedValue).trim() || normalizedValue,
+      });
+    };
+
+    for (const u of systemUsers) {
+      add(u?.email, u?.name || u?.email);
+    }
+
+    const meEmail = resolveActorEmail(currentUser);
+    add(meEmail, currentUser?.name || meEmail);
+
+    return out;
   }, [systemUsers, currentUser]);
+
+  const assigneeLabelByValue = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const opt of assigneeOptions) {
+      map.set(normalizeIdentity(opt.value), opt.label);
+    }
+    return map;
+  }, [assigneeOptions]);
+
+  const nameToEmailMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const u of systemUsers) {
+      const n = normalizeIdentity(u?.name);
+      const e = normalizeIdentity(u?.email);
+      if (n && e) map.set(n, e);
+    }
+    return map;
+  }, [systemUsers]);
+
+  const emailToNameMap = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const u of systemUsers) {
+      const n = normalizeIdentity(u?.name);
+      const e = normalizeIdentity(u?.email);
+      if (n && e) map.set(e, n);
+    }
+    return map;
+  }, [systemUsers]);
+
+  const currentUserIdentitySet = useMemo(() => {
+    const values = [
+      currentUser?.name,
+      currentUser?.email,
+      currentUser?.username,
+      currentUser?.userName,
+      currentUser?.attributes?.email,
+      currentUser?.signInDetails?.loginId,
+    ];
+    const set = new Set<string>();
+    for (const v of values) {
+      const normalized = normalizeIdentity(v);
+      if (normalized) set.add(normalized);
+    }
+    return set;
+  }, [currentUser]);
+
+  const isAssignedToCurrentUser = (assignedTo: any) => {
+    const assigned = normalizeIdentity(assignedTo);
+    if (!assigned) return false;
+
+    if (currentUserIdentitySet.has(assigned)) return true;
+
+    const assignedEmail = nameToEmailMap.get(assigned);
+    if (assignedEmail && currentUserIdentitySet.has(assignedEmail)) return true;
+
+    const assignedName = emailToNameMap.get(assigned);
+    if (assignedName && currentUserIdentitySet.has(assignedName)) return true;
+
+    for (const identity of currentUserIdentitySet) {
+      const mappedEmail = nameToEmailMap.get(identity);
+      if (mappedEmail && mappedEmail === assigned) return true;
+
+      const mappedName = emailToNameMap.get(identity);
+      if (mappedName && mappedName === assigned) return true;
+    }
+
+    return false;
+  };
+
+  const getAssigneeDisplayName = (assignedTo: any) => {
+    const normalized = normalizeIdentity(assignedTo);
+    if (!normalized) return "—";
+    return assigneeLabelByValue.get(normalized) ?? String(assignedTo);
+  };
+
+  const displayUser = (value: any) => {
+    const normalized = normalizeIdentity(value);
+    if (!normalized) return "Not assigned";
+    return assigneeLabelByValue.get(normalized) ?? String(value);
+  };
 
   // UI state
   const [currentTab, setCurrentTab] = useState<"assigned" | "unassigned" | "team">("assigned");
@@ -226,7 +337,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     if (currentTab === "assigned") {
       list = list.filter((j) => {
         const nextService = pickNextActiveService(j.services);
-        return nextService && nextService.assignedTo === currentUser?.name;
+        return nextService && isAssignedToCurrentUser(nextService.assignedTo);
       });
     } else if (currentTab === "unassigned") {
       list = list.filter((j) => {
@@ -236,7 +347,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     } else {
       list = list.filter((j) => {
         const nextService = pickNextActiveService(j.services);
-        return nextService && nextService.assignedTo && nextService.assignedTo !== currentUser?.name;
+        return nextService && nextService.assignedTo && !isAssignedToCurrentUser(nextService.assignedTo);
       });
     }
 
@@ -250,7 +361,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     }
 
     return list;
-  }, [jobs, currentTab, currentSearch, currentUser]);
+  }, [jobs, currentTab, currentSearch, currentUser, nameToEmailMap, emailToNameMap, currentUserIdentitySet]);
 
   const counts = useMemo(() => {
     const base = jobs.filter((job) => {
@@ -260,7 +371,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
     const assigned = base.filter((j) => {
       const nextService = pickNextActiveService(j.services);
-      return nextService && nextService.assignedTo === currentUser?.name;
+      return nextService && isAssignedToCurrentUser(nextService.assignedTo);
     }).length;
 
     const unassigned = base.filter((j) => {
@@ -270,11 +381,11 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
     const team = base.filter((j) => {
       const nextService = pickNextActiveService(j.services);
-      return nextService && nextService.assignedTo && nextService.assignedTo !== currentUser?.name;
+      return nextService && nextService.assignedTo && !isAssignedToCurrentUser(nextService.assignedTo);
     }).length;
 
     return { assigned, unassigned, team };
-  }, [jobs, currentUser]);
+  }, [jobs, currentUser, nameToEmailMap, emailToNameMap, currentUserIdentitySet]);
 
   // pagination
   const totalPages = Math.max(1, Math.ceil(filteredJobs.length / pageSize));
@@ -396,7 +507,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
       name: serviceName,
       price,
       status: "Pending Approval",
-      assignedTo: currentUser?.name ?? null,
+      assignedTo: resolveActorEmail(currentUser) || currentUser?.name || null,
       technicians: [],
       startTime: null,
       endTime: null,
@@ -421,7 +532,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
         serviceId: String(newService.id),
         serviceName: String(serviceName),
         price: Number(price || 0),
-        requestedBy: String(currentUser?.name ?? currentUser?.email ?? "user"),
+        requestedBy: resolveActorEmail(currentUser) || String(currentUser?.name ?? "user"),
         requestedAt: new Date().toISOString(),
         status: "PENDING",
       });
@@ -444,22 +555,26 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
     const updated = { ...currentDetailsJob };
     const now = new Date().toLocaleString();
+    const actorEmail = resolveActorEmail(currentUser) || "serviceexec";
 
     const roadmap = Array.isArray(updated.roadmap) ? [...updated.roadmap] : [];
     const inprogressStep = roadmap.find((s: any) => s.step === "Inprogress");
     if (inprogressStep) {
       inprogressStep.stepStatus = "Completed";
       inprogressStep.endTimestamp = now;
+      inprogressStep.actionBy = actorEmail;
     }
     const qcStep = roadmap.find((s: any) => s.step === "Quality Check");
     if (qcStep) {
       qcStep.stepStatus = "Active";
       qcStep.startTimestamp = qcStep.startTimestamp || now;
+      qcStep.actionBy = actorEmail;
     }
 
     updated.roadmap = roadmap;
     updated.workStatus = "Quality Check";
     updated.workStatusLabel = "Quality Check";
+    updated.updatedBy = actorEmail;
 
     setCurrentDetailsJob(updated);
     await persistJob(updated, "Work finished! Status changed to Quality Check.");
@@ -513,7 +628,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
               {currentDetailsJob.roadmap && currentDetailsJob.roadmap.length > 0 && (
                 <PermissionGate moduleId="serviceexec" optionId="serviceexec_roadmap">
-                  <RoadmapCard order={currentDetailsJob} />
+                  <RoadmapCard order={currentDetailsJob} displayUser={displayUser} />
                 </PermissionGate>
               )}
 
@@ -539,7 +654,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                   editMode={detailsEditMode}
                   setEditMode={setDetailsEditMode}
                   availableTechs={technicianNames}
-                  availableAssignees={assigneeNames}
+                  availableAssignees={assigneeOptions}
                 />
               </PermissionGate>
 
@@ -663,7 +778,9 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                       const serviceDisplay = currentService
                         ? `${currentService.name} (${currentService.status})`
                         : "No active services";
-                      const assignedToDisplay = currentService?.assignedTo ? currentService.assignedTo : "—";
+                      const assignedToDisplay = currentService?.assignedTo
+                        ? getAssigneeDisplayName(currentService.assignedTo)
+                        : "—";
 
                       return (
                         <tr key={job.id}>
@@ -868,7 +985,7 @@ function JobOrderSummaryCard({ order }: any) {
   );
 }
 
-function RoadmapCard({ order }: any) {
+function RoadmapCard({ order, displayUser }: any) {
   if (!order.roadmap || order.roadmap.length === 0) return null;
   return (
     <div className="epm-detail-card">
@@ -885,7 +1002,7 @@ function RoadmapCard({ order }: any) {
                 <div className="sem-step-details">
                   <div className="sem-step-detail"><span className="sem-detail-label">Started</span><span className="sem-detail-value">{step.startTimestamp || "Not started"}</span></div>
                   <div className="sem-step-detail"><span className="sem-detail-label">Ended</span><span className="sem-detail-value">{step.endTimestamp || "Not completed"}</span></div>
-                  <div className="sem-step-detail"><span className="sem-detail-label">Action By</span><span className="sem-detail-value">{step.actionBy || "Not assigned"}</span></div>
+                  <div className="sem-step-detail"><span className="sem-detail-label">Action By</span><span className="sem-detail-value">{displayUser ? displayUser(step.actionBy) : (step.actionBy || "Not assigned")}</span></div>
                 </div>
               </div>
             </div>

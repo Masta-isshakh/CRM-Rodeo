@@ -241,12 +241,24 @@ a:hover {
 .action-dropdown-container{position:relative;display:inline-block}
 .btn-action-dropdown{
   background:#111827;color:#fff;border:none;border-radius:12px;padding:10px 12px;
-  cursor:pointer;font-weight:700;display:inline-flex;align-items:center;gap:8px
+  cursor:pointer;font-weight:700;display:inline-flex;align-items:center;gap:8px;
+  touch-action: manipulation;
 }
 .btn-action-dropdown.active{outline:3px solid rgba(59,130,246,.22)}
 .action-dropdown-menu-fixed{
   position:fixed;z-index:9999;background:#fff;border:1px solid var(--border);border-radius:14px;
-  box-shadow:var(--shadow);min-width:200px;overflow:hidden
+  box-shadow:var(--shadow);min-width:200px;overflow:hidden;
+  will-change: transform, opacity;
+}
+.action-dropdown-menu-fixed.closed{
+  opacity: 0;
+  pointer-events: none;
+  transform: translate3d(0, -4px, 0);
+}
+.action-dropdown-menu-fixed.open{
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate3d(0, 0, 0);
 }
 .dropdown-item{
   width:100%;border:none;background:#fff;padding:12px 12px;text-align:left;cursor:pointer;
@@ -2816,88 +2828,62 @@ i {
 /* top padding like your inline style */
 .jo-docs-content{
   padding-top: 8px;
-    width: 100%;
-
+  width: 100%;
 }
 
-/* scroll only when needed */
-.jo-docs-table-wrap{
-  width: 100%;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+.jo-docs-list{
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
-/* ✅ stable predictable columns */
-.jo-docs-table{
-  width: 100%;
-  min-width: 820px;      /* same as your inline version */
-  border-collapse: collapse;
-  table-layout: fixed;   /* ✅ prevents broken stretching */
-  border: 1px solid #e2e8f0;
+.jo-docs-row-grid{
+  display: grid;
+  grid-template-columns: minmax(320px, 1.8fr) minmax(90px, 0.6fr) minmax(110px, 0.75fr) minmax(130px, 0.8fr) minmax(130px, 0.8fr) 180px;
+  gap: 10px;
+  align-items: center;
+}
+
+.jo-docs-header{
+  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+  border: 1px solid #e5e7eb;
   border-radius: 12px;
-  overflow: hidden;
-  background: #fff;
+  padding: 10px;
 }
 
-.jo-docs-table thead tr{
-  background: #f8fafc;
-}
-
-.jo-docs-th,
-.jo-docs-td{
-  padding: 10px 12px;
-  border-bottom: 1px solid #e2e8f0;
-  vertical-align: middle;
-  font-size: 13px;
-  color: #0f172a;
-}
-
-/* header typography */
-.jo-docs-th{
+.jo-docs-header .jo-docs-col{
+  font-size: 12px;
   font-weight: 700;
-  color: #334155;
-  text-align: left;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
-/* align right for actions header/cell */
+.jo-docs-row{
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  background: #fff;
+  padding: 12px 10px;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+
+.jo-docs-row:hover{
+  background: #fafafa;
+  border-color: #d1d5db;
+}
+
+.jo-docs-main{
+  width: 100%;
+}
+
 .jo-docs-right{
   text-align: right;
-}
-
-/* zebra + hover */
-.jo-docs-table tbody tr:nth-child(even){
-  background: #fbfdff;
-}
-.jo-docs-table tbody tr:hover{
-  background: #f1f5f9;
-}
-
-/* ===== Column sizing (6 cols) ===== */
-.jo-docs-col-doc{ width: 42%; }
-.jo-docs-col-type{ width: 10%; }
-.jo-docs-col-cat{ width: 12%; }
-.jo-docs-col-added{ width: 12%; }
-.jo-docs-col-by{ width: 12%; }
-.jo-docs-col-actions{ width: 12%; }
-
-/* Keep small columns single-line */
-.jo-docs-col-type,
-.jo-docs-col-cat,
-.jo-docs-col-added,
-.jo-docs-col-by,
-.jo-docs-col-actions{
-  white-space: nowrap;
-}
-
-/* Document column wraps nicely */
-.jo-docs-col-doc{
-  white-space: normal;
-  word-break: break-word;
 }
 
 .jo-docs-docname{
   font-weight: 700;
   color: #0f172a;
+  font-size: 14px;
 }
 
 .jo-docs-docmeta{
@@ -2908,9 +2894,38 @@ i {
   word-break: break-word;
 }
 
+.jo-docs-col{
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.jo-docs-col strong{
+  font-size: 12px;
+  font-weight: 600;
+  color: #1e293b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jo-docs-inline-label{
+  display: none;
+  font-size: 11px;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.jo-docs-col-actions{
+  width: 180px;
+}
+
 /* Actions: tidy and consistent */
 .jo-docs-actions{
-  display: inline-flex;
+  display: flex;
   gap: 8px;
   flex-wrap: wrap;
   justify-content: flex-end;
@@ -2920,7 +2935,7 @@ i {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 10px;
+  padding: 6px 10px;
   font-size: 12px;
   line-height: 1;
   white-space: nowrap;
@@ -2928,8 +2943,40 @@ i {
 
 /* Mobile: stack buttons */
 @media (max-width: 900px){
+  .jo-docs-header{
+    display: none;
+  }
+
+  .jo-docs-row-grid{
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+
+  .jo-docs-col-doc,
+  .jo-docs-col-actions{
+    grid-column: 1 / -1;
+  }
+
+  .jo-docs-inline-label{
+    display: inline-block;
+  }
+
+  .jo-docs-actions{
+    justify-content: flex-end;
+  }
+}
+
+@media (max-width: 560px){
+  .jo-docs-row-grid{
+    grid-template-columns: 1fr;
+  }
+
   .jo-docs-actions{
     flex-direction: column;
-    align-items: flex-end;
+    align-items: stretch;
+  }
+
+  .jo-docs-btn{
+    justify-content: center;
   }
 }

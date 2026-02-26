@@ -66,6 +66,8 @@ export type Service = {
   [k: string]: unknown;
 };
 
+type AssigneeOption = { value: string; label: string };
+
 type Props = {
   jobId: string;
   services: unknown[];
@@ -77,10 +79,14 @@ type Props = {
   editMode: boolean;
   setEditMode: (v: boolean) => void;
   availableTechs?: string[];
-  availableAssignees?: string[];
+  availableAssignees?: Array<string | AssigneeOption>;
   jobOrderBackendId?: string;
   orderNumber?: string;
 };
+
+function normalizeIdentity(v: any) {
+  return String(v ?? "").trim().toLowerCase();
+}
 
 // -------------------------
 // ErrorBoundary (prevents “blank page”)
@@ -191,7 +197,7 @@ function ServiceItem({
   editMode: boolean;
   onUpdate: (serviceId: string, updates: Partial<Service>) => void;
   availableTechs: string[];
-  availableAssignees: string[];
+  availableAssignees: Array<string | AssigneeOption>;
   jobOrderBackendId?: string;
   orderNumber?: string;
 }) {
@@ -226,6 +232,47 @@ function ServiceItem({
     }
   };
 
+  const normalizedAssigneeOptions = useMemo<AssigneeOption[]>(() => {
+    const seen = new Set<string>();
+    const out: AssigneeOption[] = [];
+
+    for (const item of availableAssignees || []) {
+      const value = normalizeIdentity(typeof item === "string" ? item : item?.value);
+      const label = String(typeof item === "string" ? item : item?.label ?? item?.value ?? "").trim();
+      if (!value || seen.has(value)) continue;
+      seen.add(value);
+      out.push({ value, label: label || value });
+    }
+
+    return out;
+  }, [availableAssignees]);
+
+  const assigneeLabelByValue = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const option of normalizedAssigneeOptions) {
+      map.set(option.value, option.label);
+    }
+    return map;
+  }, [normalizedAssigneeOptions]);
+
+  const selectedAssignedValue = useMemo(() => {
+    const assigned = normalizeIdentity(service.assignedTo);
+    if (!assigned) return "";
+
+    if (assigneeLabelByValue.has(assigned)) return assigned;
+
+    const byLabel = normalizedAssigneeOptions.find((opt) => normalizeIdentity(opt.label) === assigned);
+    if (byLabel) return byLabel.value;
+
+    return assigned;
+  }, [service.assignedTo, normalizedAssigneeOptions, assigneeLabelByValue]);
+
+  const assignedDisplayName = useMemo(() => {
+    const assigned = normalizeIdentity(service.assignedTo);
+    if (!assigned) return "—";
+    return assigneeLabelByValue.get(assigned) ?? String(service.assignedTo);
+  }, [service.assignedTo, assigneeLabelByValue]);
+
   const handleTechChange = (techName: string, checked: boolean) => {
     const updated = new Set(service.technicians || []);
     if (checked) updated.add(techName);
@@ -234,7 +281,7 @@ function ServiceItem({
   };
 
   const handleAssignedToChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
-    const v = String(e.target.value || "").trim();
+    const v = normalizeIdentity(e.target.value || "");
     onUpdate(service.id, { assignedTo: v || null });
   };
 
@@ -325,7 +372,7 @@ function ServiceItem({
         </div>
         <div className="meta-item">
           <span className="meta-label">Assigned to</span>
-          <span className="meta-value">{service.assignedTo || "—"}</span>
+          <span className="meta-value">{assignedDisplayName}</span>
         </div>
       </div>
 
@@ -336,11 +383,11 @@ function ServiceItem({
               <span className="control-label">
                 <FaUserTie /> Assigned to
               </span>
-              <select className="assigned-select" value={service.assignedTo || ""} onChange={handleAssignedToChange}>
+              <select className="assigned-select" value={selectedAssignedValue} onChange={handleAssignedToChange}>
                 <option value="">— assign —</option>
-                {availableAssignees.map((assignee, idx) => (
-                  <option key={idx} value={assignee}>
-                    {assignee}
+                {normalizedAssigneeOptions.map((assignee) => (
+                  <option key={assignee.value} value={assignee.value}>
+                    {assignee.label}
                   </option>
                 ))}
               </select>
@@ -452,6 +499,8 @@ export default function ServiceSummaryCard({
 }: Props) {
   const [localServices, setLocalServices] = useState<Service[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
+  const [showSavedToast, setShowSavedToast] = useState(false);
+  const previousJobIdRef = useRef(jobId);
 
   // ✅ Add Service modal (works even if editMode=false)
   const [addOpen, setAddOpen] = useState(false);
@@ -461,9 +510,20 @@ export default function ServiceSummaryCard({
   const [addError, setAddError] = useState<string | null>(null);
 
   useEffect(() => {
-    setLocalServices(normalizeServices(jobId, services));
-    setHasChanges(false);
-  }, [jobId, services]);
+    const jobChanged = previousJobIdRef.current !== jobId;
+
+    if (jobChanged) {
+      previousJobIdRef.current = jobId;
+      setLocalServices(normalizeServices(jobId, services));
+      setHasChanges(false);
+      return;
+    }
+
+    if (!editMode) {
+      setLocalServices(normalizeServices(jobId, services));
+      setHasChanges(false);
+    }
+  }, [jobId, services, editMode]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -499,9 +559,17 @@ export default function ServiceSummaryCard({
   };
 
   const toggleEditMode = () => {
+    const isSavingClick = editMode;
     if (editMode && hasChanges) setHasChanges(false);
     setEditMode(!editMode);
+    if (isSavingClick) setShowSavedToast(true);
   };
+
+  useEffect(() => {
+    if (!showSavedToast) return;
+    const timer = window.setTimeout(() => setShowSavedToast(false), 1800);
+    return () => window.clearTimeout(timer);
+  }, [showSavedToast]);
 
   const openAddModal = () => {
     setAddError(null);
@@ -612,6 +680,12 @@ export default function ServiceSummaryCard({
           </div>
         )}
       </CardErrorBoundary>
+
+      {showSavedToast && (
+        <div className="sem-saved-toast" role="status" aria-live="polite">
+          <i className="fas fa-check-circle" /> Saved successfully
+        </div>
+      )}
 
       {/* Add Service Modal */}
       {addOpen && (

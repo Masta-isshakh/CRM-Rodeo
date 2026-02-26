@@ -85,6 +85,10 @@ function uiPaymentStatus(enumVal?: string, label?: string) {
   return "Unpaid";
 }
 
+function normalizeIdentity(v: any) {
+  return String(v ?? "").trim().toLowerCase();
+}
+
 type ListRow = {
   _backendId: string; // JobOrder.id
   orderNumber: string;
@@ -372,9 +376,41 @@ export default function JobOrderHistory({
   });
 
   const [selectedOrder, setSelectedOrder] = useState<DetailsOrder | null>(null);
+  const [userLabelMap, setUserLabelMap] = useState<Record<string, string>>({});
 
   const [navSource, setNavSource] = useState<string | null>(null);
   const [returnVehicleId, setReturnVehicleId] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await (client.models.UserProfile as any).list({ limit: 2000 });
+        if (cancelled) return;
+
+        const map: Record<string, string> = {};
+        for (const u of res?.data ?? []) {
+          const email = normalizeIdentity(u?.email);
+          const name = String(u?.fullName ?? u?.name ?? u?.email ?? "").trim();
+          if (email && name) map[email] = name;
+        }
+        setUserLabelMap(map);
+      } catch {
+        if (!cancelled) setUserLabelMap({});
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
+
+  const displayUser = (value: any) => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return "—";
+    return userLabelMap[normalizeIdentity(raw)] || raw;
+  };
 
   // -------------------- LIVE HISTORY LIST --------------------
   useEffect(() => {
@@ -637,6 +673,7 @@ export default function JobOrderHistory({
         loading={loading}
         onClose={closeDetails}
         currentUser={currentUser}
+        displayUser={displayUser}
       />
     );
   }
@@ -881,11 +918,13 @@ function JobHistoryDetails({
   order,
   loading,
   onClose,
+  displayUser,
 }: {
   order: DetailsOrder;
   loading: boolean;
   onClose: () => void;
   currentUser: any;
+  displayUser: (value: any) => string;
 }) {
   const invoices: InvoiceUi[] = Array.isArray(order?.billing?.invoices) ? order.billing.invoices : [];
   const roadmap: RoadmapStepUi[] = Array.isArray(order?.roadmap) ? order.roadmap : [];
@@ -967,7 +1006,7 @@ function JobHistoryDetails({
                       <div className="jh-step-grid">
                         <div><span>Started</span><strong>{s.startTimestamp || "—"}</strong></div>
                         <div><span>Ended</span><strong>{s.endTimestamp || "—"}</strong></div>
-                        <div><span>Action By</span><strong>{s.actionBy || "—"}</strong></div>
+                        <div><span>Action By</span><strong>{displayUser(s.actionBy)}</strong></div>
                         <div><span>Step Status</span><strong>{s.stepStatus || "—"}</strong></div>
                       </div>
                     </div>
@@ -991,7 +1030,7 @@ function JobHistoryDetails({
                       <div className="jh-service-grid">
                         <div><span>Started</span><strong>{svc.started || "—"}</strong></div>
                         <div><span>Ended</span><strong>{svc.ended || "—"}</strong></div>
-                        <div><span>Technician</span><strong>{svc.technician || svc.assignedTo || "—"}</strong></div>
+                        <div><span>Technician</span><strong>{displayUser(svc.technician || svc.assignedTo)}</strong></div>
                         <div><span>Price</span><strong>{svc.price != null ? fmtQar(toNum(svc.price)) : "—"}</strong></div>
                       </div>
                       {svc.notes ? <div className="jh-note">{String(svc.notes)}</div> : null}

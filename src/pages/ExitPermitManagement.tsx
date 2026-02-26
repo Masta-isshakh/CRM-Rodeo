@@ -23,6 +23,17 @@ function safeLower(v: any) {
   return String(v ?? "").trim().toLowerCase();
 }
 
+function normalizeIdentity(v: any) {
+  return String(v ?? "").trim().toLowerCase();
+}
+
+function resolveActorEmail(user: any) {
+  const raw = String(
+    user?.email ?? user?.attributes?.email ?? user?.signInDetails?.loginId ?? user?.name ?? user?.username ?? ""
+  ).trim();
+  return raw.includes("@") ? raw : "";
+}
+
 function safeJsonParse<T>(raw: any, fallback: T): T {
   try {
     if (raw == null) return fallback;
@@ -249,8 +260,39 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
   const [loading, setLoading] = useState(false);
 
   const [allOrders, setAllOrders] = useState<any[]>([]);
+  const [userLabelMap, setUserLabelMap] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
+
+  const displayUser = (value: any) => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return "Not assigned";
+    return userLabelMap[normalizeIdentity(raw)] || raw;
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await (client.models.UserProfile as any).list({ limit: 2000 });
+        if (cancelled) return;
+
+        const map: Record<string, string> = {};
+        for (const u of res?.data ?? []) {
+          const email = normalizeIdentity(u?.email);
+          const name = String(u?.fullName ?? u?.name ?? u?.email ?? "").trim();
+          if (email && name) map[email] = name;
+        }
+        setUserLabelMap(map);
+      } catch {
+        if (!cancelled) setUserLabelMap({});
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -510,7 +552,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
     setLoading(true);
     try {
       const orderNumber = String(currentOrderForPermit.id);
-      const actor = currentUser?.name || currentUser?.email || "System User";
+      const actor = resolveActorEmail(currentUser) || "System User";
 
       const res = await createExitPermitForOrderNumber({
         orderNumber,
@@ -758,7 +800,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
 
                   {selectedOrder.roadmap && selectedOrder.roadmap.length > 0 && (
                     <PermissionGate moduleId="exitpermit" optionId="exitpermit_roadmap">
-                      <RoadmapCard order={selectedOrder} />
+                      <RoadmapCard order={selectedOrder} displayUser={displayUser} />
                     </PermissionGate>
                   )}
 
@@ -1093,7 +1135,7 @@ const JobOrderSummaryCard = ({ order }: any) => {
   );
 };
 
-const RoadmapCard = ({ order }: any) => {
+const RoadmapCard = ({ order, displayUser }: any) => {
   if (!order.roadmap || order.roadmap.length === 0) return null;
 
   const formatStepStatus = (status: string) => {
@@ -1155,7 +1197,7 @@ const RoadmapCard = ({ order }: any) => {
                   </div>
                   <div className="epm-step-detail">
                     <span className="epm-detail-label">Action By</span>
-                    <span className="epm-detail-value">{step.actionBy || "Not assigned"}</span>
+                    <span className="epm-detail-value">{displayUser ? displayUser(step.actionBy) : (step.actionBy || "Not assigned")}</span>
                   </div>
                 </div>
               </div>

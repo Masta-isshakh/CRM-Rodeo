@@ -140,15 +140,16 @@ function Modal(props: {
   isEdit?: boolean;
   saving?: boolean;
   saveLabel?: string;
+  className?: string;
 }) {
-  const { isOpen, title, icon, children, onClose, onSave, isEdit = false, saving = false, saveLabel } = props;
+  const { isOpen, title, icon, children, onClose, onSave, isEdit = false, saving = false, saveLabel, className } = props;
 
   if (!isOpen) return null;
   if (typeof document === "undefined") return null;
 
   return createPortal(
     <div className="modal-overlay show">
-      <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
+      <div className={`modal ${className || ""}`.trim()} onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>
             <i className={icon}></i> {title}
@@ -1304,6 +1305,7 @@ export default function VehicleManagement({
         isOpen={showAddModal}
         title="Add New Vehicle"
         icon="fas fa-car"
+        className="vehicle-create-modal"
         onClose={() => {
           setShowAddModal(false);
           resetForm();
@@ -1312,8 +1314,8 @@ export default function VehicleManagement({
         saving={saving}
         saveLabel="Add Vehicle"
       >
-        <div className="modal-form">
-          <div className="verify-row">
+        <div className="modal-form vehicle-create-form">
+          <div className="verify-row vehicle-create-verify-row">
             <FormField
               label="Customer ID"
               id="newCustomerId"

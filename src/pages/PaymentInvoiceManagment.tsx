@@ -48,6 +48,10 @@ function fmtQar(n: number) {
   return `QAR ${Number.isFinite(n) ? n.toFixed(2) : "0.00"}`;
 }
 
+function normalizeIdentity(v: any) {
+  return String(v ?? "").trim().toLowerCase();
+}
+
 function safeFileName(name: string) {
   return String(name || "file")
     .trim()
@@ -211,6 +215,7 @@ function clampDiscountQar(totalAmount: number, discount: number, maxPct: number)
 export default function PaymentInvoiceManagement({ currentUser }: { currentUser: any; permissions?: any }) {
   const client = useMemo(() => getDataClient(), []);
   const { getOptionNumber } = usePermissions();
+  const [userLabelMap, setUserLabelMap] = useState<Record<string, string>>({});
 
   // ✅ numeric limit (percent)
   const maxPaymentDiscountPercent = useMemo(() => {
@@ -255,6 +260,36 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
   const [showRefundPopup, setShowRefundPopup] = useState(false);
   const [refundForm, setRefundForm] = useState<RefundFormState | null>(null);
+
+  const displayUser = (value: any) => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return "—";
+    return userLabelMap[normalizeIdentity(raw)] || raw;
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await (client.models.UserProfile as any).list({ limit: 2000 });
+        if (cancelled) return;
+
+        const map: Record<string, string> = {};
+        for (const u of res?.data ?? []) {
+          const email = normalizeIdentity(u?.email);
+          const name = String(u?.fullName ?? u?.name ?? u?.email ?? "").trim();
+          if (email && name) map[email] = name;
+        }
+        setUserLabelMap(map);
+      } catch {
+        if (!cancelled) setUserLabelMap({});
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
 
   // -------------------- dropdown outside click --------------------
   useEffect(() => {
@@ -1234,9 +1269,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                           <div className="pim-approval-status">{String(r.status)}</div>
                         </div>
                         <div className="pim-approval-meta">
-                          <div><span>Requested by</span><strong>{String(r.requestedBy ?? "—")}</strong></div>
+                          <div><span>Requested by</span><strong>{displayUser(r.requestedBy)}</strong></div>
                           <div><span>Requested at</span><strong>{r.requestedAt ? new Date(String(r.requestedAt)).toLocaleString("en-GB") : "—"}</strong></div>
-                          <div><span>Decided by</span><strong>{String(r.decidedBy ?? "—")}</strong></div>
+                          <div><span>Decided by</span><strong>{displayUser(r.decidedBy)}</strong></div>
                         </div>
                         {r.decisionNote ? <div className="pim-approval-note">{String(r.decisionNote)}</div> : null}
                       </div>

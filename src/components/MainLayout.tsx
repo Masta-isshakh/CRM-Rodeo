@@ -424,7 +424,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
             {page === "vehicles" && show.vehicles && <Vehicles permissions={canAny("VEHICLES")} />}
 
-            {page === "jobcards" && show.jobcards && <JobCards permissions={canAny("JOB_CARDS")} />}
+            {page === "jobcards" && show.jobcards && <JobCards permissions={canAny("JOB_CARDS")} currentUser={currentUser} />}
             {page === "jobhistory" && show.jobhistory && <JobOrderHistory currentUser={currentUser} />}
 
             {page === "serviceexecution" && show.serviceexecution && (
@@ -439,7 +439,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             {page === "exitpermit" && show.exitpermit && <ExitPermitManagement currentUser={currentUser} />}
 
             {page === "calltracking" && show.calltracking && <CallTracking permissions={canAny("CALL_TRACKING")} />}
-            {page === "inspection" && show.inspection && <InspectionModule permissions={canAny("JOB_CARDS")} />}
+            {page === "inspection" && show.inspection && <InspectionModule permissions={canAny("JOB_CARDS")} currentUser={currentUser} />}
 
             {page === "tickets" && show.tickets && <Tickets permissions={canAny("TICKETS")} />}
             {page === "employees" && show.employees && <Employees permissions={canAny("EMPLOYEES")} />}

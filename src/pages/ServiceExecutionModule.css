@@ -1083,6 +1083,24 @@
   background: var(--btn-accent-hover);
 }
 
+.sem-saved-toast {
+  margin: 10px 14px 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #ecfdf3;
+  border: 1px solid #86efac;
+  color: #166534;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.sem-saved-toast i {
+  color: #16a34a;
+}
+
 /* List layout */
 .services-list {
   display: flex;

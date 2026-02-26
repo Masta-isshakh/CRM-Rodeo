@@ -89,6 +89,13 @@ function filterInspectionRows(rows: AnyObj[]) {
   return rows.filter((r) => ["New Request", "Inspection"].includes(String(r.workStatus || "")));
 }
 
+function resolveActorEmail(user: AnyObj) {
+  const raw = String(
+    user?.email ?? user?.attributes?.email ?? user?.signInDetails?.loginId ?? user?.name ?? user?.username ?? ""
+  ).trim();
+  return raw.includes("@") ? raw : "";
+}
+
 function ensureRoadmap(order: AnyObj, currentUser: AnyObj) {
   const rm = Array.isArray(order?.roadmap) ? order.roadmap : [];
   if (rm.length) return rm;
@@ -103,7 +110,7 @@ function ensureRoadmap(order: AnyObj, currentUser: AnyObj) {
   });
 
   return [
-    { step: "New Request", stepStatus: "Active", startTimestamp: now, endTimestamp: null, actionBy: currentUser?.name || "System", status: "InProgress" },
+    { step: "New Request", stepStatus: "Active", startTimestamp: now, endTimestamp: null, actionBy: resolveActorEmail(currentUser) || "System", status: "InProgress" },
     { step: "Inspection", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
     { step: "Inprogress", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
     { step: "Quality Check", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
@@ -493,12 +500,13 @@ function InspectionModule({ currentUser }: any) {
 
     const t = setTimeout(() => {
       const status: any = inspectionState?.exterior?.paused || inspectionState?.interior?.paused ? "PAUSED" : "IN_PROGRESS";
+      const actorEmail = resolveActorEmail(currentUser) || "inspector";
       void upsertInspectionState({
         jobOrderId: activeOrder._backendId,
         orderNumber: activeRow.id,
         status,
         inspectionState,
-        actor: currentUser?.name || currentUser?.email || "inspector",
+        actor: actorEmail,
       });
     }, 1200);
 
@@ -517,26 +525,28 @@ function InspectionModule({ currentUser }: any) {
     setLoading(true);
     try {
       const now = new Date().toLocaleString();
+      const actorEmail = resolveActorEmail(currentUser) || "inspector";
       let rm = ensureRoadmap(activeOrder, currentUser);
 
       rm = roadmapMark(rm, "New Request", {
         stepStatus: "Completed",
         status: "Completed",
         endTimestamp: now,
-        actionBy: currentUser?.name || "Inspector",
+        actionBy: actorEmail,
       });
 
       rm = roadmapMark(rm, "Inspection", {
         stepStatus: "Active",
         status: "InProgress",
         startTimestamp: rm.find((s) => s.step === "Inspection")?.startTimestamp || now,
-        actionBy: currentUser?.name || "Inspector",
+        actionBy: actorEmail,
       });
 
       const updated = {
         ...activeOrder,
         workStatus: "Inspection",
         workStatusLabel: "Inspection",
+        updatedBy: actorEmail,
         roadmap: rm,
       } as AnyObj;
 
@@ -551,7 +561,7 @@ function InspectionModule({ currentUser }: any) {
         orderNumber: activeRow.id,
         status: "IN_PROGRESS",
         inspectionState,
-        actor: currentUser?.name || currentUser?.email || "inspector",
+        actor: actorEmail,
       });
 
       setPopupMessage("Inspection started.");
@@ -677,26 +687,28 @@ function InspectionModule({ currentUser }: any) {
           });
 
           const now = new Date().toLocaleString();
+          const actorEmail = resolveActorEmail(currentUser) || "inspector";
           let rm = ensureRoadmap(activeOrder, currentUser);
 
           rm = roadmapMark(rm, "Inspection", {
             stepStatus: "Completed",
             status: "Completed",
             endTimestamp: now,
-            actionBy: currentUser?.name || "Inspector",
+            actionBy: actorEmail,
           });
 
           rm = roadmapMark(rm, "Inprogress", {
             stepStatus: "Active",
             status: "InProgress",
             startTimestamp: rm.find((s) => s.step === "Inprogress")?.startTimestamp || now,
-            actionBy: currentUser?.name || "Inspector",
+            actionBy: actorEmail,
           });
 
           const updated = {
             ...activeOrder,
             workStatus: "Inprogress",
             workStatusLabel: "Inprogress",
+            updatedBy: actorEmail,
             roadmap: rm,
           } as AnyObj;
 
@@ -709,7 +721,7 @@ function InspectionModule({ currentUser }: any) {
             orderNumber: activeRow.id,
             status: "COMPLETED",
             inspectionState,
-            actor: currentUser?.name || currentUser?.email || "inspector",
+            actor: actorEmail,
           });
 
           await refreshOrders();

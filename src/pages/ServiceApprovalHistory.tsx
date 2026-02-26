@@ -61,6 +61,10 @@ function fmtDateTime(d: Date) {
   return d.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
+function normalizeIdentity(v: any) {
+  return String(v ?? "").trim().toLowerCase();
+}
+
 function parseServicesFromJob(job: any): { name: string; amount: string }[] {
   const parsed = (() => {
     try {
@@ -91,9 +95,42 @@ const ServiceApprovalHistory: React.FC = () => {
 
   const [rows, setRows] = useState<HistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [userLabelMap, setUserLabelMap] = useState<Record<string, string>>({});
 
   // Cache JobOrders to avoid repeated gets
   const [jobCache, setJobCache] = useState<Record<string, any>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const res = await (client.models.UserProfile as any).list({ limit: 2000 });
+        if (cancelled) return;
+
+        const map: Record<string, string> = {};
+        for (const u of res?.data ?? []) {
+          const email = normalizeIdentity(u?.email);
+          const name = String(u?.fullName ?? u?.name ?? u?.email ?? "").trim();
+          if (email && name) map[email] = name;
+        }
+        setUserLabelMap(map);
+      } catch {
+        if (!cancelled) setUserLabelMap({});
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
+
+  const displayUser = (value: any) => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return "—";
+    const mapped = userLabelMap[normalizeIdentity(raw)];
+    return mapped || raw;
+  };
 
   useEffect(() => {
     setLoading(true);
@@ -283,7 +320,7 @@ const ServiceApprovalHistory: React.FC = () => {
               </div>
               <div className="sah-detail-item">
                 <div className="sah-detail-label">Decision By</div>
-                <div className="sah-detail-value">{history.decisionBy}</div>
+                <div className="sah-detail-value">{displayUser(history.decisionBy)}</div>
               </div>
               <div className="sah-detail-item">
                 <div className="sah-detail-label">Decision Date</div>
@@ -291,7 +328,7 @@ const ServiceApprovalHistory: React.FC = () => {
               </div>
               <div className="sah-detail-item">
                 <div className="sah-detail-label">Requested By</div>
-                <div className="sah-detail-value">{history.requestedBy}</div>
+                <div className="sah-detail-value">{displayUser(history.requestedBy)}</div>
               </div>
               <div className="sah-detail-item">
                 <div className="sah-detail-label">Request Date</div>
@@ -313,7 +350,7 @@ const ServiceApprovalHistory: React.FC = () => {
               </div>
               <div className="sah-detail-item">
                 <div className="sah-detail-label">Assigned To</div>
-                <div className="sah-detail-value">{history.assignedTo}</div>
+                <div className="sah-detail-value">{displayUser(history.assignedTo)}</div>
               </div>
             </div>
           </div>
@@ -502,7 +539,7 @@ const ServiceApprovalHistory: React.FC = () => {
                           {h.decision === "approved" ? "Approved" : h.decision === "declined" ? "Declined" : "Pending"}
                         </span>
                       </td>
-                      <td>{h.decisionBy}</td>
+                      <td>{displayUser(h.decisionBy)}</td>
                       <td>{h.totalAdded}</td>
                       <td>
                         <PermissionGate moduleId="approvalhistory" optionId="approvalhistory_view">

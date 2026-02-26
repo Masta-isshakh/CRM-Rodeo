@@ -37,6 +37,10 @@ function safeLower(s: any) {
   return String(s ?? "").trim().toLowerCase();
 }
 
+function normalizeIdentity(v: any) {
+  return String(v ?? "").trim().toLowerCase();
+}
+
 function normalizeWorkStatus(rowStatus?: string, label?: string): string {
   const l = String(label ?? "").trim();
   if (l) return l;
@@ -77,6 +81,13 @@ function normalizePaymentLabel(enumVal?: string, label?: string): string {
 
 function nowIso() {
   return new Date().toISOString();
+}
+
+function resolveActorEmail(user: any) {
+  const raw = String(
+    user?.email ?? user?.attributes?.email ?? user?.signInDetails?.loginId ?? user?.name ?? user?.username ?? ""
+  ).trim();
+  return raw.includes("@") ? raw : "";
 }
 
 async function resolveMaybeStorageUrl(urlOrPath: string): Promise<string> {
@@ -130,6 +141,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   // details
   const [screenState, setScreenState] = useState<"main" | "details">("main");
   const [selectedOrder, setSelectedOrder] = useState<any | null>(null);
+  const [userLabelMap, setUserLabelMap] = useState<Record<string, string>>({});
 
   // QC results keyed by service index
   const [serviceQCResults, setServiceQCResults] = useState<Record<number, "Pass" | "Failed" | "Acceptable">>({});
@@ -142,6 +154,36 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   // cancel modal
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
+
+  const displayUser = (value: any) => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return "Not assigned";
+    return userLabelMap[normalizeIdentity(raw)] || raw;
+  };
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await (client.models.UserProfile as any).list({ limit: 2000 });
+        if (cancelled) return;
+
+        const map: Record<string, string> = {};
+        for (const u of res?.data ?? []) {
+          const email = normalizeIdentity(u?.email);
+          const name = String(u?.fullName ?? u?.name ?? u?.email ?? "").trim();
+          if (email && name) map[email] = name;
+        }
+        setUserLabelMap(map);
+      } catch {
+        if (!cancelled) setUserLabelMap({});
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
 
   /* -------------------- live list from backend -------------------- */
   useEffect(() => {
@@ -448,7 +490,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
 
     await uploadData({ path: key, data: blob, options: { contentType: "text/html" } }).result;
 
-    const actor = String(currentUser?.name ?? currentUser?.email ?? "qc");
+    const actor = resolveActorEmail(currentUser) || "qc";
     return {
       id: `DOC-${Date.now()}`,
       name: `QC_Report_${orderNumber}.html`,
@@ -498,7 +540,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
 
     // roadmap update is optional; keep safe: mark quality check done if roadmap exists
     const roadmap = Array.isArray(parsed?.roadmap) ? parsed.roadmap : Array.isArray(detailed.roadmap) ? detailed.roadmap : [];
-    const actor = String(currentUser?.name ?? currentUser?.email ?? "QC Inspector");
+    const actor = resolveActorEmail(currentUser) || "qc";
 
     const nextRoadmap = roadmap.map((step: any) => {
       const stepName = safeLower(step?.step);
@@ -538,6 +580,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
       id: detailed.id, // orderNumber
       workStatus: nextWorkStatusLabel,
       workStatusLabel: nextWorkStatusLabel,
+      updatedBy: actor,
 
       // keep existing payment label (don’t overwrite)
       paymentStatus: detailed.paymentStatus,
@@ -993,7 +1036,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                                 </div>
                                 <div className="qc-step-detail">
                                   <span className="qc-detail-label">Action By</span>
-                                  <span className="qc-detail-value">{String(step.actionBy ?? "Not assigned")}</span>
+                                  <span className="qc-detail-value">{displayUser(step.actionBy)}</span>
                                 </div>
                               </div>
                             </div>

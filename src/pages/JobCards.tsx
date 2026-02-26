@@ -1,8 +1,8 @@
 // src/pages/JobOrderManagement.tsx
 // ✅ Full updated file - paste as-is
 
-import { useEffect,  useState } from "react";
-import { createPortal } from "react-dom";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal, flushSync } from "react-dom";
 import "./JobCards.css";
 import { getUrl } from "aws-amplify/storage";
 
@@ -99,8 +99,23 @@ function joIsPlaceholderName(s: string) {
     t === "n/a" ||
     t === "na" ||
     t === "not assigned" ||
-    t === "unknown"
+    t === "unknown" ||
+    t === "inspector" ||
+    t === "qc inspector"
   );
+}
+
+function resolveAuthenticatedEmail(user: any) {
+  const direct = joFirst(
+    user?.email,
+    user?.name,
+    user?.username,
+    user?.userName,
+    user?.attributes?.email,
+    user?.signInDetails?.loginId
+  );
+
+  return direct.includes("@") ? direct : "";
 }
 
 /** ✅ Best creator name for the order (handles different payload shapes) */
@@ -122,10 +137,10 @@ function resolveCreatedBy(order: any) {
   // If primary is placeholder (e.g., "System User"), try better alternatives
   if (joIsPlaceholderName(primary)) {
     const alt = joFirst(
-      order?.jobOrderSummary?.actionByName,
-      order?.jobOrderSummary?.actionBy,
       order?.createdByDisplay,
-      order?.createdByEmail
+      order?.createdByEmail,
+      order?.creatorName,
+      order?.createdUserName
     );
     return alt && !joIsPlaceholderName(alt) ? alt : (primary || "—");
   }
@@ -135,6 +150,9 @@ function resolveCreatedBy(order: any) {
 
 /** ✅ Roadmap actor should represent who performed the step (NOT assignment) */
 function resolveRoadmapActor(step: any, order: any) {
+  const stepName = joStr(step?.step).toLowerCase();
+  const isNewRequestStep = stepName === "new request" || stepName === "newrequest";
+
   const actor = joFirst(
     // ✅ action performer fields first
     step?.actionByName,
@@ -143,16 +161,18 @@ function resolveRoadmapActor(step: any, order: any) {
     step?.doneBy,
     step?.updatedByName,
     step?.updatedBy,
+    step?.createdByName,
+    step?.createdBy,
 
     // ✅ only then allow technician fields (some steps may use it as performer)
     step?.technicianName,
     step?.technician,
 
     // ✅ New Request fallback to createdBy
-    step?.step === "New Request" ? resolveCreatedBy(order) : ""
+    isNewRequestStep ? resolveCreatedBy(order) : ""
   );
 
-  return actor || "Not assigned";
+  return joIsPlaceholderName(actor) ? "" : actor;
 }
 
 /** ✅ Cashier name resolver (never use paymentMethod as fallback) */
@@ -493,6 +513,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
       {screenState === "details" && currentDetailsOrder && (
         <DetailsScreen
           order={currentDetailsOrder}
+          currentUser={currentUser}
           onClose={() => setScreenState("main")}
           onAddService={() => {
             setCurrentAddServiceOrder(currentDetailsOrder);
@@ -688,6 +709,86 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
 // ============================================
 // MAIN SCREEN
 // ============================================
+const JobOrderRecordsTable = memo(function JobOrderRecordsTable({
+  orders,
+  onToggleActions,
+}: any) {
+  if (orders.length === 0) {
+    return (
+      <div className="empty-state">
+        <div className="empty-icon">
+          <i className="fas fa-search"></i>
+        </div>
+        <div className="empty-text">No matching job orders found</div>
+        <div className="empty-subtext">Try adjusting your search terms or click "New Job Order" to create one</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="table-wrapper">
+      <table className="job-order-table">
+        <thead>
+          <tr>
+            <th>Create Date</th>
+            <th>Job Card ID</th>
+            <th>Order Type</th>
+            <th>Customer Name</th>
+            <th>Mobile Number</th>
+            <th>Vehicle Plate</th>
+            <th>Work Status</th>
+            <th>Payment Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {orders.map((order: any) => (
+            <tr key={order.id}>
+              <td className="date-column">{order.createDate}</td>
+              <td>{order.id}</td>
+              <td>
+                <span className={`order-type-badge ${order.orderType === "New Job Order" ? "order-type-new-job" : "order-type-service"}`}>
+                  {order.orderType}
+                </span>
+              </td>
+              <td>{order.customerName}</td>
+              <td>{order.mobile}</td>
+              <td>{order.vehiclePlate}</td>
+              <td>
+                <span className={`status-badge ${getWorkStatusClass(order.workStatus)}`}>{order.workStatus}</span>
+              </td>
+              <td>
+                <span className={`status-badge ${getPaymentStatusClass(order.paymentStatus)}`}>{order.paymentStatus}</span>
+              </td>
+              <td>
+                <PermissionGate moduleId="joborder" optionId="joborder_actions">
+                  <div className="action-dropdown-container">
+                    <button
+                      className="btn-action-dropdown"
+                      onMouseDown={(e: any) => {
+                        e.preventDefault();
+                        onToggleActions(order.id, e.currentTarget as HTMLElement);
+                      }}
+                      onKeyDown={(e: any) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          onToggleActions(order.id, e.currentTarget as HTMLElement);
+                        }
+                      }}
+                    >
+                      <i className="fas fa-cogs"></i> Actions <i className="fas fa-chevron-down"></i>
+                    </button>
+                  </div>
+                </PermissionGate>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+});
+
 function MainScreen({
   orders,
   searchQuery,
@@ -704,18 +805,50 @@ function MainScreen({
 }: any) {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const activeDropdownRef = useRef<string | null>(null);
   const totalPages = Math.ceil(totalCount / pageSize) || 1;
+
+  const ordersById = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const o of orders) m.set(String(o.id), o);
+    return m;
+  }, [orders]);
+
+  const toggleActionDropdown = useCallback((orderId: string, anchorEl: HTMLElement) => {
+    const isActive = activeDropdownRef.current === orderId;
+    if (isActive) {
+      activeDropdownRef.current = null;
+      setActiveDropdown(null);
+      return;
+    }
+
+    const rect = anchorEl.getBoundingClientRect();
+    const menuHeight = 140;
+    const menuWidth = 200;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
+    const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+
+    flushSync(() => {
+      activeDropdownRef.current = orderId;
+      setDropdownPosition({ top, left });
+      setActiveDropdown(orderId);
+    });
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: any) => {
       const isDropdownButton = event.target.closest(".btn-action-dropdown");
       const isDropdownMenu = event.target.closest(".action-dropdown-menu");
-      if (!isDropdownButton && !isDropdownMenu) setActiveDropdown(null);
+      if (!isDropdownButton && !isDropdownMenu) {
+        activeDropdownRef.current = null;
+        setActiveDropdown(null);
+      }
     };
 
     if (activeDropdown) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      document.addEventListener("pointerdown", handleClickOutside, true);
+      return () => document.removeEventListener("pointerdown", handleClickOutside, true);
     }
   }, [activeDropdown]);
 
@@ -768,81 +901,7 @@ function MainScreen({
             </div>
           </div>
 
-          {orders.length > 0 ? (
-            <div className="table-wrapper">
-              <table className="job-order-table">
-                <thead>
-                  <tr>
-                    <th>Create Date</th>
-                    <th>Job Card ID</th>
-                    <th>Order Type</th>
-                    <th>Customer Name</th>
-                    <th>Mobile Number</th>
-                    <th>Vehicle Plate</th>
-                    <th>Work Status</th>
-                    <th>Payment Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {orders.map((order: any) => (
-                    <tr key={order.id}>
-                      <td className="date-column">{order.createDate}</td>
-                      <td>{order.id}</td>
-                      <td>
-                        <span className={`order-type-badge ${order.orderType === "New Job Order" ? "order-type-new-job" : "order-type-service"}`}>
-                          {order.orderType}
-                        </span>
-                      </td>
-                      <td>{order.customerName}</td>
-                      <td>{order.mobile}</td>
-                      <td>{order.vehiclePlate}</td>
-                      <td>
-                        <span className={`status-badge ${getWorkStatusClass(order.workStatus)}`}>{order.workStatus}</span>
-                      </td>
-                      <td>
-                        <span className={`status-badge ${getPaymentStatusClass(order.paymentStatus)}`}>{order.paymentStatus}</span>
-                      </td>
-                      <td>
-                        <PermissionGate moduleId="joborder" optionId="joborder_actions">
-                          <div className="action-dropdown-container">
-                            <button
-                              className={`btn-action-dropdown ${activeDropdown === order.id ? "active" : ""}`}
-                              onClick={(e: any) => {
-                                const isActive = activeDropdown === order.id;
-                                if (isActive) {
-                                  setActiveDropdown(null);
-                                  return;
-                                }
-                                const rect = e.currentTarget.getBoundingClientRect();
-                                const menuHeight = 140;
-                                const menuWidth = 200;
-                                const spaceBelow = window.innerHeight - rect.bottom;
-                                const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
-                                const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
-                                setDropdownPosition({ top, left });
-                                setActiveDropdown(order.id);
-                              }}
-                            >
-                              <i className="fas fa-cogs"></i> Actions <i className="fas fa-chevron-down"></i>
-                            </button>
-                          </div>
-                        </PermissionGate>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className="empty-state">
-              <div className="empty-icon">
-                <i className="fas fa-search"></i>
-              </div>
-              <div className="empty-text">No matching job orders found</div>
-              <div className="empty-subtext">Try adjusting your search terms or click "New Job Order" to create one</div>
-            </div>
-          )}
+          <JobOrderRecordsTable orders={orders} onToggleActions={toggleActionDropdown} />
         </section>
 
         {orders.length > 0 && totalPages > 1 && (
@@ -878,15 +937,24 @@ function MainScreen({
         <p>Service Management System © 2023 | Job Order Management Module</p>
       </footer>
 
-      {activeDropdown &&
-        typeof document !== "undefined" &&
+      {typeof document !== "undefined" &&
         createPortal(
-          <div className="action-dropdown-menu show action-dropdown-menu-fixed" style={{ top: `${dropdownPosition.top}px`, left: `${dropdownPosition.left}px` }}>
+          <div
+            className={`action-dropdown-menu show action-dropdown-menu-fixed ${activeDropdown ? "open" : "closed"}`}
+            style={
+              activeDropdown
+                ? { top: `${dropdownPosition.top}px`, left: `${dropdownPosition.left}px` }
+                : { top: "-9999px", left: "-9999px" }
+            }
+          >
             <PermissionGate moduleId="joborder" optionId="joborder_viewdetails">
               <button
                 className="dropdown-item view"
                 onClick={() => {
-                  onViewDetails(orders.find((o: any) => o.id === activeDropdown));
+                  if (!activeDropdown) return;
+                  const targetOrder = ordersById.get(String(activeDropdown));
+                  if (targetOrder) onViewDetails(targetOrder);
+                  activeDropdownRef.current = null;
                   setActiveDropdown(null);
                 }}
               >
@@ -900,7 +968,9 @@ function MainScreen({
                 <button
                   className="dropdown-item delete"
                   onClick={() => {
-                    onCancelOrder(activeDropdown);
+                    if (!activeDropdown) return;
+                    if (activeDropdown) onCancelOrder(activeDropdown);
+                    activeDropdownRef.current = null;
                     setActiveDropdown(null);
                   }}
                 >
@@ -918,7 +988,7 @@ function MainScreen({
 // ============================================
 // DETAILS SCREEN
 // ============================================
-function DetailsScreen({ order, onClose, onAddService }: any) {
+function DetailsScreen({ order, onClose, onAddService, currentUser }: any) {
   return (
 <div className="pim-details-screen jo-details-v3">
       <div className="pim-details-header">
@@ -967,7 +1037,7 @@ function DetailsScreen({ order, onClose, onAddService }: any) {
       <div className="pim-details-body">
         <div className="pim-details-grid">
           <PermissionGate moduleId="joborder" optionId="joborder_summary">
-            <JobOrderSummaryCard order={order} />
+            <JobOrderSummaryCard order={order} currentUser={currentUser} />
           </PermissionGate>
           <PermissionGate moduleId="joborder" optionId="joborder_customer">
             <CustomerDetailsCard order={order} />
@@ -1003,7 +1073,7 @@ function DetailsScreen({ order, onClose, onAddService }: any) {
 
         {/* Roadmap Timeline - Full Width */}
         <PermissionGate moduleId="joborder" optionId="joborder_roadmap">
-          <RoadmapCard order={order} />
+          <RoadmapCard order={order} currentUser={currentUser} />
         </PermissionGate>
 
         {/* ✅ Documents (Billing docs if available) - Full Width at bottom */}
@@ -1032,6 +1102,7 @@ function NewJobScreen({ currentUser, onClose, onSubmit, prefill }: any) {
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
   const [expectedDeliveryTime, setExpectedDeliveryTime] = useState("");
   const [vehicleCompletedServices, setVehicleCompletedServices] = useState<any[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const formatAmount = (value: any) => `QAR ${Number(value || 0).toLocaleString()}`;
 
@@ -1063,10 +1134,35 @@ function NewJobScreen({ currentUser, onClose, onSubmit, prefill }: any) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill]);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+
+    try {
     const now = new Date();
     const year = now.getFullYear();
+    const authEmail = resolveAuthenticatedEmail(currentUser);
     const jobOrderId = `JO-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
+
+    const customerName = String(
+      customerData?.name ??
+        customerData?.displayName ??
+        customerData?.fullName ??
+        [customerData?.firstName, customerData?.lastName].filter(Boolean).join(" ")
+    ).trim();
+    const customerMobile = String(customerData?.mobile ?? customerData?.phone ?? customerData?.phoneNumber ?? "").trim();
+    const vehiclePlate = String(
+      vehicleData?.plateNumber ??
+        vehicleData?.license ??
+        vehicleData?.licensePlate ??
+        vehicleData?.plate ??
+        vehicleData?.registrationNumber ??
+        ""
+    ).trim();
+
+    const safeCustomerName = customerName || "Walk-in Customer";
+    const safeCustomerMobile = customerMobile || "N/A";
+    const safeVehiclePlate = vehiclePlate || "N/A";
 
     const servicesToBill = orderType === "service" ? additionalServices : selectedServices;
     const subtotal = servicesToBill.reduce((sum: number, s: any) => sum + (s.price || 0), 0);
@@ -1079,15 +1175,17 @@ function NewJobScreen({ currentUser, onClose, onSubmit, prefill }: any) {
     const newOrder = {
       id: jobOrderId,
       orderType: orderType === "service" ? "Service Order" : "New Job Order",
-      customerName: customerData.name,
-      mobile: customerData.mobile || customerData.phone,
-      vehiclePlate: vehicleData.plateNumber || vehicleData.license,
+      customerName: safeCustomerName,
+      mobile: safeCustomerMobile,
+      vehiclePlate: safeVehiclePlate,
       workStatus: "New Request",
       paymentStatus: "Unpaid",
+      createdBy: authEmail || "System User",
+      updatedBy: authEmail || "System User",
       createDate: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
       jobOrderSummary: {
         createDate: new Date().toLocaleString(),
-        createdBy: currentUser?.name || "System User",
+        createdBy: authEmail || "System User",
         expectedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleString(),
       },
       customerDetails: {
@@ -1101,7 +1199,7 @@ function NewJobScreen({ currentUser, onClose, onSubmit, prefill }: any) {
       },
       vehicleDetails: {
         vehicleId: vehicleData.vehicleId || "VEH-" + Math.floor(Math.random() * 10000),
-        ownedBy: customerData.name,
+        ownedBy: safeCustomerName,
         make: vehicleData.make || vehicleData.factory,
         model: vehicleData.model,
         year: vehicleData.year,
@@ -1158,7 +1256,7 @@ function NewJobScreen({ currentUser, onClose, onSubmit, prefill }: any) {
           stepStatus: "Active",
           startTimestamp: new Date().toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }),
           endTimestamp: null,
-          actionBy: currentUser?.name || "System User",
+          actionBy: authEmail || "System User",
           status: "InProgress",
         },
         { step: "Inspection", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
@@ -1178,7 +1276,10 @@ function NewJobScreen({ currentUser, onClose, onSubmit, prefill }: any) {
       expectedDeliveryTime,
     };
 
-    onSubmit(newOrder);
+    await onSubmit(newOrder);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
 return (
@@ -1277,6 +1378,7 @@ return (
           orderNotes={orderNotes}
           expectedDeliveryDate={expectedDeliveryDate}
           expectedDeliveryTime={expectedDeliveryTime}
+          isSubmitting={isSubmitting}
           onBack={() => setStep(4)}
           onSubmit={handleSubmit}
         />
@@ -2159,6 +2261,7 @@ function StepFourConfirm({
   orderNotes,
   expectedDeliveryDate,
   expectedDeliveryTime,
+  isSubmitting,
   onBack,
   onSubmit,
 }: any) {
@@ -2369,11 +2472,18 @@ function StepFourConfirm({
       </div>
 
       <div className="action-buttons confirm-action-buttons">
-        <button className="btn btn-secondary" onClick={onBack}>
+        <button className="btn btn-secondary" onClick={onBack} disabled={isSubmitting}>
           Back
         </button>
-        <button className="btn btn-success" onClick={onSubmit}>
-          Submit Order
+        <button className="btn btn-primary" onClick={onSubmit} disabled={isSubmitting}>
+          {isSubmitting ? (
+            <>
+              <i className="fas fa-spinner fa-spin" style={{ marginRight: 8 }}></i>
+              Creating...
+            </>
+          ) : (
+            "Submit Order"
+          )}
         </button>
       </div>
     </div>
@@ -2383,11 +2493,11 @@ function StepFourConfirm({
 // ============================================
 // SIMPLE DISPLAY CARDS
 // ============================================
-function JobOrderSummaryCard({ order }: any) {
+function JobOrderSummaryCard({ order, currentUser }: any) {
   const summary = order.jobOrderSummary || {};
   const delivery = order.deliveryInfo || {};
   const serviceProgress = order.serviceProgressInfo || {};
-    const createdBy = resolveCreatedBy(order);
+    const createdBy = resolveAuthenticatedEmail(currentUser) || resolveCreatedBy(order);
 
   
   return (
@@ -2942,93 +3052,98 @@ function JobOrderDocumentsCard({ order }: any) {
       </h3>
 
       <div className="pim-card-content jo-docs-content">
-        <div className="jo-docs-table-wrap">
-          <table className="jo-docs-table">
-            <thead>
-              <tr>
-                <th className="jo-docs-th jo-docs-col-doc">Document</th>
-                <th className="jo-docs-th jo-docs-col-type">Type</th>
-                <th className="jo-docs-th jo-docs-col-cat">Category</th>
-                <th className="jo-docs-th jo-docs-col-added">Added</th>
-                <th className="jo-docs-th jo-docs-col-by">Uploaded By</th>
-                <th className="jo-docs-th jo-docs-col-actions jo-docs-right">Actions</th>
-              </tr>
-            </thead>
+        <div className="jo-docs-list">
+          <div className="jo-docs-header jo-docs-row-grid">
+            <div className="jo-docs-col jo-docs-col-doc">Document</div>
+            <div className="jo-docs-col jo-docs-col-type">Type</div>
+            <div className="jo-docs-col jo-docs-col-category">Category</div>
+            <div className="jo-docs-col jo-docs-col-added">Added</div>
+            <div className="jo-docs-col jo-docs-col-uploaded">Uploaded By</div>
+            <div className="jo-docs-col jo-docs-col-actions jo-docs-right">Actions</div>
+          </div>
 
-            <tbody>
-              {docs.map((d, idx) => {
-                const name = String(d?.name ?? "").trim() || `Document ${idx + 1}`;
-                const raw = String(d?.storagePath || d?.url || "").trim();
-                const type = String(d?.type ?? "").trim() || "—";
-                const category = String(d?.category ?? "").trim() || "—";
-                const addedAt = String(d?.addedAt ?? "").trim() || "—";
-                const uploadedBy = String(d?.uploadedBy ?? "").trim() || "—";
+          {docs.map((d, idx) => {
+            const name = String(d?.name ?? "").trim() || `Document ${idx + 1}`;
+            const raw = String(d?.storagePath || d?.url || "").trim();
+            const type = String(d?.type ?? "").trim() || "—";
+            const category = String(d?.category ?? "").trim() || "—";
+            const addedAt = String(d?.addedAt ?? "").trim() || "—";
+            const uploadedBy = String(d?.uploadedBy ?? "").trim() || "—";
 
-                const refs = [
-                  d?.paymentReference ? `PaymentRef: ${d.paymentReference}` : null,
-                  d?.billReference ? `BillRef: ${d.billReference}` : null,
-                ].filter(Boolean);
+            const refs = [
+              d?.paymentReference ? `PaymentRef: ${d.paymentReference}` : null,
+              d?.billReference ? `BillRef: ${d.billReference}` : null,
+            ].filter(Boolean);
 
-                return (
-                  <tr key={d?.id ?? `${name}-${idx}`} className="jo-docs-row">
-                    <td className="jo-docs-td jo-docs-col-doc">
-                      <div className="jo-docs-docname">{name}</div>
+            return (
+              <div key={d?.id ?? `${name}-${idx}`} className="jo-docs-row jo-docs-row-grid">
+                <div className="jo-docs-col jo-docs-col-doc jo-docs-main">
+                  <div className="jo-docs-docname">{name}</div>
+                  {(refs.length > 0 || raw) ? (
+                    <div className="jo-docs-docmeta">
+                      {refs.join(" • ")}
+                      {raw ? (refs.length ? " • " : "") : ""}
+                      {raw ? raw : ""}
+                    </div>
+                  ) : null}
+                </div>
 
-                      {(refs.length > 0 || raw) ? (
-                        <div className="jo-docs-docmeta">
-                          {refs.join(" • ")}
-                          {raw ? (refs.length ? " • " : "") : ""}
-                          {raw ? raw : ""}
-                        </div>
-                      ) : null}
-                    </td>
+                <div className="jo-docs-col jo-docs-col-type">
+                  <span className="jo-docs-inline-label">Type</span>
+                  <strong>{type}</strong>
+                </div>
+                <div className="jo-docs-col jo-docs-col-category">
+                  <span className="jo-docs-inline-label">Category</span>
+                  <strong>{category}</strong>
+                </div>
+                <div className="jo-docs-col jo-docs-col-added">
+                  <span className="jo-docs-inline-label">Added</span>
+                  <strong>{addedAt}</strong>
+                </div>
+                <div className="jo-docs-col jo-docs-col-uploaded">
+                  <span className="jo-docs-inline-label">Uploaded By</span>
+                  <strong>{uploadedBy}</strong>
+                </div>
 
-                    <td className="jo-docs-td jo-docs-col-type">{type}</td>
-                    <td className="jo-docs-td jo-docs-col-cat">{category}</td>
-                    <td className="jo-docs-td jo-docs-col-added">{addedAt}</td>
-                    <td className="jo-docs-td jo-docs-col-by">{uploadedBy}</td>
+                <div className="jo-docs-col jo-docs-col-actions jo-docs-right">
+                  <PermissionGate moduleId="joborder" optionId="joborder_download">
+                    <div className="jo-docs-actions">
+                      <button
+                        type="button"
+                        className="btn btn-secondary jo-docs-btn"
+                        disabled={!raw}
+                        onClick={async () => {
+                          const linkUrl = await resolveMaybeStorageUrl(raw);
+                          if (!linkUrl) return;
+                          window.open(linkUrl, "_blank", "noopener,noreferrer");
+                        }}
+                        title={!raw ? "No file path/url available" : "Open"}
+                      >
+                        <i className="fas fa-external-link-alt"></i> Open
+                      </button>
 
-                    <td className="jo-docs-td jo-docs-col-actions jo-docs-right">
-                      <PermissionGate moduleId="joborder" optionId="joborder_download">
-                        <div className="jo-docs-actions">
-                          <button
-                            type="button"
-                            className="btn btn-secondary jo-docs-btn"
-                            disabled={!raw}
-                            onClick={async () => {
-                              const linkUrl = await resolveMaybeStorageUrl(raw);
-                              if (!linkUrl) return;
-                              window.open(linkUrl, "_blank", "noopener,noreferrer");
-                            }}
-                            title={!raw ? "No file path/url available" : "Open"}
-                          >
-                            <i className="fas fa-external-link-alt"></i> Open
-                          </button>
-
-                          <button
-                            type="button"
-                            className="btn btn-primary jo-docs-btn"
-                            disabled={!raw}
-                            onClick={async () => {
-                              const linkUrl = await resolveMaybeStorageUrl(raw);
-                              if (!linkUrl) return;
-                              const a = document.createElement("a");
-                              a.href = linkUrl;
-                              a.download = name || "document";
-                              a.click();
-                            }}
-                            title={!raw ? "No file path/url available" : "Download"}
-                          >
-                            <i className="fas fa-download"></i> Download
-                          </button>
-                        </div>
-                      </PermissionGate>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                      <button
+                        type="button"
+                        className="btn btn-primary jo-docs-btn"
+                        disabled={!raw}
+                        onClick={async () => {
+                          const linkUrl = await resolveMaybeStorageUrl(raw);
+                          if (!linkUrl) return;
+                          const a = document.createElement("a");
+                          a.href = linkUrl;
+                          a.download = name || "document";
+                          a.click();
+                        }}
+                        title={!raw ? "No file path/url available" : "Download"}
+                      >
+                        <i className="fas fa-download"></i> Download
+                      </button>
+                    </div>
+                  </PermissionGate>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -3155,6 +3270,39 @@ function DeliveryTrackingCard({ order }: any) {
 function RoadmapCard({ order }: any) {
   if (!order.roadmap || order.roadmap.length === 0) return null;
 
+  const roadmap = Array.isArray(order?.roadmap) ? order.roadmap : [];
+  const normalizeStepName = (name: any) => String(name ?? "").toLowerCase().replace(/[^a-z]/g, "");
+  const normalizedWorkStatus = normalizeStepName(order?.workStatus ?? order?.workStatusLabel);
+  const progressedToInspectionOrBeyond = new Set([
+    "inspection",
+    "inprogress",
+    "qualitycheck",
+    "ready",
+    "completed",
+    "cancelled",
+  ]).has(normalizedWorkStatus);
+
+  const findStep = (name: string) => roadmap.find((s: any) => normalizeStepName(s?.step) === normalizeStepName(name));
+  const findStartedAt = (s: any) => joFirst(s?.startTimestamp, s?.startedAt, s?.startTime, s?.started);
+  const findCompletedAt = (s: any) => joFirst(s?.endTimestamp, s?.completedAt, s?.endTime, s?.ended);
+
+  const newRequestStep = findStep("New Request");
+  const inspectionStep = findStep("Inspection");
+  const newRequestCompletedRaw = findCompletedAt(newRequestStep);
+  const inspectionStartedRaw = findStartedAt(inspectionStep);
+
+  const inspectionIndex = roadmap.findIndex((s: any) => normalizeStepName(s?.step) === "inspection");
+  const firstLaterStartedAt =
+    inspectionIndex >= 0
+      ? roadmap.slice(inspectionIndex + 1).map((s: any) => findStartedAt(s)).find((v: string) => !!joStr(v))
+      : "";
+
+  const inferredInspectionStartedAt =
+    inspectionStartedRaw ||
+    newRequestCompletedRaw ||
+    firstLaterStartedAt ||
+    (progressedToInspectionOrBeyond ? joFirst(order?.updatedAt, order?.lastUpdatedAt) : "");
+
   const getStepIcon = (stepName: string) => {
     const iconMap: any = {
       "New Request": "fa-plus-circle",
@@ -3188,10 +3336,36 @@ function RoadmapCard({ order }: any) {
       </div>
 
       <div className="jo-roadmap-list">
-        {order.roadmap.map((step: any, idx: number) => {
-          const actor = resolveRoadmapActor(step, order);
+        {roadmap.map((step: any, idx: number) => {
+          const actorFromStep = resolveRoadmapActor(step, order);
+          const stepName = normalizeStepName(step?.step);
+          const nextStep = roadmap[idx + 1];
+          const stepStartedAt = findStartedAt(step);
+          const stepCompletedAt = findCompletedAt(step);
+          const normalizedStepStatus = normalizeStepName(step?.stepStatus || step?.status);
 
-          const stepClass = getStepClass(step.status);
+          const inferredStartedAt =
+            stepName === "inspection"
+              ? stepStartedAt || inferredInspectionStartedAt
+              : stepStartedAt;
+
+          const inferredCompletedAt =
+            stepName === "newrequest"
+              ? stepCompletedAt || inferredInspectionStartedAt || findStartedAt(nextStep)
+              : stepCompletedAt;
+
+          const stepHasProgress =
+            !!joStr(inferredStartedAt) ||
+            !!joStr(inferredCompletedAt) ||
+            normalizedStepStatus === "active" ||
+            normalizedStepStatus === "inprogress" ||
+            normalizedStepStatus === "completed";
+
+          const fallbackActor = joFirst(step?.updatedByName, step?.updatedBy, order?.updatedByName, order?.updatedBy);
+          const actor = stepHasProgress ? (actorFromStep || (fallbackActor.includes("@") ? fallbackActor : "")) : "";
+          const completedLabel = inferredCompletedAt || "Not completed";
+
+          const stepClass = getStepClass(step?.stepStatus || step?.status);
 
           return (
             <div key={idx} className={`jo-roadmap-row ${stepClass}`}>
@@ -3208,11 +3382,11 @@ function RoadmapCard({ order }: any) {
               <div className="jo-roadmap-row-meta">
                 <div className="jo-roadmap-meta-block">
                   <span>Started</span>
-                  <strong>{step.startTimestamp || "Not started"}</strong>
+                  <strong>{inferredStartedAt || "Not started"}</strong>
                 </div>
                 <div className="jo-roadmap-meta-block">
                   <span>Completed</span>
-                  <strong>{step.endTimestamp || "Not completed"}</strong>
+                  <strong>{completedLabel}</strong>
                 </div>
                 <div className="jo-roadmap-meta-block">
                   <span>Action done by</span>

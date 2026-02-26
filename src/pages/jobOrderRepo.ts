@@ -51,6 +51,10 @@ async function listAll<T>(listFn: (args: any) => Promise<any>, max = 5000): Prom
   return out.slice(0, max);
 }
 
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /** Convert a possibly-human date/datetime to ISO string, else undefined */
 function toIsoOrUndefined(v: any): string | undefined {
   if (v == null) return undefined;
@@ -103,10 +107,22 @@ function mapEnumStatusToUi(status: any) {
 
 function deriveUiWorkStatus(job: any, parsed: any) {
   const fromParsed = String(parsed?.workStatusLabel ?? "").trim();
-  if (fromParsed) return fromParsed;
+  if (fromParsed) {
+    const upper = fromParsed.toUpperCase();
+    if (["DRAFT", "OPEN", "IN_PROGRESS", "READY", "COMPLETED", "CANCELLED"].includes(upper)) {
+      return mapEnumStatusToUi(upper);
+    }
+    return fromParsed;
+  }
 
   const fromLabel = String(job?.workStatusLabel ?? "").trim();
-  if (fromLabel) return fromLabel;
+  if (fromLabel) {
+    const upper = fromLabel.toUpperCase();
+    if (["DRAFT", "OPEN", "IN_PROGRESS", "READY", "COMPLETED", "CANCELLED"].includes(upper)) {
+      return mapEnumStatusToUi(upper);
+    }
+    return fromLabel;
+  }
 
   return mapEnumStatusToUi(job?.status);
 }
@@ -266,6 +282,128 @@ function parseJobOrderSaveResult(res: any): { id?: string; orderNumber?: string 
   return {};
 }
 
+function mapPaymentStatusToDbStatus(paymentStatusLabel: string | undefined): JobOrderRow["paymentStatus"] {
+  const s = String(paymentStatusLabel ?? "").trim().toLowerCase();
+  if (s === "paid" || s === "fully paid") return "PAID";
+  if (s === "partial" || s === "partially paid") return "PARTIAL";
+  return "UNPAID";
+}
+
+async function persistJobOrderViaModel(client: any, payload: any): Promise<{ id?: string; orderNumber?: string }> {
+  const now = new Date().toISOString();
+
+  const dataJson = JSON.stringify({
+    services: Array.isArray(payload?.services) ? payload.services : [],
+    documents: Array.isArray(payload?.documents) ? payload.documents : [],
+    billing: payload?.billing ?? {},
+    roadmap: Array.isArray(payload?.roadmap) ? payload.roadmap : [],
+    additionalServiceRequests: Array.isArray(payload?.additionalServiceRequests) ? payload.additionalServiceRequests : [],
+    customerNotes: payload?.customerNotes ?? null,
+    expectedDeliveryDate: payload?.expectedDeliveryDate ?? null,
+    expectedDeliveryTime: payload?.expectedDeliveryTime ?? null,
+  });
+
+  const modelInput: any = {
+    orderNumber: payload.orderNumber,
+    orderType: payload.orderType,
+    status: payload.status,
+    paymentStatus: mapPaymentStatusToDbStatus(payload.paymentStatusLabel),
+    workStatusLabel: payload.workStatusLabel,
+    paymentStatusLabel: payload.paymentStatusLabel,
+
+    customerId: payload.customerId,
+    customerName: payload.customerName,
+    customerPhone: payload.customerPhone,
+    customerEmail: payload.customerEmail,
+    customerAddress: payload.customerAddress,
+    customerCompany: payload.customerCompany,
+    customerSince: payload.customerSince,
+    completedServicesCount: payload.completedServicesCount,
+    registeredVehiclesCount: payload.registeredVehiclesCount,
+
+    vehicleId: payload.vehicleId,
+    vehicleType: payload.vehicleType,
+    vehicleMake: payload.vehicleMake,
+    vehicleModel: payload.vehicleModel,
+    vehicleYear: payload.vehicleYear,
+    plateNumber: payload.plateNumber,
+    vin: payload.vin,
+    mileage: payload.mileage,
+    color: payload.color,
+    registrationDate: payload.registrationDate,
+
+    discount: payload.discount,
+    discountPercent: payload.discountPercent,
+    vatRate: payload.vatRate,
+    totalAmount: payload.totalAmount,
+    billId: payload.billId,
+    netAmount: payload.netAmount,
+    paymentMethod: payload.paymentMethod,
+
+    totalServiceCount: payload.totalServiceCount,
+    completedServiceCount: payload.completedServiceCount,
+    pendingServiceCount: payload.pendingServiceCount,
+
+    expectedDeliveryDate: payload.expectedDeliveryDate,
+    expectedDeliveryTime: payload.expectedDeliveryTime,
+    actualDeliveryDate: payload.actualDeliveryDate,
+    actualDeliveryTime: payload.actualDeliveryTime,
+    estimatedCompletionHours: payload.estimatedCompletionHours,
+    actualCompletionHours: payload.actualCompletionHours,
+
+    qualityCheckStatus: payload.qualityCheckStatus,
+    qualityCheckDate: payload.qualityCheckDate,
+    qualityCheckNotes: payload.qualityCheckNotes,
+    qualityCheckedBy: payload.qualityCheckedBy,
+
+    exitPermitRequired: payload.exitPermitRequired,
+    exitPermitStatus: payload.exitPermitStatus,
+    exitPermitDate: payload.exitPermitDate,
+    nextServiceDate: payload.nextServiceDate,
+
+    priorityLevel: payload.priorityLevel,
+    assignedTechnicianId: payload.assignedTechnicianId,
+    assignedTechnicianName: payload.assignedTechnicianName,
+    assignmentDate: payload.assignmentDate,
+
+    customerNotes: payload.customerNotes,
+    internalNotes: payload.internalNotes,
+    customerNotified: payload.customerNotified,
+    lastNotificationDate: payload.lastNotificationDate,
+    jobDescription: payload.jobDescription,
+    specialInstructions: payload.specialInstructions,
+
+    dataJson,
+    updatedAt: now,
+    updatedBy: payload.updatedBy ?? "system",
+  };
+
+  // Filter out undefined values - prevents schema validation errors for missing fields
+  const cleanInput = Object.fromEntries(
+    Object.entries(modelInput).filter(([_, v]) => v !== undefined && v !== null)
+  );
+
+  if (payload?.id) {
+    const out = await client.models.JobOrder.update({ id: payload.id, ...cleanInput });
+    if ((out as any)?.errors?.length) {
+      throw new Error((out as any).errors.map((e: any) => e?.message || String(e)).join(" | "));
+    }
+    const row = out?.data ?? out;
+    return { id: row?.id, orderNumber: row?.orderNumber ?? payload.orderNumber };
+  }
+
+  const out = await client.models.JobOrder.create({
+    ...cleanInput,
+    createdAt: now,
+    createdBy: payload.createdBy ?? "system",
+  });
+  if ((out as any)?.errors?.length) {
+    throw new Error((out as any).errors.map((e: any) => e?.message || String(e)).join(" | "));
+  }
+  const row = out?.data ?? out;
+  return { id: row?.id, orderNumber: row?.orderNumber ?? payload.orderNumber };
+}
+
 async function findJobOrderRowByAnyKey(keyRaw: string): Promise<any | null> {
   const client = getDataClient();
   const key = String(keyRaw ?? "").trim();
@@ -307,6 +445,20 @@ async function findJobOrderRowByAnyKey(keyRaw: string): Promise<any | null> {
   } catch {
     return null;
   }
+}
+
+async function resolveBackendIdWithRetry(orderNumberKey: string, attempts = 4): Promise<string> {
+  const key = String(orderNumberKey ?? "").trim();
+  if (!key) return "";
+
+  for (let i = 0; i < attempts; i++) {
+    const row = await findJobOrderRowByAnyKey(key);
+    const id = String(row?.id ?? "").trim();
+    if (id) return id;
+    if (i < attempts - 1) await sleep(250 * (i + 1));
+  }
+
+  return "";
 }
 
 // -------------------------
@@ -660,11 +812,11 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
   const roadmap = Array.isArray(parsed?.roadmap)
     ? parsed.roadmap.map((r: any) => ({
         step: r.step,
-        stepStatus: r.stepStatus ?? null,
-        startTimestamp: r.startTimestamp ?? null,
-        endTimestamp: r.endTimestamp ?? null,
+        stepStatus: r.stepStatus ?? r.status ?? null,
+        startTimestamp: r.startTimestamp ?? r.startedAt ?? r.startTime ?? r.started ?? null,
+        endTimestamp: r.endTimestamp ?? r.completedAt ?? r.endTime ?? r.ended ?? null,
         actionBy: r.actionBy ?? "Not assigned",
-        status: r.status ?? "Upcoming",
+        status: r.status ?? r.stepStatus ?? "Upcoming",
       }))
     : [];
 
@@ -1006,6 +1158,8 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
     jobDescription: String(order?.jobDescription ?? "").trim() || undefined,
     specialInstructions: String(order?.specialInstructions ?? "").trim() || undefined,
     internalNotes: String(order?.internalNotes ?? "").trim() || undefined,
+    createdBy: String(order?.createdBy ?? order?.jobOrderSummary?.createdBy ?? "").trim() || undefined,
+    updatedBy: String(order?.updatedBy ?? order?.createdBy ?? order?.jobOrderSummary?.createdBy ?? "").trim() || undefined,
 
     // Customer detail fields
     customerAddress: String(order?.customerDetails?.address ?? order?.customerAddress ?? "").trim() || undefined,
@@ -1017,12 +1171,35 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
     // Minimal JSON structure the lambda expects
     services: services.map((s: any, idx: number) => {
       const price = toNum(s.price);
+      const assignedTo = String(s?.assignedTo ?? "").trim().toLowerCase() || null;
+      const technicians = Array.isArray(s?.technicians)
+        ? s.technicians.map((t: any) => String(t ?? "").trim()).filter(Boolean)
+        : [];
+
       return {
         id: String(s.id ?? `SVC-${idx + 1}`),
+        order: Number(s.order ?? idx + 1),
         name: String(s.name ?? "").trim() || "Service",
         price,
         qty: Math.max(1, toNum(s.qty ?? 1)),
         unitPrice: Math.max(0, toNum(s.unitPrice ?? price)),
+
+        status: String(s?.status ?? "Pending"),
+        priority: String(s?.priority ?? "normal"),
+        assignedTo,
+        technicians,
+
+        startTime: s?.startTime ?? null,
+        endTime: s?.endTime ?? null,
+        started: s?.started ?? (s?.startTime ?? "Not started"),
+        ended: s?.ended ?? (s?.endTime ?? "Not completed"),
+        duration: s?.duration ?? "Not started",
+        technician: assignedTo ?? String(s?.technician ?? "Not assigned"),
+
+        requestedAction: s?.requestedAction ?? null,
+        approvalStatus: s?.approvalStatus ?? null,
+        qualityCheckResult: s?.qualityCheckResult ?? s?.qcResult ?? null,
+        notes: String(s?.notes ?? ""),
       };
     }),
 
@@ -1037,26 +1214,41 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
     totalAmount: Number.isFinite(totalFromBilling) ? totalFromBilling : undefined,
   };
 
-  const res: any = await (client.mutations as any).jobOrderSave({
-    input: JSON.stringify(payload),
-  });
+  let parsed: { id?: string; orderNumber?: string };
+  try {
+    const saveMutation = (client.mutations as any)?.jobOrderSave;
+    if (typeof saveMutation !== "function") throw new Error("__JOB_ORDER_SAVE_MISSING__");
 
-  if (res?.errors?.length) {
-    throw new Error(res.errors.map((e: any) => e.message).join(" | "));
+    const res: any = await saveMutation({
+      input: JSON.stringify(payload),
+    });
+
+    if (res?.errors?.length) {
+      throw new Error(res.errors.map((e: any) => e.message).join(" | "));
+    }
+
+    parsed = parseJobOrderSaveResult(res);
+  } catch (e) {
+    const msg = String((e as any)?.message ?? "");
+    const schemaMismatch =
+      msg.includes("Unknown type AWSJSON") ||
+      msg.includes("Field 'jobOrderSave' in type 'Mutation' is undefined") ||
+      msg.includes("__JOB_ORDER_SAVE_MISSING__");
+
+    if (!schemaMismatch) throw e;
+
+    parsed = await persistJobOrderViaModel(client, payload);
   }
-
-  const parsed = parseJobOrderSaveResult(res);
 
   let backendId = String(parsed?.id ?? payload.id ?? "").trim();
   let returnedOrderNumber = String(parsed?.orderNumber ?? payload.orderNumber ?? "").trim();
 
   if (!backendId) {
-    const row = await findJobOrderRowByAnyKey(returnedOrderNumber || orderNumber);
-    backendId = String(row?.id ?? "").trim();
+    backendId = await resolveBackendIdWithRetry(returnedOrderNumber || orderNumber);
   }
 
   if (!backendId) {
-    throw new Error("Saved but backend id could not be resolved (check jobOrderSave return type).");
+    throw new Error("Save completed but verification failed: created job order could not be read back from backend.");
   }
 
   return { backendId, orderNumber: returnedOrderNumber || orderNumber };

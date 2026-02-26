@@ -112,6 +112,136 @@
   border-radius:12px; display:flex; align-items:center; gap:10px; font-weight:600;
 }
 
+/* Add vehicle form: responsive + polished */
+.vehicle-create-form{
+  gap:14px;
+}
+
+.vehicle-create-form .form-group{
+  min-width:0;
+}
+
+.vehicle-create-verify-row{
+  display:grid;
+  grid-template-columns:1fr auto;
+  gap:12px;
+  align-items:end;
+}
+
+.vehicle-create-verify-row .form-group{
+  margin:0;
+}
+
+.vehicle-create-form .btn-verify{
+  min-height:44px;
+  padding-inline:14px;
+  font-weight:700;
+}
+
+.vehicle-create-form .verified-banner{
+  border-radius:14px;
+}
+
+.vehicle-create-form .form-grid-2{
+  gap:14px;
+}
+
+.vehicle-create-form .form-control{
+  min-height:44px;
+  font-size:14px;
+}
+
+.vehicle-create-form #newNotes{
+  min-height:110px;
+  resize:vertical;
+}
+
+.modal.vehicle-create-modal{
+  max-height:calc(100vh - 28px);
+  display:flex;
+  flex-direction:column;
+}
+
+.modal.vehicle-create-modal .modal-body{
+  overflow:auto;
+  min-height:0;
+}
+
+.modal.vehicle-create-modal .modal-footer{
+  position:sticky;
+  bottom:0;
+  background:#fff;
+  z-index:1;
+}
+
+@media (max-width: 960px){
+  .modal{
+    width:min(94vw, 860px);
+    max-height:calc(100vh - 24px);
+    display:flex;
+    flex-direction:column;
+  }
+
+  .modal-body{
+    overflow:auto;
+    padding:14px;
+  }
+
+  .modal-footer{
+    flex-wrap:wrap;
+    justify-content:stretch;
+  }
+
+  .modal-footer .btn-save,
+  .modal-footer .btn-cancel{
+    flex:1;
+    min-width:180px;
+  }
+
+  .modal.vehicle-create-modal{
+    max-height:calc(100vh - 24px);
+  }
+}
+
+@media (max-width: 780px){
+  .vehicle-create-verify-row{
+    grid-template-columns:1fr;
+    align-items:stretch;
+  }
+
+  .vehicle-create-form .btn-verify{
+    width:100%;
+  }
+
+  .vehicle-create-form .form-grid-2{
+    grid-template-columns:1fr;
+    gap:12px;
+  }
+}
+
+@media (max-width: 520px){
+  .modal-header,
+  .modal-body,
+  .modal-footer{
+    padding:12px;
+  }
+
+  .modal-header h3{
+    font-size:15px;
+  }
+
+  .vehicle-create-form{
+    gap:12px;
+  }
+
+  .vehicle-create-form .form-control,
+  .vehicle-create-form .btn-verify,
+  .modal-footer .btn-save,
+  .modal-footer .btn-cancel{
+    min-height:42px;
+  }
+}
+
 /* Delete modal */
 .delete-modal-overlay{position:fixed; inset:0; background:rgba(15,23,42,.55); display:flex; align-items:center; justify-content:center; z-index:10001;}
 .delete-modal{width:min(560px, 92vw); background:#fff; border-radius:16px; overflow:hidden;}
