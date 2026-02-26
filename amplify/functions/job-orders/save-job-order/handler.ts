@@ -110,6 +110,49 @@ function makeOrderNumber(prefix = "JO") {
   return `${prefix}-${y}${m}${day}-${rand}`;
 }
 
+function normalizeRoadmapEntry(entry: any, actorFallback: string): any {
+  const step = String(entry?.step ?? "").trim();
+  if (!step) return null;
+
+  const stepStatus = String(entry?.stepStatus ?? entry?.statusLabel ?? entry?.state ?? "").trim() || null;
+  const startTimestamp =
+    entry?.startTimestamp ?? entry?.startedAt ?? entry?.startTime ?? entry?.started ?? null;
+  const endTimestamp =
+    entry?.endTimestamp ?? entry?.completedAt ?? entry?.endTime ?? entry?.ended ?? null;
+
+  const actionByRaw =
+    entry?.actionBy ??
+    entry?.updatedBy ??
+    entry?.createdBy ??
+    entry?.actor ??
+    actorFallback ??
+    null;
+  const actionBy = String(actionByRaw ?? "").trim() || null;
+
+  const status = String(entry?.status ?? entry?.stepState ?? "").trim() || null;
+
+  return {
+    ...entry,
+    step,
+    stepStatus,
+    startTimestamp,
+    endTimestamp,
+    actionBy,
+    status,
+  };
+}
+
+function normalizeRoadmapForDataJson(roadmap: any[] | null | undefined, actorFallback: string) {
+  if (!Array.isArray(roadmap)) return [];
+
+  const out: any[] = [];
+  for (const row of roadmap) {
+    const normalized = normalizeRoadmapEntry(row, actorFallback);
+    if (normalized) out.push(normalized);
+  }
+  return out;
+}
+
 export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
   const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
   Amplify.configure(resourceConfig, libraryOptions);
@@ -118,6 +161,10 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
 
   const payload = safeParseInput(event.arguments?.input);
   const isUpdate = Boolean(payload.id);
+  const actorFromIdentity =
+    String((event.identity as any)?.claims?.email ?? (event.identity as any)?.username ?? "")
+      .toLowerCase()
+      .trim() || "system";
 
   // ✅ policy-level
   await requirePermissionFromEvent(client as any, event, "JOB_CARDS", isUpdate ? "UPDATE" : "CREATE");
@@ -240,7 +287,7 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
       };
     }),
     documents: Array.isArray(payload.documents) ? payload.documents : [],
-    roadmap: Array.isArray(payload.roadmap) ? payload.roadmap : [],
+    roadmap: normalizeRoadmapForDataJson(payload.roadmap, actorFromIdentity),
     billing: payload.billing ?? {},
   });
 
@@ -341,9 +388,7 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
       orderNumber: String(payload.orderNumber ?? "").trim() || makeOrderNumber(),
       createdAt: nowIso(),
       createdBy:
-        String((event.identity as any)?.claims?.email ?? (event.identity as any)?.username ?? "")
-          .toLowerCase()
-          .trim() || undefined,
+        actorFromIdentity || undefined,
     });
 
     const row = out?.data ?? out;

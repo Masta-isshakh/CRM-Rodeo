@@ -90,6 +90,38 @@ function normalizeIdentity(v: any) {
   return String(v ?? "").trim().toLowerCase();
 }
 
+function normalizeDateForSummary(v: any) {
+  if (!v) return "—";
+  const d = new Date(String(v));
+  if (Number.isNaN(d.getTime())) return String(v);
+  return d.toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
+
+function normalizeDateTimeForSummary(v: any) {
+  if (!v) return "—";
+  const d = new Date(String(v));
+  if (Number.isNaN(d.getTime())) return String(v);
+  return d.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+function toSummaryText(v: any, fallback = "—") {
+  const out = String(v ?? "").trim();
+  return out || fallback;
+}
+
+function toSummaryStatus(v: any, fallback = "Not Created") {
+  const out = String(v ?? "").trim();
+  return out || fallback;
+}
+
+function includeInJobHistory(workStatus: string, paymentStatus: string) {
+  const work = normalizeIdentity(workStatus);
+  const payment = normalizeIdentity(paymentStatus);
+  const isCancelledAndUnpaid = work === "cancelled" && payment === "unpaid";
+  const isCompletedAndFullyPaid = work === "completed" && payment === "fully paid";
+  return isCancelledAndUnpaid || isCompletedAndFullyPaid;
+}
+
 type ListRow = {
   _backendId: string; // JobOrder.id
   orderNumber: string;
@@ -143,6 +175,91 @@ type RoadmapStepUi = {
   actionBy?: string | null;
   status?: string | null;
 };
+
+function stepKey(step: any) {
+  return String(step ?? "").trim().toLowerCase();
+}
+
+function normalizeRoadmapTimestamp(v: any) {
+  const s = String(v ?? "").trim();
+  return s || null;
+}
+
+function normalizeRoadmapActor(row: any) {
+  const raw =
+    row?.actionBy ??
+    row?.updatedBy ??
+    row?.createdBy ??
+    row?.actor ??
+    row?.requestedBy ??
+    row?.assignedTo ??
+    null;
+  const s = String(raw ?? "").trim();
+  return s || null;
+}
+
+function normalizeRoadmapStep(row: any): RoadmapStepUi | null {
+  const step = String(row?.step ?? "").trim();
+  if (!step) return null;
+
+  return {
+    step,
+    stepStatus: String(row?.stepStatus ?? row?.statusLabel ?? row?.state ?? "").trim() || null,
+    startTimestamp: normalizeRoadmapTimestamp(row?.startTimestamp ?? row?.startedAt ?? row?.startTime ?? row?.started),
+    endTimestamp: normalizeRoadmapTimestamp(row?.endTimestamp ?? row?.completedAt ?? row?.endTime ?? row?.ended),
+    actionBy: normalizeRoadmapActor(row),
+    status: String(row?.status ?? row?.stepState ?? "").trim() || null,
+  };
+}
+
+function mergeRoadmapSources(
+  normalizedRoadmap: RoadmapStepUi[],
+  detailedRoadmap: any[],
+  parsedRoadmap: any[],
+  createdAtIso?: string | null
+) {
+  const out: RoadmapStepUi[] = [];
+  const byStep = new Map<string, RoadmapStepUi>();
+
+  const ingest = (source: any[]) => {
+    for (const row of source ?? []) {
+      const step = normalizeRoadmapStep(row);
+      if (!step) continue;
+
+      const k = stepKey(step.step);
+      const existing = byStep.get(k);
+
+      if (!existing) {
+        byStep.set(k, step);
+        out.push(step);
+        continue;
+      }
+
+      existing.stepStatus = existing.stepStatus ?? step.stepStatus ?? null;
+      existing.startTimestamp = existing.startTimestamp ?? step.startTimestamp ?? null;
+      existing.endTimestamp = existing.endTimestamp ?? step.endTimestamp ?? null;
+      existing.actionBy = existing.actionBy ?? step.actionBy ?? null;
+      existing.status = existing.status ?? step.status ?? null;
+    }
+  };
+
+  ingest(normalizedRoadmap);
+  ingest(detailedRoadmap);
+  ingest(parsedRoadmap);
+
+  const createdAt = normalizeRoadmapTimestamp(createdAtIso);
+  for (const step of out) {
+    const key = stepKey(step.step);
+    if (!step.startTimestamp && key === "new request") {
+      step.startTimestamp = createdAt;
+    }
+    if (!step.actionBy) {
+      step.actionBy = null;
+    }
+  }
+
+  return out;
+}
 
 type DetailsOrder = any & {
   _backendId: string;
@@ -244,14 +361,9 @@ async function loadNormalizedRoadmap(client: any, jobOrderId: string): Promise<R
     // Sort by createdAt, then step
     rows.sort((a, b) => String(a.createdAt ?? "").localeCompare(String(b.createdAt ?? "")));
 
-    return rows.map((r) => ({
-      step: String(r.step ?? ""),
-      stepStatus: r.stepStatus ?? null,
-      startTimestamp: r.startTimestamp ?? null,
-      endTimestamp: r.endTimestamp ?? null,
-      actionBy: r.actionBy ?? null,
-      status: r.status ?? null,
-    }));
+    return rows
+      .map((r) => normalizeRoadmapStep(r))
+      .filter(Boolean) as RoadmapStepUi[];
   } catch {
     return [];
   }
@@ -432,6 +544,9 @@ export default function JobOrderHistory({
             ? new Date(createdIso).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
             : "";
 
+          const workStatus = uiWorkStatus(row.status, row.workStatusLabel ?? parsed?.workStatusLabel);
+          const paymentStatus = uiPaymentStatus(row.paymentStatus, row.paymentStatusLabel ?? parsed?.paymentStatusLabel);
+
           return {
             _backendId: String(row.id),
             orderNumber: String(row.orderNumber ?? ""),
@@ -442,17 +557,18 @@ export default function JobOrderHistory({
             vehiclePlate: String(row.plateNumber ?? parsed?.plateNumber ?? ""),
 
             statusEnum: String(row.status ?? ""),
-            workStatus: uiWorkStatus(row.status, row.workStatusLabel ?? parsed?.workStatusLabel),
+            workStatus,
 
             paymentEnum: String(row.paymentStatus ?? ""),
-            paymentStatus: uiPaymentStatus(row.paymentStatus, row.paymentStatusLabel ?? parsed?.paymentStatusLabel),
+            paymentStatus,
 
             createdAtIso: createdIso,
             createDate,
 
             _parsed: parsed,
           };
-        });
+        })
+        .filter((row: ListRow) => includeInJobHistory(row.workStatus, row.paymentStatus));
 
         // newest first
         mapped.sort((a, b) => String(b.createdAtIso).localeCompare(String(a.createdAtIso)));
@@ -578,14 +694,14 @@ export default function JobOrderHistory({
 
       // roadmap: prefer normalized steps if exist
       const normalizedRoadmap = await loadNormalizedRoadmap(client, String(detailed._backendId));
-      const roadmap: RoadmapStepUi[] =
-        normalizedRoadmap.length > 0
-          ? normalizedRoadmap
-          : Array.isArray(detailed?.roadmap)
-            ? detailed.roadmap
-            : Array.isArray(parsed?.roadmap)
-              ? parsed.roadmap
-              : [];
+      const detailedRoadmap = Array.isArray(detailed?.roadmap) ? detailed.roadmap : [];
+      const parsedRoadmap = Array.isArray(parsed?.roadmap) ? parsed.roadmap : [];
+      const roadmap: RoadmapStepUi[] = mergeRoadmapSources(
+        normalizedRoadmap,
+        detailedRoadmap,
+        parsedRoadmap,
+        String(row?.createdAt ?? "")
+      );
 
       // invoices: normalized tables
       const normalizedInvoices = await loadNormalizedInvoices(client, String(detailed._backendId));
@@ -646,6 +762,32 @@ export default function JobOrderHistory({
         customerNotes: parsed?.customerNotes ?? row?.customerNotes ?? detailed?.customerNotes ?? null,
 
         paymentActivityLog: Array.isArray(detailed?.paymentActivityLog) ? detailed.paymentActivityLog : [],
+
+        summary: {
+          jobOrderId: String(orderNumber || "—"),
+          orderType: String(row?.orderType ?? detailed?.orderType ?? parsed?.orderType ?? "Job Order"),
+          requestCreateDate: normalizeDateForSummary(row?.createdAt ?? detailed?.createDate ?? parsed?.createDate),
+          requestCreateDateTime: normalizeDateTimeForSummary(row?.createdAt ?? detailed?.createDate ?? parsed?.createDate),
+          createdBy: toSummaryText(
+            parsed?.createdBy ?? row?.createdBy ?? detailed?.createdBy ?? row?.updatedBy ?? detailed?.updatedBy
+          ),
+          expectedDeliveryDate: normalizeDateForSummary(
+            parsed?.expectedDeliveryDate ?? row?.expectedDeliveryDate ?? detailed?.expectedDeliveryDate
+          ),
+          workStatus: uiWorkStatus(row?.status, row?.workStatusLabel ?? parsed?.workStatusLabel ?? detailed?.workStatus),
+          paymentStatus: uiPaymentStatus(row?.paymentStatus, row?.paymentStatusLabel ?? parsed?.paymentStatusLabel ?? detailed?.paymentStatus),
+          exitPermitStatus: toSummaryStatus(
+            parsed?.exitPermit?.status ?? row?.exitPermitStatus ?? detailed?.exitPermitStatus,
+            parsed?.exitPermit ? "Created" : "Not Created"
+          ),
+          customerName: toSummaryText(row?.customerName ?? detailed?.customerName ?? parsed?.customerName),
+          customerMobile: toSummaryText(row?.customerPhone ?? detailed?.mobile ?? parsed?.customerPhone),
+          vehiclePlate: toSummaryText(vehiclePlate || row?.plateNumber || detailed?.vehiclePlate),
+          orderStatusEnum: toSummaryText(row?.status, "—"),
+          paymentStatusEnum: toSummaryText(row?.paymentStatus, "—"),
+          updatedAt: normalizeDateTimeForSummary(row?.updatedAt ?? detailed?.updatedAt),
+          updatedBy: toSummaryText(row?.updatedBy ?? detailed?.updatedBy),
+        },
       };
 
       setSelectedOrder(merged);
@@ -690,7 +832,7 @@ export default function JobOrderHistory({
             <i className="fas fa-history" /> Job Order History
           </h1>
           <div className="jh-sub">
-            Completed & Cancelled job orders (live from backend)
+            Cancelled + Unpaid and Completed + Fully Paid job orders (live from backend)
           </div>
         </div>
       </header>
@@ -932,6 +1074,7 @@ function JobHistoryDetails({
   const invoices: InvoiceUi[] = Array.isArray(order?.billing?.invoices) ? order.billing.invoices : [];
   const roadmap: RoadmapStepUi[] = Array.isArray(order?.roadmap) ? order.roadmap : [];
   const docs: DocUi[] = Array.isArray(order?.documents) ? order.documents : [];
+  const summary = order?.summary ?? {};
 
   return (
     <div className="jh-details">
@@ -954,10 +1097,21 @@ function JobHistoryDetails({
             <div className="jh-card">
               <h3><i className="fas fa-info-circle" /> Summary</h3>
               <div className="jh-kv">
-                <div><span>Job Order</span><strong>{order.id}</strong></div>
-                <div><span>Order Type</span><strong>{order.orderType || "Job Order"}</strong></div>
-                <div><span>Work Status</span><strong className={workStatusClass(order.workStatus)}>{order.workStatus}</strong></div>
-                <div><span>Payment Status</span><strong className={paymentStatusClass(order.paymentStatus)}>{order.paymentStatus}</strong></div>
+                <div><span>Job Order ID</span><strong>{summary.jobOrderId || order.id}</strong></div>
+                <div><span>Order Type</span><strong>{summary.orderType || order.orderType || "Job Order"}</strong></div>
+                <div><span>Request Create Date</span><strong>{summary.requestCreateDate || "—"}</strong></div>
+                <div><span>Created By</span><strong>{displayUser(summary.createdBy)}</strong></div>
+                <div><span>Expected Delivery Date</span><strong>{summary.expectedDeliveryDate || "—"}</strong></div>
+                <div><span>Work Status</span><strong className={workStatusClass(summary.workStatus || order.workStatus)}>{summary.workStatus || order.workStatus}</strong></div>
+                <div><span>Payment Status</span><strong className={paymentStatusClass(summary.paymentStatus || order.paymentStatus)}>{summary.paymentStatus || order.paymentStatus}</strong></div>
+                <div><span>Exit Permit Status</span><strong>{summary.exitPermitStatus || "Not Created"}</strong></div>
+                <div><span>Customer Name</span><strong>{summary.customerName || order.customerName || "—"}</strong></div>
+                <div><span>Customer Mobile</span><strong>{summary.customerMobile || order.mobile || "—"}</strong></div>
+                <div><span>Vehicle Plate</span><strong>{summary.vehiclePlate || order.vehiclePlate || "—"}</strong></div>
+                <div><span>Order Status (Enum)</span><strong>{summary.orderStatusEnum || "—"}</strong></div>
+                <div><span>Payment Status (Enum)</span><strong>{summary.paymentStatusEnum || "—"}</strong></div>
+                <div><span>Last Updated</span><strong>{summary.updatedAt || "—"}</strong></div>
+                <div><span>Updated By</span><strong>{displayUser(summary.updatedBy)}</strong></div>
               </div>
             </div>
           </PermissionGate>

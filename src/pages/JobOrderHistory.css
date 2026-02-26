@@ -392,7 +392,7 @@
 }
 
 .jh-card{
-  grid-column: span 6;
+  grid-column: span 12;
   background: var(--jh-surface);
   border: 1px solid var(--jh-border);
   border-radius: var(--jh-radius);
@@ -415,7 +415,7 @@
 
 .jh-kv{
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px 14px;
   font-size: 13px;
 }
@@ -428,7 +428,9 @@
 }
 
 .jh-kv strong{
+  display: block;
   font-weight: 900;
+  overflow-wrap: anywhere;
 }
 
 .jh-green{ color: var(--jh-green); }
@@ -746,5 +748,11 @@
   }
   .jh-table{
     min-width: 860px;
+  }
+}
+
+@media (max-width: 1280px){
+  .jh-kv{
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
