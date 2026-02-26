@@ -10,6 +10,7 @@ import "./QualityCheckModule.css";
 
 import { getDataClient } from "../lib/amplifyClient";
 import { cancelJobOrderByOrderNumber, getJobOrderByOrderNumber, upsertJobOrder } from "./jobOrderRepo";
+import { getUserDirectory } from "../utils/userDirectoryCache";
 
 import { getUrl, uploadData } from "aws-amplify/storage";
 
@@ -165,14 +166,16 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
     let cancelled = false;
     (async () => {
       try {
-        const res = await (client.models.UserProfile as any).list({ limit: 2000 });
+        const directory = await getUserDirectory(client);
         if (cancelled) return;
 
         const map: Record<string, string> = {};
-        for (const u of res?.data ?? []) {
+        for (const u of directory.users ?? []) {
           const email = normalizeIdentity(u?.email);
-          const name = String(u?.fullName ?? u?.name ?? u?.email ?? "").trim();
-          if (email && name) map[email] = name;
+          const name = String(u?.name ?? u?.email ?? "").trim();
+          if (email && name) {
+            map[email] = name;
+          }
         }
         setUserLabelMap(map);
       } catch {

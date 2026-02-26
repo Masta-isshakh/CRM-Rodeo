@@ -1,5 +1,5 @@
 // src/pages/serviceexecution/ServiceExecutionModule.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./ServiceExecutionModule.css";
 
@@ -16,6 +16,7 @@ import {
 } from "./jobOrderRepo";
 
 import { getUrl } from "aws-amplify/storage";
+import { getUserDirectory, normalizeIdentity } from "../utils/userDirectoryCache";
 
 // -------------------- helpers --------------------
 function safeJsonParse<T>(raw: any, fallback: T): T {
@@ -58,10 +59,6 @@ function resolveActorEmail(user: any) {
     user?.email ?? user?.attributes?.email ?? user?.signInDetails?.loginId ?? user?.name ?? user?.username ?? ""
   ).trim();
   return raw.includes("@") ? raw : "";
-}
-
-function normalizeIdentity(v: any) {
-  return String(v ?? "").trim().toLowerCase();
 }
 
 type AssigneeOption = { value: string; label: string };
@@ -250,6 +247,8 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const pendingPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingPersistJobRef = useRef<any | null>(null);
 
   // close dropdown on outside click
   useEffect(() => {
@@ -270,13 +269,9 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await client.models.UserProfile.list({ limit: 2000 });
+        const directory = await getUserDirectory(client);
         if (cancelled) return;
-        const mapped = (res.data ?? []).map((u: any) => ({
-          name: u.fullName || u.email,
-          email: u.email,
-        }));
-        setSystemUsers(mapped);
+        setSystemUsers(directory.users);
       } catch {
         setSystemUsers([]);
       }
@@ -453,36 +448,100 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   };
 
   const closeDetails = () => {
+    if (pendingPersistTimer.current) {
+      clearTimeout(pendingPersistTimer.current);
+      pendingPersistTimer.current = null;
+    }
+    pendingPersistJobRef.current = null;
     setShowDetails(false);
     setCurrentDetailsJob(null);
     setDetailsEditMode(false);
   };
 
   const persistJob = async (job: any, successText?: string) => {
+    return persistJobWithOptions(job, { successText });
+  };
+
+  const persistJobWithOptions = async (
+    job: any,
+    options?: {
+      successText?: string;
+      refetchDetails?: boolean;
+      showErrorPopup?: boolean;
+    }
+  ) => {
+    const refetchDetails = options?.refetchDetails ?? true;
+    const showErrorPopup = options?.showErrorPopup ?? true;
     setLoading(true);
     try {
       await upsertJobOrder(job);
-      if (successText) {
-        setSuccessMessage(successText);
+      if (options?.successText) {
+        setSuccessMessage(options.successText);
         setShowSuccessPopup(true);
       }
-      if (job?.id) {
+      if (refetchDetails && job?.id) {
         const refreshed = await getJobOrderByOrderNumber(job.id);
         if (refreshed) setCurrentDetailsJob((prev: any) => ({ ...prev, ...refreshed }));
       }
     } catch (e) {
-      setSuccessMessage(`Save failed: ${errMsg(e)}`);
-      setShowSuccessPopup(true);
+      if (showErrorPopup) {
+        setSuccessMessage(`Save failed: ${errMsg(e)}`);
+        setShowSuccessPopup(true);
+      }
     } finally {
       setLoading(false);
     }
   };
 
+  const schedulePersistJob = (job: any) => {
+    pendingPersistJobRef.current = job;
+    if (pendingPersistTimer.current) {
+      clearTimeout(pendingPersistTimer.current);
+    }
+
+    pendingPersistTimer.current = setTimeout(() => {
+      const nextJob = pendingPersistJobRef.current;
+      pendingPersistJobRef.current = null;
+      pendingPersistTimer.current = null;
+      if (nextJob) {
+        void persistJobWithOptions(nextJob, {
+          refetchDetails: false,
+          showErrorPopup: true,
+        });
+      }
+    }, 500);
+  };
+
+  const flushScheduledPersist = async () => {
+    if (pendingPersistTimer.current) {
+      clearTimeout(pendingPersistTimer.current);
+      pendingPersistTimer.current = null;
+    }
+
+    const pending = pendingPersistJobRef.current;
+    pendingPersistJobRef.current = null;
+    if (pending) {
+      await persistJobWithOptions(pending, {
+        refetchDetails: false,
+        showErrorPopup: true,
+      });
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pendingPersistTimer.current) {
+        clearTimeout(pendingPersistTimer.current);
+      }
+      pendingPersistJobRef.current = null;
+    };
+  }, []);
+
   const handleServicesReorder = (reorderedServices: any[]) => {
     if (!currentDetailsJob) return;
     const updated = { ...currentDetailsJob, services: normalizeServices(currentDetailsJob.id, reorderedServices) };
     setCurrentDetailsJob(updated);
-    void persistJob(updated);
+    schedulePersistJob(updated);
   };
 
   const handleServiceUpdate = (serviceId: string, updates: any) => {
@@ -494,12 +553,13 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     Object.assign(svc, updates);
     updated.services = services;
     setCurrentDetailsJob(updated);
-    void persistJob(updated);
+    schedulePersistJob(updated);
   };
 
   // ✅ Add service: persist to JobOrder + create ServiceApprovalRequest
   const handleAddService = async (serviceName: string, price: number): Promise<boolean> => {
     if (!currentDetailsJob) return false;
+    await flushScheduledPersist();
 
     const newService = {
       id: `SVC-${currentDetailsJob.id}-${Date.now()}`,
@@ -552,6 +612,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
   const handleFinishWork = async () => {
     if (!currentDetailsJob) return;
+    await flushScheduledPersist();
 
     const updated = { ...currentDetailsJob };
     const now = new Date().toLocaleString();

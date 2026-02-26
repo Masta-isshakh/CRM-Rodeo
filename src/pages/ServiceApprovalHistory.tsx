@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import "./ServiceApprovalHistory.css";
 import PermissionGate from "./PermissionGate";
 import { getDataClient } from "../lib/amplifyClient";
+import { getUserDirectory } from "../utils/userDirectoryCache";
 
 type Decision = "approved" | "declined" | "pending";
 
@@ -105,14 +106,16 @@ const ServiceApprovalHistory: React.FC = () => {
 
     (async () => {
       try {
-        const res = await (client.models.UserProfile as any).list({ limit: 2000 });
+        const directory = await getUserDirectory(client);
         if (cancelled) return;
 
         const map: Record<string, string> = {};
-        for (const u of res?.data ?? []) {
+        for (const u of directory.users ?? []) {
           const email = normalizeIdentity(u?.email);
-          const name = String(u?.fullName ?? u?.name ?? u?.email ?? "").trim();
-          if (email && name) map[email] = name;
+          const name = String(u?.name ?? u?.email ?? "").trim();
+          if (email && name) {
+            map[email] = name;
+          }
         }
         setUserLabelMap(map);
       } catch {

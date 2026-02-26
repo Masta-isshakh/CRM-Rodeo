@@ -477,19 +477,19 @@
 
 .service-execution-wrapper .service-details-grid {
   display: grid;
-  grid-template-columns: repeat(12, 1fr);
+  grid-template-columns: 1fr;
   gap: 14px;
 }
 
 /* Responsive grid */
 @media (max-width: 1200px) {
   .service-execution-wrapper .service-details-grid {
-    grid-template-columns: repeat(8, 1fr);
+    grid-template-columns: 1fr;
   }
 }
 @media (max-width: 900px) {
   .service-execution-wrapper .service-details-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: 1fr;
   }
   .service-execution-wrapper .task-tabs {
     grid-template-columns: 1fr;
@@ -502,18 +502,18 @@
 ------------------------------*/
 .service-execution-wrapper .epm-detail-card,
 .service-execution-wrapper .pim-detail-card {
-  grid-column: span 6;
+  grid-column: 1 / -1;
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: var(--r);
   box-shadow: var(--shadow2);
-  overflow: hidden;
+  overflow: visible;
 }
 
 @media (max-width: 900px) {
   .service-execution-wrapper .epm-detail-card,
   .service-execution-wrapper .pim-detail-card {
-    grid-column: span 4;
+    grid-column: 1 / -1;
   }
 }
 
