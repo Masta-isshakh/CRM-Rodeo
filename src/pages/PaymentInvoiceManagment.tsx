@@ -54,6 +54,14 @@ function normalizeIdentity(v: any) {
   return String(v ?? "").trim().toLowerCase();
 }
 
+function normalizeActorDisplay(value: any, fallback = "—") {
+  const raw = String(value ?? "").trim();
+  if (!raw) return fallback;
+  const at = raw.indexOf("@");
+  if (at > 0) return raw.slice(0, at).toLowerCase();
+  return raw;
+}
+
 function safeFileName(name: string) {
   return String(name || "file")
     .trim()
@@ -266,7 +274,8 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   const displayUser = (value: any) => {
     const raw = String(value ?? "").trim();
     if (!raw) return "—";
-    return userLabelMap[normalizeIdentity(raw)] || raw;
+    const mapped = userLabelMap[normalizeIdentity(raw)] || raw;
+    return normalizeActorDisplay(mapped);
   };
 
   useEffect(() => {
@@ -450,7 +459,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       amount: fmtQar(toNum(p.amount)),
       discount: fmtQar(0),
       paymentMethod: String(p.method ?? "Cash"),
-      cashierName: String(p.createdBy ?? "System"),
+      cashierName: normalizeActorDisplay(p.createdBy ?? "System", "system"),
       timestamp: p.paidAt
         ? new Date(String(p.paidAt)).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
         : (p.createdAt
@@ -1396,7 +1405,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                                 <td>{p.serial}</td>
                                 <td>{p.amount}</td>
                                 <td>{p.paymentMethod}</td>
-                                <td>{p.cashierName}</td>
+                                <td>{displayUser(p.cashierName)}</td>
                                 <td>{p.timestamp}</td>
                               </tr>
                             ))}

@@ -90,6 +90,14 @@ function normalizeIdentity(v: any) {
   return String(v ?? "").trim().toLowerCase();
 }
 
+function normalizeActorDisplay(value: any, fallback = "—") {
+  const raw = String(value ?? "").trim();
+  if (!raw) return fallback;
+  const at = raw.indexOf("@");
+  if (at > 0) return raw.slice(0, at).toLowerCase();
+  return raw;
+}
+
 function normalizeDateForSummary(v: any) {
   if (!v) return "—";
   const d = new Date(String(v));
@@ -524,7 +532,8 @@ export default function JobOrderHistory({
   const displayUser = (value: any) => {
     const raw = String(value ?? "").trim();
     if (!raw) return "—";
-    return userLabelMap[normalizeIdentity(raw)] || raw;
+    const mapped = userLabelMap[normalizeIdentity(raw)] || raw;
+    return normalizeActorDisplay(mapped);
   };
 
   // -------------------- LIVE HISTORY LIST --------------------
@@ -1290,7 +1299,7 @@ function JobHistoryDetails({
                           <td>{p.serial}</td>
                           <td>{p.amount}</td>
                           <td>{p.paymentMethod}</td>
-                          <td>{p.cashierName}</td>
+                          <td>{displayUser(p.cashierName)}</td>
                           <td>{p.timestamp}</td>
                         </tr>
                       ))}
@@ -1311,7 +1320,7 @@ function JobHistoryDetails({
                   <div><span>Permit ID</span><strong>{order.exitPermit?.permitId || "—"}</strong></div>
                   <div><span>Create Date</span><strong>{order.exitPermit?.createDate || "—"}</strong></div>
                   <div><span>Next Service</span><strong>{order.exitPermit?.nextServiceDate || "—"}</strong></div>
-                  <div><span>Created By</span><strong>{order.exitPermit?.createdBy || "—"}</strong></div>
+                  <div><span>Created By</span><strong>{displayUser(order.exitPermit?.createdBy)}</strong></div>
                   <div><span>Collected By</span><strong>{order.exitPermit?.collectedBy || "—"}</strong></div>
                   <div><span>Mobile</span><strong>{order.exitPermit?.collectedByMobile || "—"}</strong></div>
                 </div>

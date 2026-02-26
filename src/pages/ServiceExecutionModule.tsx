@@ -66,6 +66,14 @@ function resolveActorName(user: any) {
   return resolveActorUsername(user, "serviceexec");
 }
 
+function normalizeActorDisplay(value: any, fallback = "—") {
+  const raw = String(value ?? "").trim();
+  if (!raw) return fallback;
+  const at = raw.indexOf("@");
+  if (at > 0) return raw.slice(0, at).toLowerCase();
+  return raw;
+}
+
 type AssigneeOption = { value: string; label: string };
 
 function normalizeServices(orderNumber: string, services: any[]) {
@@ -229,7 +237,8 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   const displayUser = (value: any) => {
     const normalized = normalizeIdentity(value);
     if (!normalized) return "Not assigned";
-    return assigneeLabelByValue.get(normalized) ?? String(value);
+    const mapped = assigneeLabelByValue.get(normalized) ?? String(value);
+    return normalizeActorDisplay(mapped, "Not assigned");
   };
 
   // UI state
@@ -1042,7 +1051,7 @@ function JobOrderSummaryCard({ order }: any) {
         <div className="epm-info-item"><span className="epm-info-label">Job Order ID</span><span className="epm-info-value">{order.id}</span></div>
         <div className="epm-info-item"><span className="epm-info-label">Order Type</span><span className="epm-info-value">{order.orderType}</span></div>
         <div className="epm-info-item"><span className="epm-info-label">Request Create Date</span><span className="epm-info-value">{order.jobOrderSummary?.createDate || order.createDate}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Created By</span><span className="epm-info-value">{order.jobOrderSummary?.createdBy || "Not specified"}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Created By</span><span className="epm-info-value">{normalizeActorDisplay(order.jobOrderSummary?.createdBy || "Not specified", "Not specified")}</span></div>
         <div className="epm-info-item"><span className="epm-info-label">Expected Delivery</span><span className="epm-info-value">{order.jobOrderSummary?.expectedDelivery || "Not specified"}</span></div>
         <div className="epm-info-item"><span className="epm-info-label">Work Status</span><span className="epm-info-value">{order.workStatus}</span></div>
         <div className="epm-info-item"><span className="epm-info-label">Payment Status</span><span className="epm-info-value">{order.paymentStatus}</span></div>
@@ -1193,7 +1202,7 @@ function PaymentActivityLogCard({ order }: any) {
               <td>{p.amount}</td>
               <td>{p.discount}</td>
               <td>{p.paymentMethod}</td>
-              <td>{p.cashierName}</td>
+              <td>{normalizeActorDisplay(p.cashierName, "—")}</td>
               <td>{p.timestamp}</td>
             </tr>
           ))}

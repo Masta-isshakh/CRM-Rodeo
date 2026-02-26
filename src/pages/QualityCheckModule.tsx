@@ -43,6 +43,14 @@ function normalizeIdentity(v: any) {
   return String(v ?? "").trim().toLowerCase();
 }
 
+function normalizeActorDisplay(value: any, fallback = "—") {
+  const raw = String(value ?? "").trim();
+  if (!raw) return fallback;
+  const at = raw.indexOf("@");
+  if (at > 0) return raw.slice(0, at).toLowerCase();
+  return raw;
+}
+
 function normalizeWorkStatus(rowStatus?: string, label?: string): string {
   const l = String(label ?? "").trim();
   if (l) return l;
@@ -157,7 +165,8 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   const displayUser = (value: any) => {
     const raw = String(value ?? "").trim();
     if (!raw) return "Not assigned";
-    return userLabelMap[normalizeIdentity(raw)] || raw;
+    const mapped = userLabelMap[normalizeIdentity(raw)] || raw;
+    return normalizeActorDisplay(mapped, "Not assigned");
   };
 
   useEffect(() => {
@@ -983,7 +992,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                     </div>
                     <div className="qc-info-item">
                       <span className="qc-info-label">Created By</span>
-                      <span className="qc-info-value">{selectedOrder.jobOrderSummary?.createdBy || "System"}</span>
+                      <span className="qc-info-value">{displayUser(selectedOrder.jobOrderSummary?.createdBy || "System")}</span>
                     </div>
                     <div className="qc-info-item">
                       <span className="qc-info-label">Expected Delivery</span>
@@ -1196,7 +1205,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                               <td>{p.serial}</td>
                               <td>{p.amount}</td>
                               <td>{p.paymentMethod}</td>
-                              <td>{p.cashierName}</td>
+                              <td>{displayUser(p.cashierName)}</td>
                               <td>{p.timestamp}</td>
                             </tr>
                           ))}

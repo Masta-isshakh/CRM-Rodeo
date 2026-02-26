@@ -66,6 +66,14 @@ function normalizeIdentity(v: any) {
   return String(v ?? "").trim().toLowerCase();
 }
 
+function normalizeActorDisplay(value: any, fallback = "—") {
+  const raw = String(value ?? "").trim();
+  if (!raw) return fallback;
+  const at = raw.indexOf("@");
+  if (at > 0) return raw.slice(0, at).toLowerCase();
+  return raw;
+}
+
 function parseServicesFromJob(job: any): { name: string; amount: string }[] {
   const parsed = (() => {
     try {
@@ -132,7 +140,7 @@ const ServiceApprovalHistory: React.FC = () => {
     const raw = String(value ?? "").trim();
     if (!raw) return "—";
     const mapped = userLabelMap[normalizeIdentity(raw)];
-    return mapped || raw;
+    return normalizeActorDisplay(mapped || raw);
   };
 
   useEffect(() => {

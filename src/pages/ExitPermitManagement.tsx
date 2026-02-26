@@ -29,6 +29,14 @@ function normalizeIdentity(v: any) {
   return String(v ?? "").trim().toLowerCase();
 }
 
+function normalizeActorDisplay(value: any, fallback = "—") {
+  const raw = String(value ?? "").trim();
+  if (!raw) return fallback;
+  const at = raw.indexOf("@");
+  if (at > 0) return raw.slice(0, at).toLowerCase();
+  return raw;
+}
+
 function resolveActorName(user: any) {
   return resolveActorUsername(user, "system user");
 }
@@ -266,7 +274,8 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
   const displayUser = (value: any) => {
     const raw = String(value ?? "").trim();
     if (!raw) return "Not assigned";
-    return userLabelMap[normalizeIdentity(raw)] || raw;
+    const mapped = userLabelMap[normalizeIdentity(raw)] || raw;
+    return normalizeActorDisplay(mapped, "Not assigned");
   };
 
   useEffect(() => {
@@ -1101,7 +1110,7 @@ const JobOrderSummaryCard = ({ order }: any) => {
         </div>
         <div className="epm-info-item">
           <span className="epm-info-label">Created By</span>
-          <span className="epm-info-value">{order.jobOrderSummary?.createdBy || "Not specified"}</span>
+          <span className="epm-info-value">{normalizeActorDisplay(order.jobOrderSummary?.createdBy || "Not specified", "Not specified")}</span>
         </div>
         <div className="epm-info-item">
           <span className="epm-info-label">Expected Delivery Date</span>
@@ -1463,7 +1472,7 @@ const PaymentActivityLogCard = ({ order }: any) => {
                     {payment.paymentMethod}
                   </span>
                 </td>
-                <td className="epm-cashier-column">{payment.cashierName}</td>
+                <td className="epm-cashier-column">{normalizeActorDisplay(payment.cashierName, "—")}</td>
                 <td className="epm-timestamp-column">{payment.timestamp}</td>
               </tr>
             ))}
@@ -1478,7 +1487,7 @@ const ExitPermitCard = ({ order }: any) => {
   const permitId = order.exitPermit?.permitId || "N/A";
   const createDate = order.exitPermit?.createDate || "N/A";
   const nextServiceDate = order.exitPermit?.nextServiceDate || "N/A";
-  const createdBy = order.exitPermit?.createdBy || "N/A";
+  const createdBy = normalizeActorDisplay(order.exitPermit?.createdBy || "N/A", "N/A");
   const collectedBy = order.exitPermit?.collectedBy || "N/A";
   const collectedByMobile = order.exitPermit?.collectedByMobile || "N/A";
 

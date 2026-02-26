@@ -91,6 +91,15 @@ function joFirst(...vals: any[]) {
   return "";
 }
 
+function toUsernameDisplay(v: any) {
+  const raw = joStr(v);
+  if (!raw) return "";
+  const normalized = raw.toLowerCase();
+  const at = normalized.indexOf("@");
+  if (at > 0) return normalized.slice(0, at);
+  return normalized;
+}
+
 function joIsPlaceholderName(s: string) {
   const t = joStr(s).toLowerCase();
   return (
@@ -134,10 +143,10 @@ function resolveCreatedBy(order: any) {
       order?.creatorName,
       order?.createdUserName
     );
-    return alt && !joIsPlaceholderName(alt) ? alt : (primary || "—");
+    return alt && !joIsPlaceholderName(alt) ? toUsernameDisplay(alt) : toUsernameDisplay(primary || "—");
   }
 
-  return primary || "—";
+  return toUsernameDisplay(primary || "—");
 }
 
 /** ✅ Roadmap actor should represent who performed the step (NOT assignment) */
@@ -164,7 +173,7 @@ function resolveRoadmapActor(step: any, order: any) {
     isNewRequestStep ? resolveCreatedBy(order) : ""
   );
 
-  return joIsPlaceholderName(actor) ? "" : actor;
+  return joIsPlaceholderName(actor) ? "" : toUsernameDisplay(actor);
 }
 
 /** ✅ Cashier name resolver (never use paymentMethod as fallback) */
@@ -184,7 +193,7 @@ function resolveCashierName(payment: any) {
     payment?.employeeName
   );
 
-  return cashier || "—";
+  return toUsernameDisplay(cashier || "—");
 }
 
 // ============================================
@@ -2485,11 +2494,11 @@ function StepFourConfirm({
 // ============================================
 // SIMPLE DISPLAY CARDS
 // ============================================
-function JobOrderSummaryCard({ order, currentUser }: any) {
+function JobOrderSummaryCard({ order }: any) {
   const summary = order.jobOrderSummary || {};
   const delivery = order.deliveryInfo || {};
   const serviceProgress = order.serviceProgressInfo || {};
-    const createdBy = resolveAuthenticatedEmail(currentUser) || resolveCreatedBy(order);
+    const createdBy = resolveCreatedBy(order);
 
   
   return (
