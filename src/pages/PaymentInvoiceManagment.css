@@ -350,6 +350,51 @@
 .pim-label { font-size: 12px; font-weight: 900; color: var(--muted); }
 .pim-value { font-size: 12px; font-weight: 950; color: var(--text); text-align: right; }
 
+/* Final parity pass with JobCards details */
+.jo-details-v3 .pim-card{
+  border-radius: 8px;
+  border: 1px solid #dde5ef;
+  box-shadow: none;
+}
+
+.jo-details-v3 .pim-card h3{
+  font-size: 13px;
+  margin: 0 0 9px 0;
+  padding: 0 0 9px 0;
+  line-height: 1.25;
+  border-bottom: 1px solid #e8edf3;
+  background: transparent;
+  color: #243b53;
+}
+
+.jo-details-v3 .pim-card h3 i{
+  color: inherit;
+}
+
+.jo-details-v3 .pim-card-content{
+  padding: 0;
+}
+
+.jo-details-v3 .pim-info-row{
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  padding: 11px 12px;
+}
+
+.jo-details-v3 .pim-label,
+.jo-details-v3 .pim-value{
+  text-align: left;
+}
+
+.jo-details-v3 .pim-badge,
+.jo-details-v3 .status-badge,
+.jo-details-v3 .epm-status-badge{
+  min-height: 25px;
+  line-height: 1;
+}
+
 .pim-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .pim-card-head-row {
   display: flex;

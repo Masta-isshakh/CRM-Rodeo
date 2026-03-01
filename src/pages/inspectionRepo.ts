@@ -282,7 +282,7 @@ export function buildInspectionReportHtml(args: {
       <div class="grid">
         <div><span class="lbl">Job Order ID</span><span class="val">${orderNumber}</span></div>
         <div><span class="lbl">Request Date</span><span class="val">${detailData?.createDate || "N/A"}</span></div>
-        <div><span class="lbl">Created By</span><span class="val">${detailData?.createdBy || "N/A"}</span></div>
+        <div><span class="lbl">Created By</span><span class="val">${detailData?.createdBy || "—"}</span></div>
         <div><span class="lbl">Expected Delivery</span><span class="val">${detailData?.expectedDelivery || "N/A"}</span></div>
       </div>
     </div>

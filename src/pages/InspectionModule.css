@@ -513,6 +513,10 @@ body{
   gap: 14px;
 }
 
+.jo-details-v3 .detail-cards{
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+}
+
 .epm-detail-card,
 .pim-detail-card{
   background: #fff;
@@ -671,6 +675,51 @@ body{
 ========================= */
 .inspection-list-card{
   margin-top: 14px;
+}
+
+.jo-details-v3 .inspection-list-card{
+  margin-top: 0;
+}
+
+.inspection-summary-actions{
+  margin-top: 12px;
+}
+
+.inspection-service-head,
+.inspection-list-head{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.inspection-list-head{
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e8edf3;
+}
+
+.inspection-service-head h3,
+.inspection-list-head h3{
+  margin: 0;
+  flex: 1;
+}
+
+.inspection-add-service-btn{
+  padding: 8px 16px;
+  font-size: 14px;
+}
+
+.inspection-finish-btn{
+  margin-left: 0;
+}
+
+.inspection-empty-inline{
+  padding: 12px;
+  text-align: center;
+  color: #64748b;
+  border: 1px dashed #d6dde6;
+  border-radius: 10px;
 }
 
 .inspection-section{
@@ -1263,9 +1312,7 @@ body{
    Responsive
 ========================= */
 @media (max-width: 1100px){
-  .detail-cards{
-    grid-template-columns: 1fr;
-  }
+  .detail-cards{ grid-template-columns: 1fr; }
   .services-grid{
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -1345,5 +1392,19 @@ body{
     height: 38px;
     min-width: 38px;
     border-radius: 10px;
+  }
+}
+
+@media (max-width: 720px){
+  .inspection-service-head,
+  .inspection-list-head{
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .inspection-add-service-btn,
+  .inspection-finish-btn{
+    width: 100%;
+    justify-content: center;
   }
 }

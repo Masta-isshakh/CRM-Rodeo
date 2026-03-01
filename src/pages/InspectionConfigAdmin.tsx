@@ -15,6 +15,7 @@ import {
   saveInspectionConfigToBackend,
   loadInspectionConfig,
 } from "./inspectionRepo";
+import { normalizeActorIdentity } from "../utils/actorIdentity";
 
 function errMsg(e: unknown) {
   const anyE = e as any;
@@ -126,7 +127,7 @@ export default function InspectionConfigAdmin({ currentUser }: any) {
             Active record:{" "}
             <strong>{recordMeta?.id ? `v${recordMeta.version ?? "?"}` : "Not found (will create on save)"}</strong>
           </div>
-          <div>Updated By: <strong>{recordMeta?.updatedBy ?? "-"}</strong> • Updated At: <strong>{recordMeta?.updatedAt ?? "-"}</strong></div>
+          <div>Updated By: <strong>{normalizeActorIdentity(recordMeta?.updatedBy) || "-"}</strong> • Updated At: <strong>{recordMeta?.updatedAt ?? "-"}</strong></div>
         </div>
 
         {parseError && (

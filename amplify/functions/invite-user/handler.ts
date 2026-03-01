@@ -6,6 +6,7 @@ import {
   AdminAddUserToGroupCommand,
   AdminCreateUserCommand,
   AdminGetUserCommand,
+  AdminSetUserPasswordCommand,
   GetGroupCommand,
   CreateGroupCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
@@ -21,6 +22,14 @@ const cognito = new CognitoIdentityProviderClient();
 
 function getAttr(attrs: { Name?: string; Value?: string }[] | undefined, name: string) {
   return (attrs ?? []).find((a) => a.Name === name)?.Value;
+}
+
+function generateTemporaryPassword() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const pick = (len: number) =>
+    Array.from({ length: len }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+
+  return `${pick(4)}aA1!${pick(6)}`;
 }
 
 async function ensureGroup(userPoolId: string, groupName: string, description: string) {
@@ -65,6 +74,8 @@ export const handler: Handler = async (event) => {
   await ensureGroup(userPoolId, departmentKey, departmentName);
 
   let sub: string | undefined;
+  let inviteAction: "CREATED" | "RESENT" = "CREATED";
+  const temporaryPassword = generateTemporaryPassword();
 
   // 1) Create user OR re-send invite if exists
   try {
@@ -72,6 +83,7 @@ export const handler: Handler = async (event) => {
       new AdminCreateUserCommand({
         UserPoolId: userPoolId,
         Username: email,
+        TemporaryPassword: temporaryPassword,
         UserAttributes: [
           { Name: "email", Value: email },
           { Name: "email_verified", Value: "true" },
@@ -84,6 +96,17 @@ export const handler: Handler = async (event) => {
   } catch (e: any) {
     if (e?.name !== "UsernameExistsException") throw e;
 
+    inviteAction = "RESENT";
+
+    await cognito.send(
+      new AdminSetUserPasswordCommand({
+        UserPoolId: userPoolId,
+        Username: email,
+        Password: temporaryPassword,
+        Permanent: false,
+      })
+    );
+
     try {
       const resendRes = await cognito.send(
         new AdminCreateUserCommand({
@@ -94,8 +117,9 @@ export const handler: Handler = async (event) => {
         })
       );
       sub = getAttr(resendRes.User?.Attributes, "sub");
-    } catch {
-      // ignore
+    } catch (resendError: any) {
+      const msg = String(resendError?.message ?? resendError ?? "Unknown resend failure");
+      throw new Error(`User exists, but invitation email could not be resent: ${msg}`);
     }
   }
 
@@ -150,5 +174,14 @@ export const handler: Handler = async (event) => {
     } as any);
   }
 
-  return { ok: true, invitedEmail: email, departmentKey, departmentName, sub, mobileNumber: mobileNumber || null };
+  return {
+    ok: true,
+    invitedEmail: email,
+    departmentKey,
+    departmentName,
+    sub,
+    inviteAction,
+    emailDeliveryMedium: "EMAIL",
+    mobileNumber: mobileNumber || null,
+  };
 };

@@ -5,6 +5,8 @@ import "./JobOrderHistory.css";
 import PermissionGate from "./PermissionGate";
 import { getDataClient } from "../lib/amplifyClient";
 import { getUserDirectory } from "../utils/userDirectoryCache";
+import { firstPreferredActorValue, resolveActorDisplay, resolveOrderCreatedBy, resolveOrderUpdatedBy } from "../utils/actorIdentity";
+import UnifiedJobOrderRoadmap from "../components/UnifiedJobOrderRoadmap";
 
 import { getJobOrderByOrderNumber } from "./jobOrderRepo";
 import { getUrl } from "aws-amplify/storage";
@@ -62,7 +64,7 @@ function uiWorkStatus(rowStatus?: string, label?: string) {
     case "READY":
       return "Ready";
     case "IN_PROGRESS":
-      return "Inprogress";
+      return "Service_Operation";
     case "OPEN":
       return "New Request";
     case "DRAFT":
@@ -90,14 +92,6 @@ function normalizeIdentity(v: any) {
   return String(v ?? "").trim().toLowerCase();
 }
 
-function normalizeActorDisplay(value: any, fallback = "—") {
-  const raw = String(value ?? "").trim();
-  if (!raw) return fallback;
-  const at = raw.indexOf("@");
-  if (at > 0) return raw.slice(0, at).toLowerCase();
-  return raw;
-}
-
 function normalizeDateForSummary(v: any) {
   if (!v) return "—";
   const d = new Date(String(v));
@@ -117,17 +111,30 @@ function toSummaryText(v: any, fallback = "—") {
   return out || fallback;
 }
 
-function toSummaryStatus(v: any, fallback = "Not Created") {
-  const out = String(v ?? "").trim();
-  return out || fallback;
+function mapExitPermitStatusToUi(v: any, hasPermitId = false) {
+  const s = String(v ?? "").trim().toUpperCase();
+  if (s === "APPROVED" || s === "CREATED" || s === "COMPLETED") return "Completed";
+  if (s === "PENDING" || s === "NOT_CREATED" || s === "NOT CREATED") return "Pending";
+  if (s === "REJECTED") return "Rejected";
+  if (s === "NOT_REQUIRED" || s === "NOT REQUIRED") return "Not Required";
+  if (hasPermitId) return "Completed";
+  return "Not Required";
 }
 
-function includeInJobHistory(workStatus: string, paymentStatus: string) {
+function toSummaryStatus(v: any, fallback = "Not Required") {
+  const out = String(v ?? "").trim();
+  if (out) return mapExitPermitStatusToUi(out);
+  return mapExitPermitStatusToUi(fallback);
+}
+
+function includeInJobHistory(workStatus: string, paymentStatus: string, exitPermitStatus?: string) {
   const work = normalizeIdentity(workStatus);
   const payment = normalizeIdentity(paymentStatus);
+  const permit = normalizeIdentity(exitPermitStatus);
+  const hasCreatedExitPermit = permit === "created" || permit === "approved" || permit === "completed";
   const isCancelledAndUnpaid = work === "cancelled" && payment === "unpaid";
   const isCompletedAndFullyPaid = work === "completed" && payment === "fully paid";
-  return isCancelledAndUnpaid || isCompletedAndFullyPaid;
+  return hasCreatedExitPermit || isCancelledAndUnpaid || isCompletedAndFullyPaid;
 }
 
 type ListRow = {
@@ -185,7 +192,7 @@ type RoadmapStepUi = {
 };
 
 function stepKey(step: any) {
-  return String(step ?? "").trim().toLowerCase();
+  return String(step ?? "").trim().toLowerCase().replace(/[^a-z]/g, "");
 }
 
 function normalizeRoadmapTimestamp(v: any) {
@@ -465,8 +472,133 @@ function paymentStatusClass(status: string) {
   return "jh-badge jh-badge-neutral";
 }
 
+function permitStatusClass(status: string) {
+  const s = String(status ?? "").toLowerCase();
+  if (s.includes("completed")) return "jh-badge jh-badge-success";
+  if (s.includes("pending")) return "jh-badge jh-badge-warn";
+  if (s.includes("rejected")) return "jh-badge jh-badge-danger";
+  return "jh-badge jh-badge-info";
+}
+
 function orderTypeClass(type: string) {
   return String(type ?? "").toLowerCase().includes("new") ? "jh-pill jh-pill-blue" : "jh-pill jh-pill-slate";
+}
+
+function resolveExitPermitActor(order: any, roadmap: any[]) {
+  const fromPermit = String(order?.exitPermit?.createdBy ?? "").trim();
+  if (fromPermit) return fromPermit;
+
+  const fromInfo = String(order?.exitPermitInfo?.createdBy ?? order?.exitPermitInfo?.actionBy ?? "").trim();
+  if (fromInfo) return fromInfo;
+
+  const exitStep = (Array.isArray(roadmap) ? roadmap : []).find((step: any) => {
+    const key = String(step?.step ?? "").trim().toLowerCase().replace(/[^a-z]/g, "");
+    return key === "exitpermitissued" || key === "exitpermit";
+  });
+
+  const fromRoadmap = String(exitStep?.actionBy ?? "").trim();
+  return fromRoadmap || "";
+}
+
+function resolveSummaryActors(row: any, detailed: any, parsed: any, roadmap: any[]) {
+  const roadmapList = Array.isArray(roadmap) ? roadmap : [];
+  const newRequestStep = roadmapList.find((step: any) => {
+    const key = String(step?.step ?? "").trim().toLowerCase().replace(/[^a-z]/g, "");
+    return key === "newrequest";
+  });
+  const parsedSummary = parsed?.jobOrderSummary ?? {};
+
+  const createdBy = firstPreferredActorValue(
+    detailed?.jobOrderSummary?.createdByName,
+    detailed?.jobOrderSummary?.createdBy,
+    detailed?.jobOrderSummary?.createBy,
+    parsedSummary?.createdByName,
+    parsedSummary?.createdBy,
+    parsedSummary?.createBy,
+    parsed?.createdBy,
+    row?.createdBy,
+    detailed?.createdBy,
+    newRequestStep?.actionBy,
+    newRequestStep?.updatedBy,
+    newRequestStep?.createdBy,
+    detailed?.customerDetails?.createdBy,
+    detailed?.vehicleDetails?.createdBy,
+    row?.updatedBy,
+    detailed?.updatedBy
+  );
+
+  const updatedBy = firstPreferredActorValue(
+    detailed?.jobOrderSummary?.updatedBy,
+    parsedSummary?.updatedBy,
+    row?.updatedBy,
+    detailed?.updatedBy,
+    parsed?.updatedBy,
+    roadmapList.slice().reverse().find((step: any) => String(step?.actionBy ?? "").trim())?.actionBy,
+    createdBy
+  );
+
+  return {
+    createdBy: createdBy || "—",
+    updatedBy: updatedBy || "—",
+  };
+}
+
+function parseHistoryServiceDateTime(value: any): Date | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+
+  const direct = new Date(raw);
+  if (!Number.isNaN(direct.getTime())) return direct;
+
+  const hhmm = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (hhmm) {
+    const now = new Date();
+    const h = Number(hhmm[1]);
+    const m = Number(hhmm[2]);
+    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0);
+    }
+  }
+
+  return null;
+}
+
+function formatHistoryServiceDuration(startValue: any, endValue: any): string {
+  const start = parseHistoryServiceDateTime(startValue);
+  const end = parseHistoryServiceDateTime(endValue);
+  if (!start || !end) return "Not started";
+
+  const diffMs = end.getTime() - start.getTime();
+  if (!Number.isFinite(diffMs) || diffMs <= 0) return "0m";
+
+  const totalMinutes = Math.floor(diffMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours <= 0) return `${minutes}m`;
+  if (minutes <= 0) return `${hours}h`;
+  return `${hours}h ${minutes}m`;
+}
+
+function resolveHistoryServiceActor(service: any, displayUser: (value: any) => string): string {
+  const actorCandidates = [
+    service?.completedByName,
+    service?.completedBy,
+    service?.endedBy,
+    service?.updatedByName,
+    service?.updatedBy,
+    service?.actionBy,
+    service?.doneBy,
+    service?.technicianName,
+    service?.technician,
+    service?.assignedTo,
+    Array.isArray(service?.technicians) ? service.technicians[0] : "",
+  ];
+
+  const actor = actorCandidates.find((candidate) => String(candidate ?? "").trim().length > 0) ?? "";
+
+  const out = displayUser(actor);
+  return out || "Not assigned";
 }
 
 export default function JobOrderHistory({
@@ -510,15 +642,7 @@ export default function JobOrderHistory({
         const directory = await getUserDirectory(client);
         if (cancelled) return;
 
-        const map: Record<string, string> = {};
-        for (const u of directory.users ?? []) {
-          const email = normalizeIdentity(u?.email);
-          const name = String(u?.name ?? u?.email ?? "").trim();
-          if (email && name) {
-            map[email] = name;
-          }
-        }
-        setUserLabelMap(map);
+        setUserLabelMap(directory.identityToUsernameMap ?? {});
       } catch {
         if (!cancelled) setUserLabelMap({});
       }
@@ -530,10 +654,10 @@ export default function JobOrderHistory({
   }, [client]);
 
   const displayUser = (value: any) => {
-    const raw = String(value ?? "").trim();
-    if (!raw) return "—";
-    const mapped = userLabelMap[normalizeIdentity(raw)] || raw;
-    return normalizeActorDisplay(mapped);
+    return resolveActorDisplay(value, {
+      identityToUsernameMap: userLabelMap,
+      fallback: "—",
+    });
   };
 
   // -------------------- LIVE HISTORY LIST --------------------
@@ -577,7 +701,16 @@ export default function JobOrderHistory({
             _parsed: parsed,
           };
         })
-        .filter((row: ListRow) => includeInJobHistory(row.workStatus, row.paymentStatus));
+        .filter((row: ListRow) => {
+          const permitStatus =
+            String(
+              row._parsed?.exitPermitStatus ??
+                row._parsed?.exitPermitInfo?.status ??
+                row._parsed?.exitPermit?.status ??
+                ""
+            ).trim() || mapExitPermitStatusToUi("", Boolean(row._parsed?.exitPermit?.permitId));
+          return includeInJobHistory(row.workStatus, row.paymentStatus, permitStatus);
+        });
 
         // newest first
         mapped.sort((a, b) => String(b.createdAtIso).localeCompare(String(a.createdAtIso)));
@@ -737,6 +870,115 @@ export default function JobOrderHistory({
         invoices: normalizedInvoices, // ✅ normalized invoices
       };
 
+      const hasAnyExitPermitData = Boolean(
+        parsed?.exitPermit ||
+          detailed?.exitPermit ||
+          parsed?.exitPermitInfo ||
+          detailed?.exitPermitInfo ||
+          row?.exitPermitStatus ||
+          row?.exitPermitDate ||
+          row?.nextServiceDate
+      );
+
+      const mergedExitPermit = hasAnyExitPermitData
+        ? {
+            permitId:
+              String(
+                parsed?.exitPermit?.permitId ??
+                  detailed?.exitPermit?.permitId ??
+                  parsed?.exitPermitInfo?.permitId ??
+                  detailed?.exitPermitInfo?.permitId ??
+                  ""
+              ).trim(),
+            createDate:
+              String(
+                parsed?.exitPermit?.createDate ??
+                  detailed?.exitPermit?.createDate ??
+                  parsed?.exitPermitInfo?.createDate ??
+                  detailed?.exitPermitInfo?.createDate ??
+                  normalizeDateTimeForSummary(row?.exitPermitDate ?? detailed?.exitPermitDate ?? row?.updatedAt) ??
+                  ""
+              ).trim(),
+            nextServiceDate:
+              String(
+                parsed?.exitPermit?.nextServiceDate ??
+                  detailed?.exitPermit?.nextServiceDate ??
+                  parsed?.exitPermitInfo?.nextServiceDate ??
+                  detailed?.exitPermitInfo?.nextServiceDate ??
+                  row?.nextServiceDate ??
+                  ""
+              ).trim(),
+            createdBy:
+              String(
+                parsed?.exitPermit?.createdBy ??
+                  detailed?.exitPermit?.createdBy ??
+                  parsed?.exitPermitInfo?.createdBy ??
+                  detailed?.exitPermitInfo?.createdBy ??
+                  parsed?.exitPermitInfo?.actionBy ??
+                  detailed?.exitPermitInfo?.actionBy ??
+                  row?.updatedBy ??
+                  detailed?.updatedBy ??
+                  ""
+              ).trim(),
+            collectedBy:
+              String(
+                parsed?.exitPermit?.collectedBy ??
+                  detailed?.exitPermit?.collectedBy ??
+                  parsed?.exitPermitInfo?.collectedBy ??
+                  detailed?.exitPermitInfo?.collectedBy ??
+                  ""
+              ).trim(),
+            collectedByMobile:
+              String(
+                parsed?.exitPermit?.collectedByMobile ??
+                  detailed?.exitPermit?.collectedByMobile ??
+                  parsed?.exitPermitInfo?.collectedByMobile ??
+                  detailed?.exitPermitInfo?.collectedByMobile ??
+                  parsed?.exitPermitInfo?.mobileNumber ??
+                  detailed?.exitPermitInfo?.mobileNumber ??
+                  ""
+              ).trim(),
+            status:
+              String(
+                parsed?.exitPermit?.status ??
+                  detailed?.exitPermit?.status ??
+                  parsed?.exitPermitInfo?.status ??
+                  detailed?.exitPermitInfo?.status ??
+                  row?.exitPermitStatus ??
+                  detailed?.exitPermitStatus ??
+                  ""
+              ).trim(),
+          }
+        : null;
+
+  const summaryActors = resolveSummaryActors(row, detailed, parsed, roadmap);
+
+  const summarySourceOrder = {
+    ...detailed,
+    ...parsed,
+    roadmap,
+    customerDetails,
+    vehicleDetails,
+    createdBy: summaryActors.createdBy,
+    updatedBy: summaryActors.updatedBy,
+    jobOrderSummary: {
+      ...(detailed?.jobOrderSummary ?? {}),
+      ...(parsed?.jobOrderSummary ?? {}),
+      createdBy: summaryActors.createdBy,
+      updatedBy: summaryActors.updatedBy,
+    },
+  };
+
+  const resolvedCreatedBy = resolveOrderCreatedBy(summarySourceOrder, {
+    identityToUsernameMap: userLabelMap,
+    fallback: "—",
+  });
+
+  const resolvedUpdatedBy = resolveOrderUpdatedBy(summarySourceOrder, {
+    identityToUsernameMap: userLabelMap,
+    fallback: "—",
+  });
+
       const merged: DetailsOrder = {
         ...detailed,
         _backendId: String(detailed._backendId),
@@ -767,7 +1009,7 @@ export default function JobOrderHistory({
         billing,
         documents,
 
-        exitPermit: parsed?.exitPermit ?? null, // if you store it in dataJson
+        exitPermit: mergedExitPermit,
         customerNotes: parsed?.customerNotes ?? row?.customerNotes ?? detailed?.customerNotes ?? null,
 
         paymentActivityLog: Array.isArray(detailed?.paymentActivityLog) ? detailed.paymentActivityLog : [],
@@ -777,17 +1019,15 @@ export default function JobOrderHistory({
           orderType: String(row?.orderType ?? detailed?.orderType ?? parsed?.orderType ?? "Job Order"),
           requestCreateDate: normalizeDateForSummary(row?.createdAt ?? detailed?.createDate ?? parsed?.createDate),
           requestCreateDateTime: normalizeDateTimeForSummary(row?.createdAt ?? detailed?.createDate ?? parsed?.createDate),
-          createdBy: toSummaryText(
-            parsed?.createdBy ?? row?.createdBy ?? detailed?.createdBy ?? row?.updatedBy ?? detailed?.updatedBy
-          ),
+          createdBy: toSummaryText(resolvedCreatedBy),
           expectedDeliveryDate: normalizeDateForSummary(
             parsed?.expectedDeliveryDate ?? row?.expectedDeliveryDate ?? detailed?.expectedDeliveryDate
           ),
           workStatus: uiWorkStatus(row?.status, row?.workStatusLabel ?? parsed?.workStatusLabel ?? detailed?.workStatus),
           paymentStatus: uiPaymentStatus(row?.paymentStatus, row?.paymentStatusLabel ?? parsed?.paymentStatusLabel ?? detailed?.paymentStatus),
           exitPermitStatus: toSummaryStatus(
-            parsed?.exitPermit?.status ?? row?.exitPermitStatus ?? detailed?.exitPermitStatus,
-            parsed?.exitPermit ? "Created" : "Not Created"
+            parsed?.exitPermit?.status ?? parsed?.exitPermitInfo?.status ?? row?.exitPermitStatus ?? detailed?.exitPermitStatus,
+            parsed?.exitPermit || detailed?.exitPermit || row?.exitPermitStatus ? "Completed" : "Not Required"
           ),
           customerName: toSummaryText(row?.customerName ?? detailed?.customerName ?? parsed?.customerName),
           customerMobile: toSummaryText(row?.customerPhone ?? detailed?.mobile ?? parsed?.customerPhone),
@@ -795,7 +1035,7 @@ export default function JobOrderHistory({
           orderStatusEnum: toSummaryText(row?.status, "—"),
           paymentStatusEnum: toSummaryText(row?.paymentStatus, "—"),
           updatedAt: normalizeDateTimeForSummary(row?.updatedAt ?? detailed?.updatedAt),
-          updatedBy: toSummaryText(row?.updatedBy ?? detailed?.updatedBy),
+          updatedBy: toSummaryText(resolvedUpdatedBy),
         },
       };
 
@@ -828,6 +1068,7 @@ export default function JobOrderHistory({
         onClose={closeDetails}
         currentUser={currentUser}
         displayUser={displayUser}
+        actorMap={userLabelMap}
       />
     );
   }
@@ -1073,20 +1314,34 @@ function JobHistoryDetails({
   loading,
   onClose,
   displayUser,
+  actorMap,
 }: {
   order: DetailsOrder;
   loading: boolean;
   onClose: () => void;
   currentUser: any;
   displayUser: (value: any) => string;
+  actorMap: Record<string, string>;
 }) {
   const invoices: InvoiceUi[] = Array.isArray(order?.billing?.invoices) ? order.billing.invoices : [];
   const roadmap: RoadmapStepUi[] = Array.isArray(order?.roadmap) ? order.roadmap : [];
   const docs: DocUi[] = Array.isArray(order?.documents) ? order.documents : [];
   const summary = order?.summary ?? {};
+  const services: any[] = Array.isArray(order?.services) ? order.services : [];
+  const servicesCompleted = services.filter((service: any) => String(service?.status ?? "").trim().toLowerCase() === "completed").length;
+  const servicesProgressPercent = services.length ? Math.round((servicesCompleted / services.length) * 100) : 0;
+  const servicesProgressLabel = services.length ? `${servicesCompleted}/${services.length} completed` : "0/0 completed";
+  const createdByDisplay = resolveOrderCreatedBy(order, {
+    identityToUsernameMap: actorMap,
+    fallback: "—",
+  });
+  const updatedByDisplay = resolveOrderUpdatedBy(order, {
+    identityToUsernameMap: actorMap,
+    fallback: "—",
+  });
 
   return (
-    <div className="jh-details">
+    <div className="jh-details jo-details-v3">
       <div className="jh-details-head">
         <div className="jh-details-title">
           <h2>
@@ -1103,32 +1358,45 @@ function JobHistoryDetails({
       <div className="jh-details-body">
         <div className="jh-grid">
           <PermissionGate moduleId="jobhistory" optionId="jobhistory_summary">
-            <div className="jh-card">
-              <h3><i className="fas fa-info-circle" /> Summary</h3>
-              <div className="jh-kv">
-                <div><span>Job Order ID</span><strong>{summary.jobOrderId || order.id}</strong></div>
-                <div><span>Order Type</span><strong>{summary.orderType || order.orderType || "Job Order"}</strong></div>
-                <div><span>Request Create Date</span><strong>{summary.requestCreateDate || "—"}</strong></div>
-                <div><span>Created By</span><strong>{displayUser(summary.createdBy)}</strong></div>
-                <div><span>Expected Delivery Date</span><strong>{summary.expectedDeliveryDate || "—"}</strong></div>
-                <div><span>Work Status</span><strong className={workStatusClass(summary.workStatus || order.workStatus)}>{summary.workStatus || order.workStatus}</strong></div>
-                <div><span>Payment Status</span><strong className={paymentStatusClass(summary.paymentStatus || order.paymentStatus)}>{summary.paymentStatus || order.paymentStatus}</strong></div>
-                <div><span>Exit Permit Status</span><strong>{summary.exitPermitStatus || "Not Created"}</strong></div>
-                <div><span>Customer Name</span><strong>{summary.customerName || order.customerName || "—"}</strong></div>
-                <div><span>Customer Mobile</span><strong>{summary.customerMobile || order.mobile || "—"}</strong></div>
-                <div><span>Vehicle Plate</span><strong>{summary.vehiclePlate || order.vehiclePlate || "—"}</strong></div>
-                <div><span>Order Status (Enum)</span><strong>{summary.orderStatusEnum || "—"}</strong></div>
-                <div><span>Payment Status (Enum)</span><strong>{summary.paymentStatusEnum || "—"}</strong></div>
-                <div><span>Last Updated</span><strong>{summary.updatedAt || "—"}</strong></div>
-                <div><span>Updated By</span><strong>{displayUser(summary.updatedBy)}</strong></div>
+            <div className="epm-detail-card jh-summary-card">
+              <h3><i className="fas fa-info-circle" /> Job Order Summary</h3>
+              <div className="epm-card-content jh-kv">
+                <div className="epm-info-item"><span className="epm-info-label">Job Order ID</span><span className="epm-info-value">{summary.jobOrderId || order.id}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Order Type</span><span className="epm-info-value">{summary.orderType || order.orderType || "Job Order"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Request Create Date</span><span className="epm-info-value">{summary.requestCreateDate || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Created By</span><span className="epm-info-value">{createdByDisplay}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Expected Delivery Date</span><span className="epm-info-value">{summary.expectedDeliveryDate || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Work Status</span><span className={`epm-status-badge status-badge ${workStatusClass(summary.workStatus || order.workStatus)}`}>{summary.workStatus || order.workStatus || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Payment Status</span><span className={`epm-status-badge status-badge ${paymentStatusClass(summary.paymentStatus || order.paymentStatus)}`}>{summary.paymentStatus || order.paymentStatus || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Exit Permit Status</span><span className={`epm-status-badge status-badge ${permitStatusClass(summary.exitPermitStatus || "Not Required")}`}>{summary.exitPermitStatus || "Not Required"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Customer Name</span><span className="epm-info-value">{summary.customerName || order.customerName || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Customer Mobile</span><span className="epm-info-value">{summary.customerMobile || order.mobile || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Vehicle Plate</span><span className="epm-info-value">{summary.vehiclePlate || order.vehiclePlate || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Order Status (Enum)</span><span className="epm-info-value">{summary.orderStatusEnum || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Payment Status (Enum)</span><span className="epm-info-value">{summary.paymentStatusEnum || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Last Updated</span><span className="epm-info-value">{summary.updatedAt || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Updated By</span><span className="epm-info-value">{updatedByDisplay}</span></div>
+                {services.length > 0 ? (
+                  <div className="epm-info-item" style={{ gridColumn: "span 2" }}>
+                    <span className="epm-info-label">Service Progress</span>
+                    <div style={{ display: "flex", gap: "12px", alignItems: "center", width: "100%" }}>
+                      <div style={{ flex: 1 }}>
+                        <div className="epm-progress-bar">
+                          <div className="epm-progress-fill" style={{ width: `${servicesProgressPercent}%` }} />
+                        </div>
+                      </div>
+                      <span className="epm-progress-text">{servicesProgressLabel}</span>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
           </PermissionGate>
 
           <PermissionGate moduleId="jobhistory" optionId="jobhistory_customer">
-            <div className="jh-card">
-              <h3><i className="fas fa-user" /> Customer</h3>
-              <div className="jh-kv">
+            <div className="jh-card cv-unified-card">
+              <h3><i className="fas fa-user" /> Customer Information</h3>
+              <div className="jh-kv cv-unified-grid">
                 <div><span>Customer ID</span><strong>{order.customerDetails?.customerId || "—"}</strong></div>
                 <div><span>Name</span><strong>{order.customerDetails?.name || order.customerName || "—"}</strong></div>
                 <div><span>Mobile</span><strong>{order.customerDetails?.mobile || order.mobile || "—"}</strong></div>
@@ -1141,10 +1409,10 @@ function JobHistoryDetails({
           </PermissionGate>
 
           <PermissionGate moduleId="jobhistory" optionId="jobhistory_vehicle">
-            <div className="jh-card">
-              <h3><i className="fas fa-car" /> Vehicle</h3>
-              <div className="jh-kv">
-                <div><span>Vehicle ID</span><strong>{order.vehicleDetails?.vehicleId || "—"}</strong></div>
+            <div className="jh-card cv-unified-card">
+              <h3><i className="fas fa-car" /> Vehicle Information</h3>
+              <div className="jh-kv cv-unified-grid">
+                <div><span>Vehicle ID</span><strong>{String(order?.vehicleDetails?.vehicleId ?? order?.vehicleDetails?.id ?? order?.vehicleId ?? "").trim() || "—"}</strong></div>
                 <div><span>Make</span><strong>{order.vehicleDetails?.make || "—"}</strong></div>
                 <div><span>Model</span><strong>{order.vehicleDetails?.model || "—"}</strong></div>
                 <div><span>Year</span><strong>{order.vehicleDetails?.year || "—"}</strong></div>
@@ -1158,54 +1426,83 @@ function JobHistoryDetails({
 
           <PermissionGate moduleId="jobhistory" optionId="jobhistory_roadmap">
             <div className="jh-card jh-span-2">
-              <h3><i className="fas fa-map-signs" /> Roadmap</h3>
               {roadmap.length === 0 ? (
                 <div className="jh-empty-inline">No roadmap data.</div>
               ) : (
-                <div className="jh-roadmap">
-                  {roadmap.map((s, idx) => (
-                    <div className="jh-step" key={idx}>
-                      <div className="jh-step-top">
-                        <div className="jh-step-name">{s.step}</div>
-                        <span className="jh-pill jh-pill-slate">{s.status || "—"}</span>
-                      </div>
-                      <div className="jh-step-grid">
-                        <div><span>Started</span><strong>{s.startTimestamp || "—"}</strong></div>
-                        <div><span>Ended</span><strong>{s.endTimestamp || "—"}</strong></div>
-                        <div><span>Action By</span><strong>{displayUser(s.actionBy)}</strong></div>
-                        <div><span>Step Status</span><strong>{s.stepStatus || "—"}</strong></div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <UnifiedJobOrderRoadmap order={{ ...order, roadmap }} />
               )}
             </div>
           </PermissionGate>
 
           <PermissionGate moduleId="jobhistory" optionId="jobhistory_services">
-            <div className="jh-card jh-span-2">
-              <h3><i className="fas fa-tasks" /> Services</h3>
-              {Array.isArray(order.services) && order.services.length ? (
-                <div className="jh-services">
-                  {order.services.map((svc: any, idx: number) => (
-                    <div className="jh-service" key={idx}>
-                      <div className="jh-service-top">
-                        <div className="jh-service-name">{String(svc.name ?? "Service")}</div>
-                        <span className="jh-pill jh-pill-slate">{String(svc.status ?? "—")}</span>
+            <div className="pim-detail-card jh-services-card jh-span-2">
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
+                <div style={{ flex: 1 }}>
+                  <h3 style={{ margin: "0 0 12px 0" }}>
+                    <i className="fas fa-tasks" /> Services Summary ({services.length})
+                  </h3>
+                  {services.length ? (
+                    <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                      <div style={{ flex: 1, minHeight: "8px" }}>
+                        <div className="epm-progress-bar" style={{ height: "8px" }}>
+                          <div className="epm-progress-fill" style={{ width: `${servicesProgressPercent}%`, height: "100%" }} />
+                        </div>
                       </div>
-                      <div className="jh-service-grid">
-                        <div><span>Started</span><strong>{svc.started || "—"}</strong></div>
-                        <div><span>Ended</span><strong>{svc.ended || "—"}</strong></div>
-                        <div><span>Technician</span><strong>{displayUser(svc.technician || svc.assignedTo)}</strong></div>
-                        <div><span>Price</span><strong>{svc.price != null ? fmtQar(toNum(svc.price)) : "—"}</strong></div>
-                      </div>
-                      {svc.notes ? <div className="jh-note">{String(svc.notes)}</div> : null}
+                      <span className="epm-progress-text" style={{ fontSize: "12px", color: "#666" }}>
+                        {servicesProgressLabel}
+                      </span>
                     </div>
-                  ))}
+                  ) : null}
                 </div>
-              ) : (
-                <div className="jh-empty-inline">No services in this order.</div>
-              )}
+              </div>
+
+              <div className="pim-services-list">
+                {services.length ? (
+                  services.map((svc: any, idx: number) => (
+                    <div key={svc?.id ?? idx} className="pim-service-item">
+                      <div className="pim-service-header">
+                        <span className="pim-service-name">{String(svc?.name ?? "Service")}</span>
+                        <span className="pim-service-price">{svc?.price != null ? fmtQar(toNum(svc.price)) : "N/A"}</span>
+                      </div>
+
+                      <div className="pim-service-meta">
+                        <div className="pim-service-meta-row">
+                          <span className="pim-service-meta-label">Status:</span>
+                          <span className="pim-service-meta-value">{String(svc?.status ?? "N/A")}</span>
+                        </div>
+                        <div className="pim-service-meta-row">
+                          <span className="pim-service-meta-label">Technician:</span>
+                          <span className="pim-service-meta-value">{resolveHistoryServiceActor(svc, displayUser)}</span>
+                        </div>
+                        {svc?.started ? (
+                          <div className="pim-service-meta-row">
+                            <span className="pim-service-meta-label">Started:</span>
+                            <span className="pim-service-meta-value">{String(svc.started)}</span>
+                          </div>
+                        ) : null}
+                        {svc?.ended ? (
+                          <div className="pim-service-meta-row">
+                            <span className="pim-service-meta-label">Ended:</span>
+                            <span className="pim-service-meta-value">{String(svc.ended)}</span>
+                          </div>
+                        ) : null}
+                        <div className="pim-service-meta-row">
+                          <span className="pim-service-meta-label">Duration:</span>
+                          <span className="pim-service-meta-value">{formatHistoryServiceDuration(svc?.started, svc?.ended)}</span>
+                        </div>
+                        {svc?.notes ? (
+                          <div className="pim-service-meta-row" style={{ gridColumn: "span 2" }}>
+                            <span className="pim-service-meta-label">Notes:</span>
+                            <span className="pim-service-meta-value">{String(svc.notes)}</span>
+                          </div>
+                        ) : null}
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="jh-empty-inline">No services in this order.</div>
+                )}
+              </div>
             </div>
           </PermissionGate>
 
@@ -1219,29 +1516,29 @@ function JobHistoryDetails({
           </PermissionGate>
 
           <PermissionGate moduleId="jobhistory" optionId="jobhistory_billing">
-            <div className="jh-card jh-span-2">
+            <div className="jh-card jh-span-2 bi-unified-card">
               <h3><i className="fas fa-receipt" /> Billing & Invoices</h3>
 
-              <div className="jh-billing">
-                <div><span>Bill ID</span><strong>{order.billing?.billId || "—"}</strong></div>
-                <div><span>Total</span><strong>{order.billing?.totalAmount || "—"}</strong></div>
-                <div><span>Discount</span><strong className="jh-green">{order.billing?.discount || "—"}</strong></div>
-                <div><span>Net</span><strong>{order.billing?.netAmount || "—"}</strong></div>
-                <div><span>Paid</span><strong className="jh-green">{order.billing?.amountPaid || "—"}</strong></div>
-                <div><span>Balance</span><strong className="jh-red">{order.billing?.balanceDue || "—"}</strong></div>
-                <div><span>Method</span><strong>{order.billing?.paymentMethod || "—"}</strong></div>
+              <div className="jh-billing bi-summary">
+                <div className="bi-row"><span className="bi-label">Bill ID</span><strong className="bi-value">{order.billing?.billId || "—"}</strong></div>
+                <div className="bi-row"><span className="bi-label">Total</span><strong className="bi-value">{order.billing?.totalAmount || "—"}</strong></div>
+                <div className="bi-row"><span className="bi-label">Discount</span><strong className="jh-green bi-value">{order.billing?.discount || "—"}</strong></div>
+                <div className="bi-row"><span className="bi-label">Net</span><strong className="bi-value">{order.billing?.netAmount || "—"}</strong></div>
+                <div className="bi-row"><span className="bi-label">Paid</span><strong className="jh-green bi-value">{order.billing?.amountPaid || "—"}</strong></div>
+                <div className="bi-row"><span className="bi-label">Balance</span><strong className="jh-red bi-value">{order.billing?.balanceDue || "—"}</strong></div>
+                <div className="bi-row"><span className="bi-label">Method</span><strong className="bi-value">{order.billing?.paymentMethod || "—"}</strong></div>
               </div>
 
-              <div className="jh-subhead">
+              <div className="jh-subhead bi-invoices-title">
                 <i className="fas fa-file-invoice" /> Invoices ({invoices.length})
               </div>
 
               {invoices.length === 0 ? (
                 <div className="jh-empty-inline">No invoices found in normalized tables.</div>
               ) : (
-                <div className="jh-invoices">
+                <div className="jh-invoices bi-invoices-wrap">
                   {invoices.map((inv) => (
-                    <div className="jh-invoice" key={inv.id}>
+                    <div className="jh-invoice bi-invoice-card" key={inv.id}>
                       <div className="jh-invoice-top">
                         <div>
                           <div className="jh-invoice-no">Invoice #{inv.number}</div>
@@ -1314,13 +1611,14 @@ function JobHistoryDetails({
 
           <PermissionGate moduleId="jobhistory" optionId="jobhistory_exitpermit">
             {order.exitPermit ? (
-              <div className="jh-card">
+              <div className="jh-card ex-unified-card">
                 <h3><i className="fas fa-id-card" /> Exit Permit</h3>
-                <div className="jh-kv">
+                <div className="jh-kv ex-unified-grid">
+                  <div><span>Status</span><strong className={permitStatusClass(toSummaryStatus(order?.exitPermitStatus ?? order?.exitPermit?.status, "Not Required"))}>{toSummaryStatus(order?.exitPermitStatus ?? order?.exitPermit?.status, "Not Required")}</strong></div>
                   <div><span>Permit ID</span><strong>{order.exitPermit?.permitId || "—"}</strong></div>
                   <div><span>Create Date</span><strong>{order.exitPermit?.createDate || "—"}</strong></div>
                   <div><span>Next Service</span><strong>{order.exitPermit?.nextServiceDate || "—"}</strong></div>
-                  <div><span>Created By</span><strong>{displayUser(order.exitPermit?.createdBy)}</strong></div>
+                  <div><span>Created By</span><strong>{displayUser(resolveExitPermitActor(order, roadmap))}</strong></div>
                   <div><span>Collected By</span><strong>{order.exitPermit?.collectedBy || "—"}</strong></div>
                   <div><span>Mobile</span><strong>{order.exitPermit?.collectedByMobile || "—"}</strong></div>
                 </div>

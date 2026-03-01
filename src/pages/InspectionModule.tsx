@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./InspectionModule.css";
+import "./JobCards.css";
 
 import SuccessPopup from "./SuccessPopup";
 import PermissionGate from "./PermissionGate"; // ✅ use the real PermissionGate
@@ -24,7 +25,7 @@ import {
   getInspectionReport,
   buildInspectionReportHtml,
 } from "./inspectionRepo";
-import { resolveActorUsername } from "../utils/actorIdentity";
+import { resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
 
 // ============================================
 // CATALOG
@@ -94,6 +95,46 @@ function resolveActorName(user: AnyObj) {
   return resolveActorUsername(user, "inspector");
 }
 
+function normalizeStepName(value: any) {
+  return String(value ?? "").toLowerCase().replace(/[^a-z]/g, "");
+}
+
+function isServiceOperationStepName(value: any) {
+  const n = normalizeStepName(value);
+  return n === "inprogress" || n === "serviceoperation";
+}
+
+function getWorkStatusClass(status: any) {
+  const statusMap: any = {
+    "New Request": "status-new-request",
+    Inspection: "status-inspection",
+    Service_Operation: "status-inprogress",
+    Inprogress: "status-inprogress",
+    "Quality Check": "status-quality-check",
+    Ready: "status-ready",
+    Completed: "status-completed",
+    Cancelled: "status-cancelled",
+  };
+  return statusMap[String(status ?? "")] || "status-inprogress";
+}
+
+function getPaymentStatusClass(status: any) {
+  if (status === "Fully Paid") return "payment-full";
+  if (status === "Partially Paid") return "payment-partial";
+  return "payment-unpaid";
+}
+
+function getServiceStatusClass(status: any) {
+  const s = String(status ?? "").trim().toLowerCase();
+  if (s === "completed") return "status-completed";
+  if (s === "cancelled" || s === "canceled") return "status-cancelled";
+  if (s === "quality check") return "status-quality-check";
+  if (s === "service_operation" || s === "inprogress" || s === "in progress") return "status-inprogress";
+  if (s === "inspection") return "status-inspection";
+  if (s === "ready") return "status-ready";
+  return "status-new-request";
+}
+
 function ensureRoadmap(order: AnyObj, currentUser: AnyObj) {
   const rm = Array.isArray(order?.roadmap) ? order.roadmap : [];
   if (rm.length) return rm;
@@ -110,14 +151,18 @@ function ensureRoadmap(order: AnyObj, currentUser: AnyObj) {
   return [
     { step: "New Request", stepStatus: "Active", startTimestamp: now, endTimestamp: null, actionBy: resolveActorName(currentUser), status: "InProgress" },
     { step: "Inspection", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
-    { step: "Inprogress", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
+    { step: "Service_Operation", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
     { step: "Quality Check", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
     { step: "Ready", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
   ];
 }
 
 function roadmapMark(roadmap: AnyObj[], stepName: string, patch: AnyObj) {
-  return roadmap.map((s) => (String(s.step) === stepName ? { ...s, ...patch } : s));
+  return roadmap.map((s) => {
+    const isTargetServiceOperation = stepName === "Service_Operation" && isServiceOperationStepName(s.step);
+    const isExact = String(s.step) === stepName;
+    return isTargetServiceOperation || isExact ? { ...s, ...patch } : s;
+  });
 }
 
 function deriveDetailData(order: AnyObj, row: AnyObj) {
@@ -136,7 +181,7 @@ function deriveDetailData(order: AnyObj, row: AnyObj) {
     orderNumber: row.id,
     orderType: order.orderType || row.orderType || "New Job Order",
     createDate: order.jobOrderSummary?.createDate || row.createDate || "Not specified",
-    createdBy: order.createdBy || order.jobOrderSummary?.createdBy || "System User",
+    createdBy: resolveOrderCreatedBy(order, { fallback: "—" }),
     expectedDelivery,
 
     workStatus: order.workStatusLabel || row.workStatus || "New Request",
@@ -639,7 +684,7 @@ function InspectionModule({ currentUser }: any) {
   const finishInspection = () => {
     setInspectionConfirmData({
       title: "Finish Inspection",
-      message: "Finish the inspection? Status will change to Work in Progress.",
+      message: "Finish the inspection? Status will change to Service_Operation.",
       onConfirm: async () => {
         if (!activeOrder || !activeRow) return;
 
@@ -695,17 +740,17 @@ function InspectionModule({ currentUser }: any) {
             actionBy: actorEmail,
           });
 
-          rm = roadmapMark(rm, "Inprogress", {
+          rm = roadmapMark(rm, "Service_Operation", {
             stepStatus: "Active",
             status: "InProgress",
-            startTimestamp: rm.find((s) => s.step === "Inprogress")?.startTimestamp || now,
+            startTimestamp: rm.find((s) => isServiceOperationStepName(s.step))?.startTimestamp || now,
             actionBy: actorEmail,
           });
 
           const updated = {
             ...activeOrder,
-            workStatus: "Inprogress",
-            workStatusLabel: "Inprogress",
+            workStatus: "Service_Operation",
+            workStatusLabel: "Service_Operation",
             updatedBy: actorEmail,
             roadmap: rm,
           } as AnyObj;
@@ -724,7 +769,7 @@ function InspectionModule({ currentUser }: any) {
 
           await refreshOrders();
 
-          setPopupMessage("Inspection finished! Status changed to Work in Progress.");
+          setPopupMessage("Inspection finished! Status changed to Service_Operation.");
           setShowPopup(true);
 
           setShowInspectionConfirmation(false);
@@ -960,32 +1005,36 @@ function InspectionModule({ currentUser }: any) {
       )}
 
       {screenState === "details" && activeRow && activeOrder && detailData && (
-        <div className="detail-view" id="detailView">
-          <div className="detail-header">
+        <div className="detail-view pim-details-screen jo-details-v3" id="detailView">
+          <div className="detail-header pim-details-header">
             <div className="detail-title-container">
               <h2>
                 <i className="fas fa-clipboard-list"></i> Inspection Details - Job Order #
                 <span id="detailJobIdHeader">{activeRow.id}</span>
               </h2>
             </div>
-            <button className="close-detail" onClick={closeDetailView}>
+            <button className="close-detail pim-btn-close-details" onClick={closeDetailView}>
               <i className="fas fa-times"></i> Close Details
             </button>
           </div>
 
-          <div className="detail-container">
-            <div className="detail-cards">
+          <div className="detail-container pim-details-body">
+            <div className="detail-cards pim-details-grid">
               <PermissionGate moduleId="inspection" optionId="inspection_summary">
-                <div className="epm-detail-card">
+                <div className="pim-detail-card">
                   <h3><i className="fas fa-info-circle"></i> Job Order Summary</h3>
-                  <div className="epm-card-content">
-                    <div className="epm-info-item"><span className="epm-info-label">Job Order ID</span><span className="epm-info-value">{activeRow.id}</span></div>
-                    <div className="epm-info-item"><span className="epm-info-label">Work Status</span><span className="epm-info-value">{detailData.workStatus}</span></div>
-                    <div className="epm-info-item"><span className="epm-info-label">Payment Status</span><span className="epm-info-value">{detailData.paymentStatus}</span></div>
+                  <div className="pim-card-content">
+                    <div className="pim-info-item"><span className="pim-info-label">Job Order ID</span><span className="pim-info-value">{activeRow.id}</span></div>
+                    <div className="pim-info-item"><span className="pim-info-label">Order Type</span><span className="pim-info-value">{detailData.orderType || activeOrder.orderType || "Job Order"}</span></div>
+                    <div className="pim-info-item"><span className="pim-info-label">Request Create Date</span><span className="pim-info-value">{detailData.createDate || "Not specified"}</span></div>
+                    <div className="pim-info-item"><span className="pim-info-label">Created By</span><span className="pim-info-value">{detailData.createdBy || "—"}</span></div>
+                    <div className="pim-info-item"><span className="pim-info-label">Expected Delivery</span><span className="pim-info-value">{detailData.expectedDelivery || "Not specified"}</span></div>
+                    <div className="pim-info-item"><span className="pim-info-label">Work Status</span><span className="pim-info-value"><span className={`epm-status-badge status-badge ${getWorkStatusClass(detailData.workStatus)}`}>{detailData.workStatus}</span></span></div>
+                    <div className="pim-info-item"><span className="pim-info-label">Payment Status</span><span className="pim-info-value"><span className={`epm-status-badge status-badge ${getPaymentStatusClass(detailData.paymentStatus)}`}>{detailData.paymentStatus}</span></span></div>
                   </div>
 
                   {reportHtml && (
-                    <div style={{ marginTop: 12 }}>
+                    <div className="inspection-summary-actions">
                       <button className="btn btn-primary" onClick={downloadReport}>
                         <i className="fas fa-download"></i> Download Inspection Report
                       </button>
@@ -995,11 +1044,11 @@ function InspectionModule({ currentUser }: any) {
               </PermissionGate>
 
               <PermissionGate moduleId="inspection" optionId="inspection_services">
-                <div className="epm-detail-card">
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 15 }}>
-                    <h3 style={{ margin: 0 }}><i className="fas fa-tasks"></i> Services Summary</h3>
+                <div className="pim-detail-card">
+                  <div className="inspection-service-head">
+                    <h3><i className="fas fa-tasks"></i> Services Summary ({Array.isArray(activeOrder.services) ? activeOrder.services.length : 0})</h3>
                     <PermissionGate moduleId="inspection" optionId="inspection_addservice">
-                      <button className="btn-add-service" style={{ padding: "8px 16px", fontSize: 14 }} onClick={handleAddService}>
+                      <button className="btn-add-service inspection-add-service-btn" onClick={handleAddService}>
                         <i className="fas fa-plus-circle"></i> Add Service
                       </button>
                     </PermissionGate>
@@ -1010,12 +1059,12 @@ function InspectionModule({ currentUser }: any) {
                         <div key={idx} className="pim-service-item">
                           <div className="pim-service-header">
                             <span className="pim-service-name">{s.name}</span>
-                            <span className="pim-status-badge pim-status-new">{s.status || "New"}</span>
+                            <span className={`status-badge ${getServiceStatusClass(s.status || "New")}`}>{s.status || "New"}</span>
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div style={{ padding: 20, textAlign: "center", color: "#999" }}>No services added yet</div>
+                      <div className="inspection-empty-inline">No services added yet</div>
                     )}
                   </div>
                 </div>
@@ -1024,10 +1073,10 @@ function InspectionModule({ currentUser }: any) {
 
             <PermissionGate moduleId="inspection" optionId="inspection_list">
               <div className="epm-detail-card inspection-list-card">
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 25, paddingBottom: 15, borderBottom: "1px solid #f5f5f5" }}>
-                  <h3 style={{ margin: 0, flex: 1 }}><i className="fas fa-clipboard-check"></i> Inspection List</h3>
+                <div className="inspection-list-head">
+                  <h3><i className="fas fa-clipboard-check"></i> Inspection List</h3>
                   <PermissionGate moduleId="inspection" optionId="inspection_finish">
-                    <button className="finish-btn" disabled={!canFinish || loading} onClick={finishInspection} style={{ marginLeft: 20 }}>
+                    <button className="finish-btn inspection-finish-btn" disabled={!canFinish || loading} onClick={finishInspection}>
                       <i className="fas fa-flag-checkered"></i> {loading ? "Working..." : "Finish Inspection"}
                     </button>
                   </PermissionGate>

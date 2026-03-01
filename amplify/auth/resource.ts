@@ -23,7 +23,7 @@ export const auth = defineAuth({
     // Invite user + ensure department group exists
     allow
       .resource(inviteUser)
-      .to(["createUser", "getUser", "addUserToGroup", "getGroup", "createGroup"]),
+      .to(["createUser", "getUser", "setUserPassword", "addUserToGroup", "getGroup", "createGroup"]),
 
     // Enable/Disable user
     allow.resource(setUserActive).to(["disableUser", "enableUser"]),

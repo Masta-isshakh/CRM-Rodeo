@@ -3,9 +3,11 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 
 import "./ExitPermitManagement.css";
+import "./JobCards.css";
 
 import SuccessPopup from "./SuccessPopup";
 import ErrorPopup from "./ErrorPopup";
+import UnifiedJobOrderRoadmap from "../components/UnifiedJobOrderRoadmap";
 
 // ✅ Correct path (your PermissionGate lives here)
 import PermissionGate from "./PermissionGate";
@@ -18,27 +20,26 @@ import {
 } from "./jobOrderRepo";
 
 import { getDataClient } from "../lib/amplifyClient";
-import { getUserDirectory } from "../utils/userDirectoryCache";
-import { resolveActorUsername } from "../utils/actorIdentity";
+import { resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
 
 function safeLower(v: any) {
-  return String(v ?? "").trim().toLowerCase();
-}
-
-function normalizeIdentity(v: any) {
   return String(v ?? "").trim().toLowerCase();
 }
 
 function normalizeActorDisplay(value: any, fallback = "—") {
   const raw = String(value ?? "").trim();
   if (!raw) return fallback;
+  const normalized = raw.toLowerCase();
+  if (normalized === "system" || normalized === "system user" || normalized === "unknown" || normalized === "not assigned") {
+    return fallback;
+  }
   const at = raw.indexOf("@");
   if (at > 0) return raw.slice(0, at).toLowerCase();
   return raw;
 }
 
 function resolveActorName(user: any) {
-  return resolveActorUsername(user, "system user");
+  return resolveActorUsername(user, "system");
 }
 
 function safeJsonParse<T>(raw: any, fallback: T): T {
@@ -77,13 +78,13 @@ function normalizeWorkLabel(statusEnum?: string, label?: string) {
     case "CANCELLED":
       return "Cancelled";
     case "IN_PROGRESS":
-      return "Inprogress";
+      return "Service_Operation";
     case "OPEN":
       return "New Request";
     case "DRAFT":
       return "Draft";
     default:
-      return "Inprogress";
+      return "Service_Operation";
   }
 }
 
@@ -159,17 +160,75 @@ function derivePaymentStatusFromUiOrder(order: any) {
 
 function isExitPermitCreatedFromParsed(parsed: any) {
   if (!parsed) return false;
-  if (String(parsed.exitPermitStatus ?? "").toLowerCase() === "created") return true;
+  const topLevel = String(parsed.exitPermitStatus ?? "").trim().toLowerCase();
+  if (topLevel === "created" || topLevel === "approved") return true;
+
+  const nestedStatus = String(parsed?.exitPermit?.status ?? parsed?.exitPermitInfo?.status ?? "").trim().toLowerCase();
+  if (nestedStatus === "created" || nestedStatus === "approved") return true;
+
   if (parsed.exitPermit?.permitId) return true;
   return false;
+}
+
+function isExitPermitCreatedFromRowOrParsed(row: any, parsed: any) {
+  const schemaStatus = String(row?.exitPermitStatus ?? "").trim().toLowerCase();
+  if (schemaStatus === "approved" || schemaStatus === "created") return true;
+  return isExitPermitCreatedFromParsed(parsed);
 }
 
 function isExitPermitCreatedFromOrder(order: any) {
   if (!order) return false;
   const s = String(order.exitPermitStatus ?? "").trim().toLowerCase();
-  if (s === "created") return true;
+  if (s === "created" || s === "approved") return true;
+
+  const nestedStatus = String(order?.exitPermit?.status ?? order?.exitPermitInfo?.status ?? "").trim().toLowerCase();
+  if (nestedStatus === "created" || nestedStatus === "approved") return true;
+
   if (String(order.exitPermit?.permitId ?? "").trim()) return true;
   return false;
+}
+
+function mapExitPermitStatusToUi(status: any, hasPermitId = false) {
+  const s = String(status ?? "").trim().toUpperCase();
+  if (s === "APPROVED" || s === "CREATED" || s === "COMPLETED") return "Completed";
+  if (s === "PENDING" || s === "NOT_CREATED" || s === "NOT CREATED") return "Pending";
+  if (s === "REJECTED") return "Rejected";
+  if (s === "NOT_REQUIRED" || s === "NOT REQUIRED") return "Not Required";
+  if (hasPermitId) return "Completed";
+  return "Not Required";
+}
+
+function deriveExitPermitStatusLabel(row: any, parsed: any) {
+  const fromSchema = String(row?.exitPermitStatus ?? "").trim();
+  if (fromSchema) return mapExitPermitStatusToUi(fromSchema);
+
+  const fromTopLevelParsed = String(parsed?.exitPermitStatus ?? "").trim();
+  if (fromTopLevelParsed) return mapExitPermitStatusToUi(fromTopLevelParsed);
+
+  const fromInfo = String(parsed?.exitPermitInfo?.status ?? row?.exitPermitInfo?.status ?? "").trim();
+  if (fromInfo) return mapExitPermitStatusToUi(fromInfo);
+
+  const fromPermit = String(parsed?.exitPermit?.status ?? row?.exitPermit?.status ?? "").trim();
+  if (fromPermit) return mapExitPermitStatusToUi(fromPermit);
+
+  const permitId = String(parsed?.exitPermit?.permitId ?? row?.exitPermit?.permitId ?? "").trim();
+  return mapExitPermitStatusToUi("", Boolean(permitId));
+}
+
+function getExitPermitStatusBadgeClass(status: any) {
+  return getPermitHeaderBadgeClass(status);
+}
+
+function getExitPermitPaymentBadgeClass(status: any) {
+  return getPermitHeaderBadgeClass(status);
+}
+
+function getPermitHeaderBadgeClass(status: any) {
+  const s = String(status ?? "").trim().toLowerCase();
+  if (s === "completed" || s === "created" || s === "approved") return "permit-completed";
+  if (s === "pending") return "permit-pending";
+  if (s === "rejected") return "permit-rejected";
+  return "permit-not-required";
 }
 
 function isEligibleForExitPermit(workStatus: string, paymentStatus: string, created: boolean) {
@@ -204,25 +263,24 @@ async function resolveDocUrlLocal(raw: string): Promise<string> {
 
 // Helper Functions for CSS classes
 const getWorkStatusClass = (status: string) => {
-  switch (status) {
-    case "Ready":
-      return "epm-status-completed";
-    case "Cancelled":
-      return "epm-status-cancelled";
-    default:
-      return "epm-status-inprogress";
-  }
+  const s = String(status ?? "").trim().toLowerCase();
+  if (s === "ready") return "status-ready";
+  if (s === "completed") return "status-completed";
+  if (s === "cancelled" || s === "canceled") return "status-cancelled";
+  if (s === "quality check") return "status-quality-check";
+  if (s === "inspection") return "status-inspection";
+  return "status-inprogress";
 };
 
 const getServiceStatusClass = (status: string) => {
-  switch (status) {
-    case "Completed":
-      return "epm-status-completed";
-    case "Cancelled":
-      return "epm-status-cancelled";
-    default:
-      return "epm-status-new";
-  }
+  const s = String(status ?? "").trim().toLowerCase();
+  if (s === "completed") return "status-completed";
+  if (s === "cancelled" || s === "canceled") return "status-cancelled";
+  if (s === "quality check") return "status-quality-check";
+  if (s === "service_operation" || s === "inprogress" || s === "in progress") return "status-inprogress";
+  if (s === "inspection") return "status-inspection";
+  if (s === "ready") return "status-ready";
+  return "status-new-request";
 };
 
 const getAdditionalServiceStatusClass = (status: string) => {
@@ -254,10 +312,10 @@ const getPaymentMethodClass = (method: string) => {
 };
 
 function paymentBadgeClass(paymentStatus: string) {
-  if (paymentStatus === "Fully Paid") return "epm-payment-full";
-  if (paymentStatus === "Partially Paid") return "epm-payment-partial";
-  if (/refund/i.test(paymentStatus)) return "epm-payment-unpaid"; // or create a dedicated CSS class if you want
-  return "epm-payment-unpaid";
+  if (paymentStatus === "Fully Paid") return "payment-full";
+  if (paymentStatus === "Partially Paid") return "payment-partial";
+  if (/refund/i.test(paymentStatus)) return "payment-unpaid";
+  return "payment-unpaid";
 }
 
 // Exit Permit Management Component
@@ -267,42 +325,8 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
   const [loading, setLoading] = useState(false);
 
   const [allOrders, setAllOrders] = useState<any[]>([]);
-  const [userLabelMap, setUserLabelMap] = useState<Record<string, string>>({});
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
-
-  const displayUser = (value: any) => {
-    const raw = String(value ?? "").trim();
-    if (!raw) return "Not assigned";
-    const mapped = userLabelMap[normalizeIdentity(raw)] || raw;
-    return normalizeActorDisplay(mapped, "Not assigned");
-  };
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const directory = await getUserDirectory(client);
-        if (cancelled) return;
-
-        const map: Record<string, string> = {};
-        for (const u of directory.users ?? []) {
-          const email = normalizeIdentity(u?.email);
-          const name = String(u?.name ?? u?.email ?? "").trim();
-          if (email && name) {
-            map[email] = name;
-          }
-        }
-        setUserLabelMap(map);
-      } catch {
-        if (!cancelled) setUserLabelMap({});
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [client]);
 
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
@@ -355,7 +379,8 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
             // ✅ FIX: derive payment status robustly
             const paymentStatus = derivePaymentStatusFromRow(row, parsed);
 
-            const created = isExitPermitCreatedFromParsed(parsed);
+            const exitPermitStatus = deriveExitPermitStatusLabel(row, parsed);
+            const created = ["completed", "created"].includes(String(exitPermitStatus).toLowerCase()) || isExitPermitCreatedFromRowOrParsed(row, parsed);
             const eligible = isEligibleForExitPermit(workStatus, paymentStatus, created);
             if (!eligible) return null;
 
@@ -376,7 +401,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
               workStatus,
               paymentStatus,
               createDate,
-              exitPermitStatus: created ? "Created" : "Not Created",
+              exitPermitStatus,
               _backendId: String(row.id),
             };
           })
@@ -786,33 +811,80 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
           </div>
         </>
       ) : (
-        <div className="epm-details-screen">
-          <div className="epm-details-header">
-            <div className="epm-details-title-container">
+        <div className="epm-details-screen pim-details-screen jo-details-v3">
+          <div className="epm-details-header pim-details-header">
+            <div className="epm-details-title-container pim-details-title-container">
               <h2>
                 <i className="fas fa-clipboard-list"></i> Job Order Details - <span>{selectedOrder?.id}</span>
               </h2>
+              <div className="pim-details-header-badges">
+                {selectedOrder?.priorityLevel && (
+                  <span
+                    className="pim-priority-badge"
+                    style={{
+                      backgroundColor: selectedOrder.priorityBg,
+                      color: selectedOrder.priorityColor,
+                      borderLeft: `3px solid ${selectedOrder.priorityColor}`,
+                    }}
+                  >
+                    <i className="fas fa-exclamation-circle"></i> {selectedOrder.priorityLevel}
+                  </span>
+                )}
+
+                {selectedOrder?.qualityCheck && (
+                  <span className={`pim-qc-badge ${String(selectedOrder.qualityCheck.status || "").toLowerCase()}`}>
+                    <i
+                      className={
+                        selectedOrder.qualityCheck.status === "PASSED"
+                          ? "fas fa-check-circle"
+                          : selectedOrder.qualityCheck.status === "FAILED"
+                          ? "fas fa-times-circle"
+                          : "fas fa-hourglass-half"
+                      }
+                    ></i>
+                    {selectedOrder.qualityCheck.displayText}
+                  </span>
+                )}
+
+                {selectedOrder?.exitPermitInfo && (
+                  <span
+                    className={`pim-permit-badge ${selectedOrder.exitPermitInfo.required ? "required" : "not-required"} ${getPermitHeaderBadgeClass(
+                      mapExitPermitStatusToUi(selectedOrder.exitPermitInfo.status, Boolean(selectedOrder?.exitPermit?.permitId))
+                    )}`}
+                  >
+                    <i
+                      className={
+                        mapExitPermitStatusToUi(
+                          selectedOrder.exitPermitInfo.status,
+                          Boolean(selectedOrder?.exitPermit?.permitId)
+                        ) === "Completed"
+                          ? "fas fa-certificate"
+                          : "fas fa-file"
+                      }
+                    ></i>
+                    Exit Permit: {mapExitPermitStatusToUi(selectedOrder.exitPermitInfo.status, Boolean(selectedOrder?.exitPermit?.permitId))}
+                  </span>
+                )}
+
+                {selectedOrder?.technicianAssignment?.name && (
+                  <span className="pim-tech-badge">
+                    <i className="fas fa-user-tie"></i> {selectedOrder.technicianAssignment.displayText}
+                  </span>
+                )}
+              </div>
             </div>
-            <div className="epm-details-header-actions">
-              <button className="epm-btn-close-details" onClick={closeDetailsView} type="button">
-                <i className="fas fa-times"></i> Close Details
-              </button>
-            </div>
+            <button className="epm-btn-close-details pim-btn-close-details" onClick={closeDetailsView} type="button">
+              <i className="fas fa-times"></i> Close Details
+            </button>
           </div>
 
-          <div className="epm-details-body">
-            <div className="epm-details-grid">
+          <div className="epm-details-body pim-details-body">
+            <div className="epm-details-grid pim-details-grid">
               {selectedOrder && (
                 <>
                   <PermissionGate moduleId="exitpermit" optionId="exitpermit_summary">
                     <JobOrderSummaryCard order={selectedOrder} />
                   </PermissionGate>
-
-                  {selectedOrder.roadmap && selectedOrder.roadmap.length > 0 && (
-                    <PermissionGate moduleId="exitpermit" optionId="exitpermit_roadmap">
-                      <RoadmapCard order={selectedOrder} displayUser={displayUser} />
-                    </PermissionGate>
-                  )}
 
                   {selectedOrder.customerDetails && (
                     <PermissionGate moduleId="exitpermit" optionId="exitpermit_customer">
@@ -830,28 +902,15 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
                     <ServicesCard order={selectedOrder} />
                   </PermissionGate>
 
-                  {selectedOrder.customerNotes && (
-                    <PermissionGate moduleId="exitpermit" optionId="exitpermit_notes">
-                      <CustomerNotesCard order={selectedOrder} />
-                    </PermissionGate>
-                  )}
+                  <PermissionGate moduleId="exitpermit" optionId="exitpermit_billing">
+                    <BillingCard order={selectedOrder} />
+                  </PermissionGate>
 
                   {selectedOrder.services && selectedOrder.services.length > 0 && (
                     <PermissionGate moduleId="exitpermit" optionId="exitpermit_quality">
                       <QualityCheckListCard order={selectedOrder} />
                     </PermissionGate>
                   )}
-
-                  <PermissionGate moduleId="exitpermit" optionId="exitpermit_services">
-                    {selectedOrder.additionalServiceRequests &&
-                      selectedOrder.additionalServiceRequests.map((request: any, idx: number) => (
-                        <AdditionalServicesRequestCard key={idx} request={request} index={idx + 1} />
-                      ))}
-                  </PermissionGate>
-
-                  <PermissionGate moduleId="exitpermit" optionId="exitpermit_billing">
-                    <BillingCard order={selectedOrder} />
-                  </PermissionGate>
 
                   {selectedOrder.paymentActivityLog && selectedOrder.paymentActivityLog.length > 0 && (
                     <PermissionGate moduleId="exitpermit" optionId="exitpermit_paymentlog">
@@ -863,12 +922,31 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
                     <ExitPermitCard order={selectedOrder} />
                   </PermissionGate>
 
-                  <PermissionGate moduleId="exitpermit" optionId="exitpermit_documents">
-                    <DocumentsCard order={selectedOrder} />
+                  {selectedOrder.customerNotes && (
+                    <PermissionGate moduleId="exitpermit" optionId="exitpermit_notes">
+                      <CustomerNotesCard order={selectedOrder} />
+                    </PermissionGate>
+                  )}
+
+                  <PermissionGate moduleId="exitpermit" optionId="exitpermit_services">
+                    {selectedOrder.additionalServiceRequests &&
+                      selectedOrder.additionalServiceRequests.map((request: any, idx: number) => (
+                        <AdditionalServicesRequestCard key={idx} request={request} index={idx + 1} />
+                      ))}
                   </PermissionGate>
                 </>
               )}
             </div>
+
+            {selectedOrder?.roadmap && selectedOrder.roadmap.length > 0 && (
+              <PermissionGate moduleId="exitpermit" optionId="exitpermit_roadmap">
+                <UnifiedJobOrderRoadmap order={selectedOrder} />
+              </PermissionGate>
+            )}
+
+            <PermissionGate moduleId="exitpermit" optionId="exitpermit_documents">
+              <DocumentsCard order={selectedOrder} />
+            </PermissionGate>
           </div>
         </div>
       )}
@@ -1085,58 +1163,51 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
 /* -------------------- Cards -------------------- */
 
 const JobOrderSummaryCard = ({ order }: any) => {
-  const orderTypeClass =
-    order.orderType === "New Job Order" ? "epm-order-type-new-job" : "epm-order-type-service";
-
   return (
-    <div className="epm-detail-card">
+    <div className="epm-detail-card pim-detail-card">
       <h3>
         <i className="fas fa-info-circle"></i> Job Order Summary
       </h3>
-      <div className="epm-card-content">
-        <div className="epm-info-item">
-          <span className="epm-info-label">Job Order ID</span>
-          <span className="epm-info-value">{order.id}</span>
+      <div className="epm-card-content pim-card-content">
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Job Order ID</span>
+          <span className="epm-info-value pim-info-value">{order.id}</span>
         </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Order Type</span>
-          <span className="epm-info-value">
-            <span className={`epm-order-type-badge ${orderTypeClass}`}>{order.orderType}</span>
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Order Type</span>
+          <span className="epm-info-value pim-info-value">{order.orderType}</span>
+        </div>
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Request Create Date</span>
+          <span className="epm-info-value pim-info-value">{order.jobOrderSummary?.createDate || order.createDate}</span>
+        </div>
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Created By</span>
+          <span className="epm-info-value pim-info-value">{resolveOrderCreatedBy(order, { fallback: "—" })}</span>
+        </div>
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Expected Delivery</span>
+          <span className="epm-info-value pim-info-value">{order.jobOrderSummary?.expectedDelivery || "Not specified"}</span>
+        </div>
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Work Status</span>
+          <span className="epm-info-value pim-info-value">
+            <span className={`epm-status-badge status-badge ${getWorkStatusClass(order.workStatus)}`}>{order.workStatus}</span>
           </span>
         </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Request Create Date</span>
-          <span className="epm-info-value">{order.jobOrderSummary?.createDate || order.createDate}</span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Created By</span>
-          <span className="epm-info-value">{normalizeActorDisplay(order.jobOrderSummary?.createdBy || "Not specified", "Not specified")}</span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Expected Delivery Date</span>
-          <span className="epm-info-value">{order.jobOrderSummary?.expectedDelivery || "Not specified"}</span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Work Status</span>
-          <span className="epm-info-value">
-            <span className={`epm-status-badge ${getWorkStatusClass(order.workStatus)}`}>{order.workStatus}</span>
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Payment Status</span>
+          <span className="epm-info-value pim-info-value">
+            <span className={`epm-status-badge status-badge ${paymentBadgeClass(order.paymentStatus)}`}>{order.paymentStatus}</span>
           </span>
         </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Payment Status</span>
-          <span className="epm-info-value">
-            <span className={`epm-status-badge ${paymentBadgeClass(order.paymentStatus)}`}>{order.paymentStatus}</span>
-          </span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Exit Permit Status</span>
-          <span className="epm-info-value">
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Exit Permit Status</span>
+          <span className="epm-info-value pim-info-value">
             <span
-              className={`epm-status-badge ${
-                order.exitPermitStatus === "Created" ? "epm-permit-created" : "epm-permit-not-created"
-              }`}
+              className={`epm-status-badge ${getExitPermitStatusBadgeClass(order.exitPermitStatus)}`}
             >
-              {order.exitPermitStatus || "Not Created"}
+              {order.exitPermitStatus || "Not Required"}
             </span>
           </span>
         </div>
@@ -1145,142 +1216,82 @@ const JobOrderSummaryCard = ({ order }: any) => {
   );
 };
 
-const RoadmapCard = ({ order, displayUser }: any) => {
-  if (!order.roadmap || order.roadmap.length === 0) return null;
+const CustomerDetailsCard = ({ order }: any) => (
+  <div className="epm-detail-card pim-detail-card cv-unified-card">
+    <h3>
+      <i className="fas fa-user"></i> Customer Information
+    </h3>
+    <div className="epm-card-content pim-card-content cv-unified-grid">
+      <div className="epm-info-item pim-info-item">
+        <span className="epm-info-label pim-info-label">Customer ID</span>
+        <span className="epm-info-value pim-info-value">{order.customerDetails?.customerId || "N/A"}</span>
+      </div>
+      <div className="epm-info-item pim-info-item">
+        <span className="epm-info-label pim-info-label">Customer Name</span>
+        <span className="epm-info-value pim-info-value">{order.customerName}</span>
+      </div>
+      <div className="epm-info-item pim-info-item">
+        <span className="epm-info-label pim-info-label">Mobile Number</span>
+        <span className="epm-info-value pim-info-value">{order.mobile || "Not provided"}</span>
+      </div>
+      <div className="epm-info-item pim-info-item">
+        <span className="epm-info-label pim-info-label">Email Address</span>
+        <span className="epm-info-value pim-info-value">{order.customerDetails?.email || "Not provided"}</span>
+      </div>
+    </div>
+  </div>
+);
 
-  const formatStepStatus = (status: string) => {
-    switch (status) {
-      case "New":
-        return "epm-status-new";
-      case "Completed":
-        return "epm-status-completed";
-      case "InProgress":
-        return "epm-status-inprogress";
-      default:
-        return "epm-status-pending";
-    }
-  };
-
-  const getStepStatusClassLocal = (stepStatus: string) => {
-    const s = String(stepStatus ?? "").toLowerCase();
-    if (s === "completed") return "epm-step-completed";
-    if (s === "active" || s === "inprogress") return "epm-step-active";
-    if (s === "pending") return "epm-step-pending";
-    if (s === "cancelled") return "epm-step-cancelled";
-    return "epm-step-upcoming";
-  };
-
-  const getStepIconLocal = (stepStatus: string) => {
-    const s = String(stepStatus ?? "").toLowerCase();
-    if (s === "completed") return "fas fa-check-circle";
-    if (s === "active" || s === "inprogress") return "fas fa-play-circle";
-    if (s === "pending") return "fas fa-clock";
-    if (s === "cancelled") return "fas fa-times-circle";
-    return "fas fa-circle";
-  };
+const VehicleDetailsCard = ({ order }: any) => {
+  const vehicleId =
+    String(
+      order?.vehicleDetails?.vehicleId ??
+      order?.vehicleDetails?.id ??
+      order?.vehicleId ??
+      ""
+    ).trim() || "—";
 
   return (
-    <div className="epm-detail-card">
+    <div className="epm-detail-card pim-detail-card cv-unified-card">
       <h3>
-        <i className="fas fa-map-signs"></i> Job Order Roadmap
+        <i className="fas fa-car"></i> Vehicle Information
       </h3>
-      <div className="epm-roadmap-container">
-        <div className="epm-roadmap-steps">
-          {order.roadmap.map((step: any, idx: number) => (
-            <div key={idx} className={`epm-roadmap-step ${getStepStatusClassLocal(step.stepStatus)}`}>
-              <div className="epm-step-icon">
-                <i className={getStepIconLocal(step.stepStatus)}></i>
-              </div>
-              <div className="epm-step-content">
-                <div className="epm-step-header">
-                  <div className="epm-step-name">{step.step}</div>
-                  <span className={`epm-status-badge ${formatStepStatus(step.status)}`}>{step.status}</span>
-                </div>
-                <div className="epm-step-details">
-                  <div className="epm-step-detail">
-                    <span className="epm-detail-label">Started</span>
-                    <span className="epm-detail-value">{step.startTimestamp || "Not started"}</span>
-                  </div>
-                  <div className="epm-step-detail">
-                    <span className="epm-detail-label">Ended</span>
-                    <span className="epm-detail-value">{step.endTimestamp || "Not completed"}</span>
-                  </div>
-                  <div className="epm-step-detail">
-                    <span className="epm-detail-label">Action By</span>
-                    <span className="epm-detail-value">{displayUser ? displayUser(step.actionBy) : (step.actionBy || "Not assigned")}</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          ))}
+      <div className="epm-card-content pim-card-content cv-unified-grid">
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Vehicle ID</span>
+          <span className="epm-info-value pim-info-value">{vehicleId}</span>
+        </div>
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Make</span>
+          <span className="epm-info-value pim-info-value">{order.vehicleDetails?.make}</span>
+        </div>
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Model</span>
+          <span className="epm-info-value pim-info-value">{order.vehicleDetails?.model}</span>
+        </div>
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Year</span>
+          <span className="epm-info-value pim-info-value">{order.vehicleDetails?.year}</span>
+        </div>
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Plate Number</span>
+          <span className="epm-info-value pim-info-value">{order.vehiclePlate}</span>
+        </div>
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Color</span>
+          <span className="epm-info-value pim-info-value">{order.vehicleDetails?.color}</span>
         </div>
       </div>
     </div>
   );
 };
 
-const CustomerDetailsCard = ({ order }: any) => (
-  <div className="epm-detail-card">
-    <h3>
-      <i className="fas fa-user"></i> Customer Information
-    </h3>
-    <div className="epm-card-content">
-      <div className="epm-info-item">
-        <span className="epm-info-label">Customer ID</span>
-        <span className="epm-info-value">{order.customerDetails?.customerId || "N/A"}</span>
-      </div>
-      <div className="epm-info-item">
-        <span className="epm-info-label">Customer Name</span>
-        <span className="epm-info-value">{order.customerName}</span>
-      </div>
-      <div className="epm-info-item">
-        <span className="epm-info-label">Mobile Number</span>
-        <span className="epm-info-value">{order.mobile || "Not provided"}</span>
-      </div>
-      <div className="epm-info-item">
-        <span className="epm-info-label">Email Address</span>
-        <span className="epm-info-value">{order.customerDetails?.email || "Not provided"}</span>
-      </div>
-    </div>
-  </div>
-);
-
-const VehicleDetailsCard = ({ order }: any) => (
-  <div className="epm-detail-card">
-    <h3>
-      <i className="fas fa-car"></i> Vehicle Details
-    </h3>
-    <div className="epm-card-content">
-      <div className="epm-info-item">
-        <span className="epm-info-label">Make</span>
-        <span className="epm-info-value">{order.vehicleDetails?.make}</span>
-      </div>
-      <div className="epm-info-item">
-        <span className="epm-info-label">Model</span>
-        <span className="epm-info-value">{order.vehicleDetails?.model}</span>
-      </div>
-      <div className="epm-info-item">
-        <span className="epm-info-label">Year</span>
-        <span className="epm-info-value">{order.vehicleDetails?.year}</span>
-      </div>
-      <div className="epm-info-item">
-        <span className="epm-info-label">Plate Number</span>
-        <span className="epm-info-value">{order.vehiclePlate}</span>
-      </div>
-      <div className="epm-info-item">
-        <span className="epm-info-label">Color</span>
-        <span className="epm-info-value">{order.vehicleDetails?.color}</span>
-      </div>
-    </div>
-  </div>
-);
-
 const DocumentsCard = ({ order }: any) => {
   const documents = Array.isArray(order.documents) ? order.documents : [];
   if (documents.length === 0) return null;
 
   return (
-    <div className="epm-detail-card">
+    <div className="epm-detail-card pim-detail-card">
       <h3>
         <i className="fas fa-folder-open"></i> Documents
       </h3>
@@ -1319,22 +1330,22 @@ const DocumentsCard = ({ order }: any) => {
 };
 
 const ServicesCard = ({ order }: any) => (
-  <div className="epm-detail-card">
+  <div className="epm-detail-card pim-detail-card">
     <h3>
-      <i className="fas fa-tasks"></i> Services Summary
+      <i className="fas fa-tasks"></i> Services Summary ({order.services?.length || 0})
     </h3>
-    <div className="epm-services-list">
+    <div className="epm-services-list pim-services-list">
       {order.services && order.services.length > 0 ? (
         order.services.map((service: any, idx: number) => (
-          <div key={idx} className="epm-service-item">
-            <div className="epm-service-header">
-              <span className="epm-service-name">{service.name}</span>
-              <span className={`epm-status-badge ${getServiceStatusClass(service.status)}`}>{service.status}</span>
+          <div key={idx} className="epm-service-item pim-service-item">
+            <div className="epm-service-header pim-service-header">
+              <span className="epm-service-name pim-service-name">{service.name}</span>
+              <span className={`epm-status-badge status-badge ${getServiceStatusClass(service.status)}`}>{service.status}</span>
             </div>
           </div>
         ))
       ) : (
-        <div className="epm-service-item">
+        <div className="epm-service-item pim-service-item">
           <em>No services recorded</em>
         </div>
       )}
@@ -1348,17 +1359,17 @@ const AdditionalServicesRequestCard = ({ request, index }: any) => {
     <div className={`epm-additional-services epm-${statusClass}`}>
       <div className="epm-additional-header">Additional Services Request {index > 1 ? `#${index}` : ""}</div>
       <div className="epm-card-body">
-        <div className="epm-info-item">
-          <div className="epm-info-label">Request ID</div>
-          <div className="epm-info-value">{request.requestId}</div>
+        <div className="epm-info-item pim-info-item">
+          <div className="epm-info-label pim-info-label">Request ID</div>
+          <div className="epm-info-value pim-info-value">{request.requestId}</div>
         </div>
-        <div className="epm-info-item">
-          <div className="epm-info-label">Requested Service</div>
-          <div className="epm-info-value">{request.requestedService}</div>
+        <div className="epm-info-item pim-info-item">
+          <div className="epm-info-label pim-info-label">Requested Service</div>
+          <div className="epm-info-value pim-info-value">{request.requestedService}</div>
         </div>
-        <div className="epm-info-item">
-          <div className="epm-info-label">Status</div>
-          <div className="epm-info-value">{request.status}</div>
+        <div className="epm-info-item pim-info-item">
+          <div className="epm-info-label pim-info-label">Status</div>
+          <div className="epm-info-value pim-info-value">{request.status}</div>
         </div>
       </div>
     </div>
@@ -1366,47 +1377,47 @@ const AdditionalServicesRequestCard = ({ request, index }: any) => {
 };
 
 const CustomerNotesCard = ({ order }: any) => (
-  <div className="epm-detail-card">
+  <div className="epm-detail-card pim-detail-card">
     <h3>
       <i className="fas fa-sticky-note"></i> Customer Notes / Comments
     </h3>
-    <div className="epm-card-content">
+    <div className="epm-card-content pim-card-content">
       <div className="epm-notes-box">{order.customerNotes}</div>
     </div>
   </div>
 );
 
 const BillingCard = ({ order }: any) => (
-  <div className="epm-detail-card">
+  <div className="epm-detail-card pim-detail-card bi-unified-card">
     <h3>
       <i className="fas fa-receipt"></i> Billing & Invoices
     </h3>
 
-    <div className="epm-billing-master-section">
-      <div className="epm-card-content">
-        <div className="epm-info-item">
-          <span className="epm-info-label">Master Bill ID</span>
-          <span className="epm-info-value">{order.billing?.billId || "N/A"}</span>
+    <div className="epm-billing-master-section bi-summary">
+      <div className="epm-card-content pim-card-content">
+        <div className="epm-info-item pim-info-item bi-row">
+          <span className="epm-info-label pim-info-label bi-label">Bill ID</span>
+          <span className="epm-info-value pim-info-value bi-value">{order.billing?.billId || "N/A"}</span>
         </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Total Bill Amount</span>
-          <span className="epm-info-value">{order.billing?.totalAmount || "N/A"}</span>
+        <div className="epm-info-item pim-info-item bi-row">
+          <span className="epm-info-label pim-info-label bi-label">Total Amount</span>
+          <span className="epm-info-value pim-info-value bi-value">{order.billing?.totalAmount || "N/A"}</span>
         </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Total Discount</span>
-          <span className="epm-info-value">{order.billing?.discount || "N/A"}</span>
+        <div className="epm-info-item pim-info-item bi-row">
+          <span className="epm-info-label pim-info-label bi-label">Discount</span>
+          <span className="epm-info-value pim-info-value bi-value">{order.billing?.discount || "N/A"}</span>
         </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Net Amount</span>
-          <span className="epm-info-value">{order.billing?.netAmount || "N/A"}</span>
+        <div className="epm-info-item pim-info-item bi-row">
+          <span className="epm-info-label pim-info-label bi-label">Net Amount</span>
+          <span className="epm-info-value pim-info-value bi-value">{order.billing?.netAmount || "N/A"}</span>
         </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Amount Paid</span>
-          <span className="epm-info-value">{order.billing?.amountPaid || "N/A"}</span>
+        <div className="epm-info-item pim-info-item bi-row">
+          <span className="epm-info-label pim-info-label bi-label">Amount Paid</span>
+          <span className="epm-info-value pim-info-value bi-value">{order.billing?.amountPaid || "N/A"}</span>
         </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Balance Due</span>
-          <span className="epm-info-value">{order.billing?.balanceDue || "N/A"}</span>
+        <div className="epm-info-item pim-info-item bi-row">
+          <span className="epm-info-label pim-info-label bi-label">Balance Due</span>
+          <span className="epm-info-value pim-info-value bi-value">{order.billing?.balanceDue || "N/A"}</span>
         </div>
       </div>
 
@@ -1420,12 +1431,12 @@ const BillingCard = ({ order }: any) => (
     </div>
 
     {order.billing?.invoices && order.billing.invoices.length > 0 && (
-      <div className="epm-invoices-wrap">
-        <div className="epm-invoices-title">
-          <i className="fas fa-file-invoice"></i> Invoice Details ({order.billing.invoices.length})
+      <div className="epm-invoices-wrap bi-invoices-wrap">
+        <div className="epm-invoices-title bi-invoices-title">
+          <i className="fas fa-file-invoice"></i> Invoices ({order.billing.invoices.length})
         </div>
         {order.billing.invoices.map((invoice: any, idx: number) => (
-          <div key={idx} className="epm-invoice-item">
+          <div key={idx} className="epm-invoice-item bi-invoice-card">
             <div className="epm-invoice-header">
               <span className="epm-invoice-number">
                 <i className="fas fa-hashtag"></i> {invoice.number}
@@ -1445,7 +1456,7 @@ const PaymentActivityLogCard = ({ order }: any) => {
   if (!order.paymentActivityLog || order.paymentActivityLog.length === 0) return null;
 
   return (
-    <div className="epm-detail-card">
+    <div className="epm-detail-card pim-detail-card">
       <h3>
         <i className="fas fa-history"></i> Payment Activity Log
       </h3>
@@ -1484,50 +1495,68 @@ const PaymentActivityLogCard = ({ order }: any) => {
 };
 
 const ExitPermitCard = ({ order }: any) => {
-  const permitId = order.exitPermit?.permitId || "N/A";
-  const createDate = order.exitPermit?.createDate || "N/A";
-  const nextServiceDate = order.exitPermit?.nextServiceDate || "N/A";
-  const createdBy = normalizeActorDisplay(order.exitPermit?.createdBy || "N/A", "N/A");
-  const collectedBy = order.exitPermit?.collectedBy || "N/A";
-  const collectedByMobile = order.exitPermit?.collectedByMobile || "N/A";
+  const permit = order?.exitPermit ?? {};
+  const permitInfo = order?.exitPermitInfo ?? {};
+
+  const firstNonEmpty = (...values: any[]) => {
+    for (const value of values) {
+      const out = String(value ?? "").trim();
+      if (out) return out;
+    }
+    return "";
+  };
+
+  const permitId = firstNonEmpty(permit?.permitId, permitInfo?.permitId) || "—";
+  const createDate = firstNonEmpty(permit?.createDate, permitInfo?.createDate, order?.exitPermitDate) || "—";
+  const nextServiceDate = firstNonEmpty(permit?.nextServiceDate, permitInfo?.nextServiceDate, order?.nextServiceDate) || "—";
+  const createdBy = normalizeActorDisplay(
+    firstNonEmpty(permit?.createdBy, permitInfo?.createdBy, permitInfo?.actionBy),
+    "—"
+  );
+  const collectedBy = firstNonEmpty(permit?.collectedBy, permitInfo?.collectedBy) || "—";
+  const collectedByMobile = firstNonEmpty(permit?.collectedByMobile, permitInfo?.collectedByMobile, permitInfo?.mobileNumber) || "—";
+  const status = mapExitPermitStatusToUi(
+    order?.exitPermitStatus ?? permit?.status ?? permitInfo?.status,
+    Boolean(firstNonEmpty(permit?.permitId, permitInfo?.permitId))
+  );
 
   return (
-    <div className="epm-detail-card">
+    <div className="epm-detail-card pim-detail-card ex-unified-card">
       <h3>
-        <i className="fas fa-id-card"></i> Exit Permit Details
+        <i className="fas fa-id-card"></i> Exit Permit
       </h3>
-      <div className="epm-card-content">
-        <div className="epm-info-item">
-          <span className="epm-info-label">Permit ID</span>
-          <span className="epm-info-value">{permitId}</span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Create Date</span>
-          <span className="epm-info-value">{createDate}</span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Next Service Date</span>
-          <span className="epm-info-value">{nextServiceDate}</span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Created By</span>
-          <span className="epm-info-value">{createdBy}</span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Collected By</span>
-          <span className="epm-info-value">{collectedBy}</span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Mobile Number</span>
-          <span className="epm-info-value">{collectedByMobile}</span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Permit Status</span>
-          <span className="epm-info-value">
-            <span className={`epm-status-badge ${order.exitPermitStatus === "Created" ? "epm-payment-full" : "epm-payment-unpaid"}`}>
-              {order.exitPermitStatus || "Not Created"}
+      <div className="epm-card-content pim-card-content ex-unified-grid">
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Status</span>
+          <span className="epm-info-value pim-info-value">
+            <span className={`epm-status-badge status-badge ${getExitPermitPaymentBadgeClass(status)}`}>
+              {status}
             </span>
           </span>
+        </div>
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Permit ID</span>
+          <span className="epm-info-value pim-info-value">{permitId}</span>
+        </div>
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Create Date</span>
+          <span className="epm-info-value pim-info-value">{createDate}</span>
+        </div>
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Next Service Date</span>
+          <span className="epm-info-value pim-info-value">{nextServiceDate}</span>
+        </div>
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Created By</span>
+          <span className="epm-info-value pim-info-value">{createdBy}</span>
+        </div>
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Collected By</span>
+          <span className="epm-info-value pim-info-value">{collectedBy}</span>
+        </div>
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">Mobile Number</span>
+          <span className="epm-info-value pim-info-value">{collectedByMobile}</span>
         </div>
       </div>
     </div>
@@ -1545,7 +1574,7 @@ const QualityCheckListCard = ({ order }: any) => {
   };
 
   return (
-    <div className="epm-detail-card epm-qc-card">
+    <div className="epm-detail-card pim-detail-card epm-qc-card">
       <h3>
         <i className="fas fa-clipboard-check"></i> Quality Check List
       </h3>

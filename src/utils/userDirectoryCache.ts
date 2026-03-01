@@ -1,12 +1,16 @@
 type UserEntry = {
   name: string;
   email: string;
+  id?: string;
+  profileOwner?: string;
+  sub?: string;
 };
 
 export type UserDirectory = {
   users: UserEntry[];
   emailToNameMap: Record<string, string>;
   nameToEmailMap: Record<string, string>;
+  identityToUsernameMap: Record<string, string>;
   loadedAt: number;
 };
 
@@ -23,25 +27,51 @@ function buildDirectory(rows: any[]): UserDirectory {
   const users: UserEntry[] = [];
   const emailToNameMap: Record<string, string> = {};
   const nameToEmailMap: Record<string, string> = {};
+  const identityToUsernameMap: Record<string, string> = {};
+
+  const toUsername = (emailLike: string) => {
+    const normalized = normalizeIdentity(emailLike);
+    const at = normalized.indexOf("@");
+    return at > 0 ? normalized.slice(0, at) : normalized;
+  };
+
+  const extractSub = (profileOwnerRaw: string) => {
+    const normalized = normalizeIdentity(profileOwnerRaw);
+    if (!normalized) return "";
+    const [lhs = ""] = normalized.split("::");
+    return lhs.trim();
+  };
 
   for (const row of rows ?? []) {
     const email = normalizeIdentity(row?.email);
     if (!email) continue;
 
     const name = String(row?.fullName ?? row?.name ?? row?.email ?? "").trim() || email;
+    const id = normalizeIdentity(row?.id);
+    const profileOwner = normalizeIdentity(row?.profileOwner);
+    const sub = extractSub(profileOwner);
+    const username = toUsername(email);
 
-    users.push({ name, email });
+    users.push({ name, email, id: id || undefined, profileOwner: profileOwner || undefined, sub: sub || undefined });
 
     if (!emailToNameMap[email]) emailToNameMap[email] = name;
 
     const nameKey = normalizeIdentity(name);
     if (nameKey && !nameToEmailMap[nameKey]) nameToEmailMap[nameKey] = email;
+
+    const identityKeys = [email, id, profileOwner, sub, nameKey].filter(Boolean);
+    for (const key of identityKeys) {
+      if (!identityToUsernameMap[key]) {
+        identityToUsernameMap[key] = username;
+      }
+    }
   }
 
   return {
     users,
     emailToNameMap,
     nameToEmailMap,
+    identityToUsernameMap,
     loadedAt: Date.now(),
   };
 }

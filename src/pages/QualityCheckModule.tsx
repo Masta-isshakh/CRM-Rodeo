@@ -5,13 +5,15 @@ import { createPortal } from "react-dom";
 import SuccessPopup from "./SuccessPopup";
 import ConfirmationPopup from "./ConfirmationPopup";
 import PermissionGate from "./PermissionGate";
+import UnifiedJobOrderRoadmap from "../components/UnifiedJobOrderRoadmap";
 
 import "./QualityCheckModule.css";
+import "./JobCards.css";
 
 import { getDataClient } from "../lib/amplifyClient";
 import { cancelJobOrderByOrderNumber, getJobOrderByOrderNumber, upsertJobOrder } from "./jobOrderRepo";
 import { getUserDirectory } from "../utils/userDirectoryCache";
-import { resolveActorUsername } from "../utils/actorIdentity";
+import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
 
 import { getUrl, uploadData } from "aws-amplify/storage";
 
@@ -39,16 +41,9 @@ function safeLower(s: any) {
   return String(s ?? "").trim().toLowerCase();
 }
 
-function normalizeIdentity(v: any) {
-  return String(v ?? "").trim().toLowerCase();
-}
-
-function normalizeActorDisplay(value: any, fallback = "—") {
-  const raw = String(value ?? "").trim();
-  if (!raw) return fallback;
-  const at = raw.indexOf("@");
-  if (at > 0) return raw.slice(0, at).toLowerCase();
-  return raw;
+function isServiceOperationLabel(value: any) {
+  const compact = String(value ?? "").trim().toLowerCase().replace(/[\s_]+/g, "");
+  return compact === "inprogress" || compact === "serviceoperation";
 }
 
 function normalizeWorkStatus(rowStatus?: string, label?: string): string {
@@ -61,7 +56,7 @@ function normalizeWorkStatus(rowStatus?: string, label?: string): string {
     case "OPEN":
       return "New Request";
     case "IN_PROGRESS":
-      return "Inprogress";
+      return "Service_Operation";
     case "READY":
       return "Ready";
     case "COMPLETED":
@@ -69,7 +64,7 @@ function normalizeWorkStatus(rowStatus?: string, label?: string): string {
     case "CANCELLED":
       return "Cancelled";
     default:
-      return "Inprogress";
+      return "Service_Operation";
   }
 }
 
@@ -163,10 +158,10 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
 
   const displayUser = (value: any) => {
-    const raw = String(value ?? "").trim();
-    if (!raw) return "Not assigned";
-    const mapped = userLabelMap[normalizeIdentity(raw)] || raw;
-    return normalizeActorDisplay(mapped, "Not assigned");
+    return resolveActorDisplay(value, {
+      identityToUsernameMap: userLabelMap,
+      fallback: "Not assigned",
+    });
   };
 
   useEffect(() => {
@@ -176,15 +171,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
         const directory = await getUserDirectory(client);
         if (cancelled) return;
 
-        const map: Record<string, string> = {};
-        for (const u of directory.users ?? []) {
-          const email = normalizeIdentity(u?.email);
-          const name = String(u?.name ?? u?.email ?? "").trim();
-          if (email && name) {
-            map[email] = name;
-          }
-        }
-        setUserLabelMap(map);
+        setUserLabelMap(directory.identityToUsernameMap ?? {});
       } catch {
         if (!cancelled) setUserLabelMap({});
       }
@@ -572,7 +559,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
           actionBy: actor,
         };
       }
-      if (safeLower(nextWorkStatusLabel) === "inprogress" && (stepName === "inprogress" || stepName === "in progress")) {
+      if (isServiceOperationLabel(nextWorkStatusLabel) && (stepName === "inprogress" || stepName === "in progress" || stepName === "serviceoperation" || stepName === "service_operation")) {
         return {
           ...step,
           stepStatus: "Active",
@@ -631,8 +618,8 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   const handleRejectQC = async () => {
     setLoading(true);
     try {
-      await persistQcResultsToOrder("Inprogress");
-      setPopupMessage("Quality Check Rejected! Order returned to Service Execution (Inprogress).");
+      await persistQcResultsToOrder("Service_Operation");
+      setPopupMessage("Quality Check Rejected! Order returned to Service Execution (Service_Operation).");
       setShowPopup(true);
       setShowQCConfirmation(false);
       closeDetailView();
@@ -641,55 +628,6 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
       setShowPopup(true);
     } finally {
       setLoading(false);
-    }
-  };
-
-  /* -------------------- UI helpers (classes only) -------------------- */
-  const getQCStepStatusClass = (stepStatus: string) => {
-    switch (stepStatus) {
-      case "Completed":
-        return "qc-step-completed";
-      case "Active":
-      case "InProgress":
-        return "qc-step-active";
-      case "Pending":
-        return "qc-step-pending";
-      case "Cancelled":
-        return "qc-step-cancelled";
-      case "Upcoming":
-      default:
-        return "qc-step-upcoming";
-    }
-  };
-
-  const getQCStepIcon = (stepStatus: string) => {
-    switch (stepStatus) {
-      case "Completed":
-        return "fas fa-check-circle";
-      case "Active":
-      case "InProgress":
-        return "fas fa-play-circle";
-      case "Pending":
-        return "fas fa-clock";
-      case "Cancelled":
-        return "fas fa-times-circle";
-      case "Upcoming":
-      default:
-        return "fas fa-circle";
-    }
-  };
-
-  const getQCStatusClass = (status: string) => {
-    switch (status) {
-      case "Completed":
-        return "qc-status-completed";
-      case "InProgress":
-        return "qc-status-inprogress";
-      case "Pending":
-      case "Upcoming":
-        return "qc-status-pending";
-      default:
-        return "qc-status-pending";
     }
   };
 
@@ -959,55 +897,61 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
 
     return (
       <div className="quality-check-module">
-        <div className="detail-view" id="detailView">
-          <div className="detail-header">
-            <h2>
-              Quality Check Details - Job Order #<span id="detailJobIdHeader">{selectedOrder.id}</span>
-            </h2>
-            <button className="close-detail" type="button" onClick={closeDetailView}>
+        <div className="detail-view pim-details-screen jo-details-v3" id="detailView">
+          <div className="detail-header pim-details-header">
+            <div className="pim-details-title-container">
+              <h2>
+                Quality Check Details - Job Order #<span id="detailJobIdHeader">{selectedOrder.id}</span>
+              </h2>
+            </div>
+            <button className="close-detail pim-btn-close-details" type="button" onClick={closeDetailView}>
               <i className="fas fa-times"></i> Close Details
             </button>
           </div>
 
-          <div className="detail-container">
-            <div className="detail-cards">
+          <div className="detail-container pim-details-body">
+            <div className="detail-cards pim-details-grid">
               {/* Summary */}
               <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_summary">
-                <div className="qc-detail-card">
+                <div className="pim-detail-card">
                   <h3>
                     <i className="fas fa-info-circle"></i> Job Order Summary
                   </h3>
-                  <div className="qc-card-content">
-                    <div className="qc-info-item">
-                      <span className="qc-info-label">Job Order ID</span>
-                      <span className="qc-info-value">{selectedOrder.id}</span>
+                  <div className="pim-card-content">
+                    <div className="pim-info-item">
+                      <span className="pim-info-label">Job Order ID</span>
+                      <span className="pim-info-value">{selectedOrder.id}</span>
                     </div>
-                    <div className="qc-info-item">
-                      <span className="qc-info-label">Order Type</span>
-                      <span className="qc-info-value">{selectedOrder.orderType || "Job Order"}</span>
+                    <div className="pim-info-item">
+                      <span className="pim-info-label">Order Type</span>
+                      <span className="pim-info-value">{selectedOrder.orderType || "Job Order"}</span>
                     </div>
-                    <div className="qc-info-item">
-                      <span className="qc-info-label">Request Create Date</span>
-                      <span className="qc-info-value">{selectedOrder.jobOrderSummary?.createDate || selectedOrder.createDate || "—"}</span>
+                    <div className="pim-info-item">
+                      <span className="pim-info-label">Request Create Date</span>
+                      <span className="pim-info-value">{selectedOrder.jobOrderSummary?.createDate || selectedOrder.createDate || "—"}</span>
                     </div>
-                    <div className="qc-info-item">
-                      <span className="qc-info-label">Created By</span>
-                      <span className="qc-info-value">{displayUser(selectedOrder.jobOrderSummary?.createdBy || "System")}</span>
+                    <div className="pim-info-item">
+                      <span className="pim-info-label">Created By</span>
+                      <span className="pim-info-value">{resolveOrderCreatedBy(selectedOrder, { identityToUsernameMap: userLabelMap, fallback: "—" })}</span>
                     </div>
-                    <div className="qc-info-item">
-                      <span className="qc-info-label">Expected Delivery</span>
-                      <span className="qc-info-value">{selectedOrder.jobOrderSummary?.expectedDelivery || "—"}</span>
+                    <div className="pim-info-item">
+                      <span className="pim-info-label">Expected Delivery</span>
+                      <span className="pim-info-value">{selectedOrder.jobOrderSummary?.expectedDelivery || "—"}</span>
                     </div>
-                    <div className="qc-info-item">
-                      <span className="qc-info-label">Work Status</span>
-                      <span className="qc-info-value">
-                        <span className="qc-status-badge qc-status-pending">{selectedOrder.workStatus}</span>
+                    <div className="pim-info-item">
+                      <span className="pim-info-label">Work Status</span>
+                      <span className="pim-info-value">
+                        <span className={`epm-status-badge status-badge ${getWorkStatusClass(selectedOrder.workStatus)}`}>
+                          {selectedOrder.workStatus}
+                        </span>
                       </span>
                     </div>
-                    <div className="qc-info-item">
-                      <span className="qc-info-label">Payment Status</span>
-                      <span className="qc-info-value">
-                        <span className="qc-status-badge qc-payment-unpaid">{selectedOrder.paymentStatus}</span>
+                    <div className="pim-info-item">
+                      <span className="pim-info-label">Payment Status</span>
+                      <span className="pim-info-value">
+                        <span className={`epm-status-badge status-badge ${getPaymentStatusClass(selectedOrder.paymentStatus)}`}>
+                          {selectedOrder.paymentStatus}
+                        </span>
                       </span>
                     </div>
                   </div>
@@ -1017,65 +961,28 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
               {/* Roadmap */}
               {roadmap.length > 0 && (
                 <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_roadmap">
-                  <div className="qc-detail-card">
-                    <h3>
-                      <i className="fas fa-map-signs"></i> Job Order Roadmap
-                    </h3>
-                    <div className="qc-roadmap-container">
-                      <div className="qc-roadmap-steps">
-                        {roadmap.map((step: any, idx: number) => (
-                          <div key={idx} className={`qc-roadmap-step ${getQCStepStatusClass(String(step.stepStatus ?? "Upcoming"))}`}>
-                            <div className="qc-step-icon">
-                              <i className={getQCStepIcon(String(step.stepStatus ?? "Upcoming"))}></i>
-                            </div>
-                            <div className="qc-step-content">
-                              <div className="qc-step-header">
-                                <div className="qc-step-name">{String(step.step ?? "")}</div>
-                                <span className={`qc-status-badge-roadmap ${getQCStatusClass(String(step.status ?? "Upcoming"))}`}>
-                                  {String(step.status ?? "Upcoming")}
-                                </span>
-                              </div>
-                              <div className="qc-step-details">
-                                <div className="qc-step-detail">
-                                  <span className="qc-detail-label">Started</span>
-                                  <span className="qc-detail-value">{String(step.startTimestamp ?? "Not started")}</span>
-                                </div>
-                                <div className="qc-step-detail">
-                                  <span className="qc-detail-label">Ended</span>
-                                  <span className="qc-detail-value">{String(step.endTimestamp ?? "Not completed")}</span>
-                                </div>
-                                <div className="qc-step-detail">
-                                  <span className="qc-detail-label">Action By</span>
-                                  <span className="qc-detail-value">{displayUser(step.actionBy)}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
+                  <UnifiedJobOrderRoadmap order={{ ...selectedOrder, roadmap }} />
                 </PermissionGate>
               )}
 
               {/* Customer */}
               <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_customer">
-                <div className="qc-detail-card">
+                <div className="qc-detail-card pim-detail-card cv-unified-card">
                   <h3>
                     <i className="fas fa-user"></i> Customer Information
                   </h3>
-                  <div className="qc-card-content">
-                    <div className="qc-info-item">
-                      <span className="qc-info-label">Name</span>
-                      <span className="qc-info-value">{selectedOrder.customerName || "—"}</span>
+                  <div className="qc-card-content pim-card-content cv-unified-grid">
+                    <div className="qc-info-item pim-info-item">
+                      <span className="qc-info-label pim-info-label">Name</span>
+                      <span className="qc-info-value pim-info-value">{selectedOrder.customerName || "—"}</span>
                     </div>
-                    <div className="qc-info-item">
-                      <span className="qc-info-label">Mobile</span>
-                      <span className="qc-info-value">{selectedOrder.mobile || "—"}</span>
+                    <div className="qc-info-item pim-info-item">
+                      <span className="qc-info-label pim-info-label">Mobile</span>
+                      <span className="qc-info-value pim-info-value">{selectedOrder.mobile || "—"}</span>
                     </div>
-                    <div className="qc-info-item">
-                      <span className="qc-info-label">Email</span>
-                      <span className="qc-info-value">{selectedOrder.customerDetails?.email || "—"}</span>
+                    <div className="qc-info-item pim-info-item">
+                      <span className="qc-info-label pim-info-label">Email</span>
+                      <span className="qc-info-value pim-info-value">{selectedOrder.customerDetails?.email || "—"}</span>
                     </div>
                   </div>
                 </div>
@@ -1083,24 +990,35 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
 
               {/* Vehicle */}
               <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_vehicle">
-                <div className="qc-detail-card">
+                <div className="qc-detail-card pim-detail-card cv-unified-card">
                   <h3>
                     <i className="fas fa-car"></i> Vehicle Information
                   </h3>
-                  <div className="qc-card-content">
-                    <div className="qc-info-item">
-                      <span className="qc-info-label">Make / Model</span>
-                      <span className="qc-info-value">
+                  <div className="qc-card-content pim-card-content cv-unified-grid">
+                    <div className="qc-info-item pim-info-item">
+                      <span className="qc-info-label pim-info-label">Vehicle ID</span>
+                      <span className="qc-info-value pim-info-value">
+                        {String(
+                          selectedOrder?.vehicleDetails?.vehicleId ??
+                          selectedOrder?.vehicleDetails?.id ??
+                          selectedOrder?.vehicleId ??
+                          ""
+                        ).trim() || "—"}
+                      </span>
+                    </div>
+                    <div className="qc-info-item pim-info-item">
+                      <span className="qc-info-label pim-info-label">Make / Model</span>
+                      <span className="qc-info-value pim-info-value">
                         {selectedOrder.vehicleDetails?.make || "—"} {selectedOrder.vehicleDetails?.model || ""}
                       </span>
                     </div>
-                    <div className="qc-info-item">
-                      <span className="qc-info-label">Plate</span>
-                      <span className="qc-info-value">{selectedOrder.vehicleDetails?.plateNumber || selectedOrder.vehiclePlate || "—"}</span>
+                    <div className="qc-info-item pim-info-item">
+                      <span className="qc-info-label pim-info-label">Plate</span>
+                      <span className="qc-info-value pim-info-value">{selectedOrder.vehicleDetails?.plateNumber || selectedOrder.vehiclePlate || "—"}</span>
                     </div>
-                    <div className="qc-info-item">
-                      <span className="qc-info-label">Color</span>
-                      <span className="qc-info-value">{selectedOrder.vehicleDetails?.color || "—"}</span>
+                    <div className="qc-info-item pim-info-item">
+                      <span className="qc-info-label pim-info-label">Color</span>
+                      <span className="qc-info-value pim-info-value">{selectedOrder.vehicleDetails?.color || "—"}</span>
                     </div>
                   </div>
                 </div>
@@ -1108,18 +1026,20 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
 
               {/* Services */}
               <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_services">
-                <div className="qc-detail-card">
+                <div className="pim-detail-card">
                   <h3>
-                    <i className="fas fa-tasks"></i> Services Summary
+                    <i className="fas fa-tasks"></i> Services Summary ({servicesForQc.length || 0})
                   </h3>
 
-                  <div className="qc-services-list">
+                  <div className="pim-services-list">
                     {servicesForQc.length > 0 ? (
                       servicesForQc.map((service: any, idx: number) => (
-                        <div key={idx} className="qc-service-item">
-                          <div className="qc-service-header">
-                            <span className="qc-service-name">{String(service?.name ?? service ?? `Service ${idx + 1}`)}</span>
-                            <span className="qc-status-badge qc-status-new">{String(service?.status ?? "New")}</span>
+                        <div key={idx} className="pim-service-item">
+                          <div className="pim-service-header">
+                            <span className="pim-service-name">{String(service?.name ?? service ?? `Service ${idx + 1}`)}</span>
+                            <span className={`status-badge ${getServiceStatusClass(service?.status ?? "New")}`}>
+                              {String(service?.status ?? "New")}
+                            </span>
                           </div>
                         </div>
                       ))
@@ -1132,7 +1052,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
 
               {/* Quality checklist */}
               <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_quality">
-                <div className="qc-detail-card qc-quality-card">
+                <div className="qc-detail-card qc-quality-card pim-detail-card">
                   <div className="qc-quality-head">
                     <h3>
                       <i className="fas fa-clipboard-check"></i> Quality Check List
@@ -1184,7 +1104,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
               {/* Payment log (read only from repo result) */}
               {paymentLog.length > 0 && (
                 <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_paymentlog">
-                  <div className="qc-detail-card">
+                  <div className="qc-detail-card pim-detail-card">
                     <h3>
                       <i className="fas fa-history"></i> Payment Activity Log
                     </h3>
@@ -1219,7 +1139,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
               {/* Documents */}
               {docs.length > 0 && (
                 <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_documents">
-                  <div className="qc-detail-card">
+                  <div className="qc-detail-card pim-detail-card">
                     <h3>
                       <i className="fas fa-folder-open"></i> Documents
                     </h3>
@@ -1288,4 +1208,35 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   }
 
   return null;
+}
+
+function getWorkStatusClass(status: any) {
+  const statusMap: any = {
+    "New Request": "status-new-request",
+    Inspection: "status-inspection",
+    Service_Operation: "status-inprogress",
+    Inprogress: "status-inprogress",
+    "Quality Check": "status-quality-check",
+    Ready: "status-ready",
+    Completed: "status-completed",
+    Cancelled: "status-cancelled",
+  };
+  return statusMap[String(status ?? "")] || "status-inprogress";
+}
+
+function getPaymentStatusClass(status: any) {
+  if (status === "Fully Paid") return "payment-full";
+  if (status === "Partially Paid") return "payment-partial";
+  return "payment-unpaid";
+}
+
+function getServiceStatusClass(status: any) {
+  const s = String(status ?? "").trim().toLowerCase();
+  if (s === "completed") return "status-completed";
+  if (s === "cancelled" || s === "canceled") return "status-cancelled";
+  if (s === "quality check") return "status-quality-check";
+  if (s === "service_operation" || s === "inprogress" || s === "in progress") return "status-inprogress";
+  if (s === "inspection") return "status-inspection";
+  if (s === "ready") return "status-ready";
+  return "status-new-request";
 }

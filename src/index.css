@@ -6,3 +6,397 @@ html, body, #root {
 body {
   margin: 0;
 }
+
+/* Unified Customer/Vehicle details style (screenshot parity) */
+.cv-unified-card {
+  grid-column: 1 / -1 !important;
+  background: #fff !important;
+  border: 1px solid #dde5ef !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  padding: 10px 12px !important;
+  overflow: hidden !important;
+}
+
+.cv-unified-card .details-card-header {
+  padding: 0 !important;
+  border-bottom: none !important;
+  margin: 0 0 9px 0;
+  background: transparent !important;
+}
+
+.cv-unified-card h3,
+.cv-unified-card .details-card-header h3 {
+  margin: 0 0 9px 0 !important;
+  padding: 0 0 9px 0 !important;
+  border-bottom: 1px solid #e8edf3 !important;
+  background: transparent !important;
+  color: #243b53 !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  line-height: 1.25 !important;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cv-unified-card h3 i,
+.cv-unified-card .details-card-header h3 i {
+  width: 14px;
+  min-width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.cv-unified-grid {
+  display: grid !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+  border: 1px solid #edf2f7 !important;
+  border-radius: 6px !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+.cv-unified-grid > div {
+  border-right: 1px solid #edf2f7;
+  border-bottom: 1px solid #edf2f7;
+  padding: 10px 12px !important;
+  min-height: 58px;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: flex-start !important;
+  gap: 4px;
+  background: #fff !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.cv-unified-grid > div:nth-child(4n) {
+  border-right: none;
+}
+
+.cv-unified-grid .pim-info-label,
+.cv-unified-grid .epm-info-label,
+.cv-unified-grid .qc-info-label,
+.cv-unified-grid > div > span:first-child {
+  display: block;
+  font-size: 10px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #64748b !important;
+  font-weight: 700 !important;
+  margin-bottom: 4px;
+}
+
+.cv-unified-grid .pim-info-value,
+.cv-unified-grid .epm-info-value,
+.cv-unified-grid .qc-info-value,
+.cv-unified-grid > div > strong,
+.cv-unified-grid > div > span:last-child {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  text-align: left !important;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 1100px) {
+  .cv-unified-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .cv-unified-grid > div:nth-child(4n) {
+    border-right: 1px solid #edf2f7;
+  }
+
+  .cv-unified-grid > div:nth-child(3n) {
+    border-right: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .cv-unified-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .cv-unified-grid > div:nth-child(3n) {
+    border-right: 1px solid #edf2f7;
+  }
+
+  .cv-unified-grid > div:nth-child(2n) {
+    border-right: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .cv-unified-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .cv-unified-grid > div {
+    border-right: none;
+  }
+}
+
+/* Unified Billing & Invoices style (screenshot parity) */
+.bi-unified-card {
+  grid-column: 1 / -1 !important;
+}
+
+.bi-unified-card .bi-summary {
+  background: #f4efd5 !important;
+  border: 1px solid #f2c94c !important;
+  border-radius: 14px !important;
+  padding: 16px 18px !important;
+  margin-top: 6px;
+  display: block !important;
+}
+
+.bi-unified-card .pim-billing-summary h4,
+.bi-unified-card .bi-summary > h4,
+.bi-unified-card .bi-summary-title {
+  margin: 0 0 15px 0 !important;
+  font-size: 15px !important;
+  line-height: 1.25;
+  font-weight: 800 !important;
+  color: #8a4b00 !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.bi-unified-card .bi-row {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 0 !important;
+  border-bottom: 1px dashed #f2c94c !important;
+  min-height: 35px;
+  background: transparent !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-top: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.bi-unified-card .bi-summary > .bi-row:last-child {
+  border-bottom: none !important;
+}
+
+.bi-unified-card .bi-label {
+  color: #9a4708 !important;
+  font-size: 16px !important;
+  font-weight: 700 !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+
+.bi-unified-card .bi-value {
+  color: #7a3300 !important;
+  font-size: 16px !important;
+  font-weight: 800 !important;
+  text-align: right !important;
+  overflow-wrap: anywhere;
+}
+
+.bi-unified-card .bi-summary .jh-green,
+.bi-unified-card .bi-summary .jh-red,
+.bi-unified-card .bi-summary .pim-green,
+.bi-unified-card .bi-summary .pim-red {
+  color: #7a3300 !important;
+}
+
+.bi-unified-card .bi-invoices-wrap {
+  margin-top: 16px;
+}
+
+.bi-unified-card .bi-invoices-title {
+  margin: 0 0 11px 0 !important;
+  font-size: 14px !important;
+  font-weight: 800 !important;
+  color: #334155 !important;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 !important;
+  border: none !important;
+}
+
+.bi-unified-card .bi-invoice-card {
+  border: 1px solid #e5ebf2 !important;
+  border-radius: 10px !important;
+  background: #fff !important;
+}
+
+@media (max-width: 760px) {
+  .bi-unified-card .bi-row {
+    padding: 11px 0 !important;
+  }
+
+  .bi-unified-card .bi-label,
+  .bi-unified-card .bi-value {
+    font-size: 14px !important;
+  }
+}
+
+/* Unified Exit Permit details style (JobOrderHistory screenshot parity) */
+.ex-unified-card {
+  grid-column: 1 / -1 !important;
+  background: #fff !important;
+  border: 1px solid #dde5ef !important;
+  border-radius: 8px !important;
+  box-shadow: none !important;
+  padding: 10px 12px !important;
+}
+
+.ex-unified-card h3 {
+  margin: 0 0 8px 0 !important;
+  padding: 0 0 8px 0 !important;
+  border-bottom: 1px solid #e8edf3 !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  line-height: 1.25 !important;
+  color: #243b53 !important;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ex-unified-card h3 i {
+  width: 14px;
+  min-width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.ex-unified-grid {
+  display: grid !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  gap: 0 !important;
+  border: 1px solid #edf2f7 !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  padding: 0 !important;
+}
+
+.ex-unified-grid > div {
+  border-right: 1px solid #edf2f7;
+  border-bottom: 1px solid #edf2f7;
+  padding: 10px 16px !important;
+  min-height: 57px;
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: center !important;
+  align-items: flex-start !important;
+  gap: 3px;
+  background: #fff !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+
+.ex-unified-grid > div:nth-child(3n) {
+  border-right: none;
+}
+
+.ex-unified-grid .epm-info-label,
+.ex-unified-grid .pim-info-label,
+.ex-unified-grid .jh-kv span,
+.ex-unified-grid > div > span:first-child {
+  font-size: 10px !important;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #496585 !important;
+  font-weight: 700 !important;
+  margin-bottom: 3px;
+}
+
+.ex-unified-grid .epm-info-value,
+.ex-unified-grid .pim-info-value,
+.ex-unified-grid .jh-kv strong,
+.ex-unified-grid > div > strong,
+.ex-unified-grid > div > span:last-child {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #0f172a !important;
+  text-align: left !important;
+  overflow-wrap: anywhere;
+}
+
+.ex-unified-grid .status-badge,
+.ex-unified-grid .epm-status-badge,
+.ex-unified-grid .jh-badge {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 5px 10px !important;
+  font-size: 11px !important;
+  line-height: 1.05 !important;
+  border-radius: 999px !important;
+  margin-top: 1px;
+}
+
+@media (max-width: 1100px) {
+  .ex-unified-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .ex-unified-grid > div:nth-child(3n) {
+    border-right: 1px solid #edf2f7;
+  }
+
+  .ex-unified-grid > div:nth-child(2n) {
+    border-right: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .ex-unified-card {
+    padding: 9px 11px !important;
+  }
+
+  .ex-unified-card h3 {
+    margin: 0 0 7px 0 !important;
+    padding: 0 0 7px 0 !important;
+    gap: 9px;
+  }
+
+  .ex-unified-grid {
+    grid-template-columns: 1fr !important;
+    border-radius: 7px !important;
+  }
+
+  .ex-unified-grid > div {
+    border-right: none;
+    padding: 9px 13px !important;
+    min-height: 56px;
+    gap: 2px;
+  }
+
+  .ex-unified-grid .epm-info-label,
+  .ex-unified-grid .pim-info-label,
+  .ex-unified-grid .jh-kv span,
+  .ex-unified-grid > div > span:first-child {
+    margin-bottom: 2px;
+  }
+
+  .ex-unified-grid .status-badge,
+  .ex-unified-grid .epm-status-badge,
+  .ex-unified-grid .jh-badge {
+    padding: 4px 9px !important;
+    font-size: 10px !important;
+    line-height: 1 !important;
+  }
+}

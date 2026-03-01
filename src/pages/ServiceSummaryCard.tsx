@@ -82,10 +82,15 @@ type Props = {
   availableAssignees?: Array<string | AssigneeOption>;
   jobOrderBackendId?: string;
   orderNumber?: string;
+  isAdmin?: boolean;
 };
 
 function normalizeIdentity(v: any) {
   return String(v ?? "").trim().toLowerCase();
+}
+
+function displayServiceStatus(status: string) {
+  return status === "Inprogress" ? "Service_Operation" : status;
 }
 
 // -------------------------
@@ -192,6 +197,7 @@ function ServiceItem({
   availableAssignees,
   jobOrderBackendId,
   orderNumber,
+  canAssign,
 }: {
   service: Service;
   editMode: boolean;
@@ -200,6 +206,7 @@ function ServiceItem({
   availableAssignees: Array<string | AssigneeOption>;
   jobOrderBackendId?: string;
   orderNumber?: string;
+  canAssign: boolean;
 }) {
   const approval = useApprovalRequests();
 
@@ -288,12 +295,7 @@ function ServiceItem({
   const handleStatusChange = async (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newStatus = e.target.value as ServiceStatus;
 
-    if (
-      (newStatus === "Postponed" || newStatus === "Cancelled") &&
-      service.status !== "Pending Approval" &&
-      service.status !== newStatus
-    ) {
-      // create backend request row (best-effort, never crash UI)
+    if ((newStatus === "Postponed" || newStatus === "Cancelled") && service.status !== newStatus) {
       if (jobOrderBackendId && orderNumber) {
         try {
           await approval.addRequest({
@@ -308,13 +310,6 @@ function ServiceItem({
           console.warn("addRequest failed (non-fatal):", err);
         }
       }
-
-      onUpdate(service.id, {
-        status: "Pending Approval",
-        requestedAction: newStatus,
-        approvalStatus: "pending",
-      });
-      return;
     }
 
     const updates: Partial<Service> = { status: newStatus };
@@ -331,7 +326,10 @@ function ServiceItem({
       updates.ended = t;
     }
 
-    if (service.status === "Pending Approval" && newStatus !== "Pending Approval") {
+    if (newStatus === "Postponed" || newStatus === "Cancelled") {
+      updates.requestedAction = newStatus;
+      updates.approvalStatus = "pending";
+    } else if (service.status === "Pending Approval" || service.requestedAction || service.approvalStatus) {
       updates.requestedAction = null;
       updates.approvalStatus = null;
     }
@@ -351,7 +349,7 @@ function ServiceItem({
         </div>
 
         <span className={`status-badge ${getStatusClass(service.status)} service-status-badge`}>
-          {service.status === "Pending Approval" ? service.requestedAction || "Pending" : service.status}
+          {service.status === "Pending Approval" ? service.requestedAction || "Pending" : displayServiceStatus(service.status)}
         </span>
       </div>
 
@@ -367,7 +365,7 @@ function ServiceItem({
         <div className="meta-item">
           <span className="meta-label">Status</span>
           <span className="meta-value">
-            {service.status === "Pending Approval" ? service.requestedAction || "Pending" : service.status}
+            {service.status === "Pending Approval" ? service.requestedAction || "Pending" : displayServiceStatus(service.status)}
           </span>
         </div>
         <div className="meta-item">
@@ -383,7 +381,7 @@ function ServiceItem({
               <span className="control-label">
                 <FaUserTie /> Assigned to
               </span>
-              <select className="assigned-select" value={selectedAssignedValue} onChange={handleAssignedToChange}>
+              <select className="assigned-select" value={selectedAssignedValue} onChange={handleAssignedToChange} disabled={!canAssign}>
                 <option value="">— assign —</option>
                 {normalizedAssigneeOptions.map((assignee) => (
                   <option key={assignee.value} value={assignee.value}>
@@ -426,7 +424,7 @@ function ServiceItem({
               <span className="control-label">Service work status</span>
               <select className="work-status-select" value={service.status} onChange={handleStatusChange}>
                 <option value="Pending">Pending</option>
-                <option value="Inprogress">In Progress</option>
+                <option value="Inprogress">Service_Operation</option>
                 <option value="Postponed">Postponed</option>
                 <option value="Cancelled">Cancelled</option>
                 <option value="Completed">Completed</option>
@@ -496,6 +494,7 @@ export default function ServiceSummaryCard({
   availableAssignees = [],
   jobOrderBackendId,
   orderNumber,
+  isAdmin = false,
 }: Props) {
   const [localServices, setLocalServices] = useState<Service[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
@@ -603,10 +602,10 @@ export default function ServiceSummaryCard({
   };
 
   return (
-    <div className="epm-detail-card">
+    <div className="pim-detail-card">
       <h3 style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <i className="fas fa-concierge-bell"></i> Service Summary
+          <i className="fas fa-tasks"></i> Services Summary ({sortedServices.length || 0})
         </span>
 
         <span style={{ display: "flex", gap: "10px" }}>
@@ -624,22 +623,26 @@ export default function ServiceSummaryCard({
             </button>
           </PermissionGate>
 
-          <PermissionGate moduleId="serviceexec" optionId="serviceexec_finish">
-            <button className="btn-finish-work" onClick={onFinishWork} disabled={!allServicesCompleted}>
-              <FaCheckDouble /> Finish Work
-            </button>
-          </PermissionGate>
+          {isAdmin && (
+            <>
+              <PermissionGate moduleId="serviceexec" optionId="serviceexec_finish">
+                <button className="btn-finish-work" onClick={onFinishWork} disabled={!allServicesCompleted}>
+                  <FaCheckDouble /> Finish Work
+                </button>
+              </PermissionGate>
 
-          <PermissionGate moduleId="serviceexec" optionId="serviceexec_addservice">
-            <button className="btn-add-service" onClick={openAddModal}>
-              <FaPlusCircle /> Add service
-            </button>
-          </PermissionGate>
+              <PermissionGate moduleId="serviceexec" optionId="serviceexec_addservice">
+                <button className="btn-add-service" onClick={openAddModal}>
+                  <FaPlusCircle /> Add service
+                </button>
+              </PermissionGate>
+            </>
+          )}
         </span>
       </h3>
 
       <CardErrorBoundary>
-        {editMode && sortedServices.length > 0 ? (
+        {editMode && isAdmin && sortedServices.length > 0 ? (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={sortedServices.map((s) => s.id)} strategy={verticalListSortingStrategy}>
               <div className="services-list">
@@ -654,6 +657,7 @@ export default function ServiceSummaryCard({
                     availableAssignees={availableAssignees}
                     jobOrderBackendId={jobOrderBackendId}
                     orderNumber={orderNumber}
+                    canAssign={isAdmin}
                   />
                 ))}
               </div>
@@ -666,12 +670,13 @@ export default function ServiceSummaryCard({
                 <ServiceItem
                   key={service.id}
                   service={service}
-                  editMode={false}
+                  editMode={editMode}
                   onUpdate={handleServiceUpdate}
                   availableTechs={availableTechs}
                   availableAssignees={availableAssignees}
                   jobOrderBackendId={jobOrderBackendId}
                   orderNumber={orderNumber}
+                  canAssign={isAdmin}
                 />
               ))
             ) : (

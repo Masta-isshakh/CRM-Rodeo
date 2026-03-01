@@ -75,6 +75,19 @@ function highlightText(text: string, query: string) {
   );
 }
 
+function resolveVehicleIdRaw(source: any): string {
+  return String(
+    source?.vehicleDetails?.vehicleId ??
+      source?.vehicleDetails?.id ??
+      source?.vehicleId ??
+      ""
+  ).trim();
+}
+
+function resolveVehicleIdDisplay(source: any): string {
+  return resolveVehicleIdRaw(source) || "—";
+}
+
 // ----------------------
 // Alert Popup Component
 // ----------------------
@@ -317,7 +330,7 @@ function VehiclesTable(props: {
         <tbody>
           {data.map((v) => (
             <tr key={v.id}>
-              <td>{highlightText(v.vehicleId ?? "—", searchQuery)}</td>
+              <td>{highlightText(resolveVehicleIdDisplay(v), searchQuery)}</td>
               <td>{highlightText(v.ownedBy ?? "—", searchQuery)}</td>
               <td>{highlightText(v.make ?? "—", searchQuery)}</td>
               <td>{highlightText(v.model ?? "—", searchQuery)}</td>
@@ -546,7 +559,7 @@ export default function VehicleManagement({
 
       return vehicles.filter((v) => {
         const hay = [
-          v.vehicleId,
+          resolveVehicleIdRaw(v),
           v.ownedBy,
           v.make,
           v.model,
@@ -725,7 +738,12 @@ export default function VehicleManagement({
 
       if (!created.data) throw new Error("Vehicle not created");
 
-      await logActivity("Vehicle", created.data.id, "CREATE", `Vehicle ${created.data.vehicleId} created`);
+      await logActivity(
+        "Vehicle",
+        created.data.id,
+        "CREATE",
+        `Vehicle ${resolveVehicleIdDisplay(created.data) || resolveVehicleIdDisplay(form)} created`
+      );
 
       setShowAddModal(false);
       resetForm();
@@ -772,7 +790,12 @@ export default function VehicleManagement({
         updatedAt: new Date().toISOString(),
       });
 
-      await logActivity("Vehicle", selectedVehicleId, "UPDATE", `Vehicle ${form.vehicleId} updated`);
+      await logActivity(
+        "Vehicle",
+        selectedVehicleId,
+        "UPDATE",
+        `Vehicle ${resolveVehicleIdDisplay(selectedVehicle) || resolveVehicleIdDisplay(form)} updated`
+      );
 
       setShowEditModal(false);
       resetForm();
@@ -800,7 +823,7 @@ export default function VehicleManagement({
     setSaving(true);
     try {
       await client.models.Vehicle.delete({ id: deleteVehicle.id });
-      await logActivity("Vehicle", deleteVehicle.id, "DELETE", `Vehicle ${deleteVehicle.vehicleId} deleted`);
+      await logActivity("Vehicle", deleteVehicle.id, "DELETE", `Vehicle ${resolveVehicleIdDisplay(deleteVehicle)} deleted`);
 
       setDeleteVehicle(null);
 
@@ -880,7 +903,7 @@ export default function VehicleManagement({
           <div className="pim-details-header">
             <div className="pim-details-title-container">
               <h2>
-                <i className="fas fa-car"></i> Vehicle Details - <span>{selectedVehicle.vehicleId}</span>
+                <i className="fas fa-car"></i> Vehicle Details - <span>{resolveVehicleIdDisplay(selectedVehicle)}</span>
               </h2>
             </div>
 
@@ -899,14 +922,14 @@ export default function VehicleManagement({
 
           <div className="pim-details-body">
             <div className="pim-details-grid">
-              <div className="pim-detail-card">
+              <div className="pim-detail-card cv-unified-card">
                 <div className="details-card-header">
                   <h3>
                     <i className="fas fa-user"></i> Customer Information
                   </h3>
                 </div>
 
-                <div className="pim-card-content">
+                <div className="pim-card-content cv-unified-grid">
                   <div className="pim-info-item">
                     <span className="pim-info-label">Customer ID</span>
                     <span className="pim-info-value">{selectedVehicle.customerId ?? "—"}</span>
@@ -933,7 +956,7 @@ export default function VehicleManagement({
                 </div>
               </div>
 
-              <div className="pim-detail-card">
+              <div className="pim-detail-card cv-unified-card">
                 <div className="details-card-header">
                   <h3>
                     <i className="fas fa-car"></i> Vehicle Information
@@ -946,10 +969,10 @@ export default function VehicleManagement({
                   )}
                 </div>
 
-                <div className="pim-card-content">
+                <div className="pim-card-content cv-unified-grid">
                   <div className="pim-info-item">
                     <span className="pim-info-label">Vehicle ID</span>
-                    <span className="pim-info-value">{selectedVehicle.vehicleId ?? "—"}</span>
+                    <span className="pim-info-value">{resolveVehicleIdDisplay(selectedVehicle)}</span>
                   </div>
                   <div className="pim-info-item">
                     <span className="pim-info-label">Make</span>
@@ -995,7 +1018,7 @@ export default function VehicleManagement({
                       onNavigate("Job Order Management", {
                         openNewJob: true,
                         source: "Vehicles Management",
-                        vehicleId: selectedVehicle.vehicleId,
+                        vehicleId: resolveVehicleIdRaw(selectedVehicle),
                         customerId: selectedVehicle.customerId,
                         plateNumber: selectedVehicle.plateNumber,
                       });
@@ -1453,7 +1476,7 @@ export default function VehicleManagement({
                   <i className="fas fa-exclamation-circle"></i>
                   <div className="delete-warning-text">
                     <p>
-                      You are about to delete vehicle <strong>{deleteVehicle.vehicleId}</strong>.
+                      You are about to delete vehicle <strong>{resolveVehicleIdDisplay(deleteVehicle)}</strong>.
                     </p>
                     <p>This action cannot be undone.</p>
                   </div>

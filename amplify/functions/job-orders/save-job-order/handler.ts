@@ -162,16 +162,30 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
   const payload = safeParseInput(event.arguments?.input);
   const isUpdate = Boolean(payload.id);
   const identity = event.identity as any;
+  const normalizeActor = (value: any) => String(value ?? "").trim().toLowerCase();
+  const usernameFromEmail = (email: string) => {
+    const normalized = normalizeActor(email);
+    const at = normalized.indexOf("@");
+    return at > 0 ? normalized.slice(0, at) : normalized;
+  };
+  const looksLikeOpaqueId = (value: string) => {
+    const v = normalizeActor(value);
+    if (!v) return false;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v)) return true;
+    if (/^[a-f0-9-]{24,}$/i.test(v) && !v.includes("@")) return true;
+    return false;
+  };
+  const claimsEmail = String(identity?.claims?.email ?? identity?.claims?.["custom:email"] ?? "").trim();
+  const claimsPreferred = String(identity?.claims?.preferred_username ?? "").trim();
+  const cognitoUsername = String(identity?.claims?.["cognito:username"] ?? identity?.username ?? "").trim();
   const actorFromIdentity =
-    String(
-      identity?.username ??
-        identity?.claims?.["cognito:username"] ??
-        identity?.claims?.preferred_username ??
-        identity?.claims?.email ??
-        ""
-    )
-      .toLowerCase()
-      .trim() || "system";
+    (claimsEmail
+      ? usernameFromEmail(claimsEmail)
+      : claimsPreferred && !looksLikeOpaqueId(claimsPreferred)
+      ? normalizeActor(claimsPreferred)
+      : cognitoUsername && !looksLikeOpaqueId(cognitoUsername)
+      ? normalizeActor(cognitoUsername)
+      : "") || "system";
 
   // ✅ policy-level
   await requirePermissionFromEvent(client as any, event, "JOB_CARDS", isUpdate ? "UPDATE" : "CREATE");
@@ -256,8 +270,16 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
 
   const { paymentStatus, balanceDue } = computePaymentStatus(totalAmount, amountPaid);
 
-  // ✅ NEW: Minimal dataJson - only store non-schema data (services, documents, roadmap, billing)
-  // All other data is in schema fields, no need to duplicate
+  const parsedExistingData = (() => {
+    try {
+      if (!existing?.dataJson) return {};
+      return JSON.parse(String(existing.dataJson));
+    } catch {
+      return {};
+    }
+  })();
+
+  // Keep nested data needed by UI details cards (permit id, collector, etc.)
   const dataJson = JSON.stringify({
     services: services.map((s: any, idx: number) => {
       const price = toNum((s as any).price);
@@ -296,6 +318,8 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
     documents: Array.isArray(payload.documents) ? payload.documents : [],
     roadmap: normalizeRoadmapForDataJson(payload.roadmap, actorFromIdentity),
     billing: payload.billing ?? {},
+    exitPermit: payload.exitPermit ?? parsedExistingData?.exitPermit ?? {},
+    exitPermitInfo: payload.exitPermitInfo ?? parsedExistingData?.exitPermitInfo ?? {},
   });
 
   const common: any = {

@@ -22,7 +22,6 @@ import ExitPermitManagement from "../pages/ExitPermitManagement";
 import InspectionModule from "../pages/InspectionModule";
 import PaymentInvoiceManagment from "../pages/PaymentInvoiceManagment";
 
-import RoleAccessControl from "../pages/RoleAccessControl";
 
 import logo from "../assets/logo.jpeg";
 import "./mainLayout.css";
@@ -452,7 +451,6 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               <DepartmentsAdmin permissions={{ ...EMPTY, canRead: true, canCreate: true, canUpdate: true, canDelete: true, canApprove: true }} />
             )}
             {page === "rolespolicies" && showAdmin.rolespolicies && <RolesPoliciesAdmin />}
-            {page === "roleaccesscontrol" && showAdmin.roleaccesscontrol && <RoleAccessControl />}
           </main>
         </div>
       </div>

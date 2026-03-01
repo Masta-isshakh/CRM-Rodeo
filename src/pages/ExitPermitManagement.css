@@ -670,76 +670,32 @@
   white-space: nowrap;
 }
 
-/* Roadmap */
-.epm-roadmap-container{ padding: 14px 16px 16px; }
-.epm-roadmap-steps{
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.epm-roadmap-step{
-  display: grid;
-  grid-template-columns: 44px minmax(0, 1fr);
-  gap: 12px;
-  padding: 12px;
-  border-radius: 16px;
-  border: 1px solid rgba(15,23,42,0.10);
-  background: #ffffff;
-}
-.epm-step-icon{
-  width: 44px;
-  height: 44px;
-  border-radius: 16px;
-  border: 1px solid rgba(15,23,42,0.10);
-  background: var(--epm-surface);
-  display: grid;
-  place-items: center;
-  color: rgba(15,23,42,0.75);
-}
-.epm-step-header{
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-}
-.epm-step-name{
-  font-size: 13.5px;
-  font-weight: 950;
-  color: rgba(15,23,42,0.92);
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.epm-step-details{
-  margin-top: 10px;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-.epm-step-detail .epm-detail-label{
-  display: block;
-  font-size: 11px;
-  font-weight: 950;
-  color: rgba(100,116,139,0.9);
-  margin-bottom: 4px;
-}
-.epm-step-detail .epm-detail-value{
-  display: block;
-  font-size: 12.5px;
-  font-weight: 900;
-  color: rgba(15,23,42,0.84);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+/* Final parity pass with JobCards details */
+.jo-details-v3 .epm-detail-card h3 i,
+.jo-details-v3 .pim-detail-card h3 i{
+  width: auto;
+  height: auto;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  display: inline;
+  color: inherit;
 }
 
-/* Step state borders */
-.epm-step-completed{ border-color: rgba(22,163,74,0.22); }
-.epm-step-active{ border-color: rgba(37,99,235,0.22); }
-.epm-step-pending{ border-color: rgba(245,158,11,0.22); }
-.epm-step-cancelled{ border-color: rgba(220,38,38,0.22); opacity: 0.92; }
-.epm-step-upcoming{ border-color: rgba(15,23,42,0.10); }
+.jo-details-v3 .epm-card-content,
+.jo-details-v3 .pim-card-content{
+  padding: 0;
+}
+
+.jo-details-v3 .epm-services-list,
+.jo-details-v3 .pim-services-list{
+  padding: 0;
+}
+
+.jo-details-v3 .epm-service-item,
+.jo-details-v3 .pim-service-item{
+  border-radius: 8px;
+}
 
 /* Services list */
 .epm-services-list{
@@ -1387,7 +1343,6 @@
   .epm-detail-card{ grid-column: span 12; }
   .epm-card-content{ grid-template-columns: 1fr; }
 
-  .epm-roadmap-container,
   .epm-services-list,
   .epm-docs,
   .epm-payment-log-table-wrapper,
@@ -1395,7 +1350,6 @@
 
   .epm-detail-card h3{ padding: 12px 12px; }
   .epm-doc-name{ max-width: 100%; }
-  .epm-step-details{ grid-template-columns: 1fr; }
   .epm-invoice-header{ justify-content: flex-start; }
   .epm-additional-services{ grid-column: span 12; }
   .epm-card-body{ grid-template-columns: 1fr; }

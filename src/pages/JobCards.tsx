@@ -5,7 +5,9 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import "./JobCards.css";
 import { getUrl } from "aws-amplify/storage";
-import { resolveActorUsername } from "../utils/actorIdentity";
+import { resolveActorDisplay, resolveActorUsername } from "../utils/actorIdentity";
+import { getUserDirectory } from "../utils/userDirectoryCache";
+import { getDataClient } from "../lib/amplifyClient";
 
 import SuccessPopup from "./SuccessPopup";
 import ErrorPopup from "./ErrorPopup";
@@ -91,19 +93,32 @@ function joFirst(...vals: any[]) {
   return "";
 }
 
-function toUsernameDisplay(v: any) {
-  const raw = joStr(v);
-  if (!raw) return "";
-  const normalized = raw.toLowerCase();
-  const at = normalized.indexOf("@");
-  if (at > 0) return normalized.slice(0, at);
-  return normalized;
+function joFirstPreferredActor(...vals: any[]) {
+  for (const v of vals) {
+    const s = joStr(v);
+    if (!s) continue;
+    if (joIsPlaceholderName(s)) continue;
+    return s;
+  }
+  return "";
+}
+
+function toUsernameDisplay(v: any, identityMap?: Record<string, string>) {
+  return resolveActorDisplay(v, {
+    identityToUsernameMap: identityMap,
+    fallback: "—",
+  });
 }
 
 function joIsPlaceholderName(s: string) {
   const t = joStr(s).toLowerCase();
   return (
     !t ||
+    t === "-" ||
+    t === "--" ||
+    t === "—" ||
+    t === "null" ||
+    t === "undefined" ||
     t === "system user" ||
     t === "system" ||
     t === "n/a" ||
@@ -120,41 +135,53 @@ function resolveAuthenticatedEmail(user: any) {
 }
 
 /** ✅ Best creator name for the order (handles different payload shapes) */
-function resolveCreatedBy(order: any) {
+function resolveCreatedBy(order: any, identityMap?: Record<string, string>) {
   const summary = order?.jobOrderSummary ?? {};
+  const roadmap = Array.isArray(order?.roadmap) ? order.roadmap : [];
+  const newRequestStep = roadmap.find((step: any) => {
+    const key = String(step?.step ?? "").trim().toLowerCase().replace(/[^a-z]/g, "");
+    return key === "newrequest";
+  });
 
   // Prefer explicit creator fields
-  const primary = joFirst(
+  const primary = joFirstPreferredActor(
     summary.createdByName,
     summary.createdBy,
     summary.createBy,
     summary.createdByUser,
     summary.createdByUserName,
+    summary.updatedBy,
     order?.createdByName,
     order?.createdBy,
-    order?.createdByUserName
+    order?.createdByUserName,
+    order?.updatedBy,
+    newRequestStep?.actionBy,
+    newRequestStep?.updatedBy,
+    newRequestStep?.createdBy
   );
 
   // If primary is placeholder (e.g., "System User"), try better alternatives
   if (joIsPlaceholderName(primary)) {
-    const alt = joFirst(
+    const alt = joFirstPreferredActor(
       order?.createdByDisplay,
       order?.createdByEmail,
       order?.creatorName,
-      order?.createdUserName
+      order?.createdUserName,
+      order?.customerDetails?.createdBy,
+      order?.vehicleDetails?.createdBy
     );
-    return alt && !joIsPlaceholderName(alt) ? toUsernameDisplay(alt) : toUsernameDisplay(primary || "—");
+    return alt && !joIsPlaceholderName(alt) ? toUsernameDisplay(alt, identityMap) : toUsernameDisplay(primary || "—", identityMap);
   }
 
-  return toUsernameDisplay(primary || "—");
+  return toUsernameDisplay(primary || "—", identityMap);
 }
 
 /** ✅ Roadmap actor should represent who performed the step (NOT assignment) */
-function resolveRoadmapActor(step: any, order: any) {
+function resolveRoadmapActor(step: any, order: any, identityMap?: Record<string, string>) {
   const stepName = joStr(step?.step).toLowerCase();
   const isNewRequestStep = stepName === "new request" || stepName === "newrequest";
 
-  const actor = joFirst(
+  const actor = joFirstPreferredActor(
     // ✅ action performer fields first
     step?.actionByName,
     step?.actionBy,
@@ -170,15 +197,15 @@ function resolveRoadmapActor(step: any, order: any) {
     step?.technician,
 
     // ✅ New Request fallback to createdBy
-    isNewRequestStep ? resolveCreatedBy(order) : ""
+    isNewRequestStep ? resolveCreatedBy(order, identityMap) : ""
   );
 
-  return joIsPlaceholderName(actor) ? "" : toUsernameDisplay(actor);
+  return joIsPlaceholderName(actor) ? "" : toUsernameDisplay(actor, identityMap);
 }
 
 /** ✅ Cashier name resolver (never use paymentMethod as fallback) */
-function resolveCashierName(payment: any) {
-  const cashier = joFirst(
+function resolveCashierName(payment: any, identityMap?: Record<string, string>) {
+  const cashier = joFirstPreferredActor(
     payment?.cashierName,
     payment?.cashier,
     payment?.cashierUserName,
@@ -193,13 +220,14 @@ function resolveCashierName(payment: any) {
     payment?.employeeName
   );
 
-  return toUsernameDisplay(cashier || "—");
+  return toUsernameDisplay(cashier || "—", identityMap);
 }
 
 // ============================================
 // MAIN COMPONENT
 // ============================================
 function JobOrderManagement({ currentUser, navigationData, onClearNavigation, onNavigateBack }: any) {
+  const client = useMemo(() => getDataClient(), []);
   const [screenState, setScreenState] = useState<"main" | "details" | "newJob" | "addService">("main");
   const [currentDetailsOrder, setCurrentDetailsOrder] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -227,6 +255,23 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
   const [errorMessage, setErrorMessage] = useState<React.ReactNode>(null);
   const [errorDetails, setErrorDetails] = useState<string | undefined>(undefined);
   const [errorRetry, setErrorRetry] = useState<(() => void) | undefined>(undefined);
+  const [actorIdentityMap, setActorIdentityMap] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const directory = await getUserDirectory(client);
+        if (!cancelled) setActorIdentityMap(directory.identityToUsernameMap ?? {});
+      } catch {
+        if (!cancelled) setActorIdentityMap({});
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
 
   const showError = (args: {
     title?: string;
@@ -455,7 +500,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
   };
 
   const filteredOrders = demoOrders.filter((order) => {
-    const allowedStatuses = ["New Request", "Inspection", "Inprogress", "Quality Check", "Ready"];
+    const allowedStatuses = ["New Request", "Inspection", "Service_Operation", "Inprogress", "Quality Check", "Ready"];
     if (!allowedStatuses.includes(order.workStatus)) return false;
 
     if (!searchQuery) return true;
@@ -515,6 +560,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         <DetailsScreen
           order={currentDetailsOrder}
           currentUser={currentUser}
+          actorMap={actorIdentityMap}
           onClose={() => setScreenState("main")}
           onAddService={() => {
             setCurrentAddServiceOrder(currentDetailsOrder);
@@ -756,7 +802,7 @@ const JobOrderRecordsTable = memo(function JobOrderRecordsTable({
               <td>{order.mobile}</td>
               <td>{order.vehiclePlate}</td>
               <td>
-                <span className={`status-badge ${getWorkStatusClass(order.workStatus)}`}>{order.workStatus}</span>
+                <span className={`status-badge ${getWorkStatusClass(order.workStatus)}`}>{displayWorkStatusLabel(order.workStatus)}</span>
               </td>
               <td>
                 <span className={`status-badge ${getPaymentStatusClass(order.paymentStatus)}`}>{order.paymentStatus}</span>
@@ -989,7 +1035,7 @@ function MainScreen({
 // ============================================
 // DETAILS SCREEN
 // ============================================
-function DetailsScreen({ order, onClose, onAddService, currentUser }: any) {
+function DetailsScreen({ order, onClose, onAddService, currentUser, actorMap }: any) {
   return (
 <div className="pim-details-screen jo-details-v3">
       <div className="pim-details-header">
@@ -997,38 +1043,6 @@ function DetailsScreen({ order, onClose, onAddService, currentUser }: any) {
           <h2>
             <i className="fas fa-clipboard-list"></i> Job Order Details - {order.id}
           </h2>
-          {/* ✅ NEW: Header Status Indicators */}
-          <div className="pim-details-header-badges">
-            {order.priorityLevel && (
-              <span 
-                className="pim-priority-badge" 
-                style={{ 
-                  backgroundColor: order.priorityBg, 
-                  color: order.priorityColor,
-                  borderLeft: `3px solid ${order.priorityColor}`
-                }}
-              >
-                <i className="fas fa-exclamation-circle"></i> {order.priorityLevel}
-              </span>
-            )}
-            {order.qualityCheck && (
-              <span className={`pim-qc-badge ${order.qualityCheck.status.toLowerCase()}`}>
-                <i className={order.qualityCheck.status === 'PASSED' ? 'fas fa-check-circle' : order.qualityCheck.status === 'FAILED' ? 'fas fa-times-circle' : 'fas fa-hourglass-half'}></i>
-                {order.qualityCheck.displayText}
-              </span>
-            )}
-            {order.exitPermitInfo && (
-              <span className={`pim-permit-badge ${order.exitPermitInfo.required ? 'required' : 'not-required'}`}>
-                <i className={order.exitPermitInfo.status === 'APPROVED' ? 'fas fa-certificate' : 'fas fa-file'}></i>
-                Exit Permit: {order.exitPermitInfo.status}
-              </span>
-            )}
-            {order.technicianAssignment && order.technicianAssignment.name && (
-              <span className="pim-tech-badge">
-                <i className="fas fa-user-tie"></i> {order.technicianAssignment.displayText}
-              </span>
-            )}
-          </div>
         </div>
         <button className="pim-btn-close-details" onClick={onClose}>
           <i className="fas fa-times"></i> Close Details
@@ -1038,7 +1052,7 @@ function DetailsScreen({ order, onClose, onAddService, currentUser }: any) {
       <div className="pim-details-body">
         <div className="pim-details-grid">
           <PermissionGate moduleId="joborder" optionId="joborder_summary">
-            <JobOrderSummaryCard order={order} currentUser={currentUser} />
+            <JobOrderSummaryCard order={order} currentUser={currentUser} actorMap={actorMap} />
           </PermissionGate>
           <PermissionGate moduleId="joborder" optionId="joborder_customer">
             <CustomerDetailsCard order={order} />
@@ -1068,13 +1082,13 @@ function DetailsScreen({ order, onClose, onAddService, currentUser }: any) {
           )}
           
           <PermissionGate moduleId="joborder" optionId="joborder_paymentlog">
-            <PaymentActivityLogCard order={order} />
+            <PaymentActivityLogCard order={order} actorMap={actorMap} />
           </PermissionGate>
         </div>
 
         {/* Roadmap Timeline - Full Width */}
         <PermissionGate moduleId="joborder" optionId="joborder_roadmap">
-          <RoadmapCard order={order} currentUser={currentUser} />
+          <RoadmapCard order={order} currentUser={currentUser} actorMap={actorMap} />
         </PermissionGate>
 
         {/* ✅ Documents (Billing docs if available) - Full Width at bottom */}
@@ -1104,6 +1118,7 @@ function NewJobScreen({ currentUser, onClose, onSubmit, prefill }: any) {
   const [expectedDeliveryTime, setExpectedDeliveryTime] = useState("");
   const [vehicleCompletedServices, setVehicleCompletedServices] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const actorUsername = resolveAuthenticatedEmail(currentUser) || "system";
 
   const formatAmount = (value: any) => `QAR ${Number(value || 0).toLocaleString()}`;
 
@@ -1172,6 +1187,7 @@ function NewJobScreen({ currentUser, onClose, onSubmit, prefill }: any) {
 
     const billId = `BILL-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
     const invoiceNumber = `INV-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
+    const actorIdentity = authEmail || resolveActorUsername(currentUser, "—");
 
     const newOrder = {
       id: jobOrderId,
@@ -1181,12 +1197,12 @@ function NewJobScreen({ currentUser, onClose, onSubmit, prefill }: any) {
       vehiclePlate: safeVehiclePlate,
       workStatus: "New Request",
       paymentStatus: "Unpaid",
-      createdBy: authEmail || "System User",
-      updatedBy: authEmail || "System User",
+      createdBy: actorIdentity,
+      updatedBy: actorIdentity,
       createDate: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
       jobOrderSummary: {
         createDate: new Date().toLocaleString(),
-        createdBy: authEmail || "System User",
+        createdBy: actorIdentity,
         expectedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleString(),
       },
       customerDetails: {
@@ -1257,11 +1273,11 @@ function NewJobScreen({ currentUser, onClose, onSubmit, prefill }: any) {
           stepStatus: "Active",
           startTimestamp: new Date().toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }),
           endTimestamp: null,
-          actionBy: authEmail || "System User",
+          actionBy: actorIdentity,
           status: "InProgress",
         },
         { step: "Inspection", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
-        { step: "Inprogress", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
+        { step: "Service_Operation", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
         { step: "Quality Check", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
         { step: "Ready", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
       ],
@@ -1314,6 +1330,7 @@ return (
           setCustomerData={setCustomerData}
           onNext={() => setStep(2)}
           onCancel={onClose}
+          actorUsername={actorUsername}
         />
       )}
 
@@ -1326,6 +1343,7 @@ return (
           onVehicleSelected={handleVehicleSelected}
           onNext={() => setStep(3)}
           onBack={() => setStep(1)}
+          actorUsername={actorUsername}
         />
       )}
 
@@ -1399,7 +1417,7 @@ return (
 // ============================================
 // CUSTOMER STEP (backend search/create)
 // ============================================
-function StepOneCustomer({ customerType, setCustomerType, customerData, setCustomerData, onNext, onCancel }: any) {
+function StepOneCustomer({ customerType, setCustomerType, customerData, setCustomerData, onNext, onCancel, actorUsername }: any) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -1456,7 +1474,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
         return;
       }
 
-      const created = await createCustomer({ fullName, phone, email, address });
+      const created = await createCustomer({ fullName, phone, email, address, actor: actorUsername });
       setCustomerData(created);
       setVerifiedCustomer(created);
     } finally {
@@ -1473,6 +1491,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
         phone: pendingCustomer.mobile,
         email: pendingCustomer.email,
         address: pendingCustomer.address,
+        actor: actorUsername,
       });
       setCustomerData(created);
       setVerifiedCustomer(created);
@@ -1744,7 +1763,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
 // ============================================
 // VEHICLE STEP
 // ============================================
-function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomerData, onVehicleSelected, onNext, onBack }: any) {
+function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomerData, onVehicleSelected, onNext, onBack, actorUsername }: any) {
   const [showNewVehicleForm, setShowNewVehicleForm] = useState(false);
   const [factory, setFactory] = useState("Toyota");
   const [model, setModel] = useState("");
@@ -1773,6 +1792,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
       plateNumber: license,
       vehicleType: carType,
       vin: vinNumber.trim().toUpperCase(), // ✅ manual VIN saved
+      actor: actorUsername,
     });
 
     const updatedCustomer = {
@@ -1809,8 +1829,8 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
 
             <h3 style={{ marginBottom: "15px", fontSize: "16px", fontWeight: "600" }}>Registered Vehicles</h3>
             <div className="vehicles-list">
-              {customerData.vehicles.map((vehicle: any) => (
-                <div key={vehicle.vehicleId} className="vehicle-result-item">
+              {customerData.vehicles.map((vehicle: any, idx: number) => (
+                <div key={String(vehicle?.vehicleId ?? vehicle?.id ?? vehicle?.plateNumber ?? idx)} className="vehicle-result-item">
                   <div className="vehicle-result-info">
                     <div className="vehicle-result-name">
                       <strong>
@@ -2273,7 +2293,13 @@ function StepFourConfirm({
 
   const customerMobile = customerData?.mobile || customerData?.phone || "Not provided";
   const vehicleType = vehicleData?.vehicleType || vehicleData?.carType || "N/A";
-  const vehicleId = vehicleData?.vehicleId || "N/A";
+  const vehicleId =
+    String(
+      vehicleData?.vehicleDetails?.vehicleId ??
+      vehicleData?.vehicleDetails?.id ??
+      vehicleData?.vehicleId ??
+      ""
+    ).trim() || "—";
   const plate = vehicleData?.plateNumber || vehicleData?.license || "N/A";
   const vin = vehicleData?.vin || "Not provided";
 
@@ -2494,11 +2520,29 @@ function StepFourConfirm({
 // ============================================
 // SIMPLE DISPLAY CARDS
 // ============================================
-function JobOrderSummaryCard({ order }: any) {
+function JobOrderSummaryCard({ order, actorMap }: any) {
   const summary = order.jobOrderSummary || {};
   const delivery = order.deliveryInfo || {};
-  const serviceProgress = order.serviceProgressInfo || {};
-    const createdBy = resolveCreatedBy(order);
+  const serviceProgress = (() => {
+    const services = Array.isArray(order?.services) ? order.services : [];
+    const total = services.length;
+    if (!total) return order.serviceProgressInfo || {};
+
+    const completed = services.filter((service: any) => {
+      const status = String(service?.status ?? "").trim().toLowerCase();
+      return status === "completed";
+    }).length;
+
+    const percent = Math.round((completed / Math.max(1, total)) * 100);
+    return {
+      ...(order.serviceProgressInfo || {}),
+      progress: {
+        percent,
+        label: `${completed}/${total} completed`,
+      },
+    };
+  })();
+    const createdBy = resolveCreatedBy(order, actorMap);
 
   
   return (
@@ -2517,7 +2561,7 @@ function JobOrderSummaryCard({ order }: any) {
         </div>
         <div className="epm-info-item">
           <span className="epm-info-label">Work Status</span>
-          <span className={`epm-status-badge status-badge ${getWorkStatusClass(order.workStatus)}`}>{order.workStatus}</span>
+          <span className={`epm-status-badge status-badge ${getWorkStatusClass(order.workStatus)}`}>{displayWorkStatusLabel(order.workStatus)}</span>
         </div>
         <div className="epm-info-item">
           <span className="epm-info-label">Payment Status</span>
@@ -2568,12 +2612,10 @@ function JobOrderSummaryCard({ order }: any) {
           </div>
         )}
 
-{createdBy && createdBy !== "—" && (
-  <div className="epm-info-item">
-    <span className="epm-info-label">Created By</span>
-    <span className="epm-info-value">{createdBy}</span>
-  </div>
-)}
+        <div className="epm-info-item">
+          <span className="epm-info-label">Created By</span>
+          <span className="epm-info-value">{createdBy || "—"}</span>
+        </div>
         {summary.expectedDelivery && (
           <div className="epm-info-item">
             <span className="epm-info-label">Expected Delivery</span>
@@ -2606,11 +2648,11 @@ function CustomerDetailsCard({ order }: any) {
   const customerDetails = order.customerDetails || {};
   
   return (
-    <div className="pim-detail-card">
+    <div className="pim-detail-card cv-unified-card">
       <h3>
         <i className="fas fa-user"></i> Customer Information
       </h3>
-      <div className="pim-card-content">
+      <div className="pim-card-content cv-unified-grid">
         <div className="pim-info-item">
           <span className="pim-info-label">Customer Name</span>
           <span className="pim-info-value">{order.customerName}</span>
@@ -2677,23 +2719,29 @@ function CustomerDetailsCard({ order }: any) {
 
 function VehicleDetailsCard({ order }: any) {
   const vehicleDetails = order.vehicleDetails || {};
+  const vehicleId =
+    String(
+      vehicleDetails?.vehicleId ??
+        vehicleDetails?.id ??
+        order?.vehicleId ??
+        order?.vehicleDetails?.vehicleId ??
+        ""
+    ).trim() || "—";
   
   return (
-    <div className="pim-detail-card">
+    <div className="pim-detail-card cv-unified-card">
       <h3>
         <i className="fas fa-car"></i> Vehicle Information
       </h3>
-      <div className="pim-card-content">
+      <div className="pim-card-content cv-unified-grid">
         <div className="pim-info-item">
           <span className="pim-info-label">Plate Number</span>
           <span className="pim-info-value">{order.vehiclePlate || vehicleDetails.plateNumber}</span>
         </div>
-        {vehicleDetails.vehicleId && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Vehicle ID</span>
-            <span className="pim-info-value">{vehicleDetails.vehicleId}</span>
-          </div>
-        )}
+        <div className="pim-info-item">
+          <span className="pim-info-label">Vehicle ID</span>
+          <span className="pim-info-value">{vehicleId}</span>
+        </div>
         {vehicleDetails.make && (
           <div className="pim-info-item">
             <span className="pim-info-label">Make & Model</span>
@@ -2748,8 +2796,82 @@ function VehicleDetailsCard({ order }: any) {
   );
 }
 
+function parseServiceDateTime(value: any): Date | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+
+  const direct = new Date(raw);
+  if (!Number.isNaN(direct.getTime())) return direct;
+
+  const hhmm = raw.match(/^(\d{1,2}):(\d{2})$/);
+  if (hhmm) {
+    const now = new Date();
+    const h = Number(hhmm[1]);
+    const m = Number(hhmm[2]);
+    if (h >= 0 && h <= 23 && m >= 0 && m <= 59) {
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate(), h, m, 0, 0);
+    }
+  }
+
+  return null;
+}
+
+function formatServiceDuration(startValue: any, endValue: any): string {
+  const start = parseServiceDateTime(startValue);
+  const end = parseServiceDateTime(endValue);
+  if (!start || !end) return "Not started";
+
+  const diffMs = end.getTime() - start.getTime();
+  if (!Number.isFinite(diffMs) || diffMs <= 0) return "0m";
+
+  const totalMinutes = Math.floor(diffMs / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours <= 0) return `${minutes}m`;
+  if (minutes <= 0) return `${hours}h`;
+  return `${hours}h ${minutes}m`;
+}
+
+function resolveCompletedServiceActor(service: any): string {
+  const actor = joFirst(
+    service?.completedByName,
+    service?.completedBy,
+    service?.endedBy,
+    service?.updatedByName,
+    service?.updatedBy,
+    service?.actionBy,
+    service?.doneBy,
+    service?.technicianName,
+    service?.technician,
+    service?.assignedTo,
+    Array.isArray(service?.technicians) ? service.technicians[0] : ""
+  );
+
+  const out = toUsernameDisplay(actor);
+  return out || "Not assigned";
+}
+
 function ServicesCard({ order, onAddService }: any) {
-  const serviceProgress = order.serviceProgressInfo || {};
+  const serviceProgress = (() => {
+    const services = Array.isArray(order?.services) ? order.services : [];
+    const total = services.length;
+    if (!total) return order.serviceProgressInfo || {};
+
+    const completed = services.filter((service: any) => {
+      const status = String(service?.status ?? "").trim().toLowerCase();
+      return status === "completed";
+    }).length;
+
+    const percent = Math.round((completed / Math.max(1, total)) * 100);
+    return {
+      ...(order.serviceProgressInfo || {}),
+      progress: {
+        percent,
+        label: `${completed}/${total} completed`,
+      },
+    };
+  })();
   
   return (
     <div className="pim-detail-card" style={{ gridColumn: 'span 12' }}>
@@ -2795,12 +2917,10 @@ function ServicesCard({ order, onAddService }: any) {
                   <span className="pim-service-meta-label">Status:</span>
                   <span className="pim-service-meta-value">{service.status || 'N/A'}</span>
                 </div>
-                {service.technician && (
-                  <div className="pim-service-meta-row">
-                    <span className="pim-service-meta-label">Technician:</span>
-                    <span className="pim-service-meta-value">{service.technician}</span>
-                  </div>
-                )}
+                <div className="pim-service-meta-row">
+                  <span className="pim-service-meta-label">Technician:</span>
+                  <span className="pim-service-meta-value">{resolveCompletedServiceActor(service)}</span>
+                </div>
                 {service.started && (
                   <div className="pim-service-meta-row">
                     <span className="pim-service-meta-label">Started:</span>
@@ -2813,12 +2933,10 @@ function ServicesCard({ order, onAddService }: any) {
                     <span className="pim-service-meta-value">{service.ended}</span>
                   </div>
                 )}
-                {service.duration && (
-                  <div className="pim-service-meta-row">
-                    <span className="pim-service-meta-label">Duration:</span>
-                    <span className="pim-service-meta-value">{service.duration}</span>
-                  </div>
-                )}
+                <div className="pim-service-meta-row">
+                  <span className="pim-service-meta-label">Duration:</span>
+                  <span className="pim-service-meta-value">{formatServiceDuration(service.started, service.ended)}</span>
+                </div>
                 {service.notes && (
                   <div className="pim-service-meta-row" style={{ gridColumn: 'span 2' }}>
                     <span className="pim-service-meta-label">Notes:</span>
@@ -2846,54 +2964,54 @@ function BillingCard({ order }: any) {
   const billing = order.billing || {};
   
   return (
-    <div className="epm-detail-card" style={{ gridColumn: 'span 12' }}>
+    <div className="epm-detail-card bi-unified-card" style={{ gridColumn: 'span 12' }}>
       <h3>
         <i className="fas fa-receipt"></i> Billing & Invoices
       </h3>
 
       {/* Billing Summary */}
-      <div className="pim-billing-summary">
+      <div className="pim-billing-summary bi-summary">
         <h4>
           <i className="fas fa-calculator"></i> Billing Summary
         </h4>
-        <div className="pim-billing-row">
-          <span className="pim-billing-label">Bill ID:</span>
-          <span className="pim-billing-value">{billing.billId || "N/A"}</span>
+        <div className="pim-billing-row bi-row">
+          <span className="pim-billing-label bi-label">Bill ID:</span>
+          <span className="pim-billing-value bi-value">{billing.billId || "N/A"}</span>
         </div>
-        <div className="pim-billing-row">
-          <span className="pim-billing-label">Total Amount:</span>
-          <span className="pim-billing-value">{billing.totalAmount || "N/A"}</span>
+        <div className="pim-billing-row bi-row">
+          <span className="pim-billing-label bi-label">Total Amount:</span>
+          <span className="pim-billing-value bi-value">{billing.totalAmount || "N/A"}</span>
         </div>
         {billing.discount && (
-          <div className="pim-billing-row">
-            <span className="pim-billing-label">Discount:</span>
-            <span className="pim-billing-value">-{billing.discount}</span>
+          <div className="pim-billing-row bi-row">
+            <span className="pim-billing-label bi-label">Discount:</span>
+            <span className="pim-billing-value bi-value">-{billing.discount}</span>
           </div>
         )}
-        <div className="pim-billing-row">
-          <span className="pim-billing-label">Net Amount:</span>
-          <span className="pim-billing-value">{billing.netAmount || "N/A"}</span>
+        <div className="pim-billing-row bi-row">
+          <span className="pim-billing-label bi-label">Net Amount:</span>
+          <span className="pim-billing-value bi-value">{billing.netAmount || "N/A"}</span>
         </div>
-        <div className="pim-billing-row">
-          <span className="pim-billing-label">Amount Paid:</span>
-          <span className="pim-billing-value">{billing.amountPaid || "QAR 0"}</span>
+        <div className="pim-billing-row bi-row">
+          <span className="pim-billing-label bi-label">Amount Paid:</span>
+          <span className="pim-billing-value bi-value">{billing.amountPaid || "QAR 0"}</span>
         </div>
-        <div className="pim-billing-row">
-          <span className="pim-billing-label">Balance Due:</span>
-          <span className="pim-billing-value">{billing.balanceDue || "N/A"}</span>
+        <div className="pim-billing-row bi-row">
+          <span className="pim-billing-label bi-label">Balance Due:</span>
+          <span className="pim-billing-value bi-value">{billing.balanceDue || "N/A"}</span>
         </div>
       </div>
 
       {/* Invoices List */}
       {billing.invoices && billing.invoices.length > 0 && (
-        <div>
-          <h4 style={{ marginTop: '20px', marginBottom: '12px', fontSize: '15px', fontWeight: '700', color: '#1e293b' }}>
+        <div className="bi-invoices-wrap">
+          <h4 className="bi-invoices-title">
             <i className="fas fa-file-invoice" style={{ marginRight: '8px' }}></i>
             Invoices ({billing.invoices.length})
           </h4>
           <div className="pim-invoices-list">
             {billing.invoices.map((invoice: any, idx: number) => (
-              <div key={idx} className="pim-invoice-card">
+              <div key={idx} className="pim-invoice-card bi-invoice-card">
                 <div className="pim-invoice-header">
                   <div className="pim-invoice-number">
                     <i className="fas fa-file-alt"></i>
@@ -2940,7 +3058,7 @@ function BillingCard({ order }: any) {
   );
 }
 
-function PaymentActivityLogCard({ order }: any) {
+function PaymentActivityLogCard({ order, actorMap }: any) {
   if (!order.paymentActivityLog || order.paymentActivityLog.length === 0) return null;
 
   return (
@@ -3017,7 +3135,7 @@ function PaymentActivityLogCard({ order }: any) {
                   ) : '-'}
                 </td>
               )}
-<td className="pim-cashier-column">{resolveCashierName(payment)}</td>            </tr>
+<td className="pim-cashier-column">{resolveCashierName(payment, actorMap)}</td>            </tr>
           ))}
         </tbody>
       </table>
@@ -3042,7 +3160,35 @@ type DocUi = {
 
 function JobOrderDocumentsCard({ order }: any) {
   const docs: DocUi[] = Array.isArray(order?.documents) ? order.documents : [];
-  if (!docs.length) return null;
+
+  const downloadDocument = async (raw: string, name: string) => {
+    const linkUrl = await resolveMaybeStorageUrl(raw);
+    if (!linkUrl) return;
+
+    try {
+      const resp = await fetch(linkUrl);
+      if (!resp.ok) throw new Error(`Failed download: ${resp.status}`);
+      const blob = await resp.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = name || "document";
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch {
+      const a = document.createElement("a");
+      a.href = linkUrl;
+      a.download = name || "document";
+      a.rel = "noopener noreferrer";
+      a.style.display = "none";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  };
 
   return (
     <div className="pim-detail-card jo-docs-card">
@@ -3053,99 +3199,42 @@ function JobOrderDocumentsCard({ order }: any) {
       </h3>
 
       <div className="pim-card-content jo-docs-content">
-        <div className="jo-docs-list">
-          <div className="jo-docs-header jo-docs-row-grid">
-            <div className="jo-docs-col jo-docs-col-doc">Document</div>
-            <div className="jo-docs-col jo-docs-col-type">Type</div>
-            <div className="jo-docs-col jo-docs-col-category">Category</div>
-            <div className="jo-docs-col jo-docs-col-added">Added</div>
-            <div className="jo-docs-col jo-docs-col-uploaded">Uploaded By</div>
-            <div className="jo-docs-col jo-docs-col-actions jo-docs-right">Actions</div>
-          </div>
+        {docs.length ? (
+          <div className="jo-docs-list">
+            {docs.map((d, idx) => {
+              const name = String(d?.name ?? "").trim() || `Document ${idx + 1}`;
+              const raw = String(d?.storagePath || d?.url || "").trim();
+              const meta = [d?.type, d?.category, d?.paymentReference].filter(Boolean).join(" • ");
 
-          {docs.map((d, idx) => {
-            const name = String(d?.name ?? "").trim() || `Document ${idx + 1}`;
-            const raw = String(d?.storagePath || d?.url || "").trim();
-            const type = String(d?.type ?? "").trim() || "—";
-            const category = String(d?.category ?? "").trim() || "—";
-            const addedAt = String(d?.addedAt ?? "").trim() || "—";
-            const uploadedBy = String(d?.uploadedBy ?? "").trim() || "—";
+              return (
+                <div key={d?.id ?? `${name}-${idx}`} className="jo-doc-row">
+                  <div className="jo-doc-left">
+                    <div className="jo-doc-name">{name}</div>
+                    <div className="jo-doc-meta">{meta || "—"}</div>
+                  </div>
 
-            const refs = [
-              d?.paymentReference ? `PaymentRef: ${d.paymentReference}` : null,
-              d?.billReference ? `BillRef: ${d.billReference}` : null,
-            ].filter(Boolean);
-
-            return (
-              <div key={d?.id ?? `${name}-${idx}`} className="jo-docs-row jo-docs-row-grid">
-                <div className="jo-docs-col jo-docs-col-doc jo-docs-main">
-                  <div className="jo-docs-docname">{name}</div>
-                  {(refs.length > 0 || raw) ? (
-                    <div className="jo-docs-docmeta">
-                      {refs.join(" • ")}
-                      {raw ? (refs.length ? " • " : "") : ""}
-                      {raw ? raw : ""}
-                    </div>
-                  ) : null}
-                </div>
-
-                <div className="jo-docs-col jo-docs-col-type">
-                  <span className="jo-docs-inline-label">Type</span>
-                  <strong>{type}</strong>
-                </div>
-                <div className="jo-docs-col jo-docs-col-category">
-                  <span className="jo-docs-inline-label">Category</span>
-                  <strong>{category}</strong>
-                </div>
-                <div className="jo-docs-col jo-docs-col-added">
-                  <span className="jo-docs-inline-label">Added</span>
-                  <strong>{addedAt}</strong>
-                </div>
-                <div className="jo-docs-col jo-docs-col-uploaded">
-                  <span className="jo-docs-inline-label">Uploaded By</span>
-                  <strong>{uploadedBy}</strong>
-                </div>
-
-                <div className="jo-docs-col jo-docs-col-actions jo-docs-right">
-                  <PermissionGate moduleId="joborder" optionId="joborder_download">
-                    <div className="jo-docs-actions">
+                  <div className="jo-doc-actions">
+                    <PermissionGate moduleId="joborder" optionId="joborder_download">
                       <button
                         type="button"
-                        className="btn btn-secondary jo-docs-btn"
+                        className="btn btn-primary jo-doc-btn"
                         disabled={!raw}
                         onClick={async () => {
-                          const linkUrl = await resolveMaybeStorageUrl(raw);
-                          if (!linkUrl) return;
-                          window.open(linkUrl, "_blank", "noopener,noreferrer");
-                        }}
-                        title={!raw ? "No file path/url available" : "Open"}
-                      >
-                        <i className="fas fa-external-link-alt"></i> Open
-                      </button>
-
-                      <button
-                        type="button"
-                        className="btn btn-primary jo-docs-btn"
-                        disabled={!raw}
-                        onClick={async () => {
-                          const linkUrl = await resolveMaybeStorageUrl(raw);
-                          if (!linkUrl) return;
-                          const a = document.createElement("a");
-                          a.href = linkUrl;
-                          a.download = name || "document";
-                          a.click();
+                          await downloadDocument(raw, name);
                         }}
                         title={!raw ? "No file path/url available" : "Download"}
                       >
-                        <i className="fas fa-download"></i> Download
+                        <i className="fas fa-download" /> Download
                       </button>
-                    </div>
-                  </PermissionGate>
+                    </PermissionGate>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="jo-doc-empty">No documents available.</div>
+        )}
       </div>
     </div>
   );
@@ -3154,49 +3243,63 @@ function JobOrderDocumentsCard({ order }: any) {
 // ✅ NEW: QUALITY CHECK CARD
 // ============================================
 function QualityCheckCard({ order }: any) {
-  const qc = order.qualityCheck || {};
-  
-  if (!qc.status) return null;
+  const services = Array.isArray(order?.services) ? order.services : [];
 
-  const getQCStatusClass = (status: string) => {
-    const s = String(status || '').toUpperCase();
-    if (s === 'PASSED') return 'passed';
-    if (s === 'FAILED') return 'failed';
-    if (s === 'IN_PROGRESS') return 'in-progress';
-    return 'pending';
+  const getServiceQcResult = (service: any) => {
+    if (!service || typeof service !== "object") return "";
+    return joFirst(
+      service.qualityCheckResult,
+      service.qcResult,
+      service.qcStatus,
+      service.qualityStatus,
+      service.qualityCheckStatus
+    );
+  };
+
+  const normalizeQcResult = (raw: any): { label: string; className: string } => {
+    const normalized = String(raw ?? "").trim().toLowerCase().replace(/[\s_]+/g, "-");
+
+    if (normalized === "pass" || normalized === "passed") {
+      return { label: "Pass", className: "pass" };
+    }
+    if (normalized === "failed" || normalized === "fail") {
+      return { label: "Failed", className: "failed" };
+    }
+    if (normalized === "acceptable") {
+      return { label: "Acceptable", className: "acceptable" };
+    }
+
+    if (!normalized || normalized === "not-evaluated" || normalized === "n-a" || normalized === "na" || normalized === "pending") {
+      return { label: "Not Evaluated", className: "not-evaluated" };
+    }
+
+    return {
+      label: String(raw ?? "Not Evaluated").trim() || "Not Evaluated",
+      className: "not-evaluated",
+    };
   };
 
   return (
-    <div className="pim-detail-card">
-      <h3>
-        <i className="fas fa-check-double"></i> Quality Check
+    <div className="pim-detail-card jo-qc-card">
+      <h3 className="jo-qc-heading">
+        <span className="jo-qc-title-dot" aria-hidden="true"></span>
+        Quality Check List
       </h3>
-      <div className="pim-card-content">
-        <div className="pim-info-item">
-          <span className="pim-info-label">Status</span>
-          <span className={`pim-qc-status-badge ${getQCStatusClass(qc.status)}`}>
-            {qc.displayText || qc.status}
-          </span>
-        </div>
-        {qc.date && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Checked On</span>
-            <span className="pim-info-value">{qc.date}</span>
-          </div>
-        )}
-        {qc.checkedBy && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Checked By</span>
-            <span className="pim-info-value">{qc.checkedBy}</span>
-          </div>
-        )}
-        {qc.notes && (
-          <div className="pim-info-item" style={{ gridColumn: 'span 2', flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
-            <span className="pim-info-label">Notes</span>
-            <span className="pim-info-value" style={{ whiteSpace: 'pre-wrap', fontSize: '13px', padding: '8px', backgroundColor: '#f9fafb', borderRadius: '4px' }}>
-              {qc.notes}
-            </span>
-          </div>
+      <div className="jo-qc-list">
+        {services.length > 0 ? (
+          services.map((service: any, idx: number) => {
+            const serviceName = typeof service === "string" ? service : joFirst(service?.name, `Service ${idx + 1}`);
+            const qc = normalizeQcResult(getServiceQcResult(service));
+
+            return (
+              <div key={`${serviceName}-${idx}`} className="jo-qc-row">
+                <span className="jo-qc-name">{serviceName}</span>
+                <span className={`jo-qc-badge jo-qc-${qc.className}`}>{qc.label}</span>
+              </div>
+            );
+          })
+        ) : (
+          <div className="jo-qc-empty">No services to evaluate</div>
         )}
       </div>
     </div>
@@ -3211,55 +3314,42 @@ function DeliveryTrackingCard({ order }: any) {
   
   if (!delivery.expected && !delivery.actual && !delivery.estimatedHours && !delivery.actualHours) return null;
 
+  const deliveryItems = [
+    {
+      key: "expected-date",
+      label: "Expected Date",
+      value: delivery.expectedDate || "Not set",
+      icon: "fas fa-calendar-day",
+    },
+    {
+      key: "expected-time",
+      label: "Expected Time",
+      value: delivery.expectedTime || "Not set",
+      icon: "fas fa-clock",
+    },
+    {
+      key: "estimated-duration",
+      label: "Estimated Duration",
+      value: delivery.estimatedHours || "Not set",
+      icon: "fas fa-hourglass-half",
+    },
+  ];
+
   return (
-    <div className="pim-detail-card">
+    <div className="pim-detail-card jo-delivery-card">
       <h3>
         <i className="fas fa-truck"></i> Delivery & Time Tracking
       </h3>
-      <div className="pim-card-content">
-        <div style={{ borderBottom: '1px solid #e2e8f0', paddingBottom: '12px', marginBottom: '12px' }}>
-          <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>
-            <i className="fas fa-calendar"></i> Delivery Dates
-          </h4>
-          <div className="pim-info-item">
-            <span className="pim-info-label">Expected</span>
-            <span className="pim-info-value">{delivery.expectedDate || 'Not set'}</span>
+      <div className="jo-delivery-grid" role="list" aria-label="Delivery and time tracking details">
+        {deliveryItems.map((item) => (
+          <div key={item.key} className="jo-delivery-tile" role="listitem">
+            <div className="jo-delivery-tile-head">
+              <i className={item.icon}></i>
+              <span>{item.label}</span>
+            </div>
+            <div className="jo-delivery-tile-value">{item.value}</div>
           </div>
-          {delivery.expectedTime && (
-            <div className="pim-info-item">
-              <span className="pim-info-label">Expected Time</span>
-              <span className="pim-info-value">{delivery.expectedTime}</span>
-            </div>
-          )}
-          {delivery.actualDate && (
-            <div className="pim-info-item">
-              <span className="pim-info-label">Actual Delivery</span>
-              <span className="pim-info-value">{delivery.actualDate}</span>
-            </div>
-          )}
-          {delivery.actualTime && (
-            <div className="pim-info-item">
-              <span className="pim-info-label">Actual Time</span>
-              <span className="pim-info-value">{delivery.actualTime}</span>
-            </div>
-          )}
-        </div>
-        
-        <div>
-          <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>
-            <i className="fas fa-hourglass-half"></i> Time Estimates
-          </h4>
-          <div className="pim-info-item">
-            <span className="pim-info-label">Estimated Duration</span>
-            <span className="pim-info-value">{delivery.estimatedHours || 'Not set'}</span>
-          </div>
-          {delivery.actualHours && (
-            <div className="pim-info-item">
-              <span className="pim-info-label">Actual Duration</span>
-              <span className="pim-info-value">{delivery.actualHours}</span>
-            </div>
-          )}
-        </div>
+        ))}
       </div>
     </div>
   );
@@ -3268,7 +3358,7 @@ function DeliveryTrackingCard({ order }: any) {
 // ============================================
 // ROADMAP CARD - Timeline Visualization
 // ============================================
-function RoadmapCard({ order }: any) {
+function RoadmapCard({ order, actorMap }: any) {
   if (!order.roadmap || order.roadmap.length === 0) return null;
 
   const roadmap = Array.isArray(order?.roadmap) ? order.roadmap : [];
@@ -3277,6 +3367,7 @@ function RoadmapCard({ order }: any) {
   const progressedToInspectionOrBeyond = new Set([
     "inspection",
     "inprogress",
+    "serviceoperation",
     "qualitycheck",
     "ready",
     "completed",
@@ -3308,6 +3399,7 @@ function RoadmapCard({ order }: any) {
     const iconMap: any = {
       "New Request": "fa-plus-circle",
       Inspection: "fa-search",
+      Service_Operation: "fa-cogs",
       Inprogress: "fa-cogs",
       "Quality Check": "fa-check-double",
       Ready: "fa-flag-checkered",
@@ -3338,8 +3430,9 @@ function RoadmapCard({ order }: any) {
 
       <div className="jo-roadmap-list">
         {roadmap.map((step: any, idx: number) => {
-          const actorFromStep = resolveRoadmapActor(step, order);
+          const actorFromStep = resolveRoadmapActor(step, order, actorMap);
           const stepName = normalizeStepName(step?.step);
+          const stepLabel = stepName === "inprogress" || stepName === "serviceoperation" ? "Service_Operation" : step?.step;
           const nextStep = roadmap[idx + 1];
           const stepStartedAt = findStartedAt(step);
           const stepCompletedAt = findCompletedAt(step);
@@ -3363,7 +3456,9 @@ function RoadmapCard({ order }: any) {
             normalizedStepStatus === "completed";
 
           const fallbackActor = joFirst(step?.updatedByName, step?.updatedBy, order?.updatedByName, order?.updatedBy);
-          const actor = stepHasProgress ? (actorFromStep || (fallbackActor.includes("@") ? fallbackActor : "")) : "";
+          const actor = stepHasProgress
+            ? actorFromStep || resolveActorDisplay(fallbackActor, { identityToUsernameMap: actorMap, fallback: "" })
+            : "";
           const completedLabel = inferredCompletedAt || "Not completed";
 
           const stepClass = getStepClass(step?.stepStatus || step?.status);
@@ -3375,7 +3470,7 @@ function RoadmapCard({ order }: any) {
                   <i className={`fas ${getStepIcon(step.step)}`}></i>
                 </div>
                 <div>
-                  <div className="jo-roadmap-stage-title">{step.step}</div>
+                  <div className="jo-roadmap-stage-title">{stepLabel}</div>
                   <div className={`jo-roadmap-status-chip ${stepClass}`}>{getStatusLabel(step)}</div>
                 </div>
               </div>
@@ -3474,6 +3569,7 @@ function getWorkStatusClass(status: any) {
   const statusMap: any = {
     "New Request": "status-new-request",
     Inspection: "status-inspection",
+    Service_Operation: "status-inprogress",
     Inprogress: "status-inprogress",
     "Quality Check": "status-quality-check",
     Ready: "status-ready",
@@ -3481,6 +3577,13 @@ function getWorkStatusClass(status: any) {
     Cancelled: "status-cancelled",
   };
   return statusMap[status] || "status-inprogress";
+}
+
+function displayWorkStatusLabel(status: any) {
+  const raw = String(status ?? "").trim();
+  const compact = raw.toLowerCase().replace(/[\s_]+/g, "");
+  if (compact === "inprogress" || compact === "serviceoperation") return "Service_Operation";
+  return raw;
 }
 
 function getPaymentStatusClass(status: any) {

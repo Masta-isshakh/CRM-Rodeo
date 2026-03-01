@@ -4,6 +4,7 @@ import "./ServiceApprovalHistory.css";
 import PermissionGate from "./PermissionGate";
 import { getDataClient } from "../lib/amplifyClient";
 import { getUserDirectory } from "../utils/userDirectoryCache";
+import { resolveActorDisplay } from "../utils/actorIdentity";
 
 type Decision = "approved" | "declined" | "pending";
 
@@ -62,18 +63,6 @@ function fmtDateTime(d: Date) {
   return d.toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function normalizeIdentity(v: any) {
-  return String(v ?? "").trim().toLowerCase();
-}
-
-function normalizeActorDisplay(value: any, fallback = "—") {
-  const raw = String(value ?? "").trim();
-  if (!raw) return fallback;
-  const at = raw.indexOf("@");
-  if (at > 0) return raw.slice(0, at).toLowerCase();
-  return raw;
-}
-
 function parseServicesFromJob(job: any): { name: string; amount: string }[] {
   const parsed = (() => {
     try {
@@ -117,15 +106,7 @@ const ServiceApprovalHistory: React.FC = () => {
         const directory = await getUserDirectory(client);
         if (cancelled) return;
 
-        const map: Record<string, string> = {};
-        for (const u of directory.users ?? []) {
-          const email = normalizeIdentity(u?.email);
-          const name = String(u?.name ?? u?.email ?? "").trim();
-          if (email && name) {
-            map[email] = name;
-          }
-        }
-        setUserLabelMap(map);
+        setUserLabelMap(directory.identityToUsernameMap ?? {});
       } catch {
         if (!cancelled) setUserLabelMap({});
       }
@@ -137,10 +118,10 @@ const ServiceApprovalHistory: React.FC = () => {
   }, [client]);
 
   const displayUser = (value: any) => {
-    const raw = String(value ?? "").trim();
-    if (!raw) return "—";
-    const mapped = userLabelMap[normalizeIdentity(raw)];
-    return normalizeActorDisplay(mapped || raw);
+    return resolveActorDisplay(value, {
+      identityToUsernameMap: userLabelMap,
+      fallback: "—",
+    });
   };
 
   useEffect(() => {

@@ -332,7 +332,20 @@ export default function Users({ permissions }: PageProps) {
         throw new Error(errs.map((x: any) => x.message).join(" | "));
       }
 
-      setInviteStatus(`Invitation created for ${e}.`);
+      const payload = (res as any)?.data ?? {};
+      const ok = payload?.ok !== false;
+      if (!ok) {
+        throw new Error("Invitation email was not dispatched.");
+      }
+
+      const inviteAction = String(payload?.inviteAction ?? "CREATED").toUpperCase();
+      const deliveredTo = String(payload?.invitedEmail ?? e).trim() || e;
+
+      setInviteStatus(
+        inviteAction === "RESENT"
+          ? `Invitation email resent to ${deliveredTo}.`
+          : `Invitation email sent to ${deliveredTo}.`
+      );
       setEmail("");
       setFirstName("");
       setLastName("");

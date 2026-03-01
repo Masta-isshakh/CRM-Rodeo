@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import "./PaymentInvoiceManagment.css";
+import "./JobCards.css";
 
 import SuccessPopup from "./SuccessPopup";
 import ErrorPopup from "./ErrorPopup";
@@ -9,7 +10,7 @@ import PermissionGate from "./PermissionGate";
 import { usePermissions } from "../lib/userPermissions";
 import { getDataClient } from "../lib/amplifyClient";
 import { getUserDirectory } from "../utils/userDirectoryCache";
-import { resolveActorUsername } from "../utils/actorIdentity";
+import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
 
 import {
   cancelJobOrderByOrderNumber,
@@ -48,10 +49,6 @@ function toNum(v: any): number {
 
 function fmtQar(n: number) {
   return `QAR ${Number.isFinite(n) ? n.toFixed(2) : "0.00"}`;
-}
-
-function normalizeIdentity(v: any) {
-  return String(v ?? "").trim().toLowerCase();
 }
 
 function normalizeActorDisplay(value: any, fallback = "—") {
@@ -98,7 +95,7 @@ function normalizeWorkStatus(rowStatus?: string, label?: string): string {
     case "OPEN":
       return "New Request";
     case "IN_PROGRESS":
-      return "Inprogress";
+      return "Service_Operation";
     case "READY":
       return "Ready";
     case "COMPLETED":
@@ -106,7 +103,7 @@ function normalizeWorkStatus(rowStatus?: string, label?: string): string {
     case "CANCELLED":
       return "Cancelled";
     default:
-      return "Inprogress";
+      return "Service_Operation";
   }
 }
 
@@ -272,10 +269,10 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   const [refundForm, setRefundForm] = useState<RefundFormState | null>(null);
 
   const displayUser = (value: any) => {
-    const raw = String(value ?? "").trim();
-    if (!raw) return "—";
-    const mapped = userLabelMap[normalizeIdentity(raw)] || raw;
-    return normalizeActorDisplay(mapped);
+    return resolveActorDisplay(value, {
+      identityToUsernameMap: userLabelMap,
+      fallback: "—",
+    });
   };
 
   useEffect(() => {
@@ -285,15 +282,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         const directory = await getUserDirectory(client);
         if (cancelled) return;
 
-        const map: Record<string, string> = {};
-        for (const u of directory.users ?? []) {
-          const email = normalizeIdentity(u?.email);
-          const name = String(u?.name ?? u?.email ?? "").trim();
-          if (email && name) {
-            map[email] = name;
-          }
-        }
-        setUserLabelMap(map);
+        setUserLabelMap(directory.identityToUsernameMap ?? {});
       } catch {
         if (!cancelled) setUserLabelMap({});
       }
@@ -459,7 +448,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       amount: fmtQar(toNum(p.amount)),
       discount: fmtQar(0),
       paymentMethod: String(p.method ?? "Cash"),
-      cashierName: normalizeActorDisplay(p.createdBy ?? "System", "system"),
+      cashierName: normalizeActorDisplay(p.createdBy ?? "", "—"),
       timestamp: p.paidAt
         ? new Date(String(p.paidAt)).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
         : (p.createdAt
@@ -1175,6 +1164,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     switch (status) {
       case "New Request": return "pim-status-new-request";
       case "Inspection": return "pim-status-inspection";
+      case "Service_Operation":
       case "Inprogress": return "pim-status-inprogress";
       case "Quality Check": return "pim-status-quality-check";
       case "Ready": return "pim-status-ready";
@@ -1191,6 +1181,25 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     if (s.includes("unpaid")) return "pim-payment-unpaid";
     if (s.includes("refunded")) return "pim-payment-refunded";
     return "pim-payment-unpaid";
+  };
+
+  const workStatusClassJobcards = (status: string) => {
+    const s = String(status || "").trim().toLowerCase();
+    if (s === "new request") return "status-new-request";
+    if (s === "inspection") return "status-inspection";
+    if (s === "service_operation" || s === "inprogress" || s === "in progress") return "status-inprogress";
+    if (s === "quality check") return "status-quality-check";
+    if (s === "ready") return "status-ready";
+    if (s === "completed") return "status-completed";
+    if (s === "cancelled" || s === "canceled") return "status-cancelled";
+    return "status-inprogress";
+  };
+
+  const payStatusClassJobcards = (status: string) => {
+    const s = String(status || "").toLowerCase();
+    if (s.includes("fully paid")) return "payment-full";
+    if (s.includes("partially")) return "payment-partial";
+    return "payment-unpaid";
   };
 
   const approvalStatusClass = (status: string) => {
@@ -1221,7 +1230,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       : 0;
 
     return (
-      <div className="pim-details-screen">
+      <div className="pim-details-screen jo-details-v3">
         <div className="pim-details-header">
           <div className="pim-details-title-container">
             <h2><i className="fas fa-clipboard-list"></i> Job Order Details - {selectedOrder.id}</h2>
@@ -1233,44 +1242,58 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
         <div className="pim-details-body">
           <div className="pim-details-grid">
-            <div className="pim-card">
+            <div className="pim-card pim-detail-card">
               <h3><i className="fas fa-info-circle"></i> Job Order Summary</h3>
               <div className="pim-card-content">
-                <div className="pim-info-row"><span className="pim-label">Job Order ID</span><span className="pim-value">{selectedOrder.id}</span></div>
-                <div className="pim-info-row"><span className="pim-label">Order Type</span><span className="pim-value">{selectedOrder.orderType || "Job Order"}</span></div>
-                <div className="pim-info-row"><span className="pim-label">Work Status</span><span className={`pim-badge ${workStatusClass(selectedOrder.workStatus)}`}>{selectedOrder.workStatus}</span></div>
-                <div className="pim-info-row"><span className="pim-label">Payment Status</span><span className={`pim-badge ${payStatusClass(selectedOrder.paymentStatus)}`}>{selectedOrder.paymentStatus}</span></div>
+                <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Job Order ID</span><span className="pim-value pim-info-value">{selectedOrder.id}</span></div>
+                <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Order Type</span><span className="pim-value pim-info-value">{selectedOrder.orderType || "Job Order"}</span></div>
+                <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Request Create Date</span><span className="pim-value pim-info-value">{selectedOrder.jobOrderSummary?.createDate || selectedOrder.createDate || "—"}</span></div>
+                <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Created By</span><span className="pim-value pim-info-value">{resolveOrderCreatedBy(selectedOrder, { identityToUsernameMap: userLabelMap, fallback: "—" })}</span></div>
+                <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Expected Delivery</span><span className="pim-value pim-info-value">{selectedOrder.jobOrderSummary?.expectedDelivery || "Not specified"}</span></div>
+                <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Work Status</span><span className="pim-value pim-info-value"><span className={`epm-status-badge status-badge ${workStatusClassJobcards(selectedOrder.workStatus)}`}>{selectedOrder.workStatus}</span></span></div>
+                <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Payment Status</span><span className="pim-value pim-info-value"><span className={`epm-status-badge status-badge ${payStatusClassJobcards(selectedOrder.paymentStatus)}`}>{selectedOrder.paymentStatus}</span></span></div>
               </div>
             </div>
 
             <PermissionGate moduleId="payment" optionId="payment_customer">
-              <div className="pim-card">
+              <div className="pim-card pim-detail-card cv-unified-card">
                 <h3><i className="fas fa-user"></i> Customer Information</h3>
-                <div className="pim-card-content">
-                  <div className="pim-info-row"><span className="pim-label">Name</span><span className="pim-value">{selectedOrder.customerName || "—"}</span></div>
-                  <div className="pim-info-row"><span className="pim-label">Mobile</span><span className="pim-value">{selectedOrder.mobile || "—"}</span></div>
-                  <div className="pim-info-row"><span className="pim-label">Email</span><span className="pim-value">{selectedOrder.customerDetails?.email || "—"}</span></div>
+                <div className="pim-card-content cv-unified-grid">
+                  <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Name</span><span className="pim-value pim-info-value">{selectedOrder.customerName || "—"}</span></div>
+                  <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Mobile</span><span className="pim-value pim-info-value">{selectedOrder.mobile || "—"}</span></div>
+                  <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Email</span><span className="pim-value pim-info-value">{selectedOrder.customerDetails?.email || "—"}</span></div>
                 </div>
               </div>
             </PermissionGate>
 
             <PermissionGate moduleId="payment" optionId="payment_vehicle">
-              <div className="pim-card">
+              <div className="pim-card pim-detail-card cv-unified-card">
                 <h3><i className="fas fa-car"></i> Vehicle Information</h3>
-                <div className="pim-card-content">
-                  <div className="pim-info-row">
-                    <span className="pim-label">Make / Model</span>
-                    <span className="pim-value">{selectedOrder.vehicleDetails?.make || "—"} {selectedOrder.vehicleDetails?.model || ""}</span>
+                <div className="pim-card-content cv-unified-grid">
+                  <div className="pim-info-row pim-info-item">
+                    <span className="pim-label pim-info-label">Vehicle ID</span>
+                    <span className="pim-value pim-info-value">
+                      {String(
+                        selectedOrder?.vehicleDetails?.vehicleId ??
+                        selectedOrder?.vehicleDetails?.id ??
+                        selectedOrder?.vehicleId ??
+                        ""
+                      ).trim() || "—"}
+                    </span>
                   </div>
-                  <div className="pim-info-row"><span className="pim-label">Plate</span><span className="pim-value">{selectedOrder.vehicleDetails?.plateNumber || selectedOrder.vehiclePlate || "—"}</span></div>
-                  <div className="pim-info-row"><span className="pim-label">Color</span><span className="pim-value">{selectedOrder.vehicleDetails?.color || "—"}</span></div>
+                  <div className="pim-info-row pim-info-item">
+                    <span className="pim-label pim-info-label">Make / Model</span>
+                    <span className="pim-value pim-info-value">{selectedOrder.vehicleDetails?.make || "—"} {selectedOrder.vehicleDetails?.model || ""}</span>
+                  </div>
+                  <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Plate</span><span className="pim-value pim-info-value">{selectedOrder.vehicleDetails?.plateNumber || selectedOrder.vehiclePlate || "—"}</span></div>
+                  <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Color</span><span className="pim-value pim-info-value">{selectedOrder.vehicleDetails?.color || "—"}</span></div>
                 </div>
               </div>
             </PermissionGate>
 
             <PermissionGate moduleId="payment" optionId="payment_services">
               {approvalRequests.length > 0 && (
-                <div className="pim-card pim-card-full">
+                <div className="pim-card pim-detail-card pim-card-full">
                   <h3><i className="fas fa-user-check"></i> Service Approval Requests</h3>
                   <div className="pim-approvals">
                     {approvalRequests.map((r: any) => (
@@ -1295,7 +1318,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
             </PermissionGate>
 
             <PermissionGate moduleId="payment" optionId="payment_billing">
-              <div className="pim-card pim-card-full">
+              <div className="pim-card pim-detail-card pim-card-full bi-unified-card">
                 <div className="pim-card-head-row">
                   <h3><i className="fas fa-receipt"></i> Billing & Invoices</h3>
                   <div className="pim-actions">
@@ -1321,18 +1344,18 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                   </div>
                 </div>
 
-                <div className="pim-billing-grid">
-                  <div className="pim-billing-item"><span>Bill ID</span><strong>{selectedOrder.billing?.billId || "—"}</strong></div>
-                  <div className="pim-billing-item"><span>Total</span><strong>{selectedOrder.billing?.totalAmount || "—"}</strong></div>
-                  <div className="pim-billing-item"><span>Discount</span><strong className="pim-green">{selectedOrder.billing?.discount || "—"}</strong></div>
-                  <div className="pim-billing-item"><span>Net</span><strong>{selectedOrder.billing?.netAmount || "—"}</strong></div>
-                  <div className="pim-billing-item"><span>Paid</span><strong className="pim-green">{selectedOrder.billing?.amountPaid || "—"}</strong></div>
-                  <div className="pim-billing-item"><span>Balance Due</span><strong className="pim-red">{selectedOrder.billing?.balanceDue || "—"}</strong></div>
+                <div className="pim-billing-grid bi-summary">
+                  <div className="pim-billing-item bi-row"><span className="bi-label">Bill ID</span><strong className="bi-value">{selectedOrder.billing?.billId || "—"}</strong></div>
+                  <div className="pim-billing-item bi-row"><span className="bi-label">Total</span><strong className="bi-value">{selectedOrder.billing?.totalAmount || "—"}</strong></div>
+                  <div className="pim-billing-item bi-row"><span className="bi-label">Discount</span><strong className="pim-green bi-value">{selectedOrder.billing?.discount || "—"}</strong></div>
+                  <div className="pim-billing-item bi-row"><span className="bi-label">Net</span><strong className="bi-value">{selectedOrder.billing?.netAmount || "—"}</strong></div>
+                  <div className="pim-billing-item bi-row"><span className="bi-label">Paid</span><strong className="pim-green bi-value">{selectedOrder.billing?.amountPaid || "—"}</strong></div>
+                  <div className="pim-billing-item bi-row"><span className="bi-label">Balance Due</span><strong className="pim-red bi-value">{selectedOrder.billing?.balanceDue || "—"}</strong></div>
                 </div>
 
                 <PermissionGate moduleId="payment" optionId="payment_invoices">
-                  <div className="pim-subcard">
-                    <div className="pim-subtitle">
+                  <div className="pim-subcard bi-invoices-wrap">
+                    <div className="pim-subtitle bi-invoices-title">
                       <i className="fas fa-file-invoice"></i> Invoices ({normalizedInvoices.length})
                     </div>
 
@@ -1341,7 +1364,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                     ) : (
                       <div className="pim-invoices">
                         {normalizedInvoices.map((inv) => (
-                          <div key={inv.id} className="pim-invoice">
+                          <div key={inv.id} className="pim-invoice bi-invoice-card">
                             <div className="pim-invoice-head">
                               <div className="pim-invoice-left">
                                 <div className="pim-invoice-number">Invoice #{inv.number}</div>
@@ -1421,7 +1444,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
             </PermissionGate>
 
             <PermissionGate moduleId="payment" optionId="payment_documents">
-              <div className="pim-card pim-card-full">
+              <div className="pim-card pim-detail-card pim-card-full">
                 <h3><i className="fas fa-folder-open"></i> Documents</h3>
 
                 {docs.length ? (

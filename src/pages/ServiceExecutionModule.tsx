@@ -2,10 +2,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import "./ServiceExecutionModule.css";
+import "./JobCards.css";
 
 import ServiceSummaryCard from "./ServiceSummaryCard";
 import SuccessPopup from "./SuccessPopup";
 import PermissionGate from "./PermissionGate";
+import UnifiedJobOrderRoadmap from "../components/UnifiedJobOrderRoadmap";
 
 import { getDataClient } from "../lib/amplifyClient";
 
@@ -17,7 +19,8 @@ import {
 
 import { getUrl } from "aws-amplify/storage";
 import { getUserDirectory, normalizeIdentity } from "../utils/userDirectoryCache";
-import { resolveActorUsername } from "../utils/actorIdentity";
+import { resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
+import { usePermissions } from "../lib/userPermissions";
 
 // -------------------- helpers --------------------
 function safeJsonParse<T>(raw: any, fallback: T): T {
@@ -69,9 +72,74 @@ function resolveActorName(user: any) {
 function normalizeActorDisplay(value: any, fallback = "—") {
   const raw = String(value ?? "").trim();
   if (!raw) return fallback;
+  const normalized = raw.toLowerCase();
+  if (normalized === "system" || normalized === "system user" || normalized === "unknown" || normalized === "not assigned") {
+    return fallback;
+  }
   const at = raw.indexOf("@");
   if (at > 0) return raw.slice(0, at).toLowerCase();
   return raw;
+}
+
+function normalizeStepName(value: any) {
+  return String(value ?? "").toLowerCase().replace(/[^a-z]/g, "");
+}
+
+function isServiceOperationStep(value: any) {
+  const n = normalizeStepName(value);
+  return n === "inprogress" || n === "serviceoperation";
+}
+
+function normalizeWorkStatusLabel(value: any, fallback = "Service_Operation") {
+  const raw = String(value ?? "").trim();
+  if (!raw) return fallback;
+  return isServiceOperationStep(raw) ? "Service_Operation" : raw;
+}
+
+function getWorkStatusClass(status: any) {
+  const statusMap: any = {
+    "New Request": "status-new-request",
+    Inspection: "status-inspection",
+    Service_Operation: "status-inprogress",
+    Inprogress: "status-inprogress",
+    "Quality Check": "status-quality-check",
+    Ready: "status-ready",
+    Completed: "status-completed",
+    Cancelled: "status-cancelled",
+  };
+  return statusMap[String(status ?? "")] || "status-inprogress";
+}
+
+function getPaymentStatusClass(status: any) {
+  if (status === "Fully Paid") return "payment-full";
+  if (status === "Partially Paid") return "payment-partial";
+  return "payment-unpaid";
+}
+
+function mapExitPermitStatusToUi(v: any, hasPermitId = false) {
+  const s = String(v ?? "").trim().toUpperCase();
+  if (s === "APPROVED" || s === "CREATED" || s === "COMPLETED") return "Completed";
+  if (s === "PENDING" || s === "NOT_CREATED" || s === "NOT CREATED") return "Pending";
+  if (s === "REJECTED") return "Rejected";
+  if (s === "NOT_REQUIRED" || s === "NOT REQUIRED") return "Not Required";
+  if (hasPermitId) return "Completed";
+  return "Not Required";
+}
+
+function permitStatusClass(status: any) {
+  const s = String(status ?? "").trim().toLowerCase();
+  if (s === "completed") return "permit-completed";
+  if (s === "pending") return "permit-pending";
+  if (s === "rejected") return "permit-rejected";
+  return "permit-not-required";
+}
+
+function firstNonEmptyText(...values: any[]) {
+  for (const value of values) {
+    const out = String(value ?? "").trim();
+    if (out) return out;
+  }
+  return "";
 }
 
 type AssigneeOption = { value: string; label: string };
@@ -128,6 +196,7 @@ async function resolveMaybeStorageUrl(urlOrPath: string): Promise<string> {
 // -------------------- main component --------------------
 const ServiceExecutionModule = ({ currentUser }: any) => {
   const client = useMemo(() => getDataClient(), []);
+  const { isAdminGroup } = usePermissions();
 
   // live list from backend
   const [jobs, setJobs] = useState<any[]>([]);
@@ -234,13 +303,6 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     return assigneeLabelByValue.get(normalized) ?? String(assignedTo);
   };
 
-  const displayUser = (value: any) => {
-    const normalized = normalizeIdentity(value);
-    if (!normalized) return "Not assigned";
-    const mapped = assigneeLabelByValue.get(normalized) ?? String(value);
-    return normalizeActorDisplay(mapped, "Not assigned");
-  };
-
   // UI state
   const [currentTab, setCurrentTab] = useState<"assigned" | "unassigned" | "team">("assigned");
   const [currentSearch, setCurrentSearch] = useState("");
@@ -318,7 +380,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
             createDate: row.createdAt
               ? new Date(String(row.createdAt)).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
               : "",
-            workStatus: parsed.workStatusLabel ?? row.workStatusLabel ?? "Inprogress",
+            workStatus: normalizeWorkStatusLabel(parsed.workStatusLabel ?? row.workStatusLabel),
             paymentStatus: parsed.paymentStatusLabel ?? row.paymentStatusLabel ?? "Unpaid",
             roadmap,
             services,
@@ -333,17 +395,23 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   // tab/search resets
   useEffect(() => setCurrentPage(1), [currentTab, currentSearch, pageSize]);
 
-  // filter: must be Inprogress step active
+  useEffect(() => {
+    if (!isAdminGroup && currentTab !== "assigned") {
+      setCurrentTab("assigned");
+    }
+  }, [isAdminGroup, currentTab]);
+
+  // filter: must be Service_Operation step active
   const filteredJobs = useMemo(() => {
     const q = currentSearch.trim().toLowerCase();
     let list = [...jobs];
 
     list = list.filter((job) => {
-      const inprogressStep = job.roadmap?.find((s: any) => s.step === "Inprogress");
+      const inprogressStep = job.roadmap?.find((s: any) => isServiceOperationStep(s.step));
       return inprogressStep && inprogressStep.stepStatus === "Active";
     });
 
-    if (currentTab === "assigned") {
+    if (!isAdminGroup || currentTab === "assigned") {
       list = list.filter((j) => {
         const nextService = pickNextActiveService(j.services);
         return nextService && isAssignedToCurrentUser(nextService.assignedTo);
@@ -370,11 +438,11 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     }
 
     return list;
-  }, [jobs, currentTab, currentSearch, currentUser, nameToEmailMap, emailToNameMap, currentUserIdentitySet]);
+  }, [jobs, currentTab, currentSearch, currentUser, nameToEmailMap, emailToNameMap, currentUserIdentitySet, isAdminGroup]);
 
   const counts = useMemo(() => {
     const base = jobs.filter((job) => {
-      const inprogressStep = job.roadmap?.find((s: any) => s.step === "Inprogress");
+      const inprogressStep = job.roadmap?.find((s: any) => isServiceOperationStep(s.step));
       return inprogressStep && inprogressStep.stepStatus === "Active";
     });
 
@@ -383,18 +451,18 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
       return nextService && isAssignedToCurrentUser(nextService.assignedTo);
     }).length;
 
-    const unassigned = base.filter((j) => {
+    const unassigned = isAdminGroup ? base.filter((j) => {
       const nextService = pickNextActiveService(j.services);
       return nextService && !nextService.assignedTo;
-    }).length;
+    }).length : 0;
 
-    const team = base.filter((j) => {
+    const team = isAdminGroup ? base.filter((j) => {
       const nextService = pickNextActiveService(j.services);
       return nextService && nextService.assignedTo && !isAssignedToCurrentUser(nextService.assignedTo);
-    }).length;
+    }).length : 0;
 
     return { assigned, unassigned, team };
-  }, [jobs, currentUser, nameToEmailMap, emailToNameMap, currentUserIdentitySet]);
+  }, [jobs, currentUser, nameToEmailMap, emailToNameMap, currentUserIdentitySet, isAdminGroup]);
 
   // pagination
   const totalPages = Math.max(1, Math.ceil(filteredJobs.length / pageSize));
@@ -633,7 +701,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     const actorEmail = resolveActorName(currentUser);
 
     const roadmap = Array.isArray(updated.roadmap) ? [...updated.roadmap] : [];
-    const inprogressStep = roadmap.find((s: any) => s.step === "Inprogress");
+    const inprogressStep = roadmap.find((s: any) => isServiceOperationStep(s.step));
     if (inprogressStep) {
       inprogressStep.stepStatus = "Completed";
       inprogressStep.endTimestamp = now;
@@ -683,7 +751,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   if (showDetails && currentDetailsJob) {
     return (
       <div className="service-execution-wrapper">
-        <div className="service-details-screen">
+        <div className="service-details-screen jo-details-v3">
           <div className="service-details-header">
             <div className="service-details-title-container">
               <h2>
@@ -703,7 +771,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
               {currentDetailsJob.roadmap && currentDetailsJob.roadmap.length > 0 && (
                 <PermissionGate moduleId="serviceexec" optionId="serviceexec_roadmap">
-                  <RoadmapCard order={currentDetailsJob} displayUser={displayUser} />
+                  <UnifiedJobOrderRoadmap order={currentDetailsJob} />
                 </PermissionGate>
               )}
 
@@ -720,7 +788,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                   jobId={currentDetailsJob.id}
                   jobOrderBackendId={currentDetailsJob._backendId}
                   orderNumber={currentDetailsJob.id}
-                  services={currentDetailsJob.services || []}
+                  services={isAdminGroup ? (currentDetailsJob.services || []) : (currentDetailsJob.services || []).filter((s: any) => isAssignedToCurrentUser(s?.assignedTo))}
                   onServicesReorder={handleServicesReorder}
                   onServiceUpdate={handleServiceUpdate}
                   onAddService={handleAddService}
@@ -730,6 +798,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                   setEditMode={setDetailsEditMode}
                   availableTechs={technicianNames}
                   availableAssignees={assigneeOptions}
+                  isAdmin={isAdminGroup}
                 />
               </PermissionGate>
 
@@ -769,7 +838,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
   // ---------------- LIST SCREEN ----------------
   const tabTitle =
-    currentTab === "assigned" ? "Assigned to me" : currentTab === "unassigned" ? "Unassigned tasks" : "Team tasks";
+    !isAdminGroup || currentTab === "assigned" ? "Assigned to me" : currentTab === "unassigned" ? "Unassigned tasks" : "Team tasks";
 
   return (
     <div className="service-execution-wrapper">
@@ -786,12 +855,16 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
           <div className={`task-tab ${currentTab === "assigned" ? "active" : ""}`} onClick={() => setCurrentTab("assigned")}>
             <i className="fas fa-user-check"></i> Assign to me ({counts.assigned})
           </div>
-          <div className={`task-tab ${currentTab === "unassigned" ? "active" : ""}`} onClick={() => setCurrentTab("unassigned")}>
-            <i className="fas fa-user-slash"></i> Unassigned tasks ({counts.unassigned})
-          </div>
-          <div className={`task-tab ${currentTab === "team" ? "active" : ""}`} onClick={() => setCurrentTab("team")}>
-            <i className="fas fa-users"></i> Team tasks ({counts.team})
-          </div>
+          {isAdminGroup && (
+            <>
+              <div className={`task-tab ${currentTab === "unassigned" ? "active" : ""}`} onClick={() => setCurrentTab("unassigned")}>
+                <i className="fas fa-user-slash"></i> Unassigned tasks ({counts.unassigned})
+              </div>
+              <div className={`task-tab ${currentTab === "team" ? "active" : ""}`} onClick={() => setCurrentTab("team")}>
+                <i className="fas fa-users"></i> Team tasks ({counts.team})
+              </div>
+            </>
+          )}
         </div>
 
         <section className="search-section">
@@ -1013,9 +1086,9 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 // -------------------- cards --------------------
 function CustomerInfoCard({ order }: any) {
   return (
-    <div className="epm-detail-card">
+    <div className="epm-detail-card cv-unified-card">
       <h3><i className="fas fa-user"></i> Customer Information</h3>
-      <div className="epm-card-content">
+      <div className="epm-card-content cv-unified-grid">
         <div className="epm-info-item"><span className="epm-info-label">Customer ID</span><span className="epm-info-value">{order.customerDetails?.customerId || "N/A"}</span></div>
         <div className="epm-info-item"><span className="epm-info-label">Customer Name</span><span className="epm-info-value">{order.customerName || "N/A"}</span></div>
         <div className="epm-info-item"><span className="epm-info-label">Mobile Number</span><span className="epm-info-value">{order.mobile || "Not provided"}</span></div>
@@ -1027,10 +1100,19 @@ function CustomerInfoCard({ order }: any) {
 }
 
 function VehicleInfoCard({ order }: any) {
+  const vehicleId =
+    String(
+      order?.vehicleDetails?.vehicleId ??
+      order?.vehicleDetails?.id ??
+      order?.vehicleId ??
+      ""
+    ).trim() || "—";
+
   return (
-    <div className="epm-detail-card">
+    <div className="epm-detail-card cv-unified-card">
       <h3><i className="fas fa-car"></i> Vehicle Information</h3>
-      <div className="epm-card-content">
+      <div className="epm-card-content cv-unified-grid">
+        <div className="epm-info-item"><span className="epm-info-label">Vehicle ID</span><span className="epm-info-value">{vehicleId}</span></div>
         <div className="epm-info-item"><span className="epm-info-label">Make</span><span className="epm-info-value">{order.vehicleDetails?.make || "N/A"}</span></div>
         <div className="epm-info-item"><span className="epm-info-label">Model</span><span className="epm-info-value">{order.vehicleDetails?.model || "N/A"}</span></div>
         <div className="epm-info-item"><span className="epm-info-label">Year</span><span className="epm-info-value">{order.vehicleDetails?.year || "N/A"}</span></div>
@@ -1045,44 +1127,16 @@ function VehicleInfoCard({ order }: any) {
 
 function JobOrderSummaryCard({ order }: any) {
   return (
-    <div className="epm-detail-card">
+    <div className="pim-detail-card">
       <h3><i className="fas fa-info-circle"></i> Job Order Summary</h3>
-      <div className="epm-card-content">
-        <div className="epm-info-item"><span className="epm-info-label">Job Order ID</span><span className="epm-info-value">{order.id}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Order Type</span><span className="epm-info-value">{order.orderType}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Request Create Date</span><span className="epm-info-value">{order.jobOrderSummary?.createDate || order.createDate}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Created By</span><span className="epm-info-value">{normalizeActorDisplay(order.jobOrderSummary?.createdBy || "Not specified", "Not specified")}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Expected Delivery</span><span className="epm-info-value">{order.jobOrderSummary?.expectedDelivery || "Not specified"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Work Status</span><span className="epm-info-value">{order.workStatus}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Payment Status</span><span className="epm-info-value">{order.paymentStatus}</span></div>
-      </div>
-    </div>
-  );
-}
-
-function RoadmapCard({ order, displayUser }: any) {
-  if (!order.roadmap || order.roadmap.length === 0) return null;
-  return (
-    <div className="epm-detail-card">
-      <h3><i className="fas fa-map-signs"></i> Job Order Roadmap</h3>
-      <div className="sem-roadmap-container">
-        <div className="sem-roadmap-steps">
-          {order.roadmap.map((step: any, idx: number) => (
-            <div key={idx} className="sem-roadmap-step">
-              <div className="sem-step-content">
-                <div className="sem-step-header">
-                  <div className="sem-step-name">{step.step}</div>
-                  <span className="sem-status-badge">{step.status}</span>
-                </div>
-                <div className="sem-step-details">
-                  <div className="sem-step-detail"><span className="sem-detail-label">Started</span><span className="sem-detail-value">{step.startTimestamp || "Not started"}</span></div>
-                  <div className="sem-step-detail"><span className="sem-detail-label">Ended</span><span className="sem-detail-value">{step.endTimestamp || "Not completed"}</span></div>
-                  <div className="sem-step-detail"><span className="sem-detail-label">Action By</span><span className="sem-detail-value">{displayUser ? displayUser(step.actionBy) : (step.actionBy || "Not assigned")}</span></div>
-                </div>
-              </div>
-            </div>
-          ))}
-        </div>
+      <div className="pim-card-content">
+        <div className="pim-info-item"><span className="pim-info-label">Job Order ID</span><span className="pim-info-value">{order.id}</span></div>
+        <div className="pim-info-item"><span className="pim-info-label">Order Type</span><span className="pim-info-value">{order.orderType}</span></div>
+        <div className="pim-info-item"><span className="pim-info-label">Request Create Date</span><span className="pim-info-value">{order.jobOrderSummary?.createDate || order.createDate}</span></div>
+        <div className="pim-info-item"><span className="pim-info-label">Created By</span><span className="pim-info-value">{resolveOrderCreatedBy(order, { fallback: "—" })}</span></div>
+        <div className="pim-info-item"><span className="pim-info-label">Expected Delivery</span><span className="pim-info-value">{order.jobOrderSummary?.expectedDelivery || "Not specified"}</span></div>
+        <div className="pim-info-item"><span className="pim-info-label">Work Status</span><span className="pim-info-value"><span className={`epm-status-badge status-badge ${getWorkStatusClass(normalizeWorkStatusLabel(order.workStatus))}`}>{normalizeWorkStatusLabel(order.workStatus)}</span></span></div>
+        <div className="pim-info-item"><span className="pim-info-label">Payment Status</span><span className="pim-info-value"><span className={`epm-status-badge status-badge ${getPaymentStatusClass(order.paymentStatus)}`}>{order.paymentStatus}</span></span></div>
       </div>
     </div>
   );
@@ -1090,9 +1144,9 @@ function RoadmapCard({ order, displayUser }: any) {
 
 function CustomerNotesCard({ order }: any) {
   return (
-    <div className="epm-detail-card" style={{ backgroundColor: "#fffbea", borderLeft: "4px solid #f59e0b" }}>
+    <div className="epm-detail-card sem-highlight-card">
       <h3><i className="fas fa-comment-dots"></i> Customer Notes</h3>
-      <div style={{ padding: "15px 20px", whiteSpace: "pre-wrap", color: "#78350f", fontSize: "14px", lineHeight: "1.6" }}>
+      <div className="sem-highlight-content">
         {order.customerNotes}
       </div>
     </div>
@@ -1106,15 +1160,15 @@ function DocumentsCard({ order, resolveUrl }: any) {
   return (
     <div className="pim-detail-card">
       <h3><i className="fas fa-folder-open"></i> Documents</h3>
-      <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+      <div className="sem-docs-list">
         {documents.map((doc: any, idx: number) => (
-          <div key={idx} style={{ padding: "15px", border: "1px solid #e5e7eb", borderRadius: "8px", backgroundColor: "#f9fafb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-            <div style={{ flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
-                <i className="fas fa-file-alt" style={{ color: "#3b82f6", fontSize: "20px" }}></i>
+          <div key={idx} className="sem-doc-item">
+            <div className="sem-doc-item-left">
+              <div className="sem-doc-item-head">
+                <i className="fas fa-file-alt sem-doc-icon"></i>
                 <div>
-                  <div style={{ fontWeight: 600, color: "#1f2937", fontSize: "14px" }}>{doc.name}</div>
-                  <div style={{ fontSize: "12px", color: "#6b7280", marginTop: "2px" }}>
+                  <div className="sem-doc-name">{doc.name}</div>
+                  <div className="sem-doc-meta">
                     {doc.type} {doc.category ? `• ${doc.category}` : ""}
                     {doc.paymentReference ? ` • ${doc.paymentReference}` : ""}
                   </div>
@@ -1132,7 +1186,7 @@ function DocumentsCard({ order, resolveUrl }: any) {
                 a.download = doc.name || "document";
                 a.click();
               }}
-              style={{ padding: "8px 16px", backgroundColor: "#3b82f6", color: "white", border: "none", borderRadius: "6px", cursor: "pointer", fontSize: "13px", fontWeight: 500, display: "flex", alignItems: "center", gap: "6px" }}
+              className="sem-doc-download-btn"
             >
               <i className="fas fa-download"></i> Download
             </button>
@@ -1146,24 +1200,24 @@ function DocumentsCard({ order, resolveUrl }: any) {
 function QualityCheckListCard({ order }: any) {
   const services = Array.isArray(order.services) ? order.services : [];
   return (
-    <div className="pim-detail-card" style={{ backgroundColor: "#e8f4f1", borderLeft: "4px solid #16a085" }}>
+    <div className="pim-detail-card sem-highlight-card">
       <h3><i className="fas fa-clipboard-check"></i> Quality Check List</h3>
-      <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+      <div className="sem-qc-list">
         {services.length > 0 ? (
           services.map((service: any, idx: number) => {
             const serviceName = service?.name || `Service ${idx + 1}`;
             const result = service?.qualityCheckResult || service?.qcResult || "Not Evaluated";
             return (
-              <div key={`${serviceName}-${idx}`} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 12px", backgroundColor: "white", borderRadius: "6px", border: "1px solid #e5e7eb", gap: "12px" }}>
-                <span style={{ fontSize: "14px", fontWeight: 500, color: "#1f2937", flex: 1 }}>{serviceName}</span>
-                <span style={{ padding: "4px 8px", borderRadius: "4px", fontSize: "12px", fontWeight: 600, backgroundColor: "#e5e7eb", color: "#374151" }}>
+              <div key={`${serviceName}-${idx}`} className="sem-qc-item">
+                <span className="sem-qc-service">{serviceName}</span>
+                <span className="sem-qc-result">
                   {result}
                 </span>
               </div>
             );
           })
         ) : (
-          <div style={{ padding: "12px", textAlign: "center", color: "#6b7280" }}>No services to evaluate</div>
+          <div className="sem-empty-inline">No services to evaluate</div>
         )}
       </div>
     </div>
@@ -1172,13 +1226,13 @@ function QualityCheckListCard({ order }: any) {
 
 function BillingCard({ order }: any) {
   return (
-    <div className="epm-detail-card">
+    <div className="epm-detail-card bi-unified-card">
       <h3><i className="fas fa-receipt"></i> Billing & Invoices</h3>
-      <div className="epm-card-content">
-        <div className="epm-info-item"><span className="epm-info-label">Bill ID</span><span className="epm-info-value">{order.billing?.billId || "N/A"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Total</span><span className="epm-info-value">{order.billing?.totalAmount || "N/A"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Net</span><span className="epm-info-value">{order.billing?.netAmount || "N/A"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Balance</span><span className="epm-info-value">{order.billing?.balanceDue || "N/A"}</span></div>
+      <div className="epm-card-content bi-summary">
+        <div className="epm-info-item bi-row"><span className="epm-info-label bi-label">Bill ID</span><span className="epm-info-value bi-value">{order.billing?.billId || "N/A"}</span></div>
+        <div className="epm-info-item bi-row"><span className="epm-info-label bi-label">Total</span><span className="epm-info-value bi-value">{order.billing?.totalAmount || "N/A"}</span></div>
+        <div className="epm-info-item bi-row"><span className="epm-info-label bi-label">Net</span><span className="epm-info-value bi-value">{order.billing?.netAmount || "N/A"}</span></div>
+        <div className="epm-info-item bi-row"><span className="epm-info-label bi-label">Balance</span><span className="epm-info-value bi-value">{order.billing?.balanceDue || "N/A"}</span></div>
       </div>
     </div>
   );
@@ -1213,11 +1267,39 @@ function PaymentActivityLogCard({ order }: any) {
 }
 
 function ExitPermitDetailsCard({ order }: any) {
+  const permit = order?.exitPermit ?? {};
+  const permitInfo = order?.exitPermitInfo ?? {};
+
+  const status = mapExitPermitStatusToUi(
+    order?.exitPermitStatus ?? permit?.status ?? permitInfo?.status,
+    Boolean(firstNonEmptyText(permit?.permitId, permitInfo?.permitId))
+  );
+
+  const permitId = firstNonEmptyText(permit?.permitId, permitInfo?.permitId) || "—";
+  const createDate = firstNonEmptyText(permit?.createDate, permitInfo?.createDate, order?.exitPermitDate) || "—";
+  const nextServiceDate = firstNonEmptyText(permit?.nextServiceDate, permitInfo?.nextServiceDate, order?.nextServiceDate) || "—";
+  const createdBy = normalizeActorDisplay(
+    firstNonEmptyText(permit?.createdBy, permitInfo?.createdBy, permitInfo?.actionBy),
+    "—"
+  );
+  const collectedBy = firstNonEmptyText(permit?.collectedBy, permitInfo?.collectedBy) || "—";
+  const collectedByMobile = firstNonEmptyText(
+    permit?.collectedByMobile,
+    permitInfo?.collectedByMobile,
+    permitInfo?.mobileNumber
+  ) || "—";
+
   return (
-    <div className="epm-detail-card">
-      <h3><i className="fas fa-id-card"></i> Exit Permit Details</h3>
-      <div className="epm-card-content">
-        <div className="epm-info-item"><span className="epm-info-label">Status</span><span className="epm-info-value">{order.exitPermitStatus || "Not Created"}</span></div>
+    <div className="epm-detail-card ex-unified-card">
+      <h3><i className="fas fa-id-card"></i> Exit Permit</h3>
+      <div className="epm-card-content ex-unified-grid">
+        <div className="epm-info-item"><span className="epm-info-label">Status</span><span className="epm-info-value"><span className={`epm-status-badge status-badge ${permitStatusClass(status)}`}>{status}</span></span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Permit ID</span><span className="epm-info-value">{permitId}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Create Date</span><span className="epm-info-value">{createDate}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Next Service</span><span className="epm-info-value">{nextServiceDate}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Created By</span><span className="epm-info-value">{createdBy}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Collected By</span><span className="epm-info-value">{collectedBy}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Mobile</span><span className="epm-info-value">{collectedByMobile}</span></div>
       </div>
     </div>
   );

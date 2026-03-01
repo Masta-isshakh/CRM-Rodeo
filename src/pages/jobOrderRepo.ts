@@ -2,6 +2,8 @@
 
 import type { Schema } from "../../amplify/data/resource";
 import { getDataClient } from "../lib/amplifyClient";
+import { resolveActorDisplay } from "../utils/actorIdentity";
+import { getUserDirectory } from "../utils/userDirectoryCache";
 
 type CustomerRow = Schema["Customer"]["type"];
 type JobOrderRow = Schema["JobOrder"]["type"];
@@ -17,6 +19,74 @@ function formatQar(n: number) {
 
 function safeLower(s: any) {
   return String(s ?? "").trim().toLowerCase();
+}
+
+function firstNonEmptyText(...values: any[]): string {
+  for (const value of values) {
+    const out = String(value ?? "").trim();
+    if (out) return out;
+  }
+  return "";
+}
+
+function isPlaceholderActor(value: any) {
+  const raw = String(value ?? "").trim().toLowerCase();
+  return (
+    !raw ||
+    raw === "-" ||
+    raw === "--" ||
+    raw === "—" ||
+    raw === "null" ||
+    raw === "undefined" ||
+    raw === "system" ||
+    raw === "system user" ||
+    raw === "unknown" ||
+    raw === "not assigned" ||
+    raw === "n/a" ||
+    raw === "na"
+  );
+}
+
+function firstPreferredActor(...values: any[]) {
+  const normalized = values.map((value) => String(value ?? "").trim()).filter(Boolean);
+  const nonPlaceholder = normalized.find((value) => !isPlaceholderActor(value));
+  return nonPlaceholder ?? normalized[0] ?? "";
+}
+
+async function resolveVehicleIdByPlate(client: any, plateRaw: any): Promise<string> {
+  const plate = String(plateRaw ?? "").trim();
+  if (!plate) return "";
+
+  try {
+    const byIdx = await (client.models.Vehicle as any)?.vehiclesByPlateNumber?.({
+      plateNumber: plate,
+      limit: 1,
+    });
+    const row = byIdx?.data?.[0];
+    const id = String(row?.vehicleId ?? "").trim();
+    if (id) return id;
+  } catch {
+    // fallback below
+  }
+
+  try {
+    const listed = await client.models.Vehicle.list({
+      filter: { plateNumber: { eq: plate } } as any,
+      limit: 1,
+    });
+    const row = listed?.data?.[0];
+    return String(row?.vehicleId ?? "").trim();
+  } catch {
+    return "";
+  }
+}
+
+function normalizeUiWorkStatusLabel(value: any): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const compact = raw.toLowerCase().replace(/[\s_]+/g, "");
+  if (compact === "inprogress" || compact === "serviceoperation") return "Service_Operation";
+  return raw;
 }
 
 function makeFullName(c: any) {
@@ -81,12 +151,13 @@ function toDateOnlyOrUndefined(v: any): string | undefined {
 /** UI workStatus -> schema status enum */
 function mapWorkStatusToDbStatus(workStatusLabel: string | undefined): JobOrderRow["status"] {
   const s = String(workStatusLabel ?? "").trim().toLowerCase();
+  const compact = s.replace(/[\s_]+/g, "");
 
   if (s === "cancelled" || s === "canceled") return "CANCELLED";
   if (s === "completed") return "COMPLETED";
   if (s === "ready") return "READY";
   if (s === "quality check") return "READY";
-  if (s === "inprogress" || s === "in progress") return "IN_PROGRESS";
+  if (compact === "inprogress" || compact === "serviceoperation") return "IN_PROGRESS";
   if (s === "inspection") return "IN_PROGRESS";
   if (s === "new request") return "OPEN";
 
@@ -97,7 +168,7 @@ function mapWorkStatusToDbStatus(workStatusLabel: string | undefined): JobOrderR
 function mapEnumStatusToUi(status: any) {
   const s = String(status ?? "").toUpperCase();
   if (s === "OPEN") return "New Request";
-  if (s === "IN_PROGRESS") return "Inprogress";
+  if (s === "IN_PROGRESS") return "Service_Operation";
   if (s === "READY") return "Ready";
   if (s === "COMPLETED") return "Completed";
   if (s === "CANCELLED") return "Cancelled";
@@ -112,7 +183,7 @@ function deriveUiWorkStatus(job: any, parsed: any) {
     if (["DRAFT", "OPEN", "IN_PROGRESS", "READY", "COMPLETED", "CANCELLED"].includes(upper)) {
       return mapEnumStatusToUi(upper);
     }
-    return fromParsed;
+    return normalizeUiWorkStatusLabel(fromParsed);
   }
 
   const fromLabel = String(job?.workStatusLabel ?? "").trim();
@@ -121,7 +192,7 @@ function deriveUiWorkStatus(job: any, parsed: any) {
     if (["DRAFT", "OPEN", "IN_PROGRESS", "READY", "COMPLETED", "CANCELLED"].includes(upper)) {
       return mapEnumStatusToUi(upper);
     }
-    return fromLabel;
+    return normalizeUiWorkStatusLabel(fromLabel);
   }
 
   return mapEnumStatusToUi(job?.status);
@@ -157,7 +228,7 @@ function normalizeExitPermitStatus(raw: any): "NOT_REQUIRED" | "PENDING" | "APPR
 
 function mapExitPermitStatusToUi(status: any): string {
   const s = normalizeExitPermitStatus(status);
-  if (s === "APPROVED") return "Created";
+  if (s === "APPROVED") return "Completed";
   if (s === "PENDING") return "Pending";
   if (s === "REJECTED") return "Rejected";
   return "Not Required";
@@ -170,7 +241,25 @@ function deriveExitPermitStatus(job: any, parsed: any) {
   const fromParsed = String(parsed?.exitPermitStatus ?? "").trim();
   if (fromParsed) return mapExitPermitStatusToUi(fromParsed);
 
-  const permitId = String(parsed?.exitPermit?.permitId ?? "").trim();
+  const fromExitPermitInfo = String(parsed?.exitPermitInfo?.status ?? job?.exitPermitInfo?.status ?? "").trim();
+  if (fromExitPermitInfo) return mapExitPermitStatusToUi(fromExitPermitInfo);
+
+  const fromExitPermit = String(parsed?.exitPermit?.status ?? job?.exitPermit?.status ?? "").trim();
+  if (fromExitPermit) return mapExitPermitStatusToUi(fromExitPermit);
+
+  const permitId = firstNonEmptyText(
+    parsed?.exitPermit?.permitId,
+    parsed?.exitPermit?.permitID,
+    parsed?.exitPermit?.permitNumber,
+    parsed?.exitPermit?.permitNo,
+    parsed?.exitPermitInfo?.permitId,
+    parsed?.exitPermitInfo?.permitID,
+    parsed?.exitPermitInfo?.permitNumber,
+    parsed?.exitPermitInfo?.permitNo,
+    job?.exitPermit?.permitId,
+    job?.exitPermitInfo?.permitId,
+    job?.permitId
+  );
   return permitId ? "Created" : "Not Required";
 }
 
@@ -297,6 +386,8 @@ async function persistJobOrderViaModel(client: any, payload: any): Promise<{ id?
     documents: Array.isArray(payload?.documents) ? payload.documents : [],
     billing: payload?.billing ?? {},
     roadmap: Array.isArray(payload?.roadmap) ? payload.roadmap : [],
+    exitPermit: payload?.exitPermit ?? {},
+    exitPermitInfo: payload?.exitPermitInfo ?? {},
     additionalServiceRequests: Array.isArray(payload?.additionalServiceRequests) ? payload.additionalServiceRequests : [],
     customerNotes: payload?.customerNotes ?? null,
     expectedDeliveryDate: payload?.expectedDeliveryDate ?? null,
@@ -606,7 +697,7 @@ export async function getCustomerWithVehicles(customerId: string): Promise<any |
   };
 }
 
-export async function createCustomer(input: { fullName: string; phone: string; email?: string; address?: string }): Promise<any> {
+export async function createCustomer(input: { fullName: string; phone: string; email?: string; address?: string; actor?: string }): Promise<any> {
   const client = getDataClient();
 
   const fullName = String(input.fullName ?? "").trim();
@@ -626,7 +717,7 @@ export async function createCustomer(input: { fullName: string; phone: string; e
     email: String(input.email ?? "").trim() || undefined,
     notes: String(input.address ?? "").trim() || undefined,
     createdAt: ts,
-    createdBy: "system",
+    createdBy: String(input.actor ?? "system").trim() || "system",
   } as any);
 
   const row = (created as any)?.data ?? created;
@@ -657,6 +748,7 @@ export async function createVehicleForCustomer(input: {
   plateNumber: string;
   vehicleType: string;
   vin: string;
+  actor?: string;
 }): Promise<any> {
   const client = getDataClient();
 
@@ -677,7 +769,7 @@ export async function createVehicleForCustomer(input: {
     vin: String(input.vin).trim() || undefined,
     createdAt: ts,
     updatedAt: ts,
-    createdBy: "system",
+    createdBy: String(input.actor ?? "system").trim() || "system",
   } as any);
 
   const row = (created as any)?.data ?? created;
@@ -750,6 +842,14 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
   const key = String(orderKey ?? "").trim();
   if (!key) return null;
 
+  const directory = await getUserDirectory(client).catch(() => null);
+  const identityToUsernameMap = directory?.identityToUsernameMap ?? {};
+  const resolveActor = (value: any, fallback = "—") =>
+    resolveActorDisplay(value, {
+      identityToUsernameMap,
+      fallback,
+    });
+
   const job = await findJobOrderRowByAnyKey(key);
   if (!job?.id) return null;
 
@@ -779,7 +879,7 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
       ended: s.endTime || s.ended || "Not completed",
 
       duration: s.duration ?? "Not started",
-      technician: s.assignedTo ?? s.technician ?? "Not assigned",
+      technician: resolveActor(s.assignedTo ?? s.technician, "Not assigned"),
 
       requestedAction: s.requestedAction ?? null,
       approvalStatus: s.approvalStatus ?? null,
@@ -815,22 +915,84 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
         stepStatus: r.stepStatus ?? r.status ?? null,
         startTimestamp: r.startTimestamp ?? r.startedAt ?? r.startTime ?? r.started ?? null,
         endTimestamp: r.endTimestamp ?? r.completedAt ?? r.endTime ?? r.ended ?? null,
-        actionBy: r.actionBy ?? "Not assigned",
+        actionBy: resolveActor(r.actionBy, "Not assigned"),
         status: r.status ?? r.stepStatus ?? "Upcoming",
       }))
     : [];
+
+  const newRequestRoadmapActor = (() => {
+    const step = roadmap.find((entry: any) => {
+      const key = String(entry?.step ?? "").trim().toLowerCase().replace(/[^a-z]/g, "");
+      return key === "newrequest";
+    });
+    return String(step?.actionBy ?? "").trim();
+  })();
 
   const documents = Array.isArray(parsed?.documents) ? parsed.documents : [];
   const additionalServiceRequests = Array.isArray(parsed?.additionalServiceRequests) ? parsed.additionalServiceRequests : [];
 
   const exitPermitStatus = deriveExitPermitStatus(job, parsed);
-  const exitPermit = parsed?.exitPermit ?? {
-    permitId: null,
-    createDate: null,
-    nextServiceDate: null,
-    createdBy: null,
-    collectedBy: null,
-    collectedByMobile: null,
+  const parsedExitPermit = parsed?.exitPermit ?? {};
+  const parsedExitPermitInfo = parsed?.exitPermitInfo ?? {};
+  const exitPermit = {
+    permitId:
+      firstNonEmptyText(
+        parsedExitPermit?.permitId,
+        parsedExitPermit?.permitID,
+        parsedExitPermit?.permitNumber,
+        parsedExitPermit?.permitNo,
+        parsedExitPermitInfo?.permitId,
+        parsedExitPermitInfo?.permitID,
+        parsedExitPermitInfo?.permitNumber,
+        parsedExitPermitInfo?.permitNo,
+        job?.permitId
+      ) || null,
+    createDate:
+      firstNonEmptyText(
+        parsedExitPermit?.createDate,
+        parsedExitPermit?.createdAt,
+        parsedExitPermitInfo?.createDate,
+        parsedExitPermitInfo?.date,
+        job?.exitPermitDate
+      ) || null,
+    nextServiceDate:
+      firstNonEmptyText(
+        parsedExitPermit?.nextServiceDate,
+        parsedExitPermitInfo?.nextServiceDate,
+        job?.nextServiceDate
+      ) || null,
+    createdBy:
+      resolveActor(
+        firstNonEmptyText(
+          parsedExitPermit?.createdBy,
+          parsedExitPermitInfo?.createdBy,
+          parsedExitPermitInfo?.actionBy,
+          job?.updatedBy,
+          job?.createdBy
+        ),
+        "—"
+      ) || null,
+    collectedBy:
+      firstNonEmptyText(
+        parsedExitPermit?.collectedBy,
+        parsedExitPermit?.collectorName,
+        parsedExitPermitInfo?.collectedBy,
+        parsedExitPermitInfo?.collectorName,
+        parsedExitPermitInfo?.receivedBy,
+        parsedExitPermitInfo?.handoverTo,
+        job?.collectedBy
+      ) || null,
+    collectedByMobile:
+      firstNonEmptyText(
+        parsedExitPermit?.collectedByMobile,
+        parsedExitPermit?.mobileNumber,
+        parsedExitPermitInfo?.collectedByMobile,
+        parsedExitPermitInfo?.mobileNumber,
+        parsedExitPermitInfo?.collectorMobile,
+        parsedExitPermitInfo?.phone,
+        job?.collectedByMobile,
+        job?.mobileNumber
+      ) || null,
   };
 
   // Payments
@@ -856,7 +1018,7 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
       amount: info.amount,
       discount: formatQar(0),
       paymentMethod: info.method,
-      cashierName: info.approvedBy ?? p.createdBy ?? "System",
+      cashierName: resolveActor(firstPreferredActor(info.approvedBy, p.createdBy), "—"),
       timestamp: info.paidAt,
 
       receiptNumber: info.receiptNumber,
@@ -890,7 +1052,7 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
   const qualityCheckStatus = String(job?.qualityCheckStatus ?? "PENDING").toUpperCase();
   const qualityCheckDateDisplay = job?.qualityCheckDate ? new Date(String(job.qualityCheckDate)).toLocaleString() : "Not checked";
   const qualityCheckNotes = String(job?.qualityCheckNotes ?? "").trim();
-  const qualityCheckedBy = String(job?.qualityCheckedBy ?? "").trim() || "Not yet";
+  const qualityCheckedBy = resolveActor(job?.qualityCheckedBy, "Not yet");
 
   const priorityLevel = String(job?.priorityLevel ?? "NORMAL").toUpperCase();
   const priority = mapPriorityLevel(priorityLevel);
@@ -919,20 +1081,39 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
     customerSince: job.customerSince ?? parsed?.customerDetails?.customerSince ?? parsed?.customerSince ?? "",
   };
 
-  const vehicleTypeUi = vehicleTypeEnumToUi(job.vehicleType ?? parsed?.vehicleDetails?.type ?? "");
+  const parsedVehicle = parsed?.vehicleDetails ?? {};
+  const vehicleIdByPlate = await resolveVehicleIdByPlate(
+    client,
+    firstNonEmptyText(job?.plateNumber, parsedVehicle?.plateNumber, parsed?.plateNumber)
+  );
+  const vehicleTypeUi = vehicleTypeEnumToUi(job.vehicleType ?? parsedVehicle?.type ?? parsed?.vehicleType ?? "");
 
-  const vehicleDetails = parsed?.vehicleDetails ?? {
-    vehicleId: parsed?.vehicleId ?? "N/A",
-    ownedBy: parsed?.ownedBy ?? job.customerName ?? "",
-    make: job.vehicleMake ?? parsed?.vehicleMake ?? "",
-    model: job.vehicleModel ?? parsed?.vehicleModel ?? "",
-    year: job.vehicleYear ?? parsed?.vehicleYear ?? "",
-    type: vehicleTypeUi, // ✅ UI-friendly so AddService pricing works
-    color: job.color ?? parsed?.color ?? "",
-    vin: job.vin ?? parsed?.vin ?? "",
-    registrationDate: parsed?.registrationDate ?? "",
-    mileage: job.mileage ?? parsed?.mileage ?? "",
-    plateNumber: job.plateNumber ?? parsed?.plateNumber ?? "",
+  const vehicleDetails = {
+    ...parsedVehicle,
+    vehicleId:
+      firstNonEmptyText(
+        parsedVehicle?.vehicleId,
+        parsedVehicle?.id,
+        parsed?.vehicleId,
+        job?.vehicleId,
+        vehicleIdByPlate
+      ) || "N/A",
+    ownedBy:
+      firstNonEmptyText(
+        parsedVehicle?.ownedBy,
+        parsed?.ownedBy,
+        job?.customerName,
+        parsed?.customerName
+      ) || "",
+    make: firstNonEmptyText(job?.vehicleMake, parsedVehicle?.make, parsed?.vehicleMake) || "",
+    model: firstNonEmptyText(job?.vehicleModel, parsedVehicle?.model, parsed?.vehicleModel) || "",
+    year: firstNonEmptyText(job?.vehicleYear, parsedVehicle?.year, parsed?.vehicleYear) || "",
+    type: vehicleTypeUi,
+    color: firstNonEmptyText(job?.color, parsedVehicle?.color, parsed?.color) || "",
+    vin: firstNonEmptyText(job?.vin, parsedVehicle?.vin, parsed?.vin) || "",
+    registrationDate: firstNonEmptyText(parsedVehicle?.registrationDate, parsed?.registrationDate) || "",
+    mileage: firstNonEmptyText(job?.mileage, parsedVehicle?.mileage, parsed?.mileage) || "",
+    plateNumber: firstNonEmptyText(job?.plateNumber, parsedVehicle?.plateNumber, parsed?.plateNumber) || "",
   };
 
   return {
@@ -941,6 +1122,7 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
     orderType: job.orderType ?? parsed?.orderType ?? "Job Order",
     customerName: job.customerName ?? parsed?.customerName ?? "",
     mobile: job.customerPhone ?? parsed?.customerPhone ?? "",
+    vehicleId: firstNonEmptyText(vehicleDetails?.vehicleId, parsed?.vehicleId, job?.vehicleId, vehicleIdByPlate) || "",
     vehiclePlate: job.plateNumber ?? parsed?.plateNumber ?? "",
     workStatus,
     paymentStatus,
@@ -950,7 +1132,7 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
 
     jobOrderSummary: {
       createDate: job.createdAt ? new Date(String(job.createdAt)).toLocaleString() : "",
-      createdBy: job.createdBy ?? "System User",
+      createdBy: resolveActor(firstPreferredActor(job.createdBy, parsed?.createdBy, newRequestRoadmapActor, job.updatedBy), "—"),
       expectedDelivery,
       actualDelivery,
     },
@@ -991,6 +1173,11 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
       required: exitPermitRequired,
       status: exitPermitStatus2,
       nextServiceDate,
+      date: firstNonEmptyText(parsedExitPermitInfo?.date, parsedExitPermit?.createDate, job?.exitPermitDate) || undefined,
+      permitId: exitPermit.permitId ?? undefined,
+      collectedBy: exitPermit.collectedBy ?? undefined,
+      mobileNumber: exitPermit.collectedByMobile ?? undefined,
+      createdBy: exitPermit.createdBy ?? undefined,
     },
 
     serviceProgressInfo: {
@@ -1093,7 +1280,9 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
     customerEmail: String(order?.customerDetails?.email ?? "").trim() || undefined,
 
     plateNumber: String(order?.vehiclePlate ?? order?.vehicleDetails?.plateNumber ?? "").trim() || undefined,
-    vehicleId: String(order?.vehicleDetails?.vehicleId ?? "").trim() || undefined,
+    vehicleId: String(
+      firstNonEmptyText(order?.vehicleDetails?.vehicleId, order?.vehicleDetails?.id, order?.vehicleId)
+    ).trim() || undefined,
     vehicleMake: String(order?.vehicleDetails?.make ?? "").trim() || undefined,
     vehicleModel: String(order?.vehicleDetails?.model ?? "").trim() || undefined,
     vehicleYear: String(order?.vehicleDetails?.year ?? "").trim() || undefined,
@@ -1158,8 +1347,8 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
     jobDescription: String(order?.jobDescription ?? "").trim() || undefined,
     specialInstructions: String(order?.specialInstructions ?? "").trim() || undefined,
     internalNotes: String(order?.internalNotes ?? "").trim() || undefined,
-    createdBy: String(order?.createdBy ?? order?.jobOrderSummary?.createdBy ?? "").trim() || undefined,
-    updatedBy: String(order?.updatedBy ?? order?.createdBy ?? order?.jobOrderSummary?.createdBy ?? "").trim() || undefined,
+    createdBy: firstPreferredActor(order?.createdBy, order?.jobOrderSummary?.createdBy) || undefined,
+    updatedBy: firstPreferredActor(order?.updatedBy, order?.createdBy, order?.jobOrderSummary?.createdBy) || undefined,
 
     // Customer detail fields
     customerAddress: String(order?.customerDetails?.address ?? order?.customerAddress ?? "").trim() || undefined,
@@ -1206,6 +1395,8 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
     documents: Array.isArray(order?.documents) ? order.documents : [],
     billing: order?.billing ?? {},
     roadmap: Array.isArray(order?.roadmap) ? order.roadmap : [],
+    exitPermit: order?.exitPermit ?? {},
+    exitPermitInfo: order?.exitPermitInfo ?? {},
     additionalServiceRequests: Array.isArray(order?.additionalServiceRequests) ? order.additionalServiceRequests : [],
 
     billId,
@@ -1351,7 +1542,7 @@ export async function createExitPermitForOrderNumber(input: {
 
   const permitId = `PERMIT-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
   const createDate = new Date().toLocaleString("en-GB");
-  const actor = String(input.actor ?? "System User");
+  const actor = String(input.actor ?? "system");
 
   const nextServiceDateDisplay =
     work === "cancelled"
@@ -1406,6 +1597,10 @@ export async function createExitPermitForOrderNumber(input: {
     status: "APPROVED",
     date: new Date().toISOString(),
     nextServiceDate: work === "cancelled" ? undefined : String(input.nextServiceDate ?? "").trim() || undefined,
+    permitId,
+    collectedBy,
+    mobileNumber,
+    createdBy: actor,
   };
   order.exitPermit = {
     permitId,
