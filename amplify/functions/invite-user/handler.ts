@@ -6,9 +6,11 @@ import {
   AdminAddUserToGroupCommand,
   AdminCreateUserCommand,
   AdminGetUserCommand,
+  AdminResetUserPasswordCommand,
   AdminSetUserPasswordCommand,
   GetGroupCommand,
   CreateGroupCommand,
+  ListUsersCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
 
 import { Amplify } from "aws-amplify";
@@ -44,6 +46,24 @@ async function ensureGroup(userPoolId: string, groupName: string, description: s
   );
 }
 
+async function resolveCognitoUsername(userPoolId: string, email: string): Promise<string> {
+  try {
+    await cognito.send(new AdminGetUserCommand({ UserPoolId: userPoolId, Username: email }));
+    return email;
+  } catch {
+    const listed = await cognito.send(
+      new ListUsersCommand({
+        UserPoolId: userPoolId,
+        Filter: `email = "${email}"`,
+        Limit: 1,
+      })
+    );
+    const username = String(listed.Users?.[0]?.Username ?? "").trim();
+    if (!username) throw new Error(`Cognito user not found for email: ${email}`);
+    return username;
+  }
+}
+
 export const handler: Handler = async (event) => {
   const email = String(event.arguments?.email ?? "").trim().toLowerCase();
   const fullName = String(event.arguments?.fullName ?? "").trim();
@@ -74,8 +94,9 @@ export const handler: Handler = async (event) => {
   await ensureGroup(userPoolId, departmentKey, departmentName);
 
   let sub: string | undefined;
-  let inviteAction: "CREATED" | "RESENT" = "CREATED";
+  let inviteAction: "CREATED" | "RESENT" | "RESET" = "CREATED";
   const temporaryPassword = generateTemporaryPassword();
+  let cognitoUsername = email;
 
   // 1) Create user OR re-send invite if exists
   try {
@@ -97,11 +118,12 @@ export const handler: Handler = async (event) => {
     if (e?.name !== "UsernameExistsException") throw e;
 
     inviteAction = "RESENT";
+    cognitoUsername = await resolveCognitoUsername(userPoolId, email);
 
     await cognito.send(
       new AdminSetUserPasswordCommand({
         UserPoolId: userPoolId,
-        Username: email,
+        Username: cognitoUsername,
         Password: temporaryPassword,
         Permanent: false,
       })
@@ -111,15 +133,28 @@ export const handler: Handler = async (event) => {
       const resendRes = await cognito.send(
         new AdminCreateUserCommand({
           UserPoolId: userPoolId,
-          Username: email,
+          Username: cognitoUsername,
           MessageAction: "RESEND",
           DesiredDeliveryMediums: ["EMAIL"],
         })
       );
       sub = getAttr(resendRes.User?.Attributes, "sub");
     } catch (resendError: any) {
-      const msg = String(resendError?.message ?? resendError ?? "Unknown resend failure");
-      throw new Error(`User exists, but invitation email could not be resent: ${msg}`);
+      try {
+        await cognito.send(
+          new AdminResetUserPasswordCommand({
+            UserPoolId: userPoolId,
+            Username: cognitoUsername,
+          })
+        );
+        inviteAction = "RESET";
+      } catch (resetError: any) {
+        const resendMsg = String(resendError?.message ?? resendError ?? "Unknown resend failure");
+        const resetMsg = String(resetError?.message ?? resetError ?? "Unknown reset failure");
+        throw new Error(
+          `User exists, but invitation email could not be resent or reset. resend=${resendMsg}; reset=${resetMsg}`
+        );
+      }
     }
   }
 
@@ -127,14 +162,14 @@ export const handler: Handler = async (event) => {
   await cognito.send(
     new AdminAddUserToGroupCommand({
       UserPoolId: userPoolId,
-      Username: email,
+      Username: cognitoUsername,
       GroupName: departmentKey,
     })
   );
 
   // 3) Resolve sub if missing
   if (!sub) {
-    const getRes = await cognito.send(new AdminGetUserCommand({ UserPoolId: userPoolId, Username: email }));
+    const getRes = await cognito.send(new AdminGetUserCommand({ UserPoolId: userPoolId, Username: cognitoUsername }));
     sub = getAttr(getRes.UserAttributes, "sub");
   }
   if (!sub) throw new Error("Could not resolve user sub.");
@@ -177,6 +212,7 @@ export const handler: Handler = async (event) => {
   return {
     ok: true,
     invitedEmail: email,
+    cognitoUsername,
     departmentKey,
     departmentName,
     sub,

@@ -23,13 +23,13 @@ export const auth = defineAuth({
     // Invite user + ensure department group exists
     allow
       .resource(inviteUser)
-      .to(["createUser", "getUser", "setUserPassword", "addUserToGroup", "getGroup", "createGroup"]),
+      .to(["createUser", "getUser", "setUserPassword", "resetUserPassword", "addUserToGroup", "getGroup", "createGroup"]),
 
     // Enable/Disable user
-    allow.resource(setUserActive).to(["disableUser", "enableUser"]),
+    allow.resource(setUserActive).to(["disableUser", "enableUser", "getUser", "listUsers"]),
 
     // Delete user
-    allow.resource(deleteUser).to(["deleteUser"]),
+    allow.resource(deleteUser).to(["deleteUser", "getUser", "listUsers"]),
 
     // Department groups (dynamic)
     allow.resource(listDepartments).to(["listGroups"]),

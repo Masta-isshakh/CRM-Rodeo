@@ -342,9 +342,11 @@ export default function Users({ permissions }: PageProps) {
       const deliveredTo = String(payload?.invitedEmail ?? e).trim() || e;
 
       setInviteStatus(
-        inviteAction === "RESENT"
-          ? `Invitation email resent to ${deliveredTo}.`
-          : `Invitation email sent to ${deliveredTo}.`
+        inviteAction === "RESET"
+          ? `Password reset email sent to ${deliveredTo}.`
+          : inviteAction === "RESENT"
+            ? `Invitation email resent to ${deliveredTo}.`
+            : `Invitation email sent to ${deliveredTo}.`
       );
       setEmail("");
       setFirstName("");
