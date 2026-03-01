@@ -49,7 +49,15 @@ export const auth = defineAuth({
       .to(["deleteGroup", "listUsersInGroup", "removeUserFromGroup"]),
     allow
       .resource(setUserDepartment)
-      .to(["getUser", "listUsers", "listGroupsForUser", "addUserToGroup", "removeUserFromGroup"]),
+      .to([
+        "getUser",
+        "listUsers",
+        "getGroup",
+        "createGroup",
+        "listGroupsForUser",
+        "addUserToGroup",
+        "removeUserFromGroup",
+      ]),
 
     // Rename department (create new group, move users, delete old)
     allow

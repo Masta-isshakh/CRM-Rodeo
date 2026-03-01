@@ -118,8 +118,14 @@ export const handler = async (event: {
 
   await dataClient.models.UserProfile.update({
     id: profile.id,
+    email: profile.email,
+    fullName: profile.fullName,
+    profileOwner: profile.profileOwner,
+    createdAt: profile.createdAt ?? new Date().toISOString(),
+    isActive: profile.isActive ?? true,
     departmentKey,
     departmentName: departmentName || keyToLabel(departmentKey),
+    mobileNumber: profile.mobileNumber ?? undefined,
   });
 
   return {
