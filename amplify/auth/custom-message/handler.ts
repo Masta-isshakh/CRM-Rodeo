@@ -36,6 +36,7 @@ export const handler: CustomMessageTriggerHandler = async (event: CustomMessageT
   const realUsername = String((event as any).userName ?? email ?? "").trim();
 
   const codePlaceholder = event.request.codeParameter; // {####} (temp password or reset code)
+  const usernamePlaceholder = event.request.usernameParameter; // {username}
   const { signInUrl, setPasswordUrl, base } = buildUrls(
     realUsername,
     email,
@@ -58,7 +59,8 @@ export const handler: CustomMessageTriggerHandler = async (event: CustomMessageT
       signInUrl,
       "",
       "Manual details (if needed):",
-      `Username: ${realUsername}`,
+      `Username (placeholder): ${usernamePlaceholder}`,
+      `Username (resolved): ${realUsername}`,
       `Temporary password: ${codePlaceholder}`,
       "",
       base ? "" : "IMPORTANT: Admin must set APP_ORIGIN, links may be broken.",
