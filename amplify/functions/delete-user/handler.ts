@@ -29,7 +29,7 @@ async function resolveCognitoUsername(userPoolId: string, email: string): Promis
     );
 
     const username = String(listed.Users?.[0]?.Username ?? "").trim();
-    if (!username) throw new Error(`Cognito user not found for email: ${email}`);
+    if (!username) return "";
     return username;
   }
 }
@@ -42,14 +42,24 @@ export const handler: Handler = async (event: any) => {
   if (!userPoolId) throw new Error("Missing AMPLIFY_AUTH_USERPOOL_ID env var.");
 
   const username = await resolveCognitoUsername(userPoolId, email);
+  let cognitoDeleted = false;
 
-  // 1) Delete Cognito user
-  await cognito.send(
-    new AdminDeleteUserCommand({
-      UserPoolId: userPoolId,
-      Username: username,
-    })
-  );
+  // 1) Delete Cognito user (if it still exists)
+  if (username) {
+    try {
+      await cognito.send(
+        new AdminDeleteUserCommand({
+          UserPoolId: userPoolId,
+          Username: username,
+        })
+      );
+      cognitoDeleted = true;
+    } catch (e: any) {
+      if (String(e?.name ?? "") !== "UserNotFoundException") {
+        throw e;
+      }
+    }
+  }
 
   // 2) Delete UserProfile records (NOT Customer)
   const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
@@ -68,7 +78,8 @@ export const handler: Handler = async (event: any) => {
   return {
     ok: true,
     email,
-    username,
+    username: username || null,
+    cognitoDeleted,
     deletedProfiles: (profiles.data ?? []).length,
   };
 };

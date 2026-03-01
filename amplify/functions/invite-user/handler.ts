@@ -8,6 +8,7 @@ import {
   AdminGetUserCommand,
   AdminResetUserPasswordCommand,
   AdminSetUserPasswordCommand,
+  AdminUpdateUserAttributesCommand,
   GetGroupCommand,
   CreateGroupCommand,
   ListUsersCommand,
@@ -94,7 +95,7 @@ export const handler: Handler = async (event) => {
   await ensureGroup(userPoolId, departmentKey, departmentName);
 
   let sub: string | undefined;
-  let inviteAction: "CREATED" | "RESENT" | "RESET" = "CREATED";
+  let inviteAction: "CREATED" | "RESET" = "CREATED";
   const temporaryPassword = generateTemporaryPassword();
   let cognitoUsername = email;
 
@@ -117,8 +118,20 @@ export const handler: Handler = async (event) => {
   } catch (e: any) {
     if (e?.name !== "UsernameExistsException") throw e;
 
-    inviteAction = "RESENT";
+    inviteAction = "RESET";
     cognitoUsername = await resolveCognitoUsername(userPoolId, email);
+
+    await cognito.send(
+      new AdminUpdateUserAttributesCommand({
+        UserPoolId: userPoolId,
+        Username: cognitoUsername,
+        UserAttributes: [
+          { Name: "email", Value: email },
+          { Name: "email_verified", Value: "true" },
+          { Name: "name", Value: fullName },
+        ],
+      })
+    );
 
     await cognito.send(
       new AdminSetUserPasswordCommand({
@@ -129,33 +142,12 @@ export const handler: Handler = async (event) => {
       })
     );
 
-    try {
-      const resendRes = await cognito.send(
-        new AdminCreateUserCommand({
-          UserPoolId: userPoolId,
-          Username: cognitoUsername,
-          MessageAction: "RESEND",
-          DesiredDeliveryMediums: ["EMAIL"],
-        })
-      );
-      sub = getAttr(resendRes.User?.Attributes, "sub");
-    } catch (resendError: any) {
-      try {
-        await cognito.send(
-          new AdminResetUserPasswordCommand({
-            UserPoolId: userPoolId,
-            Username: cognitoUsername,
-          })
-        );
-        inviteAction = "RESET";
-      } catch (resetError: any) {
-        const resendMsg = String(resendError?.message ?? resendError ?? "Unknown resend failure");
-        const resetMsg = String(resetError?.message ?? resetError ?? "Unknown reset failure");
-        throw new Error(
-          `User exists, but invitation email could not be resent or reset. resend=${resendMsg}; reset=${resetMsg}`
-        );
-      }
-    }
+    await cognito.send(
+      new AdminResetUserPasswordCommand({
+        UserPoolId: userPoolId,
+        Username: cognitoUsername,
+      })
+    );
   }
 
   // 2) Ensure user is in department group

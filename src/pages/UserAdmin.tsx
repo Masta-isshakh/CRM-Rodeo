@@ -344,9 +344,7 @@ export default function Users({ permissions }: PageProps) {
       setInviteStatus(
         inviteAction === "RESET"
           ? `Password reset email sent to ${deliveredTo}.`
-          : inviteAction === "RESENT"
-            ? `Invitation email resent to ${deliveredTo}.`
-            : `Invitation email sent to ${deliveredTo}.`
+          : `Invitation email sent to ${deliveredTo}.`
       );
       setEmail("");
       setFirstName("");
