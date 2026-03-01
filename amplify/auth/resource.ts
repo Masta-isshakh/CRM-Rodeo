@@ -23,7 +23,17 @@ export const auth = defineAuth({
     // Invite user + ensure department group exists
     allow
       .resource(inviteUser)
-      .to(["createUser", "getUser", "setUserPassword", "resetUserPassword", "addUserToGroup", "getGroup", "createGroup"]),
+      .to([
+        "createUser",
+        "getUser",
+        "listUsers",
+        "updateUserAttributes",
+        "setUserPassword",
+        "resetUserPassword",
+        "addUserToGroup",
+        "getGroup",
+        "createGroup",
+      ]),
 
     // Enable/Disable user
     allow.resource(setUserActive).to(["disableUser", "enableUser", "getUser", "listUsers"]),
@@ -39,7 +49,7 @@ export const auth = defineAuth({
       .to(["deleteGroup", "listUsersInGroup", "removeUserFromGroup"]),
     allow
       .resource(setUserDepartment)
-      .to(["listGroupsForUser", "addUserToGroup", "removeUserFromGroup"]),
+      .to(["getUser", "listUsers", "listGroupsForUser", "addUserToGroup", "removeUserFromGroup"]),
 
     // Rename department (create new group, move users, delete old)
     allow
