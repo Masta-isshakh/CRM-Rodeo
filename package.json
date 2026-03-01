@@ -7,7 +7,10 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sandbox:start": "npm run sandbox:recover",
+    "sandbox:clean": "powershell -ExecutionPolicy Bypass -File ./scripts/sandbox-recover.ps1 -NoStart",
+    "sandbox:recover": "powershell -ExecutionPolicy Bypass -File ./scripts/sandbox-recover.ps1"
   },
   "dependencies": {
     "@aws-amplify/ui-react": "^6.13.2",
