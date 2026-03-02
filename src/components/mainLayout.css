@@ -115,7 +115,7 @@ body {
 /* ===== Main container (98% width always) ===== */
 .layout-main {
   width: var(--container-w);
-  max-width: 1440px;
+  max-width: none;
   margin: 0 auto;
   padding-bottom: 18px;
 
@@ -145,7 +145,7 @@ body {
 /* Header inner centered */
 .topbar-inner {
   width: var(--container-w);
-  max-width: 1440px;
+  max-width: none;
   margin: 0 auto;
 
   min-height: var(--topbar-min-h);
@@ -286,7 +286,18 @@ body {
 }
 
 /* ===== Main content body ===== */
-.content { padding: 10px 12px 18px; }
+.content {
+  width: 100%;
+  padding: 0;
+}
+
+/* ✅ Force every page module to occupy 98% width on all screens */
+.content > * {
+  width: var(--container-w);
+  max-width: none;
+  margin-left: auto;
+  margin-right: auto;
+}
 
 /* no access card */
 .no-access {

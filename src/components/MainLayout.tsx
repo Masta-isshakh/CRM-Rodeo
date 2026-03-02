@@ -46,7 +46,7 @@ type Page =
   | "inspection"
   | "users"
   | "departments"
-  | "rolespolicies"
+  | "rolespolicies";
 
 const EMPTY = {
   canRead: false,
@@ -409,7 +409,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
                 permissions={canAny("DASHBOARD")}
                 email={email}
                 visibility={{ ...show, admin: showAdmin }}
-                onNavigate={(p: any) => setPage(p)}
+                onNavigate={(p: Page) => setPage(p)}
               />
             )}
 
