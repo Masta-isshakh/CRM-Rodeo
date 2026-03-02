@@ -21,6 +21,7 @@ import ExitPermitManagement from "../pages/ExitPermitManagement";
 
 import InspectionModule from "../pages/InspectionModule";
 import PaymentInvoiceManagment from "../pages/PaymentInvoiceManagment";
+import PermissionGate from "../pages/PermissionGate";
 
 
 import logo from "../assets/logo.jpeg";
@@ -405,47 +406,105 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             )}
 
             {page === "dashboard" && show.dashboard && (
-              <Dashboard
-                permissions={canAny("DASHBOARD")}
-                email={email}
-                visibility={{ ...show, admin: showAdmin }}
-                onNavigate={(p: Page) => setPage(p)}
-              />
+              <PermissionGate moduleId="dashboard" optionId="dashboard_list">
+                <Dashboard
+                  permissions={canAny("DASHBOARD")}
+                  email={email}
+                  visibility={{ ...show, admin: showAdmin }}
+                  onNavigate={(p: Page) => setPage(p)}
+                />
+              </PermissionGate>
             )}
 
             {/* ✅ Customers uses normalized customer perms */}
-            {page === "customers" && show.customers && <Customers permissions={customerPerms} />}
+            {page === "customers" && show.customers && (
+              <PermissionGate moduleId="customers" optionId="customers_list">
+                <Customers permissions={customerPerms} />
+              </PermissionGate>
+            )}
 
-            {page === "vehicles" && show.vehicles && <Vehicles permissions={canAny("VEHICLES")} />}
+            {page === "vehicles" && show.vehicles && (
+              <PermissionGate moduleId="vehicles" optionId="vehicles_list">
+                <Vehicles permissions={canAny("VEHICLES")} />
+              </PermissionGate>
+            )}
 
-            {page === "jobcards" && show.jobcards && <JobCards permissions={canAny("JOB_CARDS")} currentUser={currentUser} />}
-            {page === "jobhistory" && show.jobhistory && <JobOrderHistory currentUser={currentUser} />}
+            {page === "jobcards" && show.jobcards && (
+              <PermissionGate moduleId="joborder" optionId="joborder_list">
+                <JobCards permissions={canAny("JOB_CARDS")} currentUser={currentUser} />
+              </PermissionGate>
+            )}
+            {page === "jobhistory" && show.jobhistory && (
+              <PermissionGate moduleId="jobhistory" optionId="jobhistory_list">
+                <JobOrderHistory currentUser={currentUser} />
+              </PermissionGate>
+            )}
 
             {page === "serviceexecution" && show.serviceexecution && (
-              <ServiceExecution permissions={canAny("JOB_CARDS")} currentUser={currentUser} />
+              <PermissionGate moduleId="serviceexec" optionId="serviceexec_list">
+                <ServiceExecution permissions={canAny("JOB_CARDS")} currentUser={currentUser} />
+              </PermissionGate>
             )}
 
             {page === "paymentinvoices" && show.paymentinvoices && (
-              <PaymentInvoiceManagment permissions={canAny("JOB_CARDS")} currentUser={currentUser} />
+              <PermissionGate moduleId="payment" optionId="payment_list">
+                <PaymentInvoiceManagment permissions={canAny("JOB_CARDS")} currentUser={currentUser} />
+              </PermissionGate>
             )}
 
-            {page === "qualitycheck" && show.qualitycheck && <QualityCheckModule currentUser={currentUser} />}
-            {page === "exitpermit" && show.exitpermit && <ExitPermitManagement currentUser={currentUser} />}
+            {page === "qualitycheck" && show.qualitycheck && (
+              <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_list">
+                <QualityCheckModule currentUser={currentUser} />
+              </PermissionGate>
+            )}
+            {page === "exitpermit" && show.exitpermit && (
+              <PermissionGate moduleId="exitpermit" optionId="exitpermit_list">
+                <ExitPermitManagement currentUser={currentUser} />
+              </PermissionGate>
+            )}
 
-            {page === "calltracking" && show.calltracking && <CallTracking permissions={canAny("CALL_TRACKING")} />}
-            {page === "inspection" && show.inspection && <InspectionModule permissions={canAny("JOB_CARDS")} currentUser={currentUser} />}
+            {page === "calltracking" && show.calltracking && (
+              <PermissionGate moduleId="calltracking" optionId="calltracking_list">
+                <CallTracking permissions={canAny("CALL_TRACKING")} />
+              </PermissionGate>
+            )}
+            {page === "inspection" && show.inspection && (
+              <PermissionGate moduleId="inspection" optionId="inspection_list">
+                <InspectionModule permissions={canAny("JOB_CARDS")} currentUser={currentUser} />
+              </PermissionGate>
+            )}
 
-            {page === "tickets" && show.tickets && <Tickets permissions={canAny("TICKETS")} />}
-            {page === "employees" && show.employees && <Employees permissions={canAny("EMPLOYEES")} />}
-            {page === "activitylog" && show.activitylog && <ActivityLog permissions={canAny("ACTIVITY_LOG")} />}
+            {page === "tickets" && show.tickets && (
+              <PermissionGate moduleId="tickets" optionId="tickets_list">
+                <Tickets permissions={canAny("TICKETS")} />
+              </PermissionGate>
+            )}
+            {page === "employees" && show.employees && (
+              <PermissionGate moduleId="employees" optionId="employees_list">
+                <Employees permissions={canAny("EMPLOYEES")} />
+              </PermissionGate>
+            )}
+            {page === "activitylog" && show.activitylog && (
+              <PermissionGate moduleId="activitylog" optionId="activitylog_list">
+                <ActivityLog permissions={canAny("ACTIVITY_LOG")} />
+              </PermissionGate>
+            )}
 
             {page === "users" && showAdmin.users && (
-              <Users permissions={canAny("USERS_ADMIN")} />
+              <PermissionGate moduleId="users" optionId="users_list">
+                <Users permissions={canAny("USERS_ADMIN")} />
+              </PermissionGate>
             )}
             {page === "departments" && showAdmin.departments && (
-              <DepartmentsAdmin permissions={canAny("DEPARTMENTS_ADMIN")} />
+              <PermissionGate moduleId="departments" optionId="departments_list">
+                <DepartmentsAdmin permissions={canAny("DEPARTMENTS_ADMIN")} />
+              </PermissionGate>
             )}
-            {page === "rolespolicies" && showAdmin.rolespolicies && <RolesPoliciesAdmin />}
+            {page === "rolespolicies" && showAdmin.rolespolicies && (
+              <PermissionGate moduleId="rolespolicies" optionId="rolespolicies_list">
+                <RolesPoliciesAdmin />
+              </PermissionGate>
+            )}
           </main>
         </div>
       </div>
