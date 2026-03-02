@@ -7,6 +7,8 @@ import { createPortal } from "react-dom";
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
 import { getDataClient } from "../lib/amplifyClient";
+import { usePermissions } from "../lib/userPermissions";
+import PermissionGate from "./PermissionGate";
 
 import "./UserAdmin.css";
 
@@ -102,6 +104,7 @@ export default function Users({ permissions }: PageProps) {
   }
 
   const client = getDataClient();
+  const { canOption } = usePermissions();
 
   // Invite modal state
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -304,7 +307,7 @@ export default function Users({ permissions }: PageProps) {
 
   // Backend actions
   const invite = async () => {
-    if (!permissions.canCreate) return;
+    if (!permissions.canCreate || !canOption("users", "users_invite", true)) return;
     setInviteStatus("Inviting...");
     try {
       const e = email.trim().toLowerCase();
@@ -366,7 +369,7 @@ export default function Users({ permissions }: PageProps) {
 
   // ✅ FIXED: reliable department change + optimistic UI + refresh event
   const setDepartmentForUser = async (u: UserRow, deptKey: string) => {
-    if (!permissions.canUpdate) return;
+    if (!permissions.canUpdate || !canOption("users", "users_edit", true)) return;
     if (!u.email) return;
 
     const nextKey = String(deptKey ?? "").trim();
@@ -432,7 +435,7 @@ export default function Users({ permissions }: PageProps) {
   };
 
   const toggleActive = async (u: UserRow) => {
-    if (!permissions.canUpdate) return;
+    if (!permissions.canUpdate || !canOption("users", "users_edit", true)) return;
     if (!u.email) return;
 
     setStatus("");
@@ -461,7 +464,7 @@ export default function Users({ permissions }: PageProps) {
   };
 
   const deleteUser = async (u: UserRow) => {
-    if (!permissions.canDelete) return;
+    if (!permissions.canDelete || !canOption("users", "users_delete", true)) return;
     if (!u.email) return;
 
     const ok = confirm(`Delete user ${u.email}? This cannot be undone.`);
@@ -525,7 +528,7 @@ export default function Users({ permissions }: PageProps) {
                   setMenu({ open: false });
                   if (row) toggleActive(row);
                 }}
-                disabled={!permissions.canUpdate || loading}
+                disabled={!permissions.canUpdate || !canOption("users", "users_edit", true) || loading}
               >
                 {active ? "Disable" : "Enable"}
               </button>
@@ -536,7 +539,7 @@ export default function Users({ permissions }: PageProps) {
                   setMenu({ open: false });
                   if (row) deleteUser(row);
                 }}
-                disabled={!permissions.canDelete || loading}
+                disabled={!permissions.canDelete || !canOption("users", "users_delete", true) || loading}
               >
                 Delete
               </button>
@@ -611,17 +614,19 @@ export default function Users({ permissions }: PageProps) {
                 </select>
               </div>
 
-              <button
-                className="ums-add-btn"
-                onClick={() => {
-                  setInviteStatus("");
-                  setInviteOpen(true);
-                }}
-                disabled={!permissions.canCreate}
-              >
-                <span className="ums-add-icon" aria-hidden>+</span>
-                Add New User
-              </button>
+              <PermissionGate moduleId="users" optionId="users_invite">
+                <button
+                  className="ums-add-btn"
+                  onClick={() => {
+                    setInviteStatus("");
+                    setInviteOpen(true);
+                  }}
+                  disabled={!permissions.canCreate}
+                >
+                  <span className="ums-add-icon" aria-hidden>+</span>
+                  Add New User
+                </button>
+              </PermissionGate>
             </div>
           </div>
 
@@ -662,6 +667,7 @@ export default function Users({ permissions }: PageProps) {
                         <span className="pill pill-dept">{row.deptName}</span>
 
                         {permissions.canUpdate && (
+                          <PermissionGate moduleId="users" optionId="users_edit">
                           <div className="ums-inline-edit">
                             <select
                               className="ums-pill-select"
@@ -686,6 +692,7 @@ export default function Users({ permissions }: PageProps) {
                               </span>
                             )}
                           </div>
+                          </PermissionGate>
                         )}
                       </td>
 
@@ -706,19 +713,23 @@ export default function Users({ permissions }: PageProps) {
                       </td>
 
                       <td className="ums-actions-cell">
-                        <button
-                          className="ums-actions-btn"
-                          type="button"
-                          data-ums-menu-btn={u.id}
-                          onClick={(e) => {
-                            const el = e.currentTarget as HTMLElement;
-                            if (menu.open && menu.userId === u.id) setMenu({ open: false });
-                            else openActionsMenu(u.id, el);
-                          }}
-                          disabled={loading}
-                        >
-                          <span aria-hidden>⚙</span> Actions <span className="ums-caret" aria-hidden>▾</span>
-                        </button>
+                        {(permissions.canUpdate || permissions.canDelete) && (
+                          <PermissionGate moduleId="users" optionId="users_edit">
+                            <button
+                              className="ums-actions-btn"
+                              type="button"
+                              data-ums-menu-btn={u.id}
+                              onClick={(e) => {
+                                const el = e.currentTarget as HTMLElement;
+                                if (menu.open && menu.userId === u.id) setMenu({ open: false });
+                                else openActionsMenu(u.id, el);
+                              }}
+                              disabled={loading}
+                            >
+                              <span aria-hidden>⚙</span> Actions <span className="ums-caret" aria-hidden>▾</span>
+                            </button>
+                          </PermissionGate>
+                        )}
                       </td>
                     </tr>
                   );
@@ -822,14 +833,16 @@ export default function Users({ permissions }: PageProps) {
               <div className="ums-modal-foot">
                 <Button onClick={() => setInviteOpen(false)}>Cancel</Button>
                 <Button onClick={copyInviteLink} isDisabled={!inviteLink}>Copy link</Button>
-                <Button
-                  variation="primary"
-                  onClick={invite}
-                  isDisabled={!permissions.canCreate || loading}
-                  isLoading={loading}
-                >
-                  Invite
-                </Button>
+                <PermissionGate moduleId="users" optionId="users_invite">
+                  <Button
+                    variation="primary"
+                    onClick={invite}
+                    isDisabled={!permissions.canCreate || loading}
+                    isLoading={loading}
+                  >
+                    Invite
+                  </Button>
+                </PermissionGate>
               </div>
 
               <div className="ums-hint">

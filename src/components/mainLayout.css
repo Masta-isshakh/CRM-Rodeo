@@ -201,16 +201,12 @@ body {
 
   background: linear-gradient(180deg, rgba(255,255,255,0.96), rgba(255,255,255,0.74));
   box-shadow: 0 10px 20px rgba(2, 6, 23, 0.10);
-
-  transition: transform var(--t-fast), box-shadow var(--t-fast), border-color var(--t-fast);
 }
 
 .menu-toggle:hover {
-  transform: translateY(-1px);
   border-color: rgba(47, 125, 225, 0.30);
   box-shadow: 0 16px 36px rgba(47,125,225,0.16);
 }
-.menu-toggle:active { transform: translateY(0px) scale(0.98); }
 
 .menu-toggle-icon {
   display: inline-flex;
@@ -315,7 +311,6 @@ body {
   height: var(--vh);
   opacity: 0;
   pointer-events: none;
-  transition: opacity var(--t-med);
 }
 
 .drawer-overlay.show {
@@ -345,7 +340,6 @@ body {
   box-shadow: 0 40px 100px rgba(0,0,0,0.38);
 
   transform: translateX(-106%);
-  transition: transform var(--t-med);
 
   /* ✅ make header sticky + nav scrollable */
   display: flex;
@@ -424,15 +418,12 @@ body {
   background: rgba(255,255,255,0.06);
   color: rgba(255,255,255,0.94);
   cursor: pointer;
-  transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast), opacity var(--t-fast);
 }
 
 .drawer-close:hover {
   background: rgba(255,255,255,0.10);
   border-color: rgba(255,255,255,0.24);
-  transform: translateY(-1px);
 }
-.drawer-close:active { transform: translateY(0px) scale(0.98); }
 
 /* ===== NAV (scrollable) ===== */
 .drawer-nav {
@@ -491,7 +482,6 @@ body {
   align-items: center;
   gap: 10px;
 
-  transition: transform var(--t-fast), background var(--t-fast), border-color var(--t-fast), box-shadow var(--t-fast);
   position: relative;
   overflow: hidden;
 
@@ -509,13 +499,11 @@ body {
   background: rgba(255,255,255,0.18);
   opacity: 0.0;
   transform: translateX(-6px);
-  transition: opacity var(--t-fast), transform var(--t-fast), background var(--t-fast);
 }
 
 .drawer-nav button:hover {
   background: rgba(255,255,255,0.08);
   border-color: rgba(255,255,255,0.14);
-  transform: translateX(4px);
   box-shadow: 0 14px 26px rgba(0,0,0,0.24);
 }
 

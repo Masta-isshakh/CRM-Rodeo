@@ -44,7 +44,7 @@ export default function CallTracking({ permissions }: PageProps) {
     setStatusMsg("");
     try {
       if (!Model) throw new Error("Model CallTracking not found in Schema. Check your amplify data models.");
-      const res = await Model.list({ limit: 2000 });
+      const res = await Model.list({ limit: 500 });
       const sorted = [...(res.data ?? [])].sort((a: any, b: any) =>
         String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""))
       );

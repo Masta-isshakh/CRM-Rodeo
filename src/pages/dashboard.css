@@ -185,7 +185,6 @@
   box-shadow: 0 10px 24px rgba(0,0,0,0.10);
   text-align: left;
   cursor: pointer;
-  transition: transform .12s ease, box-shadow .12s ease;
 }
 
 .kpi:disabled{ cursor: default; opacity: 0.98; }
@@ -258,9 +257,7 @@
   inset: 0;
   background: linear-gradient(90deg, rgba(255,255,255,0.0), rgba(255,255,255,0.55), rgba(255,255,255,0.0));
   transform: translateX(-120%);
-  animation: shimmer 1.2s infinite;
 }
-@keyframes shimmer{ to { transform: translateX(120%); } }
 
 /* Rows */
 .dash-row{
@@ -598,7 +595,6 @@
   gap: 10px;
   cursor: pointer;
   box-shadow: 0 10px 18px rgba(0,0,0,0.10);
-  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
   text-align: left;
 }
 

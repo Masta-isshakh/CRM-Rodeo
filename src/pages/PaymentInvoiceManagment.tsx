@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import "./PaymentInvoiceManagment.css";
+import "./JobOrderHistory.css";
 import "./JobCards.css";
 
 import SuccessPopup from "./SuccessPopup";
@@ -10,7 +11,7 @@ import PermissionGate from "./PermissionGate";
 import { usePermissions } from "../lib/userPermissions";
 import { getDataClient } from "../lib/amplifyClient";
 import { getUserDirectory } from "../utils/userDirectoryCache";
-import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
+import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy, resolveOrderUpdatedBy } from "../utils/actorIdentity";
 
 import {
   cancelJobOrderByOrderNumber,
@@ -49,14 +50,6 @@ function toNum(v: any): number {
 
 function fmtQar(n: number) {
   return `QAR ${Number.isFinite(n) ? n.toFixed(2) : "0.00"}`;
-}
-
-function normalizeActorDisplay(value: any, fallback = "—") {
-  const raw = String(value ?? "").trim();
-  if (!raw) return fallback;
-  const at = raw.indexOf("@");
-  if (at > 0) return raw.slice(0, at).toLowerCase();
-  return raw;
 }
 
 function safeFileName(name: string) {
@@ -105,18 +98,6 @@ function normalizeWorkStatus(rowStatus?: string, label?: string): string {
     default:
       return "Service_Operation";
   }
-}
-
-function normalizePaymentLabel(enumVal?: string, label?: string): string {
-  const ps = String(enumVal || "").toUpperCase();
-  if (ps === "PAID") return "Fully Paid";
-  if (ps === "PARTIAL") return "Partially Paid";
-  if (ps === "UNPAID") return "Unpaid";
-
-  const l = String(label ?? "").trim();
-  if (l) return l;
-
-  return "Unpaid";
 }
 
 type DocItem = {
@@ -219,6 +200,32 @@ function clampDiscountQar(totalAmount: number, discount: number, maxPct: number)
   return Math.min(d, Math.max(0, totalAmount), maxQar);
 }
 
+function roundMoney(value: number): number {
+  const n = Number.isFinite(value) ? value : 0;
+  return Math.round((n + Number.EPSILON) * 100) / 100;
+}
+
+function computePaymentSnapshot(totalAmountRaw: number, discountRaw: number, amountPaidRaw: number) {
+  const totalAmount = roundMoney(Math.max(0, toNum(totalAmountRaw)));
+  const discount = roundMoney(Math.max(0, toNum(discountRaw)));
+  const netAmount = roundMoney(Math.max(0, totalAmount - Math.min(discount, totalAmount)));
+  const amountPaid = roundMoney(Math.max(0, toNum(amountPaidRaw)));
+  const balanceDue = roundMoney(Math.max(0, netAmount - amountPaid));
+
+  const paymentStatusEnum = balanceDue <= 0.00001 ? "PAID" : amountPaid > 0.00001 ? "PARTIAL" : "UNPAID";
+  const paymentStatusLabel = paymentStatusEnum === "PAID" ? "Fully Paid" : paymentStatusEnum === "PARTIAL" ? "Partially Paid" : "Unpaid";
+
+  return {
+    totalAmount,
+    discount,
+    netAmount,
+    amountPaid,
+    balanceDue,
+    paymentStatusEnum,
+    paymentStatusLabel,
+  };
+}
+
 export default function PaymentInvoiceManagement({ currentUser }: { currentUser: any; permissions?: any }) {
   const client = useMemo(() => getDataClient(), []);
   const { getOptionNumber } = usePermissions();
@@ -302,15 +309,15 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     };
 
     if (activeDropdown) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      document.addEventListener("pointerdown", handleClickOutside, true);
+      return () => document.removeEventListener("pointerdown", handleClickOutside, true);
     }
   }, [activeDropdown]);
 
   // -------------------- live JobOrder list --------------------
   useEffect(() => {
     const sub = (client.models.JobOrder as any)
-      .observeQuery({ limit: 2000 })
+      .observeQuery({ limit: 500 })
       .subscribe(({ items }: any) => {
         const mapped: ListOrder[] = (items ?? []).map((row: any) => {
           const parsed = safeJsonParse<any>(row.dataJson, {});
@@ -324,7 +331,12 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
             : "";
 
           const workStatus = normalizeWorkStatus(row.status, row.workStatusLabel ?? parsed.workStatusLabel);
-          const paymentStatus = normalizePaymentLabel(row.paymentStatus, row.paymentStatusLabel ?? parsed.paymentStatusLabel);
+          const paymentSnap = computePaymentSnapshot(
+            toNum(row?.totalAmount ?? parsed?.billing?.totalAmount),
+            toNum(row?.discount ?? parsed?.billing?.discount),
+            toNum(row?.amountPaid ?? parsed?.billing?.amountPaid)
+          );
+          const paymentStatus = paymentSnap.paymentStatusLabel;
 
           return {
             _backendId: String(row.id),
@@ -338,7 +350,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
             statusEnum: String(row.status ?? ""),
             workStatus,
 
-            paymentEnum: String(row.paymentStatus ?? ""),
+            paymentEnum: String(row.paymentStatus ?? paymentSnap.paymentStatusEnum),
             paymentStatus,
 
             _parsed: parsed,
@@ -400,7 +412,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       try {
         const byIdx = await (client.models.JobOrderPayment as any).listPaymentsByJobOrder?.({
           jobOrderId: String(jobOrderId),
-          limit: 2000,
+          limit: 500,
         });
         const rows = (byIdx?.data ?? []) as any[];
         return rows.map((p) => ({
@@ -417,7 +429,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         }));
       } catch {
         const res = await client.models.JobOrderPayment.list({
-          limit: 2000,
+          limit: 500,
           filter: { jobOrderId: { eq: String(jobOrderId) } } as any,
         });
         const rows = (res?.data ?? []) as any[];
@@ -448,7 +460,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       amount: fmtQar(toNum(p.amount)),
       discount: fmtQar(0),
       paymentMethod: String(p.method ?? "Cash"),
-      cashierName: normalizeActorDisplay(p.createdBy ?? "", "—"),
+      cashierName: String(p.createdBy ?? "").trim(),
       timestamp: p.paidAt
         ? new Date(String(p.paidAt)).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
         : (p.createdAt
@@ -462,7 +474,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     try {
       const res = await (client.models.ServiceApprovalRequest as any).serviceApprovalRequestsByOrderNumber({
         orderNumber: String(orderNumber),
-        limit: 2000,
+        limit: 500,
       });
       const rows = (res?.data ?? []) as any[];
       rows.sort((a, b) => String(b.requestedAt ?? b.createdAt ?? "").localeCompare(String(a.requestedAt ?? a.createdAt ?? "")));
@@ -480,12 +492,12 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       try {
         const byIdx = await (client.models.JobOrderInvoice as any).listInvoicesByJobOrder?.({
           jobOrderId: String(jobOrderId),
-          limit: 2000,
+          limit: 500,
         });
         invRows = (byIdx?.data ?? []) as any[];
       } catch {
         const res = await client.models.JobOrderInvoice.list({
-          limit: 2000,
+          limit: 500,
           filter: { jobOrderId: { eq: String(jobOrderId) } } as any,
         });
         invRows = (res?.data ?? []) as any[];
@@ -500,12 +512,12 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         try {
           const byIdxSvc = await (client.models.JobOrderInvoiceService as any).listInvoiceServicesByInvoice?.({
             invoiceId,
-            limit: 2000,
+            limit: 500,
           });
           svcRows = (byIdxSvc?.data ?? []) as any[];
         } catch {
           const resSvc = await client.models.JobOrderInvoiceService.list({
-            limit: 2000,
+            limit: 500,
             filter: { invoiceId: { eq: invoiceId } } as any,
           });
           svcRows = (resSvc?.data ?? []) as any[];
@@ -554,19 +566,18 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       const invoices = await loadNormalizedInvoices(String(detailed._backendId));
       setNormalizedInvoices(invoices);
 
-      const totalAmount = toNum(row?.totalAmount ?? parsed?.billing?.totalAmount ?? detailed?.billing?.totalAmount);
-      const discount = toNum(row?.discount ?? parsed?.billing?.discount ?? detailed?.billing?.discount);
-      const netAmount = toNum(row?.netAmount ?? parsed?.billing?.netAmount ?? detailed?.billing?.netAmount ?? Math.max(0, totalAmount - discount));
-      const amountPaid = toNum(row?.amountPaid ?? parsed?.billing?.amountPaid ?? detailed?.billing?.amountPaid);
-      const balanceDue = toNum(row?.balanceDue ?? parsed?.billing?.balanceDue ?? detailed?.billing?.balanceDue ?? Math.max(0, netAmount - amountPaid));
+      const totalAmountRaw = toNum(row?.totalAmount ?? parsed?.billing?.totalAmount ?? detailed?.billing?.totalAmount);
+      const discountRaw = toNum(row?.discount ?? parsed?.billing?.discount ?? detailed?.billing?.discount);
+      const amountPaidRaw = toNum(row?.amountPaid ?? parsed?.billing?.amountPaid ?? detailed?.billing?.amountPaid);
+      const paymentSnap = computePaymentSnapshot(totalAmountRaw, discountRaw, amountPaidRaw);
 
       const billing = {
         billId: String(row?.billId ?? parsed?.billing?.billId ?? detailed?.billing?.billId ?? ""),
-        totalAmount: fmtQar(totalAmount),
-        discount: fmtQar(discount),
-        netAmount: fmtQar(netAmount),
-        amountPaid: fmtQar(amountPaid),
-        balanceDue: fmtQar(balanceDue),
+        totalAmount: fmtQar(paymentSnap.totalAmount),
+        discount: fmtQar(paymentSnap.discount),
+        netAmount: fmtQar(paymentSnap.netAmount),
+        amountPaid: fmtQar(paymentSnap.amountPaid),
+        balanceDue: fmtQar(paymentSnap.balanceDue),
         paymentMethod: String(row?.paymentMethod ?? parsed?.billing?.paymentMethod ?? detailed?.billing?.paymentMethod ?? ""),
       };
 
@@ -582,7 +593,8 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         vehiclePlate: String(row?.plateNumber ?? detailed?.vehiclePlate ?? parsed?.plateNumber ?? ""),
 
         workStatus: normalizeWorkStatus(row?.status, row?.workStatusLabel ?? parsed?.workStatusLabel ?? detailed?.workStatus),
-        paymentStatus: normalizePaymentLabel(row?.paymentStatus, row?.paymentStatusLabel ?? parsed?.paymentStatusLabel ?? detailed?.paymentStatus),
+        paymentStatus: paymentSnap.paymentStatusLabel,
+        paymentStatusEnum: paymentSnap.paymentStatusEnum,
 
         billing,
         paymentActivityLog,
@@ -654,22 +666,27 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const rawDiscount = toNum(selectedOrder?.billing?.discount);
     const discount = clampDiscountQar(totalAmount, rawDiscount, maxPaymentDiscountPercent);
 
-    const netAmount = toNum(selectedOrder?.billing?.netAmount) || Math.max(0, totalAmount - discount);
-    const amountPaid = toNum(selectedOrder?.billing?.amountPaid);
-    const balance = Math.max(0, netAmount - amountPaid);
+    const currentAmountPaid = toNum(selectedOrder?.billing?.amountPaid);
+    const snap = computePaymentSnapshot(totalAmount, discount, currentAmountPaid);
+
+    if (snap.balanceDue <= 0.00001) {
+      setErrorMessage("This job order is already fully paid. No additional payment is allowed.");
+      setShowErrorPopup(true);
+      return;
+    }
 
     setPaymentForm({
       orderNumber: String(selectedOrder.id),
       jobOrderId: String(selectedOrder._backendId),
       totalAmount,
-      netAmount,
-      amountPaid,
-      discount: String(discount.toFixed(2)),
+      netAmount: snap.netAmount,
+      amountPaid: snap.amountPaid,
+      discount: String(snap.discount.toFixed(2)),
       amountToPay: "",
       paymentMethod: String(selectedOrder?.billing?.paymentMethod || ""),
       transferProofDataUrl: null,
       transferProofName: "",
-      balance,
+      balance: snap.balanceDue,
     });
     setShowPaymentPopup(true);
   };
@@ -695,12 +712,17 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
         next.discount = discount.toFixed(2);
 
-        const amountToPay = Math.max(0, toNum(next.amountToPay));
-        const net = Math.max(0, prev.totalAmount - discount);
+        const net = roundMoney(Math.max(0, prev.totalAmount - discount));
         next.netAmount = net;
 
-        const balance = net - prev.amountPaid - amountToPay;
-        next.balance = balance > 0 ? balance : 0;
+        const remainingBeforePayment = roundMoney(Math.max(0, net - prev.amountPaid));
+        let amountToPay = roundMoney(Math.max(0, toNum(next.amountToPay)));
+        if (amountToPay > remainingBeforePayment) {
+          amountToPay = remainingBeforePayment;
+          next.amountToPay = amountToPay.toFixed(2);
+        }
+
+        next.balance = roundMoney(Math.max(0, remainingBeforePayment - amountToPay));
       }
 
       if (name === "paymentMethod" && value !== "Transfer") {
@@ -744,7 +766,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     if (!paymentForm || !selectedOrder) return;
 
     const method = String(paymentForm.paymentMethod || "").trim();
-    const amountToPay = toNum(paymentForm.amountToPay);
+    const amountToPay = roundMoney(toNum(paymentForm.amountToPay));
     const rawDiscount = Math.max(0, toNum(paymentForm.discount));
     const discount = clampDiscountQar(paymentForm.totalAmount, rawDiscount, maxPaymentDiscountPercent);
 
@@ -767,6 +789,22 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     }
     if (method === "Transfer" && !paymentForm.transferProofDataUrl) {
       setErrorMessage("Please upload proof of transfer.");
+      setShowErrorPopup(true);
+      return;
+    }
+
+    const totalAmount = Math.max(0, toNum(selectedOrder?.billing?.totalAmount));
+    const currentAmountPaid = Math.max(0, toNum(selectedOrder?.billing?.amountPaid));
+    const beforePayment = computePaymentSnapshot(totalAmount, discount, currentAmountPaid);
+
+    if (beforePayment.balanceDue <= 0.00001) {
+      setErrorMessage("This job order is already fully paid. No additional payment is allowed.");
+      setShowErrorPopup(true);
+      return;
+    }
+
+    if (amountToPay - beforePayment.balanceDue > 0.00001) {
+      setErrorMessage(`Payment amount exceeds remaining balance (${fmtQar(beforePayment.balanceDue)}).`);
       setShowErrorPopup(true);
       return;
     }
@@ -802,8 +840,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
       const updatedDocs = newDoc ? [...existingDocs, newDoc] : existingDocs;
 
-      const totalAmount = Math.max(0, toNum(selectedOrder?.billing?.totalAmount));
-      const netAmount = Math.max(0, totalAmount - discount);
+      const netAmount = beforePayment.netAmount;
+      const afterPaymentAmountPaid = roundMoney(beforePayment.amountPaid + amountToPay);
+      const afterPayment = computePaymentSnapshot(totalAmount, discount, afterPaymentAmountPaid);
 
       // ✅ IMPORTANT: write TOP-LEVEL fields that the Lambda actually consumes
       const updatedOrder = {
@@ -820,8 +859,12 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
           totalAmount: fmtQar(totalAmount),
           discount: fmtQar(discount),
           netAmount: fmtQar(netAmount),
+          amountPaid: fmtQar(afterPayment.amountPaid),
+          balanceDue: fmtQar(afterPayment.balanceDue),
           paymentMethod: method,
         },
+        paymentStatus: afterPayment.paymentStatusLabel,
+        paymentStatusEnum: afterPayment.paymentStatusEnum,
         dataJson: JSON.stringify({
           ...parsed,
           documents: updatedDocs,
@@ -830,9 +873,11 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
             totalAmount,
             discount,
             netAmount,
+            amountPaid: afterPayment.amountPaid,
+            balanceDue: afterPayment.balanceDue,
             paymentMethod: method,
           },
-          paymentStatusLabel: parsed?.paymentStatusLabel ?? selectedOrder?.paymentStatus ?? "Unpaid",
+          paymentStatusLabel: afterPayment.paymentStatusLabel,
         }),
       };
 
@@ -846,6 +891,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         reference: "",
         paidAt: new Date().toISOString(),
         notes: "",
+        createdBy: actor,
       });
 
       setSuccessMessage(
@@ -1183,25 +1229,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     return "pim-payment-unpaid";
   };
 
-  const workStatusClassJobcards = (status: string) => {
-    const s = String(status || "").trim().toLowerCase();
-    if (s === "new request") return "status-new-request";
-    if (s === "inspection") return "status-inspection";
-    if (s === "service_operation" || s === "inprogress" || s === "in progress") return "status-inprogress";
-    if (s === "quality check") return "status-quality-check";
-    if (s === "ready") return "status-ready";
-    if (s === "completed") return "status-completed";
-    if (s === "cancelled" || s === "canceled") return "status-cancelled";
-    return "status-inprogress";
-  };
-
-  const payStatusClassJobcards = (status: string) => {
-    const s = String(status || "").toLowerCase();
-    if (s.includes("fully paid")) return "payment-full";
-    if (s.includes("partially")) return "payment-partial";
-    return "payment-unpaid";
-  };
-
   const approvalStatusClass = (status: string) => {
     switch (String(status || "").toUpperCase()) {
       case "APPROVED": return "pim-approved";
@@ -1224,10 +1251,29 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       String(selectedOrder?._row?.status || "").toUpperCase() === "CANCELLED";
 
     const docs: DocItem[] = Array.isArray(selectedOrder.documents) ? selectedOrder.documents : [];
+    const summary = selectedOrder?.summary ?? {};
+    const services: any[] = Array.isArray(selectedOrder?.services) ? selectedOrder.services : [];
+    const servicesCompleted = services.filter((service: any) => String(service?.status ?? "").trim().toLowerCase() === "completed").length;
+    const servicesProgressPercent = services.length ? Math.round((servicesCompleted / services.length) * 100) : 0;
+    const servicesProgressLabel = services.length ? `${servicesCompleted}/${services.length} completed` : "0/0 completed";
+    const createdByDisplay = resolveOrderCreatedBy(selectedOrder, {
+      identityToUsernameMap: userLabelMap,
+      fallback: "—",
+    });
+    const updatedByDisplay = resolveOrderUpdatedBy(selectedOrder, {
+      identityToUsernameMap: userLabelMap,
+      fallback: "—",
+    });
 
     const maxDiscountQarUi = paymentForm
       ? (Math.max(0, paymentForm.totalAmount) * maxPaymentDiscountPercent) / 100
       : 0;
+    const summaryPaymentSnap = computePaymentSnapshot(
+      toNum(selectedOrder?.billing?.totalAmount),
+      toNum(selectedOrder?.billing?.discount),
+      toNum(selectedOrder?.billing?.amountPaid)
+    );
+    const canRecordPayment = summaryPaymentSnap.balanceDue > 0.00001;
 
     return (
       <div className="pim-details-screen jo-details-v3">
@@ -1242,51 +1288,67 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
         <div className="pim-details-body">
           <div className="pim-details-grid">
-            <div className="pim-card pim-detail-card">
+            <div className="epm-detail-card jh-summary-card">
               <h3><i className="fas fa-info-circle"></i> Job Order Summary</h3>
-              <div className="pim-card-content">
-                <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Job Order ID</span><span className="pim-value pim-info-value">{selectedOrder.id}</span></div>
-                <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Order Type</span><span className="pim-value pim-info-value">{selectedOrder.orderType || "Job Order"}</span></div>
-                <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Request Create Date</span><span className="pim-value pim-info-value">{selectedOrder.jobOrderSummary?.createDate || selectedOrder.createDate || "—"}</span></div>
-                <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Created By</span><span className="pim-value pim-info-value">{resolveOrderCreatedBy(selectedOrder, { identityToUsernameMap: userLabelMap, fallback: "—" })}</span></div>
-                <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Expected Delivery</span><span className="pim-value pim-info-value">{selectedOrder.jobOrderSummary?.expectedDelivery || "Not specified"}</span></div>
-                <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Work Status</span><span className="pim-value pim-info-value"><span className={`epm-status-badge status-badge ${workStatusClassJobcards(selectedOrder.workStatus)}`}>{selectedOrder.workStatus}</span></span></div>
-                <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Payment Status</span><span className="pim-value pim-info-value"><span className={`epm-status-badge status-badge ${payStatusClassJobcards(selectedOrder.paymentStatus)}`}>{selectedOrder.paymentStatus}</span></span></div>
+              <div className="epm-card-content jh-kv">
+                <div className="epm-info-item"><span className="epm-info-label">Job Order ID</span><span className="epm-info-value">{summary.jobOrderId || selectedOrder.id}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Order Type</span><span className="epm-info-value">{summary.orderType || selectedOrder.orderType || "Job Order"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Request Create Date</span><span className="epm-info-value">{summary.requestCreateDate || selectedOrder.jobOrderSummary?.createDate || selectedOrder.createDate || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Created By</span><span className="epm-info-value">{createdByDisplay}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Expected Delivery Date</span><span className="epm-info-value">{summary.expectedDeliveryDate || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Work Status</span><span className={`epm-status-badge status-badge ${workStatusClass(summary.workStatus || selectedOrder.workStatus)}`}>{summary.workStatus || selectedOrder.workStatus || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Payment Status</span><span className={`epm-status-badge status-badge ${payStatusClass(summary.paymentStatus || selectedOrder.paymentStatus)}`}>{summary.paymentStatus || selectedOrder.paymentStatus || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Exit Permit Status</span><span className="epm-info-value">{summary.exitPermitStatus || "Not Required"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Customer Name</span><span className="epm-info-value">{summary.customerName || selectedOrder.customerName || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Customer Mobile</span><span className="epm-info-value">{summary.customerMobile || selectedOrder.mobile || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Vehicle Plate</span><span className="epm-info-value">{summary.vehiclePlate || selectedOrder.vehiclePlate || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Order Status (Enum)</span><span className="epm-info-value">{summary.orderStatusEnum || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Payment Status (Enum)</span><span className="epm-info-value">{summary.paymentStatusEnum || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Last Updated</span><span className="epm-info-value">{summary.updatedAt || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Updated By</span><span className="epm-info-value">{updatedByDisplay}</span></div>
+                {services.length > 0 ? (
+                  <div className="epm-info-item" style={{ gridColumn: "span 2" }}>
+                    <span className="epm-info-label">Service Progress</span>
+                    <div style={{ display: "flex", gap: "12px", alignItems: "center", width: "100%" }}>
+                      <div style={{ flex: 1 }}>
+                        <div className="epm-progress-bar">
+                          <div className="epm-progress-fill" style={{ width: `${servicesProgressPercent}%` }} />
+                        </div>
+                      </div>
+                      <span className="epm-progress-text">{servicesProgressLabel}</span>
+                    </div>
+                  </div>
+                ) : null}
               </div>
             </div>
 
             <PermissionGate moduleId="payment" optionId="payment_customer">
-              <div className="pim-card pim-detail-card cv-unified-card">
+              <div className="jh-card cv-unified-card">
                 <h3><i className="fas fa-user"></i> Customer Information</h3>
-                <div className="pim-card-content cv-unified-grid">
-                  <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Name</span><span className="pim-value pim-info-value">{selectedOrder.customerName || "—"}</span></div>
-                  <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Mobile</span><span className="pim-value pim-info-value">{selectedOrder.mobile || "—"}</span></div>
-                  <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Email</span><span className="pim-value pim-info-value">{selectedOrder.customerDetails?.email || "—"}</span></div>
+                <div className="jh-kv cv-unified-grid">
+                  <div><span>Customer ID</span><strong>{selectedOrder.customerDetails?.customerId || "—"}</strong></div>
+                  <div><span>Name</span><strong>{selectedOrder.customerDetails?.name || selectedOrder.customerName || "—"}</strong></div>
+                  <div><span>Mobile</span><strong>{selectedOrder.customerDetails?.mobile || selectedOrder.mobile || "—"}</strong></div>
+                  <div><span>Email</span><strong>{selectedOrder.customerDetails?.email || "—"}</strong></div>
+                  <div><span>Address</span><strong>{selectedOrder.customerDetails?.address || "—"}</strong></div>
+                  <div><span>Vehicles</span><strong>{selectedOrder.customerDetails?.registeredVehiclesCount ?? 0}</strong></div>
+                  <div><span>Customer Since</span><strong>{selectedOrder.customerDetails?.customerSince || "—"}</strong></div>
                 </div>
               </div>
             </PermissionGate>
 
             <PermissionGate moduleId="payment" optionId="payment_vehicle">
-              <div className="pim-card pim-detail-card cv-unified-card">
+              <div className="jh-card cv-unified-card">
                 <h3><i className="fas fa-car"></i> Vehicle Information</h3>
-                <div className="pim-card-content cv-unified-grid">
-                  <div className="pim-info-row pim-info-item">
-                    <span className="pim-label pim-info-label">Vehicle ID</span>
-                    <span className="pim-value pim-info-value">
-                      {String(
-                        selectedOrder?.vehicleDetails?.vehicleId ??
-                        selectedOrder?.vehicleDetails?.id ??
-                        selectedOrder?.vehicleId ??
-                        ""
-                      ).trim() || "—"}
-                    </span>
-                  </div>
-                  <div className="pim-info-row pim-info-item">
-                    <span className="pim-label pim-info-label">Make / Model</span>
-                    <span className="pim-value pim-info-value">{selectedOrder.vehicleDetails?.make || "—"} {selectedOrder.vehicleDetails?.model || ""}</span>
-                  </div>
-                  <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Plate</span><span className="pim-value pim-info-value">{selectedOrder.vehicleDetails?.plateNumber || selectedOrder.vehiclePlate || "—"}</span></div>
-                  <div className="pim-info-row pim-info-item"><span className="pim-label pim-info-label">Color</span><span className="pim-value pim-info-value">{selectedOrder.vehicleDetails?.color || "—"}</span></div>
+                <div className="jh-kv cv-unified-grid">
+                  <div><span>Vehicle ID</span><strong>{String(selectedOrder?.vehicleDetails?.vehicleId ?? selectedOrder?.vehicleDetails?.id ?? selectedOrder?.vehicleId ?? "").trim() || "—"}</strong></div>
+                  <div><span>Make</span><strong>{selectedOrder.vehicleDetails?.make || "—"}</strong></div>
+                  <div><span>Model</span><strong>{selectedOrder.vehicleDetails?.model || "—"}</strong></div>
+                  <div><span>Year</span><strong>{selectedOrder.vehicleDetails?.year || "—"}</strong></div>
+                  <div><span>Type</span><strong>{selectedOrder.vehicleDetails?.type || "—"}</strong></div>
+                  <div><span>Color</span><strong>{selectedOrder.vehicleDetails?.color || "—"}</strong></div>
+                  <div><span>Plate</span><strong>{selectedOrder.vehicleDetails?.plateNumber || selectedOrder.vehiclePlate || "—"}</strong></div>
+                  <div><span>VIN</span><strong>{selectedOrder.vehicleDetails?.vin || "—"}</strong></div>
                 </div>
               </div>
             </PermissionGate>
@@ -1323,7 +1385,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                   <h3><i className="fas fa-receipt"></i> Billing & Invoices</h3>
                   <div className="pim-actions">
                     <PermissionGate moduleId="payment" optionId="payment_pay">
-                      <button className="pim-btn pim-btn-primary" type="button" onClick={openPaymentPopup}>
+                      <button className="pim-btn pim-btn-primary" type="button" onClick={openPaymentPopup} disabled={!canRecordPayment}>
                         <i className="fas fa-credit-card"></i> Payment
                       </button>
                     </PermissionGate>
@@ -1730,8 +1792,10 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                                   const spaceBelow = window.innerHeight - rect.bottom;
                                   const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
                                   const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
-                                  setDropdownPosition({ top, left });
-                                  setActiveDropdown(order.id);
+                                  flushSync(() => {
+                                    setDropdownPosition({ top, left });
+                                    setActiveDropdown(order.id);
+                                  });
                                 }}
                               >
                                 <i className="fas fa-cogs"></i> Actions <i className="fas fa-chevron-down"></i>

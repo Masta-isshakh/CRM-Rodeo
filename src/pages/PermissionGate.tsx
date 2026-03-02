@@ -57,6 +57,73 @@ export function resolvePolicyAndOp(moduleId: string, optionId: string): Resolved
     return null;
   }
 
+  // DASHBOARD
+  if (m === "dashboard") {
+    if (
+      o === "dashboard_list" ||
+      o === "dashboard_kpis" ||
+      o === "dashboard_quicknav" ||
+      o === "dashboard_revenue" ||
+      o === "dashboard_activity" ||
+      o === "dashboard_calendar"
+    ) {
+      return { policyKey: "DASHBOARD", op: "canRead" };
+    }
+    return null;
+  }
+
+  // VEHICLES
+  if (m === "vehicles" || m === "vehicle") {
+    if (
+      o === "vehicles_list" ||
+      o === "vehicles_search" ||
+      o === "vehicles_viewdetails"
+    ) {
+      return { policyKey: "VEHICLES", op: "canRead" };
+    }
+    if (o === "vehicles_add") return { policyKey: "VEHICLES", op: "canCreate", fallbackOps: ["canUpdate"] };
+    if (o === "vehicles_edit" || o === "vehicles_verifycustomer") return { policyKey: "VEHICLES", op: "canUpdate" };
+    if (o === "vehicles_delete") return { policyKey: "VEHICLES", op: "canDelete" };
+    return null;
+  }
+
+  // TICKETS
+  if (m === "tickets" || m === "ticket") {
+    if (o === "tickets_list" || o === "tickets_refresh") return { policyKey: "TICKETS", op: "canRead" };
+    if (o === "tickets_create") return { policyKey: "TICKETS", op: "canCreate", fallbackOps: ["canUpdate"] };
+    if (o === "tickets_edit") return { policyKey: "TICKETS", op: "canUpdate" };
+    if (o === "tickets_delete") return { policyKey: "TICKETS", op: "canDelete" };
+    return null;
+  }
+
+  // EMPLOYEES
+  if (m === "employees" || m === "employee") {
+    if (o === "employees_list" || o === "employees_refresh") return { policyKey: "EMPLOYEES", op: "canRead" };
+    if (o === "employees_add") return { policyKey: "EMPLOYEES", op: "canCreate", fallbackOps: ["canUpdate"] };
+    if (o === "employees_edit") return { policyKey: "EMPLOYEES", op: "canUpdate" };
+    if (o === "employees_delete") return { policyKey: "EMPLOYEES", op: "canDelete" };
+    return null;
+  }
+
+  // ACTIVITY LOG
+  if (m === "activitylog" || m === "activity") {
+    if (o === "activitylog_list" || o === "activitylog_view") {
+      return { policyKey: "ACTIVITY_LOG", op: "canRead" };
+    }
+    return null;
+  }
+
+  // CALL TRACKING
+  if (m === "calltracking" || m === "calls") {
+    if (o === "calltracking_list" || o === "calltracking_refresh") {
+      return { policyKey: "CALL_TRACKING", op: "canRead" };
+    }
+    if (o === "calltracking_create") return { policyKey: "CALL_TRACKING", op: "canCreate", fallbackOps: ["canUpdate"] };
+    if (o === "calltracking_edit") return { policyKey: "CALL_TRACKING", op: "canUpdate" };
+    if (o === "calltracking_delete") return { policyKey: "CALL_TRACKING", op: "canDelete" };
+    return null;
+  }
+
   // JOB ORDERS
   if (m === "joborder" || m === "joborders") {
     if (
@@ -247,6 +314,12 @@ export function resolvePolicyAndOp(moduleId: string, optionId: string): Resolved
     return null;
   }
 
+  // APPROVAL HISTORY
+  if (m === "approvalhistory") {
+    if (o === "approvalhistory_view") return { policyKey: "JOB_CARDS", op: "canRead" };
+    return null;
+  }
+
   // INSPECTION
   if (m === "inspection" || m === "inspectionmodule") {
     if (
@@ -284,6 +357,35 @@ export function resolvePolicyAndOp(moduleId: string, optionId: string): Resolved
 
     if (o === "inspection_serviceprice") return { policyKey: "JOB_CARDS", op: "canRead" };
     return null;
+  }
+
+  // USERS ADMIN
+  if (m === "users" || m === "useradmin") {
+    if (o === "users_list") return { policyKey: "USERS_ADMIN", op: "canRead" };
+    if (o === "users_invite") return { policyKey: "USERS_ADMIN", op: "canCreate", fallbackOps: ["canUpdate"] };
+    if (o === "users_edit") return { policyKey: "USERS_ADMIN", op: "canUpdate" };
+    if (o === "users_delete") return { policyKey: "USERS_ADMIN", op: "canDelete" };
+    return null;
+  }
+
+  // DEPARTMENTS ADMIN
+  if (m === "departments" || m === "departmentsadmin") {
+    if (o === "departments_list") return { policyKey: "DEPARTMENTS_ADMIN", op: "canRead" };
+    if (o === "departments_create") return { policyKey: "DEPARTMENTS_ADMIN", op: "canCreate", fallbackOps: ["canUpdate"] };
+    if (o === "departments_rename" || o === "departments_assignrole") return { policyKey: "DEPARTMENTS_ADMIN", op: "canUpdate" };
+    if (o === "departments_delete") return { policyKey: "DEPARTMENTS_ADMIN", op: "canDelete" };
+    return null;
+  }
+
+  // ROLES & POLICIES ADMIN
+  if (m === "rolespolicies" || m === "roleaccesscontrol") {
+    if (o === "rolespolicies_list") return { policyKey: "ROLES_POLICIES_ADMIN", op: "canRead" };
+    return null;
+  }
+
+  // ADMIN - Inspection config
+  if (m === "admin" && o === "inspection_config_admin") {
+    return { policyKey: "INSPECTION_APPROVALS", op: "canUpdate", fallbackOps: ["canRead"] };
   }
 
   return null;

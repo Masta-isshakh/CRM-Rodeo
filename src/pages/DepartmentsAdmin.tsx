@@ -5,6 +5,8 @@ import "@aws-amplify/ui-react/styles.css";
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
 import { getDataClient } from "../lib/amplifyClient";
+import { usePermissions } from "../lib/userPermissions";
+import PermissionGate from "./PermissionGate";
 
 type Dept = { key: string; name: string };
 
@@ -28,6 +30,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
   }
 
   const client = getDataClient();
+  const { canOption } = usePermissions();
 
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
@@ -95,7 +98,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
   }, [links]);
 
   const createDept = async () => {
-    if (!permissions.canCreate) return;
+    if (!permissions.canCreate || !canOption("departments", "departments_create", true)) return;
     setStatus("");
     setLoading(true);
     try {
@@ -113,7 +116,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
   };
 
   const renameDept = async () => {
-    if (!permissions.canUpdate) return;
+    if (!permissions.canUpdate || !canOption("departments", "departments_rename", true)) return;
     setStatus("");
     setLoading(true);
     try {
@@ -133,7 +136,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
   };
 
   const deleteDept = async (departmentKey: string) => {
-    if (!permissions.canDelete) return;
+    if (!permissions.canDelete || !canOption("departments", "departments_delete", true)) return;
     const ok = confirm(`Delete department "${departmentKey}"?\n\nIt must have NO users.`);
     if (!ok) return;
 
@@ -151,7 +154,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
   };
 
   const assignRole = async (department: Dept, roleId: string) => {
-    if (!permissions.canUpdate) return;
+    if (!permissions.canUpdate || !canOption("departments", "departments_assignrole", true)) return;
     if (!roleId) return;
 
     setStatus("");
@@ -178,7 +181,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
   };
 
   const removeRole = async (departmentKey: string, roleId: string) => {
-    if (!permissions.canUpdate) return;
+    if (!permissions.canUpdate || !canOption("departments", "departments_assignrole", true)) return;
     setStatus("");
     setLoading(true);
     try {
@@ -210,14 +213,16 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
             value={newDept}
             onChange={(e) => setNewDept((e.target as HTMLInputElement).value)}
           />
-          <Button
-            variation="primary"
-            onClick={createDept}
-            isLoading={loading}
-            isDisabled={!permissions.canCreate || loading}
-          >
-            Create
-          </Button>
+          <PermissionGate moduleId="departments" optionId="departments_create">
+            <Button
+              variation="primary"
+              onClick={createDept}
+              isLoading={loading}
+              isDisabled={!permissions.canCreate || loading}
+            >
+              Create
+            </Button>
+          </PermissionGate>
           <Button onClick={load} isLoading={loading}>
             Refresh
           </Button>
@@ -246,14 +251,16 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
             value={renameTo}
             onChange={(e) => setRenameTo((e.target as HTMLInputElement).value)}
           />
-          <Button
-            variation="primary"
-            onClick={renameDept}
-            isDisabled={!permissions.canUpdate || loading}
-            isLoading={loading}
-          >
-            Rename
-          </Button>
+          <PermissionGate moduleId="departments" optionId="departments_rename">
+            <Button
+              variation="primary"
+              onClick={renameDept}
+              isDisabled={!permissions.canUpdate || loading}
+              isLoading={loading}
+            >
+              Rename
+            </Button>
+          </PermissionGate>
         </div>
 
         <p style={{ opacity: 0.75, marginTop: 8 }}>
@@ -291,19 +298,21 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                           return (
                             <span key={rid} style={{ border: "1px solid #ddd", borderRadius: 999, padding: "4px 10px" }}>
                               {role?.name ?? rid}
-                              <button
-                                style={{
-                                  marginLeft: 8,
-                                  border: "none",
-                                  background: "transparent",
-                                  cursor: permissions.canUpdate && !loading ? "pointer" : "not-allowed",
-                                  opacity: permissions.canUpdate && !loading ? 1 : 0.5,
-                                }}
-                                onClick={() => permissions.canUpdate && !loading && removeRole(d.key, rid)}
-                                title="Remove role"
-                              >
-                                ✕
-                              </button>
+                              <PermissionGate moduleId="departments" optionId="departments_assignrole">
+                                <button
+                                  style={{
+                                    marginLeft: 8,
+                                    border: "none",
+                                    background: "transparent",
+                                    cursor: permissions.canUpdate && !loading ? "pointer" : "not-allowed",
+                                    opacity: permissions.canUpdate && !loading ? 1 : 0.5,
+                                  }}
+                                  onClick={() => permissions.canUpdate && !loading && removeRole(d.key, rid)}
+                                  title="Remove role"
+                                >
+                                  ✕
+                                </button>
+                              </PermissionGate>
                             </span>
                           );
                         })}
@@ -312,29 +321,33 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                     </td>
 
                     <td style={{ padding: 10 }}>
-                      <SelectField
-                        label=""
-                        value=""
-                        onChange={(e) => assignRole(d, (e.target as HTMLSelectElement).value)}
-                        isDisabled={!permissions.canUpdate || loading}
-                      >
-                        <option value="">Select role...</option>
-                        {roles.map((r) => (
-                          <option key={r.id} value={r.id}>
-                            {r.name}
-                          </option>
-                        ))}
-                      </SelectField>
+                      <PermissionGate moduleId="departments" optionId="departments_assignrole">
+                        <SelectField
+                          label=""
+                          value=""
+                          onChange={(e) => assignRole(d, (e.target as HTMLSelectElement).value)}
+                          isDisabled={!permissions.canUpdate || loading}
+                        >
+                          <option value="">Select role...</option>
+                          {roles.map((r) => (
+                            <option key={r.id} value={r.id}>
+                              {r.name}
+                            </option>
+                          ))}
+                        </SelectField>
+                      </PermissionGate>
                     </td>
 
                     <td style={{ padding: 10 }}>
-                      <Button
-                        variation="destructive"
-                        onClick={() => deleteDept(d.key)}
-                        isDisabled={!permissions.canDelete || loading}
-                      >
-                        Delete
-                      </Button>
+                      <PermissionGate moduleId="departments" optionId="departments_delete">
+                        <Button
+                          variation="destructive"
+                          onClick={() => deleteDept(d.key)}
+                          isDisabled={!permissions.canDelete || loading}
+                        >
+                          Delete
+                        </Button>
+                      </PermissionGate>
                     </td>
                   </tr>
                 );

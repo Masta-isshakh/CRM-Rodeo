@@ -1,6 +1,6 @@
 // src/pages/QualityCheckModule.tsx
 import  { useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 
 import SuccessPopup from "./SuccessPopup";
 import ConfirmationPopup from "./ConfirmationPopup";
@@ -9,11 +9,12 @@ import UnifiedJobOrderRoadmap from "../components/UnifiedJobOrderRoadmap";
 
 import "./QualityCheckModule.css";
 import "./JobCards.css";
+import "./JobOrderHistory.css";
 
 import { getDataClient } from "../lib/amplifyClient";
 import { cancelJobOrderByOrderNumber, getJobOrderByOrderNumber, upsertJobOrder } from "./jobOrderRepo";
 import { getUserDirectory } from "../utils/userDirectoryCache";
-import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
+import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy, resolveOrderUpdatedBy } from "../utils/actorIdentity";
 
 import { getUrl, uploadData } from "aws-amplify/storage";
 
@@ -185,7 +186,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   /* -------------------- live list from backend -------------------- */
   useEffect(() => {
     const sub = (client.models.JobOrder as any)
-      .observeQuery({ limit: 2000 })
+      .observeQuery({ limit: 500 })
       .subscribe(({ items }: any) => {
         const rows = (items ?? []) as any[];
 
@@ -274,8 +275,8 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
     };
 
     if (activeDropdown) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      document.addEventListener("pointerdown", handleClickOutside, true);
+      return () => document.removeEventListener("pointerdown", handleClickOutside, true);
     }
   }, [activeDropdown]);
 
@@ -291,8 +292,10 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
     const spaceBelow = window.innerHeight - rect.bottom;
     const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
     const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
-    setDropdownPosition({ top, left });
-    setActiveDropdown(jobId);
+    flushSync(() => {
+      setDropdownPosition({ top, left });
+      setActiveDropdown(jobId);
+    });
   };
 
   /* -------------------- details loader -------------------- */
@@ -892,12 +895,18 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
     const parsed = safeJsonParse<any>(selectedOrder?._parsed ?? selectedOrder?.dataJson, {});
     const roadmap = Array.isArray(parsed?.roadmap) ? parsed.roadmap : Array.isArray(selectedOrder?.roadmap) ? selectedOrder.roadmap : [];
     const docs: DocItem[] = Array.isArray(parsed?.documents) ? parsed.documents : Array.isArray(selectedOrder?.documents) ? selectedOrder.documents : [];
+    const summary = (selectedOrder as any)?.summary ?? {};
+    const createdByDisplay = resolveOrderCreatedBy(selectedOrder, { identityToUsernameMap: userLabelMap, fallback: "—" });
+    const updatedByDisplay = resolveOrderUpdatedBy(selectedOrder, { identityToUsernameMap: userLabelMap, fallback: "—" });
+    const completedServices = servicesForQc.filter((service: any) => String(service?.status ?? "").trim().toLowerCase() === "completed").length;
+    const servicesProgressPercent = servicesForQc.length ? Math.round((completedServices / servicesForQc.length) * 100) : 0;
+    const servicesProgressLabel = `${completedServices}/${servicesForQc.length || 0} completed`;
 
     const paymentLog = Array.isArray(selectedOrder?.paymentActivityLog) ? selectedOrder.paymentActivityLog : [];
 
     return (
       <div className="quality-check-module">
-        <div className="detail-view pim-details-screen jo-details-v3" id="detailView">
+        <div className="detail-view pim-details-screen jo-details-v3 jh-details" id="detailView">
           <div className="detail-header pim-details-header">
             <div className="pim-details-title-container">
               <h2>
@@ -909,117 +918,85 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
             </button>
           </div>
 
-          <div className="detail-container pim-details-body">
-            <div className="detail-cards pim-details-grid">
+          <div className="detail-container pim-details-body jh-details-body">
+            <div className="detail-cards pim-details-grid jh-grid">
               {/* Summary */}
               <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_summary">
-                <div className="pim-detail-card">
-                  <h3>
-                    <i className="fas fa-info-circle"></i> Job Order Summary
-                  </h3>
-                  <div className="pim-card-content">
-                    <div className="pim-info-item">
-                      <span className="pim-info-label">Job Order ID</span>
-                      <span className="pim-info-value">{selectedOrder.id}</span>
-                    </div>
-                    <div className="pim-info-item">
-                      <span className="pim-info-label">Order Type</span>
-                      <span className="pim-info-value">{selectedOrder.orderType || "Job Order"}</span>
-                    </div>
-                    <div className="pim-info-item">
-                      <span className="pim-info-label">Request Create Date</span>
-                      <span className="pim-info-value">{selectedOrder.jobOrderSummary?.createDate || selectedOrder.createDate || "—"}</span>
-                    </div>
-                    <div className="pim-info-item">
-                      <span className="pim-info-label">Created By</span>
-                      <span className="pim-info-value">{resolveOrderCreatedBy(selectedOrder, { identityToUsernameMap: userLabelMap, fallback: "—" })}</span>
-                    </div>
-                    <div className="pim-info-item">
-                      <span className="pim-info-label">Expected Delivery</span>
-                      <span className="pim-info-value">{selectedOrder.jobOrderSummary?.expectedDelivery || "—"}</span>
-                    </div>
-                    <div className="pim-info-item">
-                      <span className="pim-info-label">Work Status</span>
-                      <span className="pim-info-value">
-                        <span className={`epm-status-badge status-badge ${getWorkStatusClass(selectedOrder.workStatus)}`}>
-                          {selectedOrder.workStatus}
-                        </span>
-                      </span>
-                    </div>
-                    <div className="pim-info-item">
-                      <span className="pim-info-label">Payment Status</span>
-                      <span className="pim-info-value">
-                        <span className={`epm-status-badge status-badge ${getPaymentStatusClass(selectedOrder.paymentStatus)}`}>
-                          {selectedOrder.paymentStatus}
-                        </span>
-                      </span>
-                    </div>
+                <div className="epm-detail-card jh-summary-card">
+                  <h3><i className="fas fa-info-circle" /> Job Order Summary</h3>
+                  <div className="epm-card-content jh-kv">
+                    <div className="epm-info-item"><span className="epm-info-label">Job Order ID</span><span className="epm-info-value">{summary.jobOrderId || selectedOrder.id}</span></div>
+                    <div className="epm-info-item"><span className="epm-info-label">Order Type</span><span className="epm-info-value">{summary.orderType || selectedOrder.orderType || "Job Order"}</span></div>
+                    <div className="epm-info-item"><span className="epm-info-label">Request Create Date</span><span className="epm-info-value">{summary.requestCreateDate || selectedOrder.jobOrderSummary?.createDate || selectedOrder.createDate || "—"}</span></div>
+                    <div className="epm-info-item"><span className="epm-info-label">Created By</span><span className="epm-info-value">{createdByDisplay}</span></div>
+                    <div className="epm-info-item"><span className="epm-info-label">Expected Delivery Date</span><span className="epm-info-value">{summary.expectedDeliveryDate || selectedOrder.jobOrderSummary?.expectedDelivery || "—"}</span></div>
+                    <div className="epm-info-item"><span className="epm-info-label">Work Status</span><span className={`epm-status-badge status-badge ${workStatusClass(summary.workStatus || selectedOrder.workStatus)}`}>{summary.workStatus || selectedOrder.workStatus || "—"}</span></div>
+                    <div className="epm-info-item"><span className="epm-info-label">Payment Status</span><span className={`epm-status-badge status-badge ${paymentStatusClass(summary.paymentStatus || selectedOrder.paymentStatus)}`}>{summary.paymentStatus || selectedOrder.paymentStatus || "—"}</span></div>
+                    <div className="epm-info-item"><span className="epm-info-label">Exit Permit Status</span><span className={`epm-status-badge status-badge ${permitStatusClass(summary.exitPermitStatus || selectedOrder.exitPermitStatus || selectedOrder.exitPermit?.status || "Not Required")}`}>{summary.exitPermitStatus || selectedOrder.exitPermitStatus || selectedOrder.exitPermit?.status || "Not Required"}</span></div>
+                    <div className="epm-info-item"><span className="epm-info-label">Customer Name</span><span className="epm-info-value">{summary.customerName || selectedOrder.customerName || "—"}</span></div>
+                    <div className="epm-info-item"><span className="epm-info-label">Customer Mobile</span><span className="epm-info-value">{summary.customerMobile || selectedOrder.mobile || "—"}</span></div>
+                    <div className="epm-info-item"><span className="epm-info-label">Vehicle Plate</span><span className="epm-info-value">{summary.vehiclePlate || selectedOrder.vehiclePlate || "—"}</span></div>
+                    <div className="epm-info-item"><span className="epm-info-label">Order Status (Enum)</span><span className="epm-info-value">{summary.orderStatusEnum || "—"}</span></div>
+                    <div className="epm-info-item"><span className="epm-info-label">Payment Status (Enum)</span><span className="epm-info-value">{summary.paymentStatusEnum || "—"}</span></div>
+                    <div className="epm-info-item"><span className="epm-info-label">Last Updated</span><span className="epm-info-value">{summary.updatedAt || selectedOrder.updatedAt || "—"}</span></div>
+                    <div className="epm-info-item"><span className="epm-info-label">Updated By</span><span className="epm-info-value">{updatedByDisplay}</span></div>
+                    {servicesForQc.length > 0 ? (
+                      <div className="epm-info-item" style={{ gridColumn: "span 2" }}>
+                        <span className="epm-info-label">Service Progress</span>
+                        <div style={{ display: "flex", gap: "12px", alignItems: "center", width: "100%" }}>
+                          <div style={{ flex: 1 }}>
+                            <div className="epm-progress-bar">
+                              <div className="epm-progress-fill" style={{ width: `${servicesProgressPercent}%` }} />
+                            </div>
+                          </div>
+                          <span className="epm-progress-text">{servicesProgressLabel}</span>
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </div>
               </PermissionGate>
 
               {/* Roadmap */}
-              {roadmap.length > 0 && (
-                <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_roadmap">
-                  <UnifiedJobOrderRoadmap order={{ ...selectedOrder, roadmap }} />
-                </PermissionGate>
-              )}
+              <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_roadmap">
+                <div className="jh-card jh-span-2">
+                  {roadmap.length === 0 ? (
+                    <div className="jh-empty-inline">No roadmap data.</div>
+                  ) : (
+                    <UnifiedJobOrderRoadmap order={{ ...selectedOrder, roadmap }} />
+                  )}
+                </div>
+              </PermissionGate>
 
               {/* Customer */}
               <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_customer">
-                <div className="qc-detail-card pim-detail-card cv-unified-card">
-                  <h3>
-                    <i className="fas fa-user"></i> Customer Information
-                  </h3>
-                  <div className="qc-card-content pim-card-content cv-unified-grid">
-                    <div className="qc-info-item pim-info-item">
-                      <span className="qc-info-label pim-info-label">Name</span>
-                      <span className="qc-info-value pim-info-value">{selectedOrder.customerName || "—"}</span>
-                    </div>
-                    <div className="qc-info-item pim-info-item">
-                      <span className="qc-info-label pim-info-label">Mobile</span>
-                      <span className="qc-info-value pim-info-value">{selectedOrder.mobile || "—"}</span>
-                    </div>
-                    <div className="qc-info-item pim-info-item">
-                      <span className="qc-info-label pim-info-label">Email</span>
-                      <span className="qc-info-value pim-info-value">{selectedOrder.customerDetails?.email || "—"}</span>
-                    </div>
+                <div className="jh-card cv-unified-card">
+                  <h3><i className="fas fa-user" /> Customer Information</h3>
+                  <div className="jh-kv cv-unified-grid">
+                    <div><span>Customer ID</span><strong>{selectedOrder.customerDetails?.customerId || "—"}</strong></div>
+                    <div><span>Name</span><strong>{selectedOrder.customerDetails?.name || selectedOrder.customerName || "—"}</strong></div>
+                    <div><span>Mobile</span><strong>{selectedOrder.customerDetails?.mobile || selectedOrder.mobile || "—"}</strong></div>
+                    <div><span>Email</span><strong>{selectedOrder.customerDetails?.email || "—"}</strong></div>
+                    <div><span>Address</span><strong>{selectedOrder.customerDetails?.address || "—"}</strong></div>
+                    <div><span>Vehicles</span><strong>{selectedOrder.customerDetails?.registeredVehiclesCount ?? 0}</strong></div>
+                    <div><span>Customer Since</span><strong>{selectedOrder.customerDetails?.customerSince || "—"}</strong></div>
                   </div>
                 </div>
               </PermissionGate>
 
               {/* Vehicle */}
               <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_vehicle">
-                <div className="qc-detail-card pim-detail-card cv-unified-card">
-                  <h3>
-                    <i className="fas fa-car"></i> Vehicle Information
-                  </h3>
-                  <div className="qc-card-content pim-card-content cv-unified-grid">
-                    <div className="qc-info-item pim-info-item">
-                      <span className="qc-info-label pim-info-label">Vehicle ID</span>
-                      <span className="qc-info-value pim-info-value">
-                        {String(
-                          selectedOrder?.vehicleDetails?.vehicleId ??
-                          selectedOrder?.vehicleDetails?.id ??
-                          selectedOrder?.vehicleId ??
-                          ""
-                        ).trim() || "—"}
-                      </span>
-                    </div>
-                    <div className="qc-info-item pim-info-item">
-                      <span className="qc-info-label pim-info-label">Make / Model</span>
-                      <span className="qc-info-value pim-info-value">
-                        {selectedOrder.vehicleDetails?.make || "—"} {selectedOrder.vehicleDetails?.model || ""}
-                      </span>
-                    </div>
-                    <div className="qc-info-item pim-info-item">
-                      <span className="qc-info-label pim-info-label">Plate</span>
-                      <span className="qc-info-value pim-info-value">{selectedOrder.vehicleDetails?.plateNumber || selectedOrder.vehiclePlate || "—"}</span>
-                    </div>
-                    <div className="qc-info-item pim-info-item">
-                      <span className="qc-info-label pim-info-label">Color</span>
-                      <span className="qc-info-value pim-info-value">{selectedOrder.vehicleDetails?.color || "—"}</span>
-                    </div>
+                <div className="jh-card cv-unified-card">
+                  <h3><i className="fas fa-car" /> Vehicle Information</h3>
+                  <div className="jh-kv cv-unified-grid">
+                    <div><span>Vehicle ID</span><strong>{String(selectedOrder?.vehicleDetails?.vehicleId ?? selectedOrder?.vehicleDetails?.id ?? selectedOrder?.vehicleId ?? "").trim() || "—"}</strong></div>
+                    <div><span>Make</span><strong>{selectedOrder.vehicleDetails?.make || "—"}</strong></div>
+                    <div><span>Model</span><strong>{selectedOrder.vehicleDetails?.model || "—"}</strong></div>
+                    <div><span>Year</span><strong>{selectedOrder.vehicleDetails?.year || "—"}</strong></div>
+                    <div><span>Type</span><strong>{selectedOrder.vehicleDetails?.type || "—"}</strong></div>
+                    <div><span>Color</span><strong>{selectedOrder.vehicleDetails?.color || "—"}</strong></div>
+                    <div><span>Plate</span><strong>{selectedOrder.vehicleDetails?.plateNumber || selectedOrder.vehiclePlate || "—"}</strong></div>
+                    <div><span>VIN</span><strong>{selectedOrder.vehicleDetails?.vin || "—"}</strong></div>
                   </div>
                 </div>
               </PermissionGate>
@@ -1210,26 +1187,6 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   return null;
 }
 
-function getWorkStatusClass(status: any) {
-  const statusMap: any = {
-    "New Request": "status-new-request",
-    Inspection: "status-inspection",
-    Service_Operation: "status-inprogress",
-    Inprogress: "status-inprogress",
-    "Quality Check": "status-quality-check",
-    Ready: "status-ready",
-    Completed: "status-completed",
-    Cancelled: "status-cancelled",
-  };
-  return statusMap[String(status ?? "")] || "status-inprogress";
-}
-
-function getPaymentStatusClass(status: any) {
-  if (status === "Fully Paid") return "payment-full";
-  if (status === "Partially Paid") return "payment-partial";
-  return "payment-unpaid";
-}
-
 function getServiceStatusClass(status: any) {
   const s = String(status ?? "").trim().toLowerCase();
   if (s === "completed") return "status-completed";
@@ -1239,4 +1196,29 @@ function getServiceStatusClass(status: any) {
   if (s === "inspection") return "status-inspection";
   if (s === "ready") return "status-ready";
   return "status-new-request";
+}
+
+function workStatusClass(status: string) {
+  const s = String(status ?? "").toLowerCase();
+  if (s.includes("completed")) return "jh-badge jh-badge-success";
+  if (s.includes("cancel")) return "jh-badge jh-badge-danger";
+  if (s.includes("ready")) return "jh-badge jh-badge-info";
+  return "jh-badge jh-badge-neutral";
+}
+
+function paymentStatusClass(status: string) {
+  const s = String(status ?? "").toLowerCase();
+  if (s.includes("fully paid")) return "jh-badge jh-badge-success";
+  if (s.includes("partially")) return "jh-badge jh-badge-warn";
+  if (s.includes("unpaid")) return "jh-badge jh-badge-danger";
+  if (s.includes("refunded")) return "jh-badge jh-badge-neutral";
+  return "jh-badge jh-badge-neutral";
+}
+
+function permitStatusClass(status: string) {
+  const s = String(status ?? "").toLowerCase();
+  if (s.includes("completed")) return "jh-badge jh-badge-success";
+  if (s.includes("pending")) return "jh-badge jh-badge-warn";
+  if (s.includes("rejected")) return "jh-badge jh-badge-danger";
+  return "jh-badge jh-badge-info";
 }

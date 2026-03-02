@@ -109,7 +109,6 @@ body{
   border-radius: 12px;
   font-size: 14px;
   outline: none;
-  transition: box-shadow .15s ease, border-color .15s ease;
 }
 
 .smart-search-input:focus{
@@ -321,7 +320,6 @@ body{
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
-  transition: transform .1s ease, box-shadow .15s ease, border-color .15s ease;
 }
 
 .btn-action-dropdown:hover{
@@ -412,7 +410,6 @@ body{
   background: #fff;
   font-weight: 800;
   cursor: pointer;
-  transition: box-shadow .15s ease, border-color .15s ease, transform .1s ease;
 }
 
 .pagination-btn:hover{
@@ -495,7 +492,6 @@ body{
   border-radius: 12px;
   padding: 10px 12px;
   cursor: pointer;
-  transition: box-shadow .15s ease, border-color .15s ease;
 }
 
 .close-detail:hover{
@@ -580,7 +576,6 @@ body{
   font-weight: 900;
   font-size: 13px;
   cursor: pointer;
-  transition: box-shadow .15s ease, border-color .15s ease, transform .1s ease;
 }
 
 .btn:hover,
@@ -793,7 +788,6 @@ body{
   font-weight: 900;
   font-size: 13px;
   cursor: pointer;
-  transition: box-shadow .15s ease, border-color .15s ease, transform .1s ease;
 }
 
 .inspection-btn:hover{
@@ -898,7 +892,6 @@ body{
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: box-shadow .15s ease, border-color .15s ease;
 }
 
 .group-toggle-btn:hover{
@@ -983,7 +976,6 @@ body{
   outline: none;
   resize: vertical;
   font-size: 13px;
-  transition: box-shadow .15s ease, border-color .15s ease;
 }
 
 .comment-section textarea:focus{
@@ -1014,7 +1006,6 @@ body{
   font-weight: 900;
   font-size: 13px;
   cursor: pointer;
-  transition: box-shadow .15s ease, border-color .15s ease;
 }
 
 .photo-btn:hover{
@@ -1137,7 +1128,6 @@ body{
   background: #fff;
   padding: 12px;
   cursor: pointer;
-  transition: box-shadow .15s ease, border-color .15s ease, transform .1s ease;
   display: flex;
   justify-content: space-between;
   align-items: center;

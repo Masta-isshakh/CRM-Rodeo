@@ -426,7 +426,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
       setShowAddServiceSuccessPopup(true);
       setLastAction("addService");
 
-      setTimeout(() => setScreenState("details"), 50);
+      setScreenState("details");
     } catch (e) {
       console.error(e);
       showError({

@@ -7,6 +7,7 @@ import "@aws-amplify/ui-react/styles.css";
 import "./employees.css";
 import { logActivity } from "../utils/activityLogger";
 import type { PageProps } from "../lib/PageProps";
+import PermissionGate from "./PermissionGate";
 
 const client = generateClient<Schema>();
 
@@ -140,9 +141,11 @@ export default function Employees({ permissions }: PageProps) {
       <div className="employees-header">
         <h2>Employees</h2>
         {permissions.canCreate && (
-          <Button variation="primary" onClick={() => setShowModal(true)}>
-            Add Employee
-          </Button>
+          <PermissionGate moduleId="employees" optionId="employees_add">
+            <Button variation="primary" onClick={() => setShowModal(true)}>
+              Add Employee
+            </Button>
+          </PermissionGate>
         )}
       </div>
 
@@ -164,13 +167,19 @@ export default function Employees({ permissions }: PageProps) {
               <Button variation="link" onClick={() => { setShowModal(false); resetForm(); }}>
                 Cancel
               </Button>
-              <Button
-                variation="primary"
-                onClick={handleSubmit}
-                isDisabled={editingEmployee ? !permissions.canUpdate : !permissions.canCreate}
-              >
-                {editingEmployee ? "Update" : "Create"}
-              </Button>
+              {editingEmployee ? (
+                <PermissionGate moduleId="employees" optionId="employees_edit">
+                  <Button variation="primary" onClick={handleSubmit} isDisabled={!permissions.canUpdate}>
+                    Update
+                  </Button>
+                </PermissionGate>
+              ) : (
+                <PermissionGate moduleId="employees" optionId="employees_add">
+                  <Button variation="primary" onClick={handleSubmit} isDisabled={!permissions.canCreate}>
+                    Create
+                  </Button>
+                </PermissionGate>
+              )}
             </div>
           </div>
         </div>
@@ -186,11 +195,17 @@ export default function Employees({ permissions }: PageProps) {
             <p>Salary: {e.salary ?? "N/A"}</p>
 
             <div className="card-actions">
-              {permissions.canUpdate && <Button size="small" onClick={() => handleEdit(e)}>Edit</Button>}
+              {permissions.canUpdate && (
+                <PermissionGate moduleId="employees" optionId="employees_edit">
+                  <Button size="small" onClick={() => handleEdit(e)}>Edit</Button>
+                </PermissionGate>
+              )}
               {permissions.canDelete && (
-                <Button size="small" variation="destructive" onClick={() => handleDelete(e)}>
-                  Delete
-                </Button>
+                <PermissionGate moduleId="employees" optionId="employees_delete">
+                  <Button size="small" variation="destructive" onClick={() => handleDelete(e)}>
+                    Delete
+                  </Button>
+                </PermissionGate>
               )}
             </div>
           </div>

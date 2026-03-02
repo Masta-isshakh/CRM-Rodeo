@@ -124,7 +124,6 @@
   font-weight: 800;
   color: var(--epm-text);
   outline: none;
-  transition: box-shadow 160ms ease, border-color 160ms ease;
 }
 
 .epm-smart-search-input::placeholder{
@@ -398,20 +397,17 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  transition: transform 120ms ease, background 160ms ease, box-shadow 160ms ease, border-color 160ms ease, opacity 160ms ease;
 }
 .btn-action-dropdown:hover{
   background: rgba(37, 99, 235, 0.12);
   border-color: rgba(37, 99, 235, 0.32);
   box-shadow: 0 14px 28px rgba(37, 99, 235, 0.14);
-  transform: translateY(-1px);
 }
-.btn-action-dropdown:active{ transform: translateY(0px) scale(0.98); }
 .btn-action-dropdown.active{
   background: rgba(37, 99, 235, 0.16);
   border-color: rgba(37, 99, 235, 0.40);
 }
-.btn-action-dropdown:disabled{ opacity: 0.55; cursor: not-allowed; box-shadow: none; transform: none; }
+.btn-action-dropdown:disabled{ opacity: 0.55; cursor: not-allowed; box-shadow: none; }
 
 /* dropdown menu (portal) */
 .action-dropdown-menu{
@@ -422,14 +418,11 @@
   box-shadow: 0 20px 60px rgba(15, 23, 42, 0.18);
   padding: 8px;
   opacity: 0;
-  transform: translateY(-4px);
   pointer-events: none;
-  transition: opacity 140ms ease, transform 140ms ease;
 }
 
 .action-dropdown-menu.show{
   opacity: 1;
-  transform: translateY(0px);
   pointer-events: auto;
 }
 
@@ -451,16 +444,14 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  transition: background 120ms ease, transform 120ms ease, border-color 120ms ease, opacity 120ms ease;
 }
 
 .dropdown-item:hover{
   background: #f8fafc;
-  transform: translateX(2px);
   border-color: rgba(15,23,42,0.08);
 }
 
-.dropdown-item:disabled{ opacity: 0.55; cursor: not-allowed; transform: none; }
+.dropdown-item:disabled{ opacity: 0.55; cursor: not-allowed; }
 
 .dropdown-item.view i{ color: var(--epm-primary); }
 .dropdown-item.create-permit i{ color: var(--epm-purple); }
@@ -492,14 +483,12 @@
   cursor: pointer;
   font-weight: 950;
   color: rgba(15,23,42,0.80);
-  transition: transform 120ms ease, box-shadow 140ms ease, background 140ms ease, opacity 140ms ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
 }
 
 .epm-pagination-btn:hover{
-  transform: translateY(-1px);
   box-shadow: 0 14px 28px rgba(2,6,23,0.10);
   background: #f8fafc;
 }
@@ -589,17 +578,18 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  transition: transform 120ms ease, background 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
 }
 .epm-btn-close-details:hover{
   background: rgba(220,38,38,0.14);
   border-color: rgba(220,38,38,0.30);
   box-shadow: 0 14px 28px rgba(220,38,38,0.10);
-  transform: translateY(-1px);
 }
-.epm-btn-close-details:active{ transform: translateY(0px) scale(0.98); }
 
-.epm-details-body{ padding: 0; }
+.epm-details-body{
+  padding: 18px;
+  max-width: 1280px;
+  margin: 0 auto;
+}
 
 .epm-details-grid{
   display: grid;
@@ -978,10 +968,8 @@
   align-items: center;
   gap: 8px;
   box-shadow: 0 12px 26px rgba(37,99,235,0.22);
-  transition: transform 120ms ease, background 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
 }
-.epm-doc-download:hover{ background: var(--epm-primary-hover); transform: translateY(-1px); }
-.epm-doc-download:active{ transform: translateY(0px) scale(0.98); }
+.epm-doc-download:hover{ background: var(--epm-primary-hover); }
 .epm-doc-download:disabled{ opacity: 0.6; cursor: not-allowed; box-shadow: none; }
 
 /* ======================================================================
@@ -1006,11 +994,6 @@
   background: #fff;
   box-shadow: 0 28px 80px rgba(15,23,42,0.22);
   overflow: hidden;
-  animation: epmPop 160ms cubic-bezier(.22,1,.36,1);
-}
-@keyframes epmPop{
-  from { transform: translateY(6px) scale(0.985); opacity: 0.88; }
-  to { transform: translateY(0px) scale(1); opacity: 1; }
 }
 
 .epm-exit-permit-modal-content h3{
@@ -1053,7 +1036,6 @@
   font-weight: 850;
   color: rgba(15,23,42,0.90);
   outline: none;
-  transition: box-shadow 160ms ease, border-color 160ms ease;
 }
 .epm-form-group input:focus{
   border-color: rgba(37,99,235,0.45);
@@ -1077,15 +1059,12 @@
   color: rgba(15,23,42,0.84);
   font-weight: 950;
   cursor: pointer;
-  transition: background 140ms ease, transform 120ms ease, box-shadow 140ms ease, opacity 140ms ease;
 }
 .epm-btn-cancel-permit:hover{
   background: #f8fafc;
   box-shadow: 0 14px 28px rgba(2,6,23,0.10);
-  transform: translateY(-1px);
 }
-.epm-btn-cancel-permit:active{ transform: translateY(0px) scale(0.98); }
-.epm-btn-cancel-permit:disabled{ opacity: 0.6; cursor: not-allowed; box-shadow: none; transform: none; }
+.epm-btn-cancel-permit:disabled{ opacity: 0.6; cursor: not-allowed; box-shadow: none; }
 
 .epm-btn-create-permit{
   height: 40px;
@@ -1100,11 +1079,9 @@
   align-items: center;
   gap: 8px;
   box-shadow: 0 14px 30px rgba(37,99,235,0.22);
-  transition: transform 120ms ease, background 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
 }
-.epm-btn-create-permit:hover{ background: var(--epm-primary-hover); transform: translateY(-1px); }
-.epm-btn-create-permit:active{ transform: translateY(0px) scale(0.98); }
-.epm-btn-create-permit:disabled{ opacity: 0.6; cursor: not-allowed; box-shadow: none; transform: none; }
+.epm-btn-create-permit:hover{ background: var(--epm-primary-hover); }
+.epm-btn-create-permit:disabled{ opacity: 0.6; cursor: not-allowed; box-shadow: none; }
 
 /* ======================================================================
    CANCEL CONFIRM MODAL (same structure as your other pages)
@@ -1121,7 +1098,6 @@
   -webkit-backdrop-filter: blur(10px);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 140ms ease;
 }
 .cancel-modal-overlay.active{
   opacity: 1;
@@ -1135,7 +1111,6 @@
   background: #fff;
   box-shadow: 0 28px 80px rgba(15,23,42,0.22);
   overflow: hidden;
-  animation: epmPop 160ms cubic-bezier(.22,1,.36,1);
 }
 
 .cancel-modal-header{
@@ -1204,15 +1179,12 @@
   color: rgba(15,23,42,0.84);
   font-weight: 950;
   cursor: pointer;
-  transition: background 140ms ease, transform 120ms ease, box-shadow 140ms ease, opacity 140ms ease;
 }
 .btn-cancel:hover{
   background: #f8fafc;
   box-shadow: 0 14px 28px rgba(2,6,23,0.10);
-  transform: translateY(-1px);
 }
-.btn-cancel:active{ transform: translateY(0px) scale(0.98); }
-.btn-cancel:disabled{ opacity: 0.6; cursor: not-allowed; box-shadow: none; transform: none; }
+.btn-cancel:disabled{ opacity: 0.6; cursor: not-allowed; box-shadow: none; }
 
 .btn-confirm-cancel{
   height: 40px;
@@ -1224,11 +1196,9 @@
   font-weight: 950;
   cursor: pointer;
   box-shadow: 0 14px 28px rgba(220,38,38,0.18);
-  transition: background 140ms ease, transform 120ms ease, box-shadow 140ms ease, opacity 140ms ease;
 }
-.btn-confirm-cancel:hover{ background: var(--epm-danger-hover); transform: translateY(-1px); }
-.btn-confirm-cancel:active{ transform: translateY(0px) scale(0.98); }
-.btn-confirm-cancel:disabled{ opacity: 0.6; cursor: not-allowed; box-shadow: none; transform: none; }
+.btn-confirm-cancel:hover{ background: var(--epm-danger-hover); }
+.btn-confirm-cancel:disabled{ opacity: 0.6; cursor: not-allowed; box-shadow: none; }
 
 /* ======================================================================
    Popup helper spans (used in SuccessPopup message JSX)

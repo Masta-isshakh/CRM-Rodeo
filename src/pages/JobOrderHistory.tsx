@@ -304,12 +304,12 @@ async function loadNormalizedInvoices(client: any, jobOrderId: string): Promise<
     try {
       const byIdx = await (client.models.JobOrderInvoice as any).listInvoicesByJobOrder?.({
         jobOrderId: String(jobOrderId),
-        limit: 2000,
+        limit: 500,
       });
       invRows = (byIdx?.data ?? []) as any[];
     } catch {
       const res = await client.models.JobOrderInvoice.list({
-        limit: 2000,
+        limit: 500,
         filter: { jobOrderId: { eq: String(jobOrderId) } } as any,
       });
       invRows = (res?.data ?? []) as any[];
@@ -324,12 +324,12 @@ async function loadNormalizedInvoices(client: any, jobOrderId: string): Promise<
       try {
         const byIdxSvc = await (client.models.JobOrderInvoiceService as any).listInvoiceServicesByInvoice?.({
           invoiceId,
-          limit: 2000,
+          limit: 500,
         });
         svcRows = (byIdxSvc?.data ?? []) as any[];
       } catch {
         const resSvc = await client.models.JobOrderInvoiceService.list({
-          limit: 2000,
+          limit: 500,
           filter: { invoiceId: { eq: invoiceId } } as any,
         });
         svcRows = (resSvc?.data ?? []) as any[];
@@ -360,12 +360,12 @@ async function loadNormalizedRoadmap(client: any, jobOrderId: string): Promise<R
     try {
       const byIdx = await (client.models.JobOrderRoadmapStep as any).listRoadmapByJobOrder?.({
         jobOrderId: String(jobOrderId),
-        limit: 2000,
+        limit: 500,
       });
       rows = (byIdx?.data ?? []) as any[];
     } catch {
       const res = await client.models.JobOrderRoadmapStep.list({
-        limit: 2000,
+        limit: 500,
         filter: { jobOrderId: { eq: String(jobOrderId) } } as any,
       });
       rows = (res?.data ?? []) as any[];
@@ -423,14 +423,14 @@ async function loadCustomerDetails(client: any, customerId: string) {
     try {
       const vRes = await (client.models.Vehicle as any).vehiclesByCustomer?.({
         customerId: id,
-        limit: 2000,
+        limit: 500,
       });
       vehiclesCount = (vRes?.data ?? []).length;
     } catch {
       try {
         const vRes2 = await client.models.Vehicle.list({
           filter: { customerId: { eq: id } } as any,
-          limit: 2000,
+          limit: 500,
         });
         vehiclesCount = (vRes2?.data ?? []).length;
       } catch {}
@@ -664,7 +664,7 @@ export default function JobOrderHistory({
   useEffect(() => {
     const sub = (client.models.JobOrder as any)
       .observeQuery({
-        limit: 2000,
+        limit: 500,
         filter: {
           or: [{ status: { eq: "COMPLETED" } }, { status: { eq: "CANCELLED" } }],
         } as any,

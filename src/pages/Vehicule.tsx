@@ -1,6 +1,6 @@
 // src/pages/VehicleManagement.tsx
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import "./Vehicule.css";
 
 import { generateClient } from "aws-amplify/data";
@@ -10,6 +10,8 @@ import { getCurrentUser } from "aws-amplify/auth";
 import { resolveActorUsername } from "../utils/actorIdentity";
 import { logActivity } from "../utils/activityLogger";
 import type { ReactNode } from "react";
+import { usePermissions } from "../lib/userPermissions";
+import PermissionGate from "./PermissionGate";
 
 const client = generateClient<Schema>();
 
@@ -276,10 +278,11 @@ function VehiclesTable(props: {
   onView: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  canView: boolean;
   canUpdate: boolean;
   canDelete: boolean;
 }) {
-  const { data, searchQuery, onView, onEdit, onDelete, canUpdate, canDelete } = props;
+  const { data, searchQuery, onView, onEdit, onDelete, canView, canUpdate, canDelete } = props;
 
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
@@ -293,8 +296,8 @@ function VehiclesTable(props: {
     };
 
     if (activeDropdown) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      document.addEventListener("pointerdown", handleClickOutside, true);
+      return () => document.removeEventListener("pointerdown", handleClickOutside, true);
     }
   }, [activeDropdown]);
 
@@ -342,28 +345,32 @@ function VehiclesTable(props: {
               </td>
 
               <td>
-                <div className="action-dropdown-container">
-                  <button
-                    className={`btn-action-dropdown ${activeDropdown === v.id ? "active" : ""}`}
-                    onClick={(e) => {
-                      const isActive = activeDropdown === v.id;
-                      if (isActive) {
-                        setActiveDropdown(null);
-                        return;
-                      }
-                      const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                      const menuHeight = 160;
-                      const menuWidth = 210;
-                      const spaceBelow = window.innerHeight - rect.bottom;
-                      const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
-                      const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
-                      setDropdownPosition({ top, left });
-                      setActiveDropdown(v.id);
-                    }}
-                  >
-                    <i className="fas fa-cogs"></i> Actions <i className="fas fa-chevron-down"></i>
-                  </button>
-                </div>
+                {(canView || canUpdate || canDelete) && (
+                  <div className="action-dropdown-container">
+                    <button
+                      className={`btn-action-dropdown ${activeDropdown === v.id ? "active" : ""}`}
+                      onClick={(e) => {
+                        const isActive = activeDropdown === v.id;
+                        if (isActive) {
+                          setActiveDropdown(null);
+                          return;
+                        }
+                        const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                        const menuHeight = 160;
+                        const menuWidth = 210;
+                        const spaceBelow = window.innerHeight - rect.bottom;
+                        const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
+                        const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+                        flushSync(() => {
+                          setDropdownPosition({ top, left });
+                          setActiveDropdown(v.id);
+                        });
+                      }}
+                    >
+                      <i className="fas fa-cogs"></i> Actions <i className="fas fa-chevron-down"></i>
+                    </button>
+                  </div>
+                )}
               </td>
             </tr>
           ))}
@@ -379,17 +386,19 @@ function VehiclesTable(props: {
             onMouseDown={(e) => e.stopPropagation()}
             onClick={(e) => e.stopPropagation()}
           >
-            <button
-              className="dropdown-item view"
-              onClick={() => {
-                onView(activeDropdown);
-                setActiveDropdown(null);
-              }}
-            >
-              <i className="fas fa-eye"></i> View Details
-            </button>
+            {canView && (
+              <button
+                className="dropdown-item view"
+                onClick={() => {
+                  onView(activeDropdown);
+                  setActiveDropdown(null);
+                }}
+              >
+                <i className="fas fa-eye"></i> View Details
+              </button>
+            )}
 
-            {(canUpdate || canDelete) && <div className="dropdown-divider"></div>}
+            {(canView && (canUpdate || canDelete)) && <div className="dropdown-divider"></div>}
 
             {canUpdate && (
               <>
@@ -441,6 +450,15 @@ export default function VehicleManagement({
   onNavigate,
   onNavigateBack,
 }: VehiclePageProps) {
+  const { canOption } = usePermissions();
+
+  const canSearch = canOption("vehicles", "vehicles_search", true);
+  const canAdd = permissions.canCreate && canOption("vehicles", "vehicles_add", true);
+  const canViewDetails = permissions.canRead && canOption("vehicles", "vehicles_viewdetails", true);
+  const canEdit = permissions.canUpdate && canOption("vehicles", "vehicles_edit", true);
+  const canDelete = permissions.canDelete && canOption("vehicles", "vehicles_delete", true);
+  const canVerifyCustomer = permissions.canUpdate && canOption("vehicles", "vehicles_verifycustomer", true);
+
   if (!permissions.canRead) {
     return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
   }
@@ -515,7 +533,7 @@ export default function VehicleManagement({
   const loadVehicles = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await client.models.Vehicle.list({ limit: 2000 });
+      const res = await client.models.Vehicle.list({ limit: 500 });
       setVehicles(res.data ?? []);
     } catch (e) {
       console.error(e);
@@ -532,6 +550,10 @@ export default function VehicleManagement({
   // Optional navigation hook
   useEffect(() => {
     if (navigationData?.openDetails && navigationData?.vehicleId) {
+      if (!canViewDetails) {
+        onClearNavigation?.();
+        return;
+      }
       (async () => {
         try {
           const res = await client.models.Vehicle.list({
@@ -550,7 +572,7 @@ export default function VehicleManagement({
         }
       })();
     }
-  }, [navigationData, onClearNavigation]);
+  }, [navigationData, onClearNavigation, canViewDetails]);
 
   const performSmartSearch = useCallback(
     (query: string) => {
@@ -633,6 +655,7 @@ export default function VehicleManagement({
   );
 
   const verifyCustomer = async (customerId: string) => {
+    if (!canVerifyCustomer) return;
     if (!customerId.trim()) {
       setVerifiedCustomer(null);
       await showAlert("Missing", "Please enter a Customer ID.", "warning");
@@ -665,14 +688,14 @@ export default function VehicleManagement({
   };
 
   const openAddModal = () => {
-    if (!permissions.canCreate) return;
+    if (!canAdd) return;
     resetForm();
     setForm((p) => ({ ...p, vehicleId: generateVehicleId() }));
     setShowAddModal(true);
   };
 
   const openEditModal = async (id: string) => {
-    if (!permissions.canUpdate) return;
+    if (!canEdit) return;
     const row = vehicles.find((v) => v.id === id);
     if (!row) return;
 
@@ -699,7 +722,7 @@ export default function VehicleManagement({
   };
 
   const handleCreateVehicle = async () => {
-    if (!permissions.canCreate || saving) return;
+    if (!canAdd || saving) return;
 
     const ok = validateVehicleForm(false);
     if (!ok) return;
@@ -758,7 +781,7 @@ export default function VehicleManagement({
   };
 
   const handleUpdateVehicle = async () => {
-    if (!permissions.canUpdate || saving) return;
+    if (!canEdit || saving) return;
     if (!selectedVehicleId) return;
 
     const ok = validateVehicleForm(true);
@@ -811,14 +834,14 @@ export default function VehicleManagement({
   };
 
   const handleDeleteVehicle = async (id: string) => {
-    if (!permissions.canDelete) return;
+    if (!canDelete) return;
     const row = vehicles.find((v) => v.id === id);
     if (!row) return;
     setDeleteVehicle(row);
   };
 
   const confirmDeleteVehicle = async () => {
-    if (!permissions.canDelete || !deleteVehicle) return;
+    if (!canDelete || !deleteVehicle) return;
 
     setSaving(true);
     try {
@@ -846,6 +869,7 @@ export default function VehicleManagement({
   };
 
   const openDetails = async (id: string) => {
+    if (!canViewDetails) return;
     const row = vehicles.find((v) => v.id === id);
     if (!row) return;
 
@@ -872,7 +896,7 @@ export default function VehicleManagement({
 
         if (vehicle?.plateNumber) {
           const orders = await client.models.JobOrder.list({
-            limit: 2000,
+            limit: 500,
             filter: { plateNumber: { eq: vehicle.plateNumber }, status: { eq: "COMPLETED" } },
           });
           setCompletedOrders(orders.data ?? []);
@@ -962,11 +986,13 @@ export default function VehicleManagement({
                     <i className="fas fa-car"></i> Vehicle Information
                   </h3>
 
-                  {permissions.canUpdate && (
-                    <button className="btn-action btn-edit" onClick={() => openEditModal(selectedVehicle.id)}>
-                      <i className="fas fa-edit"></i> Edit Vehicle
-                    </button>
-                  )}
+                  <PermissionGate moduleId="vehicles" optionId="vehicles_edit" fallback={null}>
+                    {canEdit && (
+                      <button className="btn-action btn-edit" onClick={() => openEditModal(selectedVehicle.id)}>
+                        <i className="fas fa-edit"></i> Edit Vehicle
+                      </button>
+                    )}
+                  </PermissionGate>
                 </div>
 
                 <div className="pim-card-content cv-unified-grid">
@@ -1091,9 +1117,13 @@ export default function VehicleManagement({
                 error={errors.customerId}
                 required
               />
-              <button className="btn-verify" type="button" onClick={() => verifyCustomer(form.customerId)}>
-                <i className="fas fa-check-circle"></i> Verify
-              </button>
+              <PermissionGate moduleId="vehicles" optionId="vehicles_verifycustomer" fallback={null}>
+                {canVerifyCustomer && (
+                  <button className="btn-verify" type="button" onClick={() => verifyCustomer(form.customerId)}>
+                    <i className="fas fa-check-circle"></i> Verify
+                  </button>
+                )}
+              </PermissionGate>
             </div>
 
             {verifiedCustomer && (
@@ -1223,6 +1253,7 @@ export default function VehicleManagement({
               placeholder="Search by any vehicle details"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
+              disabled={!canSearch}
               autoComplete="off"
             />
           </div>
@@ -1260,11 +1291,13 @@ export default function VehicleManagement({
                 </select>
               </div>
 
-              {permissions.canCreate && (
-                <button className="btn-new-customer" onClick={openAddModal}>
-                  <i className="fas fa-plus-circle"></i> Add New Vehicle
-                </button>
-              )}
+              <PermissionGate moduleId="vehicles" optionId="vehicles_add" fallback={null}>
+                {canAdd && (
+                  <button className="btn-new-customer" onClick={openAddModal}>
+                    <i className="fas fa-plus-circle"></i> Add New Vehicle
+                  </button>
+                )}
+              </PermissionGate>
             </div>
           </div>
 
@@ -1274,8 +1307,9 @@ export default function VehicleManagement({
             onView={openDetails}
             onEdit={openEditModal}
             onDelete={handleDeleteVehicle}
-            canUpdate={permissions.canUpdate}
-            canDelete={permissions.canDelete}
+            canView={canViewDetails}
+            canUpdate={canEdit}
+            canDelete={canDelete}
           />
 
           {totalPages > 1 && (
@@ -1349,9 +1383,13 @@ export default function VehicleManagement({
               error={errors.customerId}
               required
             />
-            <button className="btn-verify" type="button" onClick={() => verifyCustomer(form.customerId)}>
-              <i className="fas fa-check-circle"></i> Verify
-            </button>
+              <PermissionGate moduleId="vehicles" optionId="vehicles_verifycustomer" fallback={null}>
+                {canVerifyCustomer && (
+                  <button className="btn-verify" type="button" onClick={() => verifyCustomer(form.customerId)}>
+                    <i className="fas fa-check-circle"></i> Verify
+                  </button>
+                )}
+              </PermissionGate>
           </div>
 
           {verifiedCustomer && (

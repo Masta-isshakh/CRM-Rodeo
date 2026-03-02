@@ -7,6 +7,7 @@ import type { Schema } from "../../amplify/data/resource";
 import { getCurrentUser } from "aws-amplify/auth";
 import type { PageProps } from "../lib/PageProps";
 import { resolveActorUsername } from "../utils/actorIdentity";
+import PermissionGate from "./PermissionGate";
 
 const client = generateClient<Schema>();
 
@@ -44,7 +45,7 @@ export default function CallTracking({ permissions }: PageProps) {
     setStatusMsg("");
     try {
       if (!Model) throw new Error("Model CallTracking not found in Schema. Check your amplify data models.");
-      const res = await Model.list({ limit: 2000 });
+      const res = await Model.list({ limit: 500 });
       const sorted = [...(res.data ?? [])].sort((a: any, b: any) =>
         String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""))
       );
@@ -177,6 +178,7 @@ export default function CallTracking({ permissions }: PageProps) {
       <h2>Call Tracking</h2>
 
       {permissions.canCreate && (
+        <PermissionGate moduleId="calltracking" optionId="calltracking_create">
         <div style={{ display: "grid", gap: 12, maxWidth: 720, padding: 12, border: "1px solid #ddd", borderRadius: 8, background: "#fff" }}>
           <TextField label="Customer name" value={customerName} onChange={(e) => setCustomerName((e.target as HTMLInputElement).value)} />
           <TextField label="Phone" value={phone} onChange={(e) => setPhone((e.target as HTMLInputElement).value)} />
@@ -195,6 +197,7 @@ export default function CallTracking({ permissions }: PageProps) {
 
           <Button variation="primary" onClick={create}>Save call</Button>
         </div>
+        </PermissionGate>
       )}
 
       {statusMsg && (
@@ -227,7 +230,9 @@ export default function CallTracking({ permissions }: PageProps) {
 
               <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", flexWrap: "wrap" }}>
                 <Button onClick={closeEdit}>Cancel</Button>
-                <Button variation="primary" onClick={saveEdit} isDisabled={!permissions.canUpdate}>Save changes</Button>
+                <PermissionGate moduleId="calltracking" optionId="calltracking_edit">
+                  <Button variation="primary" onClick={saveEdit} isDisabled={!permissions.canUpdate}>Save changes</Button>
+                </PermissionGate>
               </div>
             </div>
           </div>
@@ -238,7 +243,9 @@ export default function CallTracking({ permissions }: PageProps) {
       <div style={{ marginTop: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h3 style={{ margin: 0 }}>Recent calls</h3>
-          <Button onClick={load} isLoading={loading}>Refresh</Button>
+          <PermissionGate moduleId="calltracking" optionId="calltracking_refresh">
+            <Button onClick={load} isLoading={loading}>Refresh</Button>
+          </PermissionGate>
         </div>
 
         <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
@@ -259,8 +266,16 @@ export default function CallTracking({ permissions }: PageProps) {
               {x.notes && <div style={{ opacity: 0.8, marginTop: 6 }}>{x.notes}</div>}
 
               <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                {permissions.canUpdate && <Button onClick={() => openEdit(x)}>Edit</Button>}
-                {permissions.canDelete && <Button variation="destructive" onClick={() => remove(x.id)}>Delete</Button>}
+                {permissions.canUpdate && (
+                  <PermissionGate moduleId="calltracking" optionId="calltracking_edit">
+                    <Button onClick={() => openEdit(x)}>Edit</Button>
+                  </PermissionGate>
+                )}
+                {permissions.canDelete && (
+                  <PermissionGate moduleId="calltracking" optionId="calltracking_delete">
+                    <Button variation="destructive" onClick={() => remove(x.id)}>Delete</Button>
+                  </PermissionGate>
+                )}
               </div>
             </div>
           ))}

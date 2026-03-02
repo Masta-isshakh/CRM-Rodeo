@@ -5,25 +5,25 @@
 
 /* -------------------- Design tokens -------------------- */
 :root {
-  --rac-bg: #0b1220;
-  --rac-surface: #0f172a;
-  --rac-card: rgba(255, 255, 255, 0.06);
-  --rac-card-strong: rgba(255, 255, 255, 0.08);
-  --rac-border: rgba(255, 255, 255, 0.10);
-  --rac-border-2: rgba(255, 255, 255, 0.14);
+  --rac-bg: #f3f5f8;
+  --rac-surface: #ffffff;
+  --rac-card: #ffffff;
+  --rac-card-strong: #eef2f6;
+  --rac-border: #d6dde6;
+  --rac-border-2: #c6d0dc;
 
-  --rac-text: rgba(255, 255, 255, 0.92);
-  --rac-muted: rgba(255, 255, 255, 0.68);
-  --rac-dim: rgba(255, 255, 255, 0.48);
+  --rac-text: #0f172a;
+  --rac-muted: rgba(15, 23, 42, 0.66);
+  --rac-dim: rgba(15, 23, 42, 0.50);
 
-  --rac-primary: #3b82f6;
-  --rac-primary-2: #2563eb;
+  --rac-primary: #0f766e;
+  --rac-primary-2: #0d9488;
   --rac-success: #22c55e;
   --rac-warn: #f59e0b;
   --rac-danger: #ef4444;
 
-  --rac-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
-  --rac-shadow-soft: 0 10px 24px rgba(0, 0, 0, 0.26);
+  --rac-shadow: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --rac-shadow-soft: 0 2px 8px rgba(15, 23, 42, 0.05);
 
   --rac-radius: 18px;
   --rac-radius-sm: 12px;
@@ -32,7 +32,7 @@
   --rac-pad: 18px;
   --rac-pad-sm: 12px;
 
-  --rac-max: 1160px;
+  --rac-max: 1600px;
 
   --rac-font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji",
     "Segoe UI Emoji";
@@ -47,12 +47,8 @@
   min-height: 100vh;
   font-family: var(--rac-font);
   color: var(--rac-text);
-  background:
-    radial-gradient(1200px 600px at 20% -10%, rgba(59, 130, 246, 0.18), transparent 60%),
-    radial-gradient(900px 500px at 90% 10%, rgba(34, 197, 94, 0.10), transparent 55%),
-    radial-gradient(800px 520px at 40% 110%, rgba(245, 158, 11, 0.10), transparent 55%),
-    linear-gradient(180deg, #070b14, #0b1220 40%, #070b14);
-  padding: 28px 16px 46px;
+  background: var(--rac-bg);
+  padding: 14px 16px 24px;
 }
 
 .rac-container {
@@ -73,12 +69,11 @@
 
 /* -------------------- Header -------------------- */
 .rac-header {
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03));
+  background: #ffffff;
   border: 1px solid var(--rac-border);
-  border-radius: var(--rac-radius);
-  padding: 22px 22px;
-  box-shadow: var(--rac-shadow-soft);
-  backdrop-filter: blur(10px);
+  border-radius: 10px;
+  padding: 14px 16px;
+  box-shadow: none;
 }
 
 .rac-header h1 {
@@ -104,12 +99,11 @@
   grid-template-columns: 1fr;
   gap: 12px;
   align-items: start;
-  padding: 18px;
+  padding: 14px;
   border: 1px solid var(--rac-border);
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: var(--rac-radius);
-  box-shadow: var(--rac-shadow-soft);
-  backdrop-filter: blur(10px);
+  background: var(--rac-surface);
+  border-radius: 10px;
+  box-shadow: none;
 }
 
 .rac-role-selector label {
@@ -125,11 +119,10 @@
   padding: 12px 42px 12px 12px;
   border-radius: 12px;
   border: 1px solid var(--rac-border-2);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.04));
+  background: #fff;
   color: var(--rac-text);
   font-size: 14px;
-  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.20);
+  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
 }
 
 .rac-current-role {
@@ -140,8 +133,8 @@
   font-size: 13px;
   padding: 12px 12px;
   border-radius: 12px;
-  border: 1px dashed rgba(255, 255, 255, 0.16);
-  background: rgba(0, 0, 0, 0.18);
+  border: 1px dashed rgba(37, 99, 235, 0.22);
+  background: rgba(37, 99, 235, 0.06);
 }
 
 .rac-current-role i {
@@ -178,10 +171,9 @@
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  border-radius: 14px;
+  border-radius: 10px;
   border: 1px solid var(--rac-border);
-  background: rgba(255, 255, 255, 0.04);
-  backdrop-filter: blur(10px);
+  background: #fff;
 }
 
 .rac-search-box i {
@@ -199,7 +191,7 @@
 }
 
 .rac-search-box input::placeholder {
-  color: rgba(255, 255, 255, 0.45);
+  color: rgba(15, 23, 42, 0.40);
 }
 
 /* -------------------- Tabs -------------------- */
@@ -213,28 +205,27 @@
 
 .rac-tab {
   border: 1px solid var(--rac-border);
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--rac-muted);
+  background: #d5dce6;
+  color: #1f2937;
   padding: 10px 12px;
   border-radius: 999px;
   font-size: 13px;
   cursor: pointer;
-  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
   user-select: none;
 }
 
 .rac-tab:hover {
   transform: translateY(-1px);
-  border-color: rgba(255, 255, 255, 0.18);
-  background: rgba(255, 255, 255, 0.06);
-  color: rgba(255, 255, 255, 0.84);
+  border-color: #b8c4d3;
+  background: #cfd7e3;
+  color: #111827;
 }
 
 .rac-tab.active {
-  background: linear-gradient(135deg, rgba(59, 130, 246, 0.25), rgba(37, 99, 235, 0.10));
-  border-color: rgba(59, 130, 246, 0.45);
-  color: rgba(255, 255, 255, 0.95);
-  box-shadow: 0 12px 24px rgba(59, 130, 246, 0.18);
+  background: linear-gradient(135deg, #0f766e, #0d9488);
+  border-color: #0f766e;
+  color: #ffffff;
+  box-shadow: none;
 }
 
 /* -------------------- Modules grid -------------------- */
@@ -245,33 +236,13 @@
   gap: 14px;
 }
 
-@media (min-width: 980px) {
-  .rac-modules {
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-  }
-}
-
-@media (min-width: 1220px) {
-  .rac-modules {
-    grid-template-columns: 1fr 1fr;
-  }
-}
-
 /* -------------------- Module card -------------------- */
 .rac-module-card {
   border: 1px solid var(--rac-border);
-  background: rgba(255, 255, 255, 0.04);
-  border-radius: var(--rac-radius);
-  box-shadow: var(--rac-shadow-soft);
+  background: #f1f4f8;
+  border-radius: 10px;
+  box-shadow: none;
   overflow: hidden;
-  animation: racFadeUp 0.35s ease both;
-  backdrop-filter: blur(10px);
-}
-
-@keyframes racFadeUp {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: translateY(0); }
 }
 
 .rac-module-disabled {
@@ -282,18 +253,15 @@
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  padding: 16px 16px;
+  padding: 14px 16px;
   cursor: pointer;
   user-select: none;
-  transition: background 0.15s ease, border-color 0.15s ease;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0.02));
+  border-bottom: 1px solid var(--rac-border);
+  background: #d5dce6;
 }
 
 .rac-module-header:hover {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.03));
+  background: #cfd7e3;
 }
 
 .rac-module-title {
@@ -306,7 +274,7 @@
 .rac-module-title i {
   width: 22px;
   text-align: center;
-  color: rgba(255, 255, 255, 0.86);
+  color: #334155;
   opacity: 0.95;
 }
 
@@ -322,9 +290,9 @@
   width: 10px;
   height: 10px;
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 8px 14px rgba(0, 0, 0, 0.25);
+  background: #94a3b8;
+  border: none;
+  box-shadow: none;
 }
 
 .rac-status-indicator.enabled {
@@ -357,9 +325,8 @@
 }
 
 .rac-expand-icon {
-  color: rgba(255, 255, 255, 0.65);
+  color: #475569;
   font-size: 12px;
-  transition: transform 0.18s ease;
 }
 
 .rac-module-header.expanded .rac-expand-icon {
@@ -370,7 +337,6 @@
 .rac-module-content {
   max-height: 0;
   overflow: hidden;
-  transition: max-height 0.25s ease;
 }
 
 .rac-module-content.expanded {
@@ -379,8 +345,8 @@
 
 /* -------------------- Options -------------------- */
 .rac-option {
-  padding: 10px 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  padding: 8px 10px;
+  border-top: none;
 }
 
 .rac-option-row {
@@ -395,7 +361,7 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  color: rgba(255, 255, 255, 0.88);
+  color: #111827;
   font-size: 13px;
   line-height: 1.35;
 }
@@ -422,9 +388,9 @@
   border-radius: 999px;
   font-size: 12px;
   font-weight: 800;
-  color: rgba(255, 255, 255, 0.85);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.22);
+  color: #0f766e;
+  border: 1px solid #bcd5d1;
+  background: #edf8f7;
 }
 
 .rac-disabled {
@@ -434,7 +400,7 @@
 .rac-children {
   margin-top: 10px;
   padding-left: 10px;
-  border-left: 2px solid rgba(255, 255, 255, 0.08);
+  border-left: 1px dashed #cbd5e1;
 }
 
 /* nesting levels */
@@ -460,12 +426,11 @@
   width: 52px;
   height: 28px;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.16);
-  background: rgba(0, 0, 0, 0.25);
+  border: 1px solid #b9c4d3;
+  background: #cfd8e3;
   position: relative;
   cursor: pointer;
-  transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
-  box-shadow: 0 10px 18px rgba(0, 0, 0, 0.25);
+  box-shadow: none;
 }
 
 .rac-slider::after {
@@ -476,14 +441,13 @@
   width: 20px;
   height: 20px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.86);
-  box-shadow: 0 8px 14px rgba(0, 0, 0, 0.25);
-  transition: transform 0.15s ease, background 0.15s ease;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.15);
 }
 
 .rac-toggle input:checked + .rac-slider {
-  background: linear-gradient(135deg, rgba(34, 197, 94, 0.75), rgba(16, 185, 129, 0.55));
-  border-color: rgba(34, 197, 94, 0.35);
+  background: linear-gradient(135deg, #0f766e, #0d9488);
+  border-color: #0f766e;
 }
 
 .rac-toggle input:checked + .rac-slider::after {
@@ -503,18 +467,18 @@
   gap: 8px;
   padding: 8px 10px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid #c8d2de;
+  background: #eef2f6;
 }
 
 .rac-percent-field input {
   width: 84px;
   max-width: 120px;
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid #b9c4d3;
   border-radius: 10px;
   padding: 8px 10px;
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--rac-text);
+  background: #ffffff;
+  color: #0f172a;
   font-size: 13px;
 }
 
@@ -566,7 +530,6 @@
   font-weight: 800;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
   user-select: none;
 }
 
@@ -581,15 +544,15 @@
 }
 
 .rac-btn-ghost {
-  color: rgba(255, 255, 255, 0.86);
-  border-color: rgba(255, 255, 255, 0.14);
-  background: rgba(255, 255, 255, 0.04);
+  color: #0f172a;
+  border-color: #c6d0dc;
+  background: #ffffff;
 }
 
 .rac-btn-ghost:hover {
   transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.07);
-  border-color: rgba(255, 255, 255, 0.20);
+  background: #f5f8fc;
+  border-color: #aebdd0;
 }
 
 .rac-btn-primary {
@@ -622,7 +585,7 @@
 }
 
 .rac-module-card:hover {
-  border-color: rgba(255, 255, 255, 0.14);
+  border-color: #c3cedc;
 }
 
 /* Scrollbar (optional, nice for Windows) */
@@ -631,10 +594,10 @@
   height: 10px;
 }
 .rac-page ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.16);
+  background: rgba(100, 116, 139, 0.35);
   border-radius: 999px;
-  border: 2px solid rgba(0, 0, 0, 0.35);
+  border: 2px solid #eef2f6;
 }
 .rac-page ::-webkit-scrollbar-track {
-  background: rgba(0, 0, 0, 0.25);
+  background: #eef2f6;
 }

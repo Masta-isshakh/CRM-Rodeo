@@ -128,7 +128,7 @@ const ServiceApprovalHistory: React.FC = () => {
     setLoading(true);
 
     const sub = (client.models.ServiceApprovalRequest as any)
-      .observeQuery({ limit: 2000 })
+      .observeQuery({ limit: 500 })
       .subscribe(async ({ items }: any) => {
         const reqs = items ?? [];
 

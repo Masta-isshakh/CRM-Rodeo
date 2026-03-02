@@ -92,7 +92,6 @@
   border-radius: var(--r2);
   border: 1px solid var(--border);
   background: var(--surface);
-  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -104,7 +103,6 @@
 }
 
 .service-execution-wrapper .task-tab:hover {
-  transform: translateY(-1px);
   box-shadow: var(--shadow2);
   border-color: var(--border2);
 }
@@ -284,12 +282,10 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
   box-shadow: 0 8px 18px rgba(37, 99, 235, 0.18);
 }
 
 .service-execution-wrapper .btn-action-dropdown:hover {
-  transform: translateY(-1px);
   filter: brightness(1.03);
   box-shadow: 0 10px 22px rgba(37, 99, 235, 0.22);
 }
@@ -311,15 +307,6 @@
   overflow: hidden;
 }
 
-.service-execution-wrapper .action-dropdown-menu.show {
-  animation: semFadeUp .12s ease-out;
-}
-
-@keyframes semFadeUp {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
 .service-execution-wrapper .dropdown-item {
   width: 100%;
   text-align: left;
@@ -333,7 +320,6 @@
   gap: 10px;
   font-weight: 900;
   font-size: 13px;
-  transition: background .12s ease;
 }
 
 .service-execution-wrapper .dropdown-item:hover {
@@ -375,11 +361,9 @@
   font-weight: 950;
   font-size: 12px;
   min-width: 40px;
-  transition: transform .12s ease, box-shadow .12s ease, border-color .12s ease, background .12s ease;
 }
 
 .service-execution-wrapper .pim-pagination-btn:hover:not(:disabled) {
-  transform: translateY(-1px);
   box-shadow: var(--shadow2);
   border-color: var(--border2);
   background: #fbfcff;
@@ -388,7 +372,6 @@
 .service-execution-wrapper .pim-pagination-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
-  transform: none;
 }
 
 .service-execution-wrapper .pim-pagination-btn.active {
@@ -461,60 +444,35 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
   box-shadow: 0 10px 22px rgba(220, 38, 38, 0.16);
 }
 
 .service-execution-wrapper .service-btn-close-details:hover {
-  transform: translateY(-1px);
   filter: brightness(1.03);
 }
 
 /* Details grid */
 .service-execution-wrapper .service-details-body {
-  padding: 6px 0 0;
+  padding: 18px;
+  max-width: 1280px;
+  margin: 0 auto;
 }
 
 .service-execution-wrapper .service-details-grid {
   display: grid;
-  grid-template-columns: 1fr;
+  grid-template-columns: repeat(12, 1fr);
   gap: 14px;
-}
-
-/* Ensure roadmap spans full card width in Service Execution details */
-.service-execution-wrapper .service-details-grid .pim-roadmap-container,
-.service-execution-wrapper .service-details-grid .jo-roadmap-compact {
-  width: 100% !important;
-  max-width: none !important;
-  box-sizing: border-box;
-  margin-left: 0 !important;
-  margin-right: 0 !important;
-}
-
-.service-execution-wrapper .service-details-grid .jo-roadmap-list,
-.service-execution-wrapper .service-details-grid .jo-roadmap-row,
-.service-execution-wrapper .service-details-grid .jo-roadmap-row-meta {
-  width: 100% !important;
-}
-
-/* Force one-column roadmap layout in Service Execution details */
-.service-execution-wrapper .service-details-grid .jo-roadmap-row {
-  grid-template-columns: 1fr !important;
-}
-
-.service-execution-wrapper .service-details-grid .jo-roadmap-row-meta {
-  grid-template-columns: 1fr !important;
 }
 
 /* Responsive grid */
 @media (max-width: 1200px) {
   .service-execution-wrapper .service-details-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(12, 1fr);
   }
 }
 @media (max-width: 900px) {
   .service-execution-wrapper .service-details-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(12, 1fr);
   }
   .service-execution-wrapper .task-tabs {
     grid-template-columns: 1fr;
@@ -589,6 +547,50 @@
   font-size: 12px;
   font-weight: 950;
   text-align: right;
+}
+
+/* JobOrderSummary parity with JobOrderHistory */
+.service-execution-wrapper .jh-summary-card .epm-card-content {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0;
+  border: 1px solid #edf2f7;
+  border-radius: 6px;
+  overflow: hidden;
+  padding: 0;
+}
+
+.service-execution-wrapper .jh-summary-card .epm-info-item {
+  border-right: 1px solid #edf2f7;
+  border-bottom: 1px solid #edf2f7;
+  padding: 11px 12px;
+  min-height: 58px;
+  display: block;
+  background: #fff;
+  border-radius: 0;
+}
+
+.service-execution-wrapper .jh-summary-card .epm-info-item:nth-child(4n) {
+  border-right: none;
+}
+
+.service-execution-wrapper .jh-summary-card .epm-info-label {
+  display: block;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #64748b;
+  margin-bottom: 4px;
+  font-weight: 700;
+}
+
+.service-execution-wrapper .jh-summary-card .epm-info-value {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  text-align: left;
+  overflow-wrap: anywhere;
 }
 
 .service-execution-wrapper .sem-highlight-card {
@@ -827,7 +829,6 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
 }
 
 .service-execution-wrapper .btn-cancel {
@@ -844,14 +845,12 @@
 
 .service-execution-wrapper .btn-cancel:hover,
 .service-execution-wrapper .btn-confirm-cancel:hover {
-  transform: translateY(-1px);
   filter: brightness(1.03);
 }
 
 .service-execution-wrapper .btn-confirm-cancel:disabled {
   opacity: 0.65;
   cursor: not-allowed;
-  transform: none;
 }
 
 /* -----------------------------
@@ -966,7 +965,6 @@
   cursor: pointer;
   font-weight: 950;
   font-size: 13px;
-  transition: transform .12s ease, filter .12s ease, box-shadow .12s ease;
 }
 
 .sem-btn-ghost {
@@ -976,7 +974,6 @@
 }
 
 .sem-btn-ghost:hover {
-  transform: translateY(-1px);
   filter: brightness(1.03);
 }
 
@@ -1105,7 +1102,6 @@
   font-size: 13px;
   cursor: pointer;
   user-select: none;
-  transition: transform 0.08s ease, background 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
   box-shadow: 0 8px 18px rgba(2, 6, 23, 0.08);
 }
 
@@ -1183,13 +1179,11 @@
   border-radius: 16px;
   padding: 14px 14px 12px;
   box-shadow: var(--shadow-sm);
-  transition: border-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
 }
 
 .service-item:hover {
   border-color: var(--border-2);
   box-shadow: 0 10px 26px rgba(15, 23, 42, 0.09);
-  transform: translateY(-1px);
 }
 
 /* Top row: name + status badge */
@@ -1350,7 +1344,6 @@
   font-weight: 800;
   color: var(--text);
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .assigned-select:focus,
@@ -1379,7 +1372,6 @@
   font-weight: 800;
   color: var(--text);
   cursor: pointer;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .tech-dropdown-btn span {
@@ -1415,7 +1407,6 @@
   gap: 10px;
   padding: 8px 10px;
   border-radius: 12px;
-  transition: background 0.12s ease;
 }
 
 .tech-option:hover {
@@ -1517,15 +1508,10 @@
   background: #ffffff;
   color: var(--muted);
   cursor: pointer;
-  transition: background 0.12s ease, transform 0.08s ease;
 }
 
 .sem-modal-close:hover {
   background: #f8fafc;
-}
-
-.sem-modal-close:active {
-  transform: translateY(1px);
 }
 
 .sem-modal-body {
@@ -1556,7 +1542,6 @@
   font-weight: 800;
   color: var(--text);
   outline: none;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
 .sem-field input:focus {
@@ -1593,11 +1578,6 @@
   font-weight: 900;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: transform 0.08s ease, background 0.18s ease, opacity 0.18s ease, box-shadow 0.18s ease;
-}
-
-.sem-btn:active {
-  transform: translateY(1px);
 }
 
 .sem-btn-ghost {

@@ -41,7 +41,14 @@ const MODULE_DEFINITIONS = [
     title: "Dashboard",
     icon: "fas fa-gauge-high",
     category: "core",
-    options: [{ id: "dashboard_list", label: "Show Dashboard in sidebar", prefix: "-" }],
+    options: [
+      { id: "dashboard_list", label: "Show Dashboard in sidebar", prefix: "-" },
+      { id: "dashboard_kpis", label: "KPI Cards", prefix: "a." },
+      { id: "dashboard_quicknav", label: "Quick Navigation", prefix: "b." },
+      { id: "dashboard_revenue", label: "Revenue Summary", prefix: "c." },
+      { id: "dashboard_activity", label: "Activity Feed", prefix: "d." },
+      { id: "dashboard_calendar", label: "Calendar Widget", prefix: "e." },
+    ],
   },
 {
   id: "customers",
@@ -72,35 +79,64 @@ const MODULE_DEFINITIONS = [
     title: "Vehicles",
     icon: "fas fa-car",
     category: "core",
-    options: [{ id: "vehicles_list", label: "Show Vehicles in sidebar", prefix: "-" }],
+    options: [
+      { id: "vehicles_list", label: "Show Vehicles in sidebar", prefix: "-" },
+      { id: "vehicles_search", label: "Search & Filter", prefix: "a." },
+      { id: "vehicles_add", label: "Add Vehicle", prefix: "b." },
+      { id: "vehicles_viewdetails", label: "View Vehicle Details", prefix: "c." },
+      { id: "vehicles_edit", label: "Edit Vehicle", prefix: "d." },
+      { id: "vehicles_delete", label: "Delete Vehicle", prefix: "e." },
+      { id: "vehicles_verifycustomer", label: "Verify Customer", prefix: "f." },
+    ],
   },
   {
     id: "tickets",
     title: "Tickets",
     icon: "fas fa-ticket",
     category: "core",
-    options: [{ id: "tickets_list", label: "Show Tickets in sidebar", prefix: "-" }],
+    options: [
+      { id: "tickets_list", label: "Show Tickets in sidebar", prefix: "-" },
+      { id: "tickets_create", label: "Create Ticket", prefix: "a." },
+      { id: "tickets_refresh", label: "Refresh", prefix: "b." },
+      { id: "tickets_edit", label: "Edit Ticket", prefix: "c." },
+      { id: "tickets_delete", label: "Delete Ticket", prefix: "d." },
+    ],
   },
   {
     id: "employees",
     title: "Employees",
     icon: "fas fa-id-badge",
     category: "core",
-    options: [{ id: "employees_list", label: "Show Employees in sidebar", prefix: "-" }],
+    options: [
+      { id: "employees_list", label: "Show Employees in sidebar", prefix: "-" },
+      { id: "employees_add", label: "Add Employee", prefix: "a." },
+      { id: "employees_edit", label: "Edit Employee", prefix: "b." },
+      { id: "employees_delete", label: "Delete Employee", prefix: "c." },
+      { id: "employees_refresh", label: "Refresh", prefix: "d." },
+    ],
   },
   {
     id: "activitylog",
     title: "Activity Log",
     icon: "fas fa-clipboard",
     category: "core",
-    options: [{ id: "activitylog_list", label: "Show Activity Log in sidebar", prefix: "-" }],
+    options: [
+      { id: "activitylog_list", label: "Show Activity Log in sidebar", prefix: "-" },
+      { id: "activitylog_view", label: "View Activity Logs", prefix: "a." },
+    ],
   },
   {
     id: "calltracking",
     title: "Call Tracking",
     icon: "fas fa-phone",
     category: "core",
-    options: [{ id: "calltracking_list", label: "Show Call Tracking in sidebar", prefix: "-" }],
+    options: [
+      { id: "calltracking_list", label: "Show Call Tracking in sidebar", prefix: "-" },
+      { id: "calltracking_create", label: "Create Call Record", prefix: "a." },
+      { id: "calltracking_refresh", label: "Refresh", prefix: "b." },
+      { id: "calltracking_edit", label: "Edit Call Record", prefix: "c." },
+      { id: "calltracking_delete", label: "Delete Call Record", prefix: "d." },
+    ],
   },
 
   // ✅ Job Order page (your JOB_CARDS family)
@@ -119,6 +155,13 @@ const MODULE_DEFINITIONS = [
       { id: "joborder_customer", label: "Customer Information", prefix: "-" },
       { id: "joborder_vehicle", label: "Vehicle Information", prefix: "-" },
       { id: "joborder_services", label: "Services Summary", prefix: "-" },
+      { id: "joborder_billing", label: "Billing Section", prefix: "-" },
+      { id: "joborder_quality", label: "Quality Section", prefix: "-" },
+      { id: "joborder_delivery", label: "Delivery Section", prefix: "-" },
+      { id: "joborder_paymentlog", label: "Payment Log", prefix: "-" },
+      { id: "joborder_roadmap", label: "Roadmap", prefix: "-" },
+      { id: "joborder_documents", label: "Documents", prefix: "-" },
+      { id: "joborder_download", label: "Download Document", prefix: "-" },
       { id: "joborder_addservice", label: "Add Service Button", prefix: "-" },
       { id: "joborder_serviceprice", label: "View Service Price", prefix: "-" },
       { id: "joborder_servicediscount", label: "Service Discount", prefix: "-" },
@@ -147,7 +190,22 @@ const MODULE_DEFINITIONS = [
     title: "Job History",
     icon: "fas fa-clock-rotate-left",
     category: "core",
-    options: [{ id: "jobhistory_list", label: "Show Job History page in sidebar", prefix: "-" }],
+    options: [
+      { id: "jobhistory_list", label: "Show Job History page in sidebar", prefix: "-" },
+      { id: "jobhistory_view", label: "View History", prefix: "a." },
+      { id: "jobhistory_export", label: "Export History", prefix: "b." },
+      { id: "jobhistory_summary", label: "Job Order Summary", prefix: "-" },
+      { id: "jobhistory_customer", label: "Customer Information", prefix: "-" },
+      { id: "jobhistory_vehicle", label: "Vehicle Information", prefix: "-" },
+      { id: "jobhistory_roadmap", label: "Roadmap", prefix: "-" },
+      { id: "jobhistory_services", label: "Services", prefix: "-" },
+      { id: "jobhistory_notes", label: "Customer Notes", prefix: "-" },
+      { id: "jobhistory_billing", label: "Billing", prefix: "-" },
+      { id: "jobhistory_paymentlog", label: "Payment Log", prefix: "-" },
+      { id: "jobhistory_exitpermit", label: "Exit Permit", prefix: "-" },
+      { id: "jobhistory_documents", label: "Documents", prefix: "-" },
+      { id: "jobhistory_download", label: "Download Document", prefix: "-" },
+    ],
   },
 
   {
@@ -155,7 +213,24 @@ const MODULE_DEFINITIONS = [
     title: "Service Execution",
     icon: "fas fa-screwdriver-wrench",
     category: "core",
-    options: [{ id: "serviceexec_list", label: "Show Service Execution page in sidebar", prefix: "-" }],
+    options: [
+      { id: "serviceexec_list", label: "Show Service Execution page in sidebar", prefix: "-" },
+      { id: "serviceexec_actions", label: "Actions", prefix: "a." },
+      { id: "serviceexec_summary", label: "Job Order Summary", prefix: "-" },
+      { id: "serviceexec_roadmap", label: "Roadmap", prefix: "-" },
+      { id: "serviceexec_customer", label: "Customer Information", prefix: "-" },
+      { id: "serviceexec_vehicle", label: "Vehicle Information", prefix: "-" },
+      { id: "serviceexec_services", label: "Services", prefix: "-" },
+      { id: "serviceexec_notes", label: "Customer Notes", prefix: "-" },
+      { id: "serviceexec_quality", label: "Quality", prefix: "-" },
+      { id: "serviceexec_billing", label: "Billing", prefix: "-" },
+      { id: "serviceexec_paymentlog", label: "Payment Log", prefix: "-" },
+      { id: "serviceexec_exitpermit", label: "Exit Permit", prefix: "-" },
+      { id: "serviceexec_documents", label: "Documents", prefix: "-" },
+      { id: "serviceexec_edit", label: "Edit Service", prefix: "b." },
+      { id: "serviceexec_addservice", label: "Add Service", prefix: "c." },
+      { id: "serviceexec_finish", label: "Finish Service", prefix: "d." },
+    ],
   },
 
   {
@@ -163,7 +238,20 @@ const MODULE_DEFINITIONS = [
     title: "Inspection",
     icon: "fas fa-magnifying-glass",
     category: "core",
-    options: [{ id: "inspection_list", label: "Show Inspection page in sidebar", prefix: "-" }],
+    options: [
+      { id: "inspection_list", label: "Show Inspection page in sidebar", prefix: "-" },
+      { id: "inspection_actions", label: "Actions", prefix: "a." },
+      { id: "inspection_viewdetails", label: "View Details", prefix: "b." },
+      { id: "inspection_summary", label: "Summary", prefix: "-" },
+      { id: "inspection_services", label: "Services", prefix: "-" },
+      { id: "inspection_start", label: "Start", prefix: "c." },
+      { id: "inspection_resume", label: "Resume", prefix: "d." },
+      { id: "inspection_complete", label: "Complete", prefix: "e." },
+      { id: "inspection_notrequired", label: "Not Required", prefix: "f." },
+      { id: "inspection_finish", label: "Finish", prefix: "g." },
+      { id: "inspection_addservice", label: "Add Service", prefix: "h." },
+      { id: "inspection_cancel", label: "Cancel", prefix: "i." },
+    ],
   },
 
   {
@@ -211,10 +299,19 @@ const MODULE_DEFINITIONS = [
       { id: "qualitycheck_list", label: "Show Quality Check page in sidebar", prefix: "-" },
       { id: "qualitycheck_actions", label: "Actions", prefix: "a." },
       { id: "qualitycheck_viewdetails", label: "View Details", prefix: "-" },
+      { id: "qualitycheck_summary", label: "Summary", prefix: "-" },
+      { id: "qualitycheck_roadmap", label: "Roadmap", prefix: "-" },
+      { id: "qualitycheck_customer", label: "Customer Information", prefix: "-" },
+      { id: "qualitycheck_vehicle", label: "Vehicle Information", prefix: "-" },
+      { id: "qualitycheck_services", label: "Services", prefix: "-" },
       { id: "qualitycheck_quality", label: "Quality Checklist", prefix: "-" },
+      { id: "qualitycheck_paymentlog", label: "Payment Log", prefix: "-" },
+      { id: "qualitycheck_documents", label: "Documents", prefix: "-" },
+      { id: "qualitycheck_download", label: "Download", prefix: "-" },
       { id: "qualitycheck_finish", label: "Finish QC", prefix: "-" },
       { id: "qualitycheck_approve", label: "Approve", prefix: "-" },
       { id: "qualitycheck_reject", label: "Reject", prefix: "-" },
+      { id: "qualitycheck_cancel", label: "Cancel Order", prefix: "-" },
     ],
   },
 
@@ -227,9 +324,72 @@ const MODULE_DEFINITIONS = [
       { id: "exitpermit_list", label: "Show Exit Permit page in sidebar", prefix: "-" },
       { id: "exitpermit_actions", label: "Actions", prefix: "a." },
       { id: "exitpermit_viewdetails", label: "View Details", prefix: "-" },
+      { id: "exitpermit_summary", label: "Summary", prefix: "-" },
+      { id: "exitpermit_customer", label: "Customer Information", prefix: "-" },
+      { id: "exitpermit_vehicle", label: "Vehicle Information", prefix: "-" },
+      { id: "exitpermit_services", label: "Services", prefix: "-" },
+      { id: "exitpermit_billing", label: "Billing", prefix: "-" },
+      { id: "exitpermit_quality", label: "Quality", prefix: "-" },
+      { id: "exitpermit_paymentlog", label: "Payment Log", prefix: "-" },
+      { id: "exitpermit_exitpermit", label: "Exit Permit Details", prefix: "-" },
+      { id: "exitpermit_notes", label: "Customer Notes", prefix: "-" },
+      { id: "exitpermit_roadmap", label: "Roadmap", prefix: "-" },
+      { id: "exitpermit_documents", label: "Documents", prefix: "-" },
+      { id: "exitpermit_download", label: "Download", prefix: "-" },
       { id: "exitpermit_create", label: "Create Exit Permit", prefix: "-" },
       { id: "exitpermit_cancelorder", label: "Cancel Order", prefix: "-" },
     ],
+  },
+
+  {
+    id: "approvalhistory",
+    title: "Approval History",
+    icon: "fas fa-list-check",
+    category: "core",
+    options: [{ id: "approvalhistory_view", label: "View Approval History", prefix: "-" }],
+  },
+
+  {
+    id: "admin",
+    title: "Inspection Config Admin",
+    icon: "fas fa-sliders",
+    category: "core",
+    options: [{ id: "inspection_config_admin", label: "Inspection Config Admin Access", prefix: "-" }],
+  },
+
+  {
+    id: "users",
+    title: "Users Admin",
+    icon: "fas fa-user-gear",
+    category: "core",
+    options: [
+      { id: "users_list", label: "Show Users page in sidebar", prefix: "-" },
+      { id: "users_invite", label: "Invite User", prefix: "a." },
+      { id: "users_edit", label: "Edit User / Department", prefix: "b." },
+      { id: "users_delete", label: "Delete User", prefix: "c." },
+    ],
+  },
+
+  {
+    id: "departments",
+    title: "Departments Admin",
+    icon: "fas fa-building",
+    category: "core",
+    options: [
+      { id: "departments_list", label: "Show Departments page in sidebar", prefix: "-" },
+      { id: "departments_create", label: "Create Department", prefix: "a." },
+      { id: "departments_rename", label: "Rename Department", prefix: "b." },
+      { id: "departments_assignrole", label: "Assign/Remove Role", prefix: "c." },
+      { id: "departments_delete", label: "Delete Department", prefix: "d." },
+    ],
+  },
+
+  {
+    id: "rolespolicies",
+    title: "Roles & Policies Admin",
+    icon: "fas fa-user-shield",
+    category: "core",
+    options: [{ id: "rolespolicies_list", label: "Show Roles & Policies page in sidebar", prefix: "-" }],
   },
 ] as const;
 
@@ -413,7 +573,7 @@ export default function RoleAccessControl() {
             try {
               const q = await (client.models as any).RoleOptionToggle.roleOptionTogglesByRole?.({
                 roleId: String(currentRoleId),
-                limit: 2000,
+                limit: 500,
               });
               return (q?.data ?? []) as any[];
             } catch {
@@ -432,7 +592,7 @@ export default function RoleAccessControl() {
             try {
               const q = await (client.models as any).RoleOptionNumber.roleOptionNumbersByRole?.({
                 roleId: String(currentRoleId),
-                limit: 2000,
+                limit: 500,
               });
               return (q?.data ?? []) as any[];
             } catch {
@@ -785,6 +945,15 @@ export default function RoleAccessControl() {
 
   return (
     <div className="rac-page">
+      <style>{`
+        .rac-page, .rac-page * {
+          color: #000 !important;
+        }
+        .rac-page .rac-create-role-btn,
+        .rac-page .rac-create-role-btn * {
+          color: #fff !important;
+        }
+      `}</style>
       <div className="rac-container">
         <header className="rac-header">
           <div>
@@ -819,7 +988,7 @@ export default function RoleAccessControl() {
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <button
                 type="button"
-                className="rac-btn rac-btn-primary"
+                className="rac-btn rac-btn-primary rac-create-role-btn"
                 onClick={() => setShowCreateRole(true)}
                 disabled={loading}
               >
@@ -857,7 +1026,7 @@ export default function RoleAccessControl() {
         </div>
 
         <section className="rac-modules">
-          {visibleModules.map((module: any, index: number) => {
+          {visibleModules.map((module: any) => {
             const moduleState = permissions[module.id] || { enabled: false, options: {} };
             const isExpanded = !!expandedModules[module.id];
 
@@ -865,7 +1034,6 @@ export default function RoleAccessControl() {
               <div
                 key={module.id}
                 className={`rac-module-card ${moduleState.enabled ? "" : "rac-module-disabled"}`}
-                style={{ animationDelay: `${index * 0.04}s` }}
               >
                 <div
                   className={`rac-module-header ${isExpanded ? "expanded" : ""}`}
@@ -938,7 +1106,7 @@ export default function RoleAccessControl() {
           style={{
             position: "fixed",
             inset: 0,
-            background: "rgba(0,0,0,0.55)",
+            background: "rgba(15,23,42,0.35)",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
@@ -951,11 +1119,11 @@ export default function RoleAccessControl() {
             style={{
               width: "min(520px, 100%)",
               borderRadius: 16,
-              border: "1px solid rgba(255,255,255,0.15)",
-              background: "rgba(15, 23, 42, 0.95)",
-              boxShadow: "0 18px 50px rgba(0,0,0,0.45)",
+              border: "1px solid rgba(15,23,42,0.12)",
+              background: "#ffffff",
+              boxShadow: "0 18px 50px rgba(15,23,42,0.20)",
               padding: 16,
-              color: "white",
+              color: "#0f172a",
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
@@ -966,7 +1134,7 @@ export default function RoleAccessControl() {
                 style={{
                   background: "transparent",
                   border: "none",
-                  color: "rgba(255,255,255,0.8)",
+                  color: "rgba(15,23,42,0.65)",
                   fontSize: 18,
                   cursor: "pointer",
                 }}
@@ -977,7 +1145,7 @@ export default function RoleAccessControl() {
 
             <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
               <div>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginBottom: 6 }}>Role Name *</div>
+                <div style={{ fontSize: 12, color: "rgba(15,23,42,0.65)", marginBottom: 6 }}>Role Name *</div>
                 <input
                   value={newRoleName}
                   onChange={(e) => setNewRoleName(e.target.value)}
@@ -986,15 +1154,15 @@ export default function RoleAccessControl() {
                     width: "100%",
                     padding: "12px",
                     borderRadius: 12,
-                    border: "1px solid rgba(255,255,255,0.15)",
-                    background: "rgba(255,255,255,0.06)",
-                    color: "white",
+                    border: "1px solid rgba(15,23,42,0.14)",
+                    background: "#fff",
+                    color: "#0f172a",
                   }}
                 />
               </div>
 
               <div>
-                <div style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", marginBottom: 6 }}>Description</div>
+                <div style={{ fontSize: 12, color: "rgba(15,23,42,0.65)", marginBottom: 6 }}>Description</div>
                 <input
                   value={newRoleDesc}
                   onChange={(e) => setNewRoleDesc(e.target.value)}
@@ -1003,9 +1171,9 @@ export default function RoleAccessControl() {
                     width: "100%",
                     padding: "12px",
                     borderRadius: 12,
-                    border: "1px solid rgba(255,255,255,0.15)",
-                    background: "rgba(255,255,255,0.06)",
-                    color: "white",
+                    border: "1px solid rgba(15,23,42,0.14)",
+                    background: "#fff",
+                    color: "#0f172a",
                   }}
                 />
               </div>
@@ -1021,7 +1189,7 @@ export default function RoleAccessControl() {
                 </button>
                 <button
                   type="button"
-                  className="rac-btn rac-btn-primary"
+                  className="rac-btn rac-btn-primary rac-create-role-btn"
                   onClick={() => void createRole()}
                   disabled={loading}
                 >

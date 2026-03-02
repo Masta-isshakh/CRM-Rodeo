@@ -47,7 +47,6 @@ type Page =
   | "users"
   | "departments"
   | "rolespolicies"
-  | "roleaccesscontrol";
 
 const EMPTY = {
   canRead: false,
@@ -126,13 +125,16 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   }, [isAdminGroup, can, canOption, customerPerms]);
 
   const showAdmin = useMemo(() => {
+    const usersRead = isAdminGroup || canAny("USERS_ADMIN").canRead;
+    const departmentsRead = isAdminGroup || canAny("DEPARTMENTS_ADMIN").canRead;
+    const rolesRead = isAdminGroup || canAny("ROLES_POLICIES_ADMIN").canRead;
+
     return {
-      users: isAdminGroup,
-      departments: isAdminGroup,
-      rolespolicies: isAdminGroup,
-      roleaccesscontrol: isAdminGroup,
+      users: usersRead && listOn("users", "users_list"),
+      departments: departmentsRead && listOn("departments", "departments_list"),
+      rolespolicies: rolesRead && listOn("rolespolicies", "rolespolicies_list"),
     };
-  }, [isAdminGroup]);
+  }, [isAdminGroup, can, canOption]);
 
   const nothingVisible =
     !loading &&
@@ -152,8 +154,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !show.inspection &&
     !showAdmin.users &&
     !showAdmin.departments &&
-    !showAdmin.rolespolicies &&
-    !showAdmin.roleaccesscontrol;
+    !showAdmin.rolespolicies;
 
   useEffect(() => {
     if (loading) return;
@@ -177,7 +178,6 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (showAdmin.users) allowedPages.push("users");
     if (showAdmin.departments) allowedPages.push("departments");
     if (showAdmin.rolespolicies) allowedPages.push("rolespolicies");
-    if (showAdmin.roleaccesscontrol) allowedPages.push("roleaccesscontrol");
 
     const isCurrentAllowed =
       (page === "dashboard" && show.dashboard) ||
@@ -196,8 +196,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       (page === "activitylog" && show.activitylog) ||
       (page === "users" && showAdmin.users) ||
       (page === "departments" && showAdmin.departments) ||
-      (page === "rolespolicies" && showAdmin.rolespolicies) ||
-      (page === "roleaccesscontrol" && showAdmin.roleaccesscontrol);
+      (page === "rolespolicies" && showAdmin.rolespolicies);
 
     if (!isCurrentAllowed) {
       setPage(allowedPages[0] ?? "dashboard");
@@ -339,7 +338,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               </button>
             )}
 
-            {(showAdmin.users || showAdmin.departments || showAdmin.rolespolicies || showAdmin.roleaccesscontrol) && (
+            {(showAdmin.users || showAdmin.departments || showAdmin.rolespolicies) && (
               <div className="drawer-section">
                 <div className="drawer-section-label">Admin</div>
 
@@ -358,11 +357,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
                     Roles & Policies
                   </button>
                 )}
-                {showAdmin.roleaccesscontrol && (
-                  <button className={page === "roleaccesscontrol" ? "active" : ""} onClick={() => go("roleaccesscontrol")}>
-                    Role Access Control
-                  </button>
-                )}
+
               </div>
             )}
 
@@ -445,10 +440,10 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             {page === "activitylog" && show.activitylog && <ActivityLog permissions={canAny("ACTIVITY_LOG")} />}
 
             {page === "users" && showAdmin.users && (
-              <Users permissions={{ ...EMPTY, canRead: true, canCreate: true, canUpdate: true, canDelete: true, canApprove: true }} />
+              <Users permissions={canAny("USERS_ADMIN")} />
             )}
             {page === "departments" && showAdmin.departments && (
-              <DepartmentsAdmin permissions={{ ...EMPTY, canRead: true, canCreate: true, canUpdate: true, canDelete: true, canApprove: true }} />
+              <DepartmentsAdmin permissions={canAny("DEPARTMENTS_ADMIN")} />
             )}
             {page === "rolespolicies" && showAdmin.rolespolicies && <RolesPoliciesAdmin />}
           </main>

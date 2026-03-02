@@ -18,6 +18,7 @@ type Args = {
   reference?: string;
   paidAt?: string;
   notes?: string;
+  createdBy?: string;
 };
 
 type Out = { id: string; jobOrderId: string };
@@ -30,9 +31,10 @@ function actorFromEvent(event: any) {
   const id = event?.identity;
   return (
     String(id?.username ?? "").trim() ||
+    String(id?.claims?.email ?? "").trim() ||
+    String(id?.claims?.preferred_username ?? "").trim() ||
     String(id?.sub ?? "").trim() ||
     String(id?.claims?.sub ?? "").trim() ||
-    String(id?.claims?.email ?? "").trim() ||
     "unknown"
   );
 }
@@ -63,7 +65,7 @@ export const handler: AppSyncResolverHandler<Args, Out> = async (event) => {
   const paidAt = String(event.arguments?.paidAt ?? "").trim() || nowIso();
   const notes = String(event.arguments?.notes ?? "").trim() || undefined;
 
-  const actor = actorFromEvent(event);
+  const actor = String(event.arguments?.createdBy ?? "").trim() || actorFromEvent(event);
   const ts = nowIso();
 
   const created = await client.models.JobOrderPayment.create({

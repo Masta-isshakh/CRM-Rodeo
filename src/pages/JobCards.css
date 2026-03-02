@@ -38,7 +38,6 @@ body {
 a {
   color: var(--primary);
   text-decoration: none;
-  transition: all 0.2s ease;
 }
 
 a:hover {
@@ -111,7 +110,6 @@ a:hover {
   border-radius: var(--radius);
   padding: 16px 18px;
   box-shadow: var(--shadow2);
-  transition: box-shadow 0.3s ease;
 }
 
 .search-section:hover {
@@ -141,14 +139,12 @@ a:hover {
   background: #fff;
   font-size: 15px;
   outline: none;
-  transition: all 0.3s ease;
   font-family: inherit;
 }
 
 .smart-search-input:focus {
   border-color: var(--primary);
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
-  transform: translateY(-1px);
 }
 
 .smart-search-input::placeholder {
@@ -433,7 +429,6 @@ a:hover {
   align-items: center;
   justify-content: center;
   z-index: 9999;
-  animation: fadeIn 0.2s ease;
 }
 
 .cancel-modal-overlay.active {
@@ -447,27 +442,6 @@ a:hover {
   border: 1px solid var(--border);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
-  animation: slideUp 0.3s ease;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
 }
 
 .cancel-modal-header {
@@ -527,7 +501,6 @@ a:hover {
   padding: 11px 18px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
   font-size: 14px;
 }
 
@@ -544,14 +517,11 @@ a:hover {
   padding: 11px 18px;
   font-weight: 700;
   cursor: pointer;
-  transition: all 0.2s ease;
   font-size: 14px;
 }
 
 .btn-confirm-cancel:hover {
   background: #b91c1c;
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
 }
 
 .btn-confirm-cancel:disabled {
@@ -626,7 +596,6 @@ a:hover {
   color: #6b7280;
   flex-shrink: 0;
   z-index: 1;
-  transition: all 0.3s ease;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
 }
 
@@ -640,22 +609,12 @@ a:hover {
   background: linear-gradient(135deg, var(--primary), var(--primary2));
   border-color: var(--primary);
   color: white;
-  animation: pulse 2s ease-in-out infinite;
 }
 
 .pim-roadmap-step.pending .pim-roadmap-icon {
   background: white;
   border-color: #cbd5e1;
   color: #94a3b8;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4);
-  }
-  50% {
-    box-shadow: 0 0 0 10px rgba(37, 99, 235, 0);
-  }
 }
 
 .pim-roadmap-content {
@@ -665,7 +624,6 @@ a:hover {
   border-radius: 12px;
   border: 1px solid #e5e7eb;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-  transition: all 0.3s ease;
 }
 
 .pim-roadmap-content:hover {
@@ -791,7 +749,6 @@ a:hover {
   border-radius: 12px;
   padding: 14px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-  transition: all 0.3s ease;
 }
 
 .pim-invoice-card:hover {
@@ -970,7 +927,6 @@ a:hover {
   align-items: center;
   justify-content: center;
   z-index: 10000;
-  animation: fadeIn 0.3s ease;
   padding: 20px;
 }
 
@@ -983,7 +939,6 @@ a:hover {
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  animation: slideUp 0.3s ease;
 }
 
 .inspection-modal-header {
@@ -1017,12 +972,10 @@ a:hover {
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
 }
 
 .inspection-modal-close:hover {
   background: rgba(255, 255, 255, 0.3);
-  transform: rotate(90deg);
 }
 
 .inspection-modal-body {
@@ -1068,7 +1021,6 @@ a:hover {
   border: 1px solid #e5e7eb;
   border-radius: 12px;
   padding: 14px;
-  transition: all 0.3s ease;
 }
 
 .inspection-item-card:hover {
@@ -1126,12 +1078,10 @@ a:hover {
   object-fit: cover;
   border: 2px solid #e5e7eb;
   cursor: pointer;
-  transition: all 0.2s ease;
 }
 
 .inspection-photo-thumbnail:hover {
   border-color: var(--primary);
-  transform: scale(1.05);
 }
 
 .inspection-notes {
@@ -1152,7 +1102,6 @@ a:hover {
   border-radius: 12px;
   text-align: center;
   cursor: pointer;
-  transition: all 0.3s ease;
 }
 
 .inspection-upload-section:hover {
@@ -1190,7 +1139,6 @@ a:hover {
   background: #f8fafc;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
-  transition: all 0.3s ease;
 }
 
 .pim-document-item:hover {
@@ -1262,7 +1210,6 @@ a:hover {
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
 }
 
 .pim-document-btn:hover {
@@ -1285,7 +1232,6 @@ a:hover {
   background: #f8fafc;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
-  transition: all 0.3s ease;
 }
 
 .pim-service-item:hover {
@@ -1347,7 +1293,6 @@ a:hover {
   font-weight: 600;
   font-size: 13px;
   color: var(--primary);
-  transition: all 0.2s ease;
   width: 100%;
   display: flex;
   align-items: center;
@@ -1358,7 +1303,6 @@ a:hover {
 .btn-change-customer:hover {
   background: #f8fafc;
   border-color: var(--primary);
-  transform: translateY(-1px);
 }
 
 .info-banner {
@@ -1390,7 +1334,6 @@ a:hover {
 .btn-danger,
 .btn-new-job,
 .btn-add-service {
-  transition: all 0.2s ease;
   font-size: 14px;
 }
 
@@ -1398,7 +1341,6 @@ a:hover {
 .btn-primary:hover:not(:disabled),
 .btn-secondary:hover:not(:disabled),
 .btn-new-job:hover:not(:disabled) {
-  transform: translateY(-2px);
   box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
 }
 
@@ -1416,28 +1358,15 @@ a:hover {
 /* ========================================
    CARD HOVER EFFECTS
 ======================================== */
-.pim-detail-card,
-.epm-detail-card {
-  transition: all 0.3s ease;
-}
-
 .pim-detail-card:hover,
 .epm-detail-card:hover {
   box-shadow: var(--shadow);
   border-color: #cbd5e1;
-  transform: translateY(-2px);
 }
 
 /* ========================================
    TABLE ENHANCEMENTS
 ======================================== */
-.job-order-table tbody tr {
-  transition: all 0.2s ease;
-}
-
-.job-order-table tbody tr:hover {
-  transform: scale(1.005);
-}
 
 /* ========================================
    LOADING STATES
@@ -1449,27 +1378,11 @@ a:hover {
   border: 3px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
   border-top-color: white;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 /* ========================================
    STATUS BADGE ANIMATIONS
 ======================================== */
-.status-badge,
-.epm-status-badge {
-  transition: all 0.2s ease;
-}
-
-.status-badge:hover,
-.epm-status-badge:hover {
-  transform: scale(1.05);
-}
 
 /* ========================================
    SMOOTH SCROLLING
@@ -1496,17 +1409,7 @@ textarea:focus-visible {
 .skeleton {
   background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
   background-size: 200% 100%;
-  animation: loading 1.5s ease-in-out infinite;
   border-radius: 8px;
-}
-
-@keyframes loading {
-  0% {
-    background-position: 200% 0;
-  }
-  100% {
-    background-position: -200% 0;
-  }
 }
 
 /* ========================================
@@ -1525,18 +1428,6 @@ textarea:focus-visible {
   align-items: center;
   gap: 12px;
   z-index: 9999;
-  animation: slideInRight 0.3s ease;
-}
-
-@keyframes slideInRight {
-  from {
-    transform: translateX(400px);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
 }
 
 .toast-success {
@@ -1761,7 +1652,6 @@ i {
   height: 100%;
   background: linear-gradient(90deg, #16a34a, #22c55e);
   border-radius: 3px;
-  transition: width 0.3s ease;
   position: relative;
 }
 
@@ -1778,12 +1668,6 @@ i {
     rgba(255, 255, 255, 0.3),
     transparent
   );
-  animation: progress-shimmer 2s infinite;
-}
-
-@keyframes progress-shimmer {
-  0% { transform: translateX(-100%); }
-  100% { transform: translateX(100%); }
 }
 
 .epm-progress-text {

@@ -1,6 +1,6 @@
 // src/pages/Customers.tsx
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { generateClient } from "aws-amplify/data";
 import { getCurrentUser } from "aws-amplify/auth";
 import { resolveActorUsername } from "../utils/actorIdentity";
@@ -249,8 +249,8 @@ function CustomersTable(props: {
     };
 
     if (activeDropdown) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      document.addEventListener("pointerdown", handleClickOutside, true);
+      return () => document.removeEventListener("pointerdown", handleClickOutside, true);
     }
   }, [activeDropdown]);
 
@@ -343,8 +343,10 @@ function CustomersTable(props: {
                           const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
                           const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
 
-                          setDropdownPosition({ top, left });
-                          setActiveDropdown(c.id);
+                          flushSync(() => {
+                            setDropdownPosition({ top, left });
+                            setActiveDropdown(c.id);
+                          });
                         }}
                         type="button"
                       >
@@ -839,7 +841,7 @@ export default function Customers({ permissions }: PageProps) {
     setLoading(true);
     try {
       const [cRes, contactRes, dealRes, ticketRes] = await Promise.all([
-        client.models.Customer.list({ limit: 2000 }),
+        client.models.Customer.list({ limit: 500 }),
         client.models.Contact.list({ limit: 5000 }),
         client.models.Deal.list({ limit: 5000 }),
         client.models.Ticket.list({ limit: 5000 }),
@@ -956,9 +958,9 @@ export default function Customers({ permissions }: PageProps) {
 
     try {
       const [contactRes, dealRes, ticketRes] = await Promise.all([
-        client.models.Contact.list({ filter: { customerId: { eq: id } }, limit: 2000 }),
-        client.models.Deal.list({ filter: { customerId: { eq: id } }, limit: 2000 }),
-        client.models.Ticket.list({ filter: { customerId: { eq: id } }, limit: 2000 }),
+        client.models.Contact.list({ filter: { customerId: { eq: id } }, limit: 500 }),
+        client.models.Deal.list({ filter: { customerId: { eq: id } }, limit: 500 }),
+        client.models.Ticket.list({ filter: { customerId: { eq: id } }, limit: 500 }),
       ]);
 
       setContacts(contactRes.data ?? []);

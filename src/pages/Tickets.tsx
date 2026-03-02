@@ -6,6 +6,7 @@ import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
 import { getCurrentUser } from "aws-amplify/auth";
 import { resolveActorUsername } from "../utils/actorIdentity";
+import PermissionGate from "./PermissionGate";
 
 import { getDataClient } from "../lib/amplifyClient";
 const client = getDataClient();
@@ -34,7 +35,7 @@ export default function Tickets({ permissions }: PageProps) {
     setLoading(true);
     setStatusMsg("");
     try {
-      const res = await client.models.Ticket.list({ limit: 2000 });
+      const res = await client.models.Ticket.list({ limit: 500 });
       const sorted = [...(res.data ?? [])].sort((a, b) =>
         String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""))
       );
@@ -148,6 +149,7 @@ export default function Tickets({ permissions }: PageProps) {
       <h2>Support Tickets</h2>
 
       {permissions.canCreate && (
+        <PermissionGate moduleId="tickets" optionId="tickets_create">
         <div style={{ display: "grid", gap: 12, maxWidth: 720, padding: 12, border: "1px solid #ddd", borderRadius: 8, background: "#fff" }}>
           <TextField label="Title" value={title} onChange={(e) => setTitle((e.target as HTMLInputElement).value)} />
           <SelectField label="Status" value={status} onChange={(e) => setStatus((e.target as HTMLSelectElement).value)}>
@@ -159,6 +161,7 @@ export default function Tickets({ permissions }: PageProps) {
             Create ticket
           </Button>
         </div>
+        </PermissionGate>
       )}
 
       {statusMsg && (
@@ -170,7 +173,9 @@ export default function Tickets({ permissions }: PageProps) {
       <div style={{ marginTop: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <h3 style={{ margin: 0 }}>Tickets</h3>
-          <Button onClick={load} isLoading={loading}>Refresh</Button>
+          <PermissionGate moduleId="tickets" optionId="tickets_refresh">
+            <Button onClick={load} isLoading={loading}>Refresh</Button>
+          </PermissionGate>
         </div>
 
         <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
@@ -186,7 +191,9 @@ export default function Tickets({ permissions }: PageProps) {
                   </SelectField>
 
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <Button variation="primary" onClick={saveEdit} isDisabled={!permissions.canUpdate}>Save</Button>
+                    <PermissionGate moduleId="tickets" optionId="tickets_edit">
+                      <Button variation="primary" onClick={saveEdit} isDisabled={!permissions.canUpdate}>Save</Button>
+                    </PermissionGate>
                     <Button onClick={cancelEdit}>Cancel</Button>
                   </div>
                 </div>
@@ -198,11 +205,17 @@ export default function Tickets({ permissions }: PageProps) {
                   </div>
 
                   <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-                    {permissions.canUpdate && <Button onClick={() => startEdit(t)}>Edit</Button>}
+                    {permissions.canUpdate && (
+                      <PermissionGate moduleId="tickets" optionId="tickets_edit">
+                        <Button onClick={() => startEdit(t)}>Edit</Button>
+                      </PermissionGate>
+                    )}
                     {permissions.canDelete && (
-                      <Button variation="destructive" onClick={() => remove(t.id)}>
-                        Delete
-                      </Button>
+                      <PermissionGate moduleId="tickets" optionId="tickets_delete">
+                        <Button variation="destructive" onClick={() => remove(t.id)}>
+                          Delete
+                        </Button>
+                      </PermissionGate>
                     )}
                   </div>
                 </>

@@ -42,13 +42,6 @@
   background: rgba(15, 23, 42, 0.48);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-
-  animation: cpFadeIn 140ms ease-out;
-}
-
-@keyframes cpFadeIn {
-  from { opacity: 0; }
-  to   { opacity: 1; }
 }
 
 .cp-modal {
@@ -61,12 +54,6 @@
 
   position: relative;
   transform-origin: center;
-  animation: cpPop 160ms cubic-bezier(.22, 1, .36, 1);
-}
-
-@keyframes cpPop {
-  from { transform: translateY(6px) scale(0.985); opacity: 0.85; }
-  to   { transform: translateY(0px) scale(1); opacity: 1; }
 }
 
 /* soft glow */
@@ -149,11 +136,9 @@
   background: #ffffff;
   color: rgba(15, 23, 42, 0.70);
   cursor: pointer;
-  transition: transform 120ms ease, background 120ms ease, opacity 120ms ease;
 }
 
-.cp-close:hover { background: #f8fafc; transform: translateY(-1px); }
-.cp-close:active { transform: translateY(0px) scale(0.98); }
+.cp-close:hover { background: #f8fafc; }
 .cp-close:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* Actions */
@@ -176,10 +161,7 @@
 
   cursor: pointer;
   user-select: none;
-  transition: transform 120ms ease, background 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
 }
-
-.cp-btn:active { transform: translateY(1px); }
 
 .cp-btn-ghost {
   background: #ffffff;
@@ -229,11 +211,6 @@
   border-radius: 999px;
   border: 2px solid rgba(255,255,255,0.50);
   border-top-color: rgba(255,255,255,1);
-  animation: cpSpin 700ms linear infinite;
-}
-
-@keyframes cpSpin {
-  to { transform: rotate(360deg); }
 }
 
 /* Optional footer note */

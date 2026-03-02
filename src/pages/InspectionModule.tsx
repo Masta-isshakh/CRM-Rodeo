@@ -1,6 +1,6 @@
 // src/pages/inspection/InspectionModule.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import "./InspectionModule.css";
 import "./JobCards.css";
 
@@ -331,8 +331,8 @@ function InspectionModule({ currentUser }: any) {
     };
 
     if (activeDropdown) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      document.addEventListener("pointerdown", handleClickOutside, true);
+      return () => document.removeEventListener("pointerdown", handleClickOutside, true);
     }
   }, [activeDropdown]);
 
@@ -348,8 +348,10 @@ function InspectionModule({ currentUser }: any) {
     const spaceBelow = window.innerHeight - rect.bottom;
     const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
     const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
-    setDropdownPosition({ top, left });
-    setActiveDropdown(jobId);
+    flushSync(() => {
+      setDropdownPosition({ top, left });
+      setActiveDropdown(jobId);
+    });
   };
 
   const resetInspectionState = () => {

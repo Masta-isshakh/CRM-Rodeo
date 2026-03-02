@@ -29,7 +29,6 @@
   overflow: hidden;
   transform: translateY(6px) scale(0.98);
   opacity: 0;
-  transition: opacity 160ms ease, transform 180ms ease;
 }
 
 .popup-modal.popup-open {
@@ -83,7 +82,6 @@
   opacity: 0.65;
   padding: 6px;
   border-radius: 10px;
-  transition: opacity 140ms ease, background 140ms ease;
 }
 
 .popup-close:hover {
@@ -116,11 +114,6 @@
   border-radius: 12px;
   font-weight: 700;
   font-size: 14px;
-  transition: transform 120ms ease, opacity 120ms ease;
-}
-
-.popup-btn:active {
-  transform: scale(0.98);
 }
 
 .popup-btn.primary {

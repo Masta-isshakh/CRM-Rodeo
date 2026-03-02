@@ -1018,7 +1018,7 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
       amount: info.amount,
       discount: formatQar(0),
       paymentMethod: info.method,
-      cashierName: resolveActor(firstPreferredActor(info.approvedBy, p.createdBy), "—"),
+      cashierName: firstPreferredActor(info.approvedBy, p.createdBy) || "",
       timestamp: info.paidAt,
 
       receiptNumber: info.receiptNumber,

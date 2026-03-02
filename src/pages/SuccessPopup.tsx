@@ -53,15 +53,14 @@ export default function SuccessPopup({
       return;
     }
     setMounted(true);
-    const t = window.setTimeout(() => setAnimateOpen(true), 10);
-    return () => window.clearTimeout(t);
+    setAnimateOpen(true);
   }, [isVisible]);
 
   // focus + ESC close
   useEffect(() => {
     if (!isVisible) return;
 
-    const t = window.setTimeout(() => closeBtnRef.current?.focus(), 50);
+    closeBtnRef.current?.focus();
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -69,7 +68,6 @@ export default function SuccessPopup({
 
     window.addEventListener("keydown", onKeyDown);
     return () => {
-      window.clearTimeout(t);
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [isVisible, onClose]);
@@ -87,8 +85,7 @@ export default function SuccessPopup({
     if (isVisible) return;
     if (!mounted) return;
 
-    const t = window.setTimeout(() => setMounted(false), 180);
-    return () => window.clearTimeout(t);
+    setMounted(false);
   }, [isVisible, mounted]);
 
   if (!mounted || !portalTarget) return null;

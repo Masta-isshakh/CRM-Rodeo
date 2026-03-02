@@ -1,7 +1,8 @@
 // src/pages/serviceexecution/ServiceExecutionModule.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import "./ServiceExecutionModule.css";
+import "./JobOrderHistory.css";
 import "./JobCards.css";
 
 import ServiceSummaryCard from "./ServiceSummaryCard";
@@ -19,7 +20,7 @@ import {
 
 import { getUrl } from "aws-amplify/storage";
 import { getUserDirectory, normalizeIdentity } from "../utils/userDirectoryCache";
-import { resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
+import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
 import { usePermissions } from "../lib/userPermissions";
 
 // -------------------- helpers --------------------
@@ -204,6 +205,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
   // user lists (optional)
   const [systemUsers, setSystemUsers] = useState<any[]>([]);
+  const [actorLabelMap, setActorLabelMap] = useState<Record<string, string>>({});
   const technicianNames = useMemo(() => systemUsers.map((u) => u.name).filter(Boolean), [systemUsers]);
   const assigneeOptions = useMemo<AssigneeOption[]>(() => {
     const out: AssigneeOption[] = [];
@@ -335,8 +337,8 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     };
 
     if (activeDropdown) {
-      document.addEventListener("mousedown", handleClickOutside);
-      return () => document.removeEventListener("mousedown", handleClickOutside);
+      document.addEventListener("pointerdown", handleClickOutside, true);
+      return () => document.removeEventListener("pointerdown", handleClickOutside, true);
     }
   }, [activeDropdown]);
 
@@ -348,8 +350,10 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
         const directory = await getUserDirectory(client);
         if (cancelled) return;
         setSystemUsers(directory.users);
+        setActorLabelMap(directory.identityToUsernameMap ?? {});
       } catch {
         setSystemUsers([]);
+        setActorLabelMap({});
       }
     })();
     return () => {
@@ -361,7 +365,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   useEffect(() => {
     const sub = (client.models.JobOrder as any)
       .observeQuery({
-        limit: 2000,
+        limit: 500,
         filter: { status: { eq: "IN_PROGRESS" } } as any,
       })
       .subscribe(({ items }: any) => {
@@ -749,6 +753,8 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
   // ---------------- DETAILS SCREEN ----------------
   if (showDetails && currentDetailsJob) {
+    const roadmap = Array.isArray(currentDetailsJob.roadmap) ? currentDetailsJob.roadmap : [];
+
     return (
       <div className="service-execution-wrapper">
         <div className="service-details-screen jo-details-v3">
@@ -766,14 +772,18 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
           <div className="service-details-body">
             <div className="service-details-grid">
               <PermissionGate moduleId="serviceexec" optionId="serviceexec_summary">
-                <JobOrderSummaryCard order={currentDetailsJob} />
+                <JobOrderSummaryCard order={currentDetailsJob} identityToUsernameMap={actorLabelMap} />
               </PermissionGate>
 
-              {currentDetailsJob.roadmap && currentDetailsJob.roadmap.length > 0 && (
-                <PermissionGate moduleId="serviceexec" optionId="serviceexec_roadmap">
-                  <UnifiedJobOrderRoadmap order={currentDetailsJob} />
-                </PermissionGate>
-              )}
+              <PermissionGate moduleId="serviceexec" optionId="serviceexec_roadmap">
+                <div className="jh-card jh-span-2">
+                  {roadmap.length === 0 ? (
+                    <div className="jh-empty-inline">No roadmap data.</div>
+                  ) : (
+                    <UnifiedJobOrderRoadmap order={{ ...currentDetailsJob, roadmap }} />
+                  )}
+                </div>
+              </PermissionGate>
 
               <PermissionGate moduleId="serviceexec" optionId="serviceexec_customer">
                 <CustomerInfoCard order={currentDetailsJob} />
@@ -817,7 +827,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
               </PermissionGate>
 
               <PermissionGate moduleId="serviceexec" optionId="serviceexec_paymentlog">
-                <PaymentActivityLogCard order={currentDetailsJob} />
+                <PaymentActivityLogCard order={currentDetailsJob} identityToUsernameMap={actorLabelMap} />
               </PermissionGate>
 
               <PermissionGate moduleId="serviceexec" optionId="serviceexec_exitpermit">
@@ -956,8 +966,10 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                                     const spaceBelow = window.innerHeight - rect.bottom;
                                     const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
                                     const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
-                                    setDropdownPosition({ top, left });
-                                    setActiveDropdown(job.id);
+                                    flushSync(() => {
+                                      setDropdownPosition({ top, left });
+                                      setActiveDropdown(job.id);
+                                    });
                                   }}
                                 >
                                   <i className="fas fa-cogs"></i> Actions <i className="fas fa-chevron-down"></i>
@@ -1086,14 +1098,16 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 // -------------------- cards --------------------
 function CustomerInfoCard({ order }: any) {
   return (
-    <div className="epm-detail-card cv-unified-card">
+    <div className="jh-card cv-unified-card">
       <h3><i className="fas fa-user"></i> Customer Information</h3>
-      <div className="epm-card-content cv-unified-grid">
-        <div className="epm-info-item"><span className="epm-info-label">Customer ID</span><span className="epm-info-value">{order.customerDetails?.customerId || "N/A"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Customer Name</span><span className="epm-info-value">{order.customerName || "N/A"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Mobile Number</span><span className="epm-info-value">{order.mobile || "Not provided"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Email Address</span><span className="epm-info-value">{order.customerDetails?.email || "Not provided"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Home Address</span><span className="epm-info-value">{order.customerDetails?.address || "Not provided"}</span></div>
+      <div className="jh-kv cv-unified-grid">
+        <div><span>Customer ID</span><strong>{order.customerDetails?.customerId || "—"}</strong></div>
+        <div><span>Name</span><strong>{order.customerDetails?.name || order.customerName || "—"}</strong></div>
+        <div><span>Mobile</span><strong>{order.customerDetails?.mobile || order.mobile || "—"}</strong></div>
+        <div><span>Email</span><strong>{order.customerDetails?.email || "—"}</strong></div>
+        <div><span>Address</span><strong>{order.customerDetails?.address || "—"}</strong></div>
+        <div><span>Vehicles</span><strong>{order.customerDetails?.registeredVehiclesCount ?? 0}</strong></div>
+        <div><span>Customer Since</span><strong>{order.customerDetails?.customerSince || "—"}</strong></div>
       </div>
     </div>
   );
@@ -1125,18 +1139,57 @@ function VehicleInfoCard({ order }: any) {
   );
 }
 
-function JobOrderSummaryCard({ order }: any) {
+function JobOrderSummaryCard({ order, identityToUsernameMap }: any) {
+  const summary = order?.summary ?? {};
+  const services: any[] = Array.isArray(order?.services) ? order.services : [];
+  const servicesCompleted = services.filter((service: any) => String(service?.status ?? "").trim().toLowerCase() === "completed").length;
+  const servicesProgressPercent = services.length ? Math.round((servicesCompleted / services.length) * 100) : 0;
+  const servicesProgressLabel = services.length ? `${servicesCompleted}/${services.length} completed` : "0/0 completed";
+  const createdByDisplay = resolveOrderCreatedBy(order, {
+    identityToUsernameMap,
+    fallback: "—",
+  });
+  const updatedByDisplay = resolveActorDisplay(order?.updatedByName ?? order?.updatedBy ?? "", {
+    identityToUsernameMap,
+    fallback: "—",
+  });
+  const exitPermitStatus =
+    summary.exitPermitStatus ||
+    mapExitPermitStatusToUi(order?.exitPermitStatus ?? order?.exitPermit?.status ?? order?.exitPermitInfo?.status, Boolean(firstNonEmptyText(order?.exitPermit?.permitId, order?.exitPermitInfo?.permitId))) ||
+    "Not Required";
+
   return (
-    <div className="pim-detail-card">
+    <div className="epm-detail-card jh-summary-card">
       <h3><i className="fas fa-info-circle"></i> Job Order Summary</h3>
-      <div className="pim-card-content">
-        <div className="pim-info-item"><span className="pim-info-label">Job Order ID</span><span className="pim-info-value">{order.id}</span></div>
-        <div className="pim-info-item"><span className="pim-info-label">Order Type</span><span className="pim-info-value">{order.orderType}</span></div>
-        <div className="pim-info-item"><span className="pim-info-label">Request Create Date</span><span className="pim-info-value">{order.jobOrderSummary?.createDate || order.createDate}</span></div>
-        <div className="pim-info-item"><span className="pim-info-label">Created By</span><span className="pim-info-value">{resolveOrderCreatedBy(order, { fallback: "—" })}</span></div>
-        <div className="pim-info-item"><span className="pim-info-label">Expected Delivery</span><span className="pim-info-value">{order.jobOrderSummary?.expectedDelivery || "Not specified"}</span></div>
-        <div className="pim-info-item"><span className="pim-info-label">Work Status</span><span className="pim-info-value"><span className={`epm-status-badge status-badge ${getWorkStatusClass(normalizeWorkStatusLabel(order.workStatus))}`}>{normalizeWorkStatusLabel(order.workStatus)}</span></span></div>
-        <div className="pim-info-item"><span className="pim-info-label">Payment Status</span><span className="pim-info-value"><span className={`epm-status-badge status-badge ${getPaymentStatusClass(order.paymentStatus)}`}>{order.paymentStatus}</span></span></div>
+      <div className="epm-card-content jh-kv">
+        <div className="epm-info-item"><span className="epm-info-label">Job Order ID</span><span className="epm-info-value">{summary.jobOrderId || order.id}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Order Type</span><span className="epm-info-value">{summary.orderType || order.orderType || "Job Order"}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Request Create Date</span><span className="epm-info-value">{summary.requestCreateDate || order.jobOrderSummary?.createDate || order.createDate || "—"}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Created By</span><span className="epm-info-value">{createdByDisplay}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Expected Delivery Date</span><span className="epm-info-value">{summary.expectedDeliveryDate || order.jobOrderSummary?.expectedDelivery || "—"}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Work Status</span><span className={`epm-status-badge status-badge ${getWorkStatusClass(summary.workStatus || normalizeWorkStatusLabel(order.workStatus))}`}>{summary.workStatus || normalizeWorkStatusLabel(order.workStatus) || "—"}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Payment Status</span><span className={`epm-status-badge status-badge ${getPaymentStatusClass(summary.paymentStatus || order.paymentStatus)}`}>{summary.paymentStatus || order.paymentStatus || "—"}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Exit Permit Status</span><span className={`epm-status-badge status-badge ${permitStatusClass(exitPermitStatus)}`}>{exitPermitStatus}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Customer Name</span><span className="epm-info-value">{summary.customerName || order.customerName || "—"}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Customer Mobile</span><span className="epm-info-value">{summary.customerMobile || order.mobile || "—"}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Vehicle Plate</span><span className="epm-info-value">{summary.vehiclePlate || order.vehiclePlate || "—"}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Order Status (Enum)</span><span className="epm-info-value">{summary.orderStatusEnum || order.statusEnum || "—"}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Payment Status (Enum)</span><span className="epm-info-value">{summary.paymentStatusEnum || order.paymentEnum || "—"}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Last Updated</span><span className="epm-info-value">{summary.updatedAt || order.updatedAt || "—"}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Updated By</span><span className="epm-info-value">{updatedByDisplay}</span></div>
+        {services.length > 0 ? (
+          <div className="epm-info-item" style={{ gridColumn: "span 2" }}>
+            <span className="epm-info-label">Service Progress</span>
+            <div style={{ display: "flex", gap: "12px", alignItems: "center", width: "100%" }}>
+              <div style={{ flex: 1 }}>
+                <div className="epm-progress-bar">
+                  <div className="epm-progress-fill" style={{ width: `${servicesProgressPercent}%` }} />
+                </div>
+              </div>
+              <span className="epm-progress-text">{servicesProgressLabel}</span>
+            </div>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -1225,20 +1278,99 @@ function QualityCheckListCard({ order }: any) {
 }
 
 function BillingCard({ order }: any) {
+  type InvoiceUi = {
+    id: string;
+    number: string;
+    amount: number;
+    discount: number;
+    status: string;
+    paymentMethod?: string | null;
+    services: string[];
+    createdAt?: string | null;
+  };
+
+  const toNum = (v: any): number => {
+    if (typeof v === "number" && Number.isFinite(v)) return v;
+    const s = String(v ?? "");
+    const n = Number(s.replace(/[^0-9.-]/g, ""));
+    return Number.isFinite(n) ? n : 0;
+  };
+  const fmtQar = (n: number) => `QAR ${Number.isFinite(n) ? n.toFixed(2) : "0.00"}`;
+  const invoices: InvoiceUi[] = Array.isArray(order?.billing?.invoices)
+    ? order.billing.invoices.map((inv: any) => ({
+        ...inv,
+        id: String(inv?.id ?? ""),
+        number: String(inv?.number ?? "—"),
+        amount: toNum(inv?.amount),
+        discount: toNum(inv?.discount),
+        status: String(inv?.status ?? "Unpaid"),
+        paymentMethod: inv?.paymentMethod ?? null,
+        createdAt: inv?.createdAt ?? null,
+        services: Array.isArray(inv?.services) ? inv.services : [],
+      }))
+    : [];
+
   return (
-    <div className="epm-detail-card bi-unified-card">
-      <h3><i className="fas fa-receipt"></i> Billing & Invoices</h3>
-      <div className="epm-card-content bi-summary">
-        <div className="epm-info-item bi-row"><span className="epm-info-label bi-label">Bill ID</span><span className="epm-info-value bi-value">{order.billing?.billId || "N/A"}</span></div>
-        <div className="epm-info-item bi-row"><span className="epm-info-label bi-label">Total</span><span className="epm-info-value bi-value">{order.billing?.totalAmount || "N/A"}</span></div>
-        <div className="epm-info-item bi-row"><span className="epm-info-label bi-label">Net</span><span className="epm-info-value bi-value">{order.billing?.netAmount || "N/A"}</span></div>
-        <div className="epm-info-item bi-row"><span className="epm-info-label bi-label">Balance</span><span className="epm-info-value bi-value">{order.billing?.balanceDue || "N/A"}</span></div>
+    <div className="jh-card jh-span-2 bi-unified-card">
+      <h3><i className="fas fa-receipt" /> Billing & Invoices</h3>
+
+      <div className="jh-billing bi-summary">
+        <div className="bi-row"><span className="bi-label">Bill ID</span><strong className="bi-value">{order.billing?.billId || "—"}</strong></div>
+        <div className="bi-row"><span className="bi-label">Total</span><strong className="bi-value">{order.billing?.totalAmount || "—"}</strong></div>
+        <div className="bi-row"><span className="bi-label">Discount</span><strong className="jh-green bi-value">{order.billing?.discount || "—"}</strong></div>
+        <div className="bi-row"><span className="bi-label">Net</span><strong className="bi-value">{order.billing?.netAmount || "—"}</strong></div>
+        <div className="bi-row"><span className="bi-label">Paid</span><strong className="jh-green bi-value">{order.billing?.amountPaid || "—"}</strong></div>
+        <div className="bi-row"><span className="bi-label">Balance</span><strong className="jh-red bi-value">{order.billing?.balanceDue || "—"}</strong></div>
+        <div className="bi-row"><span className="bi-label">Method</span><strong className="bi-value">{order.billing?.paymentMethod || "—"}</strong></div>
       </div>
+
+      <div className="jh-subhead bi-invoices-title">
+        <i className="fas fa-file-invoice" /> Invoices ({invoices.length})
+      </div>
+
+      {invoices.length === 0 ? (
+        <div className="jh-empty-inline">No invoices found in normalized tables.</div>
+      ) : (
+        <div className="jh-invoices bi-invoices-wrap">
+          {invoices.map((inv) => (
+            <div className="jh-invoice bi-invoice-card" key={inv.id}>
+              <div className="jh-invoice-top">
+                <div>
+                  <div className="jh-invoice-no">Invoice #{inv.number}</div>
+                  {inv.createdAt ? <div className="jh-muted">{new Date(String(inv.createdAt)).toLocaleString("en-GB")}</div> : null}
+                </div>
+                <div className="jh-invoice-right">
+                  <div className="jh-invoice-amt">{fmtQar(inv.amount)}</div>
+                  <span className="jh-pill jh-pill-slate">{inv.status}</span>
+                </div>
+              </div>
+
+              <div className="jh-invoice-meta">
+                <div><span>Discount</span><strong>{fmtQar(inv.discount)}</strong></div>
+                <div><span>Method</span><strong>{inv.paymentMethod || "—"}</strong></div>
+              </div>
+
+              <div className="jh-invoice-services">
+                <div className="jh-muted">Services Included</div>
+                {inv.services.length ? (
+                  <ul>
+                    {inv.services.map((s, i) => (
+                      <li key={i}><i className="fas fa-check-circle" /> {s}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <div className="jh-empty-inline">No linked services.</div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
-function PaymentActivityLogCard({ order }: any) {
+function PaymentActivityLogCard({ order, identityToUsernameMap }: any) {
   if (!order.paymentActivityLog || order.paymentActivityLog.length === 0) return null;
   return (
     <div className="pim-detail-card">
@@ -1256,7 +1388,7 @@ function PaymentActivityLogCard({ order }: any) {
               <td>{p.amount}</td>
               <td>{p.discount}</td>
               <td>{p.paymentMethod}</td>
-              <td>{normalizeActorDisplay(p.cashierName, "—")}</td>
+              <td>{resolveActorDisplay(p.cashierName, { identityToUsernameMap, fallback: "—" })}</td>
               <td>{p.timestamp}</td>
             </tr>
           ))}

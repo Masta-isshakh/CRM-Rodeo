@@ -56,14 +56,13 @@ export default function ErrorPopup({
       return;
     }
     setMounted(true);
-    const t = window.setTimeout(() => setAnimateOpen(true), 10);
-    return () => window.clearTimeout(t);
+    setAnimateOpen(true);
   }, [isVisible]);
 
   useEffect(() => {
     if (!isVisible) return;
 
-    const t = window.setTimeout(() => primaryBtnRef.current?.focus(), 50);
+    primaryBtnRef.current?.focus();
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -72,7 +71,6 @@ export default function ErrorPopup({
 
     window.addEventListener("keydown", onKeyDown);
     return () => {
-      window.clearTimeout(t);
       window.removeEventListener("keydown", onKeyDown);
     };
   }, [isVisible, onClose, onRetry]);
@@ -88,8 +86,7 @@ export default function ErrorPopup({
     if (isVisible) return;
     if (!mounted) return;
 
-    const t = window.setTimeout(() => setMounted(false), 180);
-    return () => window.clearTimeout(t);
+    setMounted(false);
   }, [isVisible, mounted]);
 
   if (!mounted || !portalTarget) return null;

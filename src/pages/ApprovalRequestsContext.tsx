@@ -96,7 +96,7 @@ export function ApprovalRequestsProvider({ children }: { children: React.ReactNo
     setLoading(true);
 
     const sub = (client.models.ServiceApprovalRequest as any)
-      .observeQuery({ limit: 2000 })
+      .observeQuery({ limit: 500 })
       .subscribe(({ items }: any) => {
         const mapped = (items ?? []).map(mapRow);
         // newest first (by requestedAt / createdAt)
@@ -111,7 +111,7 @@ export function ApprovalRequestsProvider({ children }: { children: React.ReactNo
   const refresh = async () => {
     setLoading(true);
     try {
-      const res = await client.models.ServiceApprovalRequest.list({ limit: 2000 });
+      const res = await client.models.ServiceApprovalRequest.list({ limit: 500 });
       const mapped = (res.data ?? []).map(mapRow);
       mapped.sort((a: ApprovalRequest, b: ApprovalRequest) => String(b.requestedAt ?? b.createdAt ?? "").localeCompare(String(a.requestedAt ?? a.createdAt ?? "")));
       setRequests(mapped);

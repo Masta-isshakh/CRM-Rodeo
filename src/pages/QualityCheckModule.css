@@ -122,7 +122,6 @@
   font-weight: 800;
   color: var(--qc-text);
   outline: none;
-  transition: box-shadow 160ms ease, border-color 160ms ease;
 }
 
 .smart-search-input::placeholder{
@@ -323,7 +322,6 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  transition: transform 120ms ease, background 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
 }
 
 .btn-action-dropdown:hover{
@@ -349,7 +347,6 @@
   opacity: 0;
   transform: translateY(-4px);
   pointer-events: none;
-  transition: opacity 140ms ease, transform 140ms ease;
 }
 .action-dropdown-menu.show{
   opacity: 1;
@@ -374,7 +371,6 @@
   display: flex;
   align-items: center;
   gap: 10px;
-  transition: background 120ms ease, transform 120ms ease, border-color 120ms ease;
 }
 
 .dropdown-item:hover{
@@ -427,7 +423,6 @@
   cursor: pointer;
   font-weight: 950;
   color: rgba(15,23,42,0.80);
-  transition: transform 120ms ease, box-shadow 140ms ease, background 140ms ease;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -512,7 +507,6 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  transition: transform 120ms ease, background 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
 }
 .close-detail:hover{
   background: rgba(220,38,38,0.14);
@@ -792,7 +786,6 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  transition: transform 120ms ease, background 160ms ease, box-shadow 160ms ease, border-color 160ms ease, opacity 160ms ease;
 }
 .qc-btn-finish:hover{
   background: rgba(22,163,74,0.16);
@@ -852,7 +845,6 @@
   color: var(--qc-text);
   outline: none;
   min-width: 220px;
-  transition: box-shadow 160ms ease, border-color 160ms ease;
 }
 .qc-service-dropdown:focus{
   border-color: rgba(37,99,235,0.45);
@@ -976,7 +968,6 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  transition: transform 120ms ease, background 160ms ease, box-shadow 160ms ease, opacity 160ms ease;
 }
 .pim-btn:active{ transform: translateY(1px); }
 
@@ -1000,7 +991,6 @@
   -webkit-backdrop-filter: blur(10px);
   opacity: 0;
   pointer-events: none;
-  transition: opacity 140ms ease;
 }
 
 .cancel-modal-overlay.active{
@@ -1015,12 +1005,6 @@
   background: #fff;
   box-shadow: 0 28px 80px rgba(15,23,42,0.22);
   overflow: hidden;
-  animation: qcPop 160ms cubic-bezier(.22,1,.36,1);
-}
-
-@keyframes qcPop{
-  from { transform: translateY(6px) scale(0.985); opacity: 0.88; }
-  to { transform: translateY(0px) scale(1); opacity: 1; }
 }
 
 .cancel-modal-header{
@@ -1091,7 +1075,6 @@
   color: rgba(15,23,42,0.84);
   font-weight: 950;
   cursor: pointer;
-  transition: background 140ms ease, transform 120ms ease, box-shadow 140ms ease;
 }
 .btn-cancel:hover{
   background: #f8fafc;
@@ -1110,7 +1093,6 @@
   font-weight: 950;
   cursor: pointer;
   box-shadow: 0 14px 28px rgba(220,38,38,0.18);
-  transition: background 140ms ease, transform 120ms ease, box-shadow 140ms ease, opacity 140ms ease;
 }
 .btn-confirm-cancel:hover{ background: var(--qc-danger-hover); transform: translateY(-1px); }
 .btn-confirm-cancel:active{ transform: translateY(0px) scale(0.98); }

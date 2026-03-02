@@ -21,6 +21,7 @@ import { jobOrderDelete } from "../functions/job-orders/delete-job-order/resourc
 import { jobOrderPaymentCreate } from "../functions/job-orders/create-payment/resource";
 import { jobOrderPaymentUpdate } from "../functions/job-orders/update-payment/resource";
 import { jobOrderPaymentDelete } from "../functions/job-orders/delete-payment/resource";
+import { jobOrderPaymentBackfillActors } from "../functions/job-orders/backfill-payment-actors/resource";
 
 // ✅ MUST MATCH your Cognito group name EXACTLY
 const ADMIN_GROUP = "Admins";
@@ -803,6 +804,7 @@ const schema = a
         reference: a.string(),
         paidAt: a.datetime(),
         notes: a.string(),
+        createdBy: a.string(),
       })
       .authorization((allow) => [allow.authenticated()])
       .handler(a.handler.function(jobOrderPaymentCreate))
@@ -828,6 +830,16 @@ const schema = a
       .authorization((allow) => [allow.authenticated()])
       .handler(a.handler.function(jobOrderPaymentDelete))
       .returns(a.json()),
+
+    jobOrderPaymentBackfillActors: a
+      .mutation()
+      .arguments({
+        dryRun: a.boolean(),
+        limit: a.integer(),
+      })
+      .authorization((allow) => [allow.authenticated()])
+      .handler(a.handler.function(jobOrderPaymentBackfillActors))
+      .returns(a.json()),
   })
   .authorization((allow) => [
     allow.resource(inviteUser),
@@ -846,6 +858,7 @@ const schema = a
     allow.resource(jobOrderPaymentCreate),
     allow.resource(jobOrderPaymentUpdate),
     allow.resource(jobOrderPaymentDelete),
+    allow.resource(jobOrderPaymentBackfillActors),
   ]);
 
 export type Schema = ClientSchema<typeof schema>;
