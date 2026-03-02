@@ -454,7 +454,8 @@
 /* Details grid */
 .service-execution-wrapper .service-details-body {
   padding: 18px;
-  max-width: 1280px;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
 }
 

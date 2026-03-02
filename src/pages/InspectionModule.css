@@ -47,7 +47,8 @@ body{
    Main layout wrappers
 ========================= */
 .app-container{
-  max-width: 1320px;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
   padding: 18px 16px 36px;
 }
@@ -454,7 +455,8 @@ body{
    Details view
 ========================= */
 .detail-view{
-  max-width: 1320px;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
   padding: 18px 16px 36px;
 }
@@ -1045,7 +1047,8 @@ body{
    AddService screen (uses JobOrder styles)
 ========================= */
 .pim-details-screen{
-  max-width: 1320px;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
   padding: 18px 16px 36px;
 }

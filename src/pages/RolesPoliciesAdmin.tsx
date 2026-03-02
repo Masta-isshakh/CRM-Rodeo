@@ -5,6 +5,7 @@ import SuccessPopup from "./SuccessPopup";
 import "./RoleAccessControl.css";
 import { getDataClient } from "../lib/amplifyClient";
 import { resolveActorUsername } from "../utils/actorIdentity";
+import { resolvePolicyAndOp } from "./PermissionGate";
 
 function normalizeKey(x: unknown) {
   return String(x ?? "").trim().toUpperCase().replace(/\s+/g, "_");
@@ -401,6 +402,54 @@ type PermissionsState = Record<
   }
 >;
 
+type CrudPermission = {
+  canRead: boolean;
+  canCreate: boolean;
+  canUpdate: boolean;
+  canDelete: boolean;
+  canApprove: boolean;
+};
+
+const EMPTY_CRUD: CrudPermission = {
+  canRead: false,
+  canCreate: false,
+  canUpdate: false,
+  canDelete: false,
+  canApprove: false,
+};
+
+function computeRolePoliciesFromOptions(state: PermissionsState): {
+  computed: Record<string, CrudPermission>;
+  managedPolicyKeys: Set<string>;
+} {
+  const computed: Record<string, CrudPermission> = {};
+  const managedPolicyKeys = new Set<string>();
+
+  for (const mod of MODULE_DEFINITIONS as any) {
+    const moduleId = String(mod.id);
+    const moduleEnabled = Boolean(state[moduleId]?.enabled);
+
+    for (const opt of mod.options ?? []) {
+      if (opt.kind === "percent") continue;
+
+      const rule = resolvePolicyAndOp(moduleId, String(opt.id));
+      if (!rule?.policyKey || !rule?.op) continue;
+
+      const policyKey = normalizeKey(rule.policyKey);
+      managedPolicyKeys.add(policyKey);
+
+      const optionEnabled = moduleEnabled && Boolean(state[moduleId]?.options?.[opt.id]);
+      if (!optionEnabled) continue;
+
+      const current = computed[policyKey] ?? { ...EMPTY_CRUD };
+      current[rule.op] = true;
+      computed[policyKey] = current;
+    }
+  }
+
+  return { computed, managedPolicyKeys };
+}
+
 const buildDefaultPermissions = (): PermissionsState => {
   const base: PermissionsState = {};
   for (const mod of MODULE_DEFINITIONS as any) {
@@ -752,7 +801,7 @@ export default function RoleAccessControl() {
     setLoading(true);
 
     try {
-      const [existingToggles, existingNums] = await Promise.all([
+      const [existingToggles, existingNums, existingPolicies] = await Promise.all([
         listAll<any>(
           (args) =>
             (client.models as any).RoleOptionToggle.list({
@@ -765,6 +814,15 @@ export default function RoleAccessControl() {
         listAll<any>(
           (args) =>
             (client.models as any).RoleOptionNumber.list({
+              ...args,
+              filter: { roleId: { eq: currentRoleId } },
+            }),
+          1000,
+          20000
+        ),
+        listAll<any>(
+          (args) =>
+            (client.models as any).RolePolicy.list({
               ...args,
               filter: { roleId: { eq: currentRoleId } },
             }),
@@ -785,6 +843,8 @@ export default function RoleAccessControl() {
 
       const desiredToggleKeys = new Set<string>();
       const desiredNumKeys = new Set<string>();
+
+      const { computed: computedPolicies, managedPolicyKeys } = computeRolePoliciesFromOptions(permissions);
 
       for (const mod of MODULE_DEFINITIONS as any) {
         // module enabled toggle
@@ -883,8 +943,41 @@ export default function RoleAccessControl() {
         }
       }
 
+      const existingPolicyByKey = new Map<string, any>();
+      for (const row of existingPolicies ?? []) {
+        const key = normalizeKey(row?.policyKey);
+        if (key) existingPolicyByKey.set(key, row);
+      }
+
+      for (const policyKey of managedPolicyKeys) {
+        const target = computedPolicies[policyKey] ?? EMPTY_CRUD;
+        const existing = existingPolicyByKey.get(policyKey);
+
+        if (existing?.id) {
+          await (client.models as any).RolePolicy.update({
+            id: existing.id,
+            canRead: Boolean(target.canRead),
+            canCreate: Boolean(target.canCreate),
+            canUpdate: Boolean(target.canUpdate),
+            canDelete: Boolean(target.canDelete),
+            canApprove: Boolean(target.canApprove),
+          });
+        } else {
+          await (client.models as any).RolePolicy.create({
+            roleId: currentRoleId,
+            policyKey,
+            canRead: Boolean(target.canRead),
+            canCreate: Boolean(target.canCreate),
+            canUpdate: Boolean(target.canUpdate),
+            canDelete: Boolean(target.canDelete),
+            canApprove: Boolean(target.canApprove),
+            createdAt: now,
+          });
+        }
+      }
+
       window.dispatchEvent(new Event("rbac:refresh"));
-      showMsg(`Saved option permissions for role: ${selectedRole?.name ?? currentRoleId}`);
+      showMsg(`Saved role permissions for: ${selectedRole?.name ?? currentRoleId}`);
     } catch (e: any) {
       console.error(e);
       showMsg(`Save failed: ${e?.message ?? "Unknown error"}`);

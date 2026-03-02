@@ -32,7 +32,7 @@
   --rac-pad: 18px;
   --rac-pad-sm: 12px;
 
-  --rac-max: 1600px;
+  --rac-max: none;
 
   --rac-font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji",
     "Segoe UI Emoji";
@@ -52,6 +52,7 @@
 }
 
 .rac-container {
+  width: 100%;
   max-width: var(--rac-max);
   margin: 0 auto;
 }

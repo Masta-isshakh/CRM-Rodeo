@@ -57,7 +57,8 @@ a:hover {
    APP SHELL
 ======================================== */
 .app-container {
-  max-width: 1200px;
+  width: 100%;
+  max-width: none;
   margin: 0 auto;
 }
 
@@ -289,7 +290,7 @@ a:hover {
 .app-footer{margin:18px 0;text-align:center;color:var(--muted);font-size:12px}
 
 /* Details screens/cards */
-.pim-details-screen{max-width:1200px;margin:0 auto}
+.pim-details-screen{width:100%;max-width:none;margin:0 auto}
 .pim-details-header{
   background:var(--card);border:1px solid var(--border);border-radius:18px;
   padding:16px 16px;display:flex;align-items:center;justify-content:space-between;gap:12px;
