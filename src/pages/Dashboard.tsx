@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import "./dashboard.css";
 import type { PageProps } from "../lib/PageProps";
 import { getDataClient } from "../lib/amplifyClient";
+import { usePermissions } from "../lib/userPermissions";
 
 type Visibility = {
   dashboard: boolean;
@@ -178,6 +179,7 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
   }
 
   const client = getDataClient();
+  const { canOption } = usePermissions();
 
   const [loading, setLoading] = useState(true);
   const [momentumRangeDays, setMomentumRangeDays] = useState(30);
@@ -419,6 +421,11 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
   const maxDeptAmount = Math.max(1, ...revenueByDepartment.map((x) => x.amount));
 
   const go = (page: NavPage) => onNavigate?.(page);
+  const canShowKpis = canOption("dashboard", "dashboard_kpis", true);
+  const canShowQuickNav = canOption("dashboard", "dashboard_quicknav", true);
+  const canShowRevenue = canOption("dashboard", "dashboard_revenue", true);
+  const canShowActivity = canOption("dashboard", "dashboard_activity", true);
+  const canShowCalendar = canOption("dashboard", "dashboard_calendar", true);
 
   return (
     <div className="od-stage">
@@ -429,20 +436,22 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
           <p className="od-subtitle">A live pulse of operations, approvals, and revenue health.</p>
         </div>
 
-        <div className="od-summary">
-          <div className="od-summary-item">
-            <span>Active job orders</span>
-            <b>{loading ? "—" : activeJobOrders}</b>
+        {canShowKpis && (
+          <div className="od-summary">
+            <div className="od-summary-item">
+              <span>Active job orders</span>
+              <b>{loading ? "—" : activeJobOrders}</b>
+            </div>
+            <div className="od-summary-item">
+              <span>On-time delivery</span>
+              <b>{loading ? "—" : `${onTimeDelivery}%`}</b>
+            </div>
+            <div className="od-summary-item">
+              <span>Open approvals</span>
+              <b>{loading ? "—" : openApprovals}</b>
+            </div>
           </div>
-          <div className="od-summary-item">
-            <span>On-time delivery</span>
-            <b>{loading ? "—" : `${onTimeDelivery}%`}</b>
-          </div>
-          <div className="od-summary-item">
-            <span>Open approvals</span>
-            <b>{loading ? "—" : openApprovals}</b>
-          </div>
-        </div>
+        )}
       </section>
 
       <section className="od-grid od-grid-3">
@@ -469,65 +478,70 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
           </div>
         </article>
 
-        <article className="od-card">
-          <div className="od-card-head">
-            <div>
-              <h3>{`Revenue Mix · ${rangeLabel(revenueMixRangeDays)}`}</h3>
-              <p>Share of revenue by workflow stage.</p>
+        {canShowRevenue && (
+          <article className="od-card">
+            <div className="od-card-head">
+              <div>
+                <h3>{`Revenue Mix · ${rangeLabel(revenueMixRangeDays)}`}</h3>
+                <p>Share of revenue by workflow stage.</p>
+              </div>
+              <select value={revenueMixRangeDays} onChange={(e) => setRevenueMixRangeDays(Number(e.target.value))}>
+                <option value={7}>Last 7 days</option>
+                <option value={30}>Last 30 days</option>
+                <option value={90}>Last 90 days</option>
+              </select>
             </div>
-            <select value={revenueMixRangeDays} onChange={(e) => setRevenueMixRangeDays(Number(e.target.value))}>
-              <option value={7}>Last 7 days</option>
-              <option value={30}>Last 30 days</option>
-              <option value={90}>Last 90 days</option>
-            </select>
-          </div>
 
-          <div className="od-donut-wrap">
-            <div className="od-donut" />
-            <div className="od-legend">
-              {revenueMix.map((m, i) => (
-                <div key={m.name} className="od-legend-row">
-                  <span className={`od-dot od-dot-${i + 1}`} />
-                  <span>{m.name}</span>
-                  <small>{m.pct}%</small>
+            <div className="od-donut-wrap">
+              <div className="od-donut" />
+              <div className="od-legend">
+                {revenueMix.map((m, i) => (
+                  <div key={m.name} className="od-legend-row">
+                    <span className={`od-dot od-dot-${i + 1}`} />
+                    <span>{m.name}</span>
+                    <small>{m.pct}%</small>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </article>
+        )}
+
+        {canShowRevenue && (
+          <article className="od-card">
+            <div className="od-card-head">
+              <div>
+                <h3>{`Revenue by Department · ${rangeLabel(deptRangeDays)}`}</h3>
+                <p>Top earning areas this period.</p>
+              </div>
+              <select value={deptRangeDays} onChange={(e) => setDeptRangeDays(Number(e.target.value))}>
+                <option value={7}>Last 7 days</option>
+                <option value={30}>Last 30 days</option>
+                <option value={90}>Last 90 days</option>
+              </select>
+            </div>
+
+            <div className="od-total">Total <b>${Math.round(totalRevenue).toLocaleString("en-US")}</b></div>
+            <div className="od-dept-list">
+              {revenueByDepartment.map((d) => (
+                <div key={d.name} className="od-dept-item">
+                  <div className="od-dept-label">
+                    <span>{d.name}</span>
+                    <b>${Math.round(d.amount).toLocaleString("en-US")}</b>
+                  </div>
+                  <div className="od-dept-track">
+                    <div className="od-dept-fill" style={{ width: `${(d.amount / maxDeptAmount) * 100}%` }} />
+                  </div>
                 </div>
               ))}
             </div>
-          </div>
-        </article>
-
-        <article className="od-card">
-          <div className="od-card-head">
-            <div>
-              <h3>{`Revenue by Department · ${rangeLabel(deptRangeDays)}`}</h3>
-              <p>Top earning areas this period.</p>
-            </div>
-            <select value={deptRangeDays} onChange={(e) => setDeptRangeDays(Number(e.target.value))}>
-              <option value={7}>Last 7 days</option>
-              <option value={30}>Last 30 days</option>
-              <option value={90}>Last 90 days</option>
-            </select>
-          </div>
-
-          <div className="od-total">Total <b>${Math.round(totalRevenue).toLocaleString("en-US")}</b></div>
-          <div className="od-dept-list">
-            {revenueByDepartment.map((d) => (
-              <div key={d.name} className="od-dept-item">
-                <div className="od-dept-label">
-                  <span>{d.name}</span>
-                  <b>${Math.round(d.amount).toLocaleString("en-US")}</b>
-                </div>
-                <div className="od-dept-track">
-                  <div className="od-dept-fill" style={{ width: `${(d.amount / maxDeptAmount) * 100}%` }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        </article>
+          </article>
+        )}
       </section>
 
       <section className="od-grid od-grid-3">
-        <article className="od-card">
+        {canShowQuickNav && (
+          <article className="od-card">
           <div className="od-card-head simple">
             <div>
               <h3>Quick Actions</h3>
@@ -543,9 +557,11 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
             <button type="button" onClick={() => go("customers")}>Add Customer</button>
             <button type="button" onClick={() => go("serviceexecution")}>Service Execution</button>
           </div>
-        </article>
+          </article>
+        )}
 
-        <article className="od-card">
+        {canShowCalendar && (
+          <article className="od-card">
           <div className="od-card-head simple">
             <div>
               <h3>Priority List</h3>
@@ -564,9 +580,11 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
               </div>
             ))}
           </div>
-        </article>
+          </article>
+        )}
 
-        <article className="od-card">
+        {canShowActivity && (
+          <article className="od-card">
           <div className="od-card-head simple">
             <div>
               <h3>Recent Activity</h3>
@@ -585,7 +603,8 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
               </div>
             ))}
           </div>
-        </article>
+          </article>
+        )}
       </section>
     </div>
   );

@@ -233,7 +233,13 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
   // ✅ numeric limit (percent)
   const maxPaymentDiscountPercent = useMemo(() => {
-    const raw = Number(getOptionNumber("payment", "payment_discount_percent", 10));
+    const raw = Number(
+      getOptionNumber(
+        "payment",
+        "payment_max_discount_percent",
+        getOptionNumber("payment", "payment_discount_percent", 10)
+      )
+    );
     return Math.max(0, Math.min(100, Number.isFinite(raw) ? raw : 10));
   }, [getOptionNumber]);
 

@@ -2111,8 +2111,10 @@ function StepThreeServices({
           <div className="price-row">
             <span>Apply Discount:</span>
             <div>
-              <input type="number" min="0" max="100" value={discountPercent} onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)} style={{ width: "80px", color: "#333", backgroundColor: "#fff" }} />
-              <span> %</span>
+              <PermissionGate moduleId="joborder" optionId="joborder_discount_percent">
+                <input type="number" min="0" max="100" value={discountPercent} onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)} style={{ width: "80px", color: "#333", backgroundColor: "#fff" }} />
+                <span> %</span>
+              </PermissionGate>
             </div>
           </div>
           <div className="price-row discount-amount">

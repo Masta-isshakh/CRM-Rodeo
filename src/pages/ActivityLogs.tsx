@@ -4,6 +4,7 @@ import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
 import "./activity.css";
 import type { PageProps } from "../lib/PageProps";
+import PermissionGate from "./PermissionGate";
 
 const client = generateClient<Schema>();
 type LogRow = Schema["ActivityLog"]["type"];
@@ -31,23 +32,25 @@ export default function ActivityLog({ permissions }: PageProps) {
     <div className="activity-page">
       <h2>Activity Log</h2>
 
-      <div className="timeline">
-        {logs.map((log) => (
-          <div className="timeline-item" key={log.id}>
-            <div className={`badge ${String(log.action || "").toLowerCase()}`}>
-              {log.action}
-            </div>
+      <PermissionGate moduleId="activitylog" optionId="activitylog_view">
+        <div className="timeline">
+          {logs.map((log) => (
+            <div className="timeline-item" key={log.id}>
+              <div className={`badge ${String(log.action || "").toLowerCase()}`}>
+                {log.action}
+              </div>
 
-            <div className="content">
-              <p className="message">{log.message}</p>
-              <span className="meta">
-                {log.entityType} • {new Date(String(log.createdAt)).toLocaleString()}
-              </span>
+              <div className="content">
+                <p className="message">{log.message}</p>
+                <span className="meta">
+                  {log.entityType} • {new Date(String(log.createdAt)).toLocaleString()}
+                </span>
+              </div>
             </div>
-          </div>
-        ))}
-        {!logs.length && <div style={{ opacity: 0.8 }}>No logs yet.</div>}
-      </div>
+          ))}
+          {!logs.length && <div style={{ opacity: 0.8 }}>No logs yet.</div>}
+        </div>
+      </PermissionGate>
     </div>
   );
 }

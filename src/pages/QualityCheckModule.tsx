@@ -12,6 +12,7 @@ import "./JobCards.css";
 import "./JobOrderHistory.css";
 
 import { getDataClient } from "../lib/amplifyClient";
+import { usePermissions } from "../lib/userPermissions";
 import { cancelJobOrderByOrderNumber, getJobOrderByOrderNumber, upsertJobOrder } from "./jobOrderRepo";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy, resolveOrderUpdatedBy } from "../utils/actorIdentity";
@@ -128,6 +129,7 @@ type DocItem = {
 /* -------------------- component -------------------- */
 export default function QualityCheckModule({ currentUser }: { currentUser: any }) {
   const client = useMemo(() => getDataClient(), []);
+  const { canOption } = usePermissions();
 
   const [loading, setLoading] = useState(false);
 
@@ -157,6 +159,9 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   // cancel modal
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
+  const canFinishQCAction = canOption("qualitycheck", "qualitycheck_finish", true);
+  const canApproveQCAction = canOption("qualitycheck", "qualitycheck_approve", true);
+  const canRejectQCAction = canOption("qualitycheck", "qualitycheck_reject", true);
 
   const displayUser = (value: any) => {
     return resolveActorDisplay(value, {
@@ -503,6 +508,12 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   };
 
   const handleFinishQC = () => {
+    if (!canFinishQCAction) return;
+    if (!canApproveQCAction && !canRejectQCAction) {
+      setPopupMessage("You don’t have permission to approve or reject Quality Check.");
+      setShowPopup(true);
+      return;
+    }
     if (!allServicesEvaluated()) return;
     setShowQCConfirmation(true);
   };
@@ -603,6 +614,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   };
 
   const handleApproveQC = async () => {
+    if (!canApproveQCAction) return;
     setLoading(true);
     try {
       await persistQcResultsToOrder("Ready");
@@ -619,6 +631,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   };
 
   const handleRejectQC = async () => {
+    if (!canRejectQCAction) return;
     setLoading(true);
     try {
       await persistQcResultsToOrder("Service_Operation");
@@ -1035,14 +1048,16 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                       <i className="fas fa-clipboard-check"></i> Quality Check List
                     </h3>
 
-                    <button
-                      className="qc-btn-finish"
-                      type="button"
-                      onClick={handleFinishQC}
-                      disabled={!allServicesEvaluated() || loading}
-                    >
-                      <i className="fas fa-flag-checkered"></i> {loading ? "Saving..." : "Finish"}
-                    </button>
+                    <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_finish">
+                      <button
+                        className="qc-btn-finish"
+                        type="button"
+                        onClick={handleFinishQC}
+                        disabled={!allServicesEvaluated() || loading}
+                      >
+                        <i className="fas fa-flag-checkered"></i> {loading ? "Saving..." : "Finish"}
+                      </button>
+                    </PermissionGate>
                   </div>
 
                   <div className="qc-checklist-items">
@@ -1161,12 +1176,22 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                 <ConfirmationPopup
                   open={showQCConfirmation}
                   message="Quality Check Evaluation Complete. Please select an action:"
-                  confirmText="Approve Quality Check"
-                  cancelText="Reject Quality Check"
-                  onConfirm={() => void handleApproveQC()}
+                  confirmText={canApproveQCAction ? "Approve Quality Check" : "Close"}
+                  cancelText={canRejectQCAction ? "Reject Quality Check" : "Cancel"}
+                  disableConfirm={!canApproveQCAction}
+                  onConfirm={() => {
+                    if (canApproveQCAction) {
+                      void handleApproveQC();
+                    } else {
+                      setShowQCConfirmation(false);
+                    }
+                  }}
                   onCancel={() => {
-                    void handleRejectQC();
-                    setShowQCConfirmation(false);
+                    if (canRejectQCAction) {
+                      void handleRejectQC();
+                    } else {
+                      setShowQCConfirmation(false);
+                    }
                   }}
                 />
               )}

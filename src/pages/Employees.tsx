@@ -140,6 +140,11 @@ export default function Employees({ permissions }: PageProps) {
     <div className="employees-page">
       <div className="employees-header">
         <h2>Employees</h2>
+        <PermissionGate moduleId="employees" optionId="employees_refresh">
+          <Button onClick={() => void fetchEmployees()}>
+            Refresh
+          </Button>
+        </PermissionGate>
         {permissions.canCreate && (
           <PermissionGate moduleId="employees" optionId="employees_add">
             <Button variation="primary" onClick={() => setShowModal(true)}>
