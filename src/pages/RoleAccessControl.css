@@ -521,6 +521,39 @@
   padding: 14px 0 0;
 }
 
+.rac-save-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.rac-save-progress {
+  width: 220px;
+}
+
+.rac-save-progress-text {
+  font-size: 11px;
+  color: var(--rac-muted);
+  margin-bottom: 4px;
+  text-align: right;
+}
+
+.rac-save-progress-bar {
+  width: 100%;
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  border: 1px solid var(--rac-border);
+  background: #ffffff;
+}
+
+.rac-save-progress-fill {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(135deg, var(--rac-primary), var(--rac-primary-2));
+}
+
 .rac-btn {
   display: inline-flex;
   align-items: center;
@@ -577,6 +610,16 @@
   .rac-btn {
     width: 100%;
     justify-content: center;
+  }
+  .rac-save-wrap {
+    width: 100%;
+    align-items: stretch;
+  }
+  .rac-save-progress {
+    width: 100%;
+  }
+  .rac-save-progress-text {
+    text-align: left;
   }
 }
 

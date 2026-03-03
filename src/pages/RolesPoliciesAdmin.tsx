@@ -479,6 +479,33 @@ function clampPercent(n: any, fallback: number) {
   return Math.max(0, Math.min(100, v));
 }
 
+async function runInBatches(
+  tasks: Array<() => Promise<any>>,
+  batchSize = 20,
+  onProgress?: (completed: number, total: number) => void
+) {
+  const total = tasks.length;
+  let completed = 0;
+
+  onProgress?.(completed, total);
+
+  for (let i = 0; i < tasks.length; i += batchSize) {
+    const chunk = tasks.slice(i, i + batchSize).map((job) =>
+      (async () => {
+        try {
+          return await job();
+        } finally {
+          completed += 1;
+          onProgress?.(completed, total);
+        }
+      })()
+    );
+    const results = await Promise.allSettled(chunk);
+    const failed = results.find((r) => r.status === "rejected") as PromiseRejectedResult | undefined;
+    if (failed) throw failed.reason;
+  }
+}
+
 const OptionNode = ({
   moduleId,
   option,
@@ -582,6 +609,7 @@ export default function RoleAccessControl() {
   const [showCreateRole, setShowCreateRole] = useState(false);
   const [newRoleName, setNewRoleName] = useState("");
   const [newRoleDesc, setNewRoleDesc] = useState("");
+  const [saveProgress, setSaveProgress] = useState({ active: false, completed: 0, total: 0 });
 
   const showMsg = (msg: string) => {
     setSuccessMessage(msg);
@@ -799,27 +827,49 @@ export default function RoleAccessControl() {
   const handleSave = async () => {
     if (!currentRoleId) return;
     setLoading(true);
+    setSaveProgress({ active: true, completed: 0, total: 0 });
+    const startedAt = Date.now();
 
     try {
       const [existingToggles, existingNums, existingPolicies] = await Promise.all([
-        listAll<any>(
-          (args) =>
-            (client.models as any).RoleOptionToggle.list({
-              ...args,
-              filter: { roleId: { eq: currentRoleId } },
-            }),
-          1000,
-          20000
-        ),
-        listAll<any>(
-          (args) =>
-            (client.models as any).RoleOptionNumber.list({
-              ...args,
-              filter: { roleId: { eq: currentRoleId } },
-            }),
-          1000,
-          20000
-        ),
+        (async () => {
+          try {
+            const q = await (client.models as any).RoleOptionToggle.roleOptionTogglesByRole?.({
+              roleId: String(currentRoleId),
+              limit: 2000,
+            });
+            return (q?.data ?? []) as any[];
+          } catch {
+            return await listAll<any>(
+              (args) =>
+                (client.models as any).RoleOptionToggle.list({
+                  ...args,
+                  filter: { roleId: { eq: currentRoleId } },
+                }),
+              1000,
+              20000
+            );
+          }
+        })(),
+        (async () => {
+          try {
+            const q = await (client.models as any).RoleOptionNumber.roleOptionNumbersByRole?.({
+              roleId: String(currentRoleId),
+              limit: 2000,
+            });
+            return (q?.data ?? []) as any[];
+          } catch {
+            return await listAll<any>(
+              (args) =>
+                (client.models as any).RoleOptionNumber.list({
+                  ...args,
+                  filter: { roleId: { eq: currentRoleId } },
+                }),
+              1000,
+              20000
+            );
+          }
+        })(),
         listAll<any>(
           (args) =>
             (client.models as any).RolePolicy.list({
@@ -843,6 +893,10 @@ export default function RoleAccessControl() {
 
       const desiredToggleKeys = new Set<string>();
       const desiredNumKeys = new Set<string>();
+      const toggleWriteTasks: Array<() => Promise<any>> = [];
+      const numWriteTasks: Array<() => Promise<any>> = [];
+      const policyWriteTasks: Array<() => Promise<any>> = [];
+      const cleanupTasks: Array<() => Promise<any>> = [];
 
       const { computed: computedPolicies, managedPolicyKeys } = computeRolePoliciesFromOptions(permissions);
 
@@ -856,21 +910,28 @@ export default function RoleAccessControl() {
           const existing = toggleByKey.get(k);
 
           if (existing?.id) {
-            await (client.models as any).RoleOptionToggle.update({
-              id: existing.id,
-              enabled,
-              updatedAt: now,
-              updatedBy: actor,
-            });
+            const oldEnabled = Boolean(existing?.enabled);
+            if (oldEnabled !== enabled) {
+              toggleWriteTasks.push(() =>
+                (client.models as any).RoleOptionToggle.update({
+                  id: existing.id,
+                  enabled,
+                  updatedAt: now,
+                  updatedBy: actor,
+                })
+              );
+            }
           } else {
-            await (client.models as any).RoleOptionToggle.create({
-              roleId: currentRoleId,
-              key: k,
-              enabled,
-              createdAt: now,
-              updatedAt: now,
-              updatedBy: actor,
-            });
+            toggleWriteTasks.push(() =>
+              (client.models as any).RoleOptionToggle.create({
+                roleId: currentRoleId,
+                key: k,
+                enabled,
+                createdAt: now,
+                updatedAt: now,
+                updatedBy: actor,
+              })
+            );
           }
         }
 
@@ -884,21 +945,28 @@ export default function RoleAccessControl() {
 
             const existing = numByKey.get(k);
             if (existing?.id) {
-              await (client.models as any).RoleOptionNumber.update({
-                id: existing.id,
-                value: v,
-                updatedAt: now,
-                updatedBy: actor,
-              });
+              const oldValue = Number(existing?.value);
+              if (!Number.isFinite(oldValue) || oldValue !== v) {
+                numWriteTasks.push(() =>
+                  (client.models as any).RoleOptionNumber.update({
+                    id: existing.id,
+                    value: v,
+                    updatedAt: now,
+                    updatedBy: actor,
+                  })
+                );
+              }
             } else {
-              await (client.models as any).RoleOptionNumber.create({
-                roleId: currentRoleId,
-                key: k,
-                value: v,
-                createdAt: now,
-                updatedAt: now,
-                updatedBy: actor,
-              });
+              numWriteTasks.push(() =>
+                (client.models as any).RoleOptionNumber.create({
+                  roleId: currentRoleId,
+                  key: k,
+                  value: v,
+                  createdAt: now,
+                  updatedAt: now,
+                  updatedBy: actor,
+                })
+              );
             }
             continue;
           }
@@ -910,21 +978,28 @@ export default function RoleAccessControl() {
           const existing = toggleByKey.get(k);
 
           if (existing?.id) {
-            await (client.models as any).RoleOptionToggle.update({
-              id: existing.id,
-              enabled,
-              updatedAt: now,
-              updatedBy: actor,
-            });
+            const oldEnabled = Boolean(existing?.enabled);
+            if (oldEnabled !== enabled) {
+              toggleWriteTasks.push(() =>
+                (client.models as any).RoleOptionToggle.update({
+                  id: existing.id,
+                  enabled,
+                  updatedAt: now,
+                  updatedBy: actor,
+                })
+              );
+            }
           } else {
-            await (client.models as any).RoleOptionToggle.create({
-              roleId: currentRoleId,
-              key: k,
-              enabled,
-              createdAt: now,
-              updatedAt: now,
-              updatedBy: actor,
-            });
+            toggleWriteTasks.push(() =>
+              (client.models as any).RoleOptionToggle.create({
+                roleId: currentRoleId,
+                key: k,
+                enabled,
+                createdAt: now,
+                updatedAt: now,
+                updatedBy: actor,
+              })
+            );
           }
         }
       }
@@ -933,13 +1008,13 @@ export default function RoleAccessControl() {
       for (const row of existingToggles ?? []) {
         const k = normalizeKey(row.key);
         if (!desiredToggleKeys.has(k) && row?.id) {
-          await (client.models as any).RoleOptionToggle.delete({ id: row.id });
+          cleanupTasks.push(() => (client.models as any).RoleOptionToggle.delete({ id: row.id }));
         }
       }
       for (const row of existingNums ?? []) {
         const k = normalizeKey(row.key);
         if (!desiredNumKeys.has(k) && row?.id) {
-          await (client.models as any).RoleOptionNumber.delete({ id: row.id });
+          cleanupTasks.push(() => (client.models as any).RoleOptionNumber.delete({ id: row.id }));
         }
       }
 
@@ -954,35 +1029,72 @@ export default function RoleAccessControl() {
         const existing = existingPolicyByKey.get(policyKey);
 
         if (existing?.id) {
-          await (client.models as any).RolePolicy.update({
-            id: existing.id,
-            canRead: Boolean(target.canRead),
-            canCreate: Boolean(target.canCreate),
-            canUpdate: Boolean(target.canUpdate),
-            canDelete: Boolean(target.canDelete),
-            canApprove: Boolean(target.canApprove),
-          });
+          const nextRead = Boolean(target.canRead);
+          const nextCreate = Boolean(target.canCreate);
+          const nextUpdate = Boolean(target.canUpdate);
+          const nextDelete = Boolean(target.canDelete);
+          const nextApprove = Boolean(target.canApprove);
+
+          const changed =
+            Boolean(existing?.canRead) !== nextRead ||
+            Boolean(existing?.canCreate) !== nextCreate ||
+            Boolean(existing?.canUpdate) !== nextUpdate ||
+            Boolean(existing?.canDelete) !== nextDelete ||
+            Boolean(existing?.canApprove) !== nextApprove;
+
+          if (changed) {
+            policyWriteTasks.push(() =>
+              (client.models as any).RolePolicy.update({
+                id: existing.id,
+                canRead: nextRead,
+                canCreate: nextCreate,
+                canUpdate: nextUpdate,
+                canDelete: nextDelete,
+                canApprove: nextApprove,
+              })
+            );
+          }
         } else {
-          await (client.models as any).RolePolicy.create({
-            roleId: currentRoleId,
-            policyKey,
-            canRead: Boolean(target.canRead),
-            canCreate: Boolean(target.canCreate),
-            canUpdate: Boolean(target.canUpdate),
-            canDelete: Boolean(target.canDelete),
-            canApprove: Boolean(target.canApprove),
-            createdAt: now,
-          });
+          policyWriteTasks.push(() =>
+            (client.models as any).RolePolicy.create({
+              roleId: currentRoleId,
+              policyKey,
+              canRead: Boolean(target.canRead),
+              canCreate: Boolean(target.canCreate),
+              canUpdate: Boolean(target.canUpdate),
+              canDelete: Boolean(target.canDelete),
+              canApprove: Boolean(target.canApprove),
+              createdAt: now,
+            })
+          );
         }
       }
 
+      const allWriteTasks = [
+        ...toggleWriteTasks,
+        ...numWriteTasks,
+        ...policyWriteTasks,
+        ...cleanupTasks,
+      ];
+
+      if (allWriteTasks.length > 0) {
+        await runInBatches(allWriteTasks, 25, (completed, total) => {
+          setSaveProgress({ active: true, completed, total });
+        });
+      } else {
+        setSaveProgress({ active: true, completed: 0, total: 0 });
+      }
+
       window.dispatchEvent(new Event("rbac:refresh"));
-      showMsg(`Saved role permissions for: ${selectedRole?.name ?? currentRoleId}`);
+      const elapsedMs = Date.now() - startedAt;
+      const elapsedSec = (elapsedMs / 1000).toFixed(1);
+      showMsg(`Saved role permissions for: ${selectedRole?.name ?? currentRoleId} (${elapsedSec}s)`);
     } catch (e: any) {
       console.error(e);
       showMsg(`Save failed: ${e?.message ?? "Unknown error"}`);
     } finally {
       setLoading(false);
+      setSaveProgress((prev) => ({ ...prev, active: false }));
     }
   };
 
@@ -1186,9 +1298,27 @@ export default function RoleAccessControl() {
             <i className="fas fa-undo" /> Reset (delete backend rows)
           </button>
 
-          <button type="button" className="rac-btn rac-btn-primary" onClick={handleSave} disabled={loading}>
-            <i className="fas fa-save" /> {loading ? "Saving..." : "Save to Backend"}
-          </button>
+          <div className="rac-save-wrap">
+            <button type="button" className="rac-btn rac-btn-primary" onClick={handleSave} disabled={loading}>
+              <i className="fas fa-save" /> {loading
+                ? `Saving changes... (${saveProgress.completed}/${saveProgress.total || "?"})`
+                : "Save to Backend"}
+            </button>
+
+            {loading && saveProgress.active && saveProgress.total > 0 && (
+              <div className="rac-save-progress" aria-live="polite">
+                <div className="rac-save-progress-text">
+                  Saving changes... ({saveProgress.completed}/{saveProgress.total})
+                </div>
+                <div className="rac-save-progress-bar" role="progressbar" aria-valuemin={0} aria-valuemax={saveProgress.total} aria-valuenow={saveProgress.completed}>
+                  <div
+                    className="rac-save-progress-fill"
+                    style={{ width: `${Math.max(0, Math.min(100, (saveProgress.completed / saveProgress.total) * 100))}%` }}
+                  />
+                </div>
+              </div>
+            )}
+          </div>
         </section>
       </div>
 

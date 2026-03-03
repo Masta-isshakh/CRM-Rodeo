@@ -10,6 +10,8 @@ export type UserDirectory = {
   users: UserEntry[];
   emailToNameMap: Record<string, string>;
   nameToEmailMap: Record<string, string>;
+  // Backward-compatible property name used throughout the app;
+  // values are display names (fullName), not usernames.
   identityToUsernameMap: Record<string, string>;
   loadedAt: number;
 };
@@ -18,6 +20,11 @@ const CACHE_TTL_MS = 5 * 60 * 1000;
 
 let userDirectoryCache: UserDirectory | null = null;
 let userDirectoryInflight: Promise<UserDirectory> | null = null;
+
+export function invalidateUserDirectoryCache() {
+  userDirectoryCache = null;
+  userDirectoryInflight = null;
+}
 
 export function normalizeIdentity(value: any) {
   return String(value ?? "").trim().toLowerCase();
@@ -59,10 +66,10 @@ function buildDirectory(rows: any[]): UserDirectory {
     const nameKey = normalizeIdentity(name);
     if (nameKey && !nameToEmailMap[nameKey]) nameToEmailMap[nameKey] = email;
 
-    const identityKeys = [email, id, profileOwner, sub, nameKey].filter(Boolean);
+    const identityKeys = [email, id, profileOwner, sub, nameKey, username].filter(Boolean);
     for (const key of identityKeys) {
       if (!identityToUsernameMap[key]) {
-        identityToUsernameMap[key] = username;
+        identityToUsernameMap[key] = name;
       }
     }
   }

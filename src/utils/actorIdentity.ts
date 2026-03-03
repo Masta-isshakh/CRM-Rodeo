@@ -68,6 +68,7 @@ export function resolveActorDisplay(
   options?: {
     fallback?: string;
     identityToUsernameMap?: Record<string, string>;
+    identityToDisplayNameMap?: Record<string, string>;
   }
 ) {
   const fallback = String(options?.fallback ?? "—").trim() || "—";
@@ -75,7 +76,7 @@ export function resolveActorDisplay(
   if (!raw) return fallback;
 
   const normalized = normalizeActorIdentity(raw);
-  const mapped = options?.identityToUsernameMap?.[normalized];
+  const mapped = options?.identityToDisplayNameMap?.[normalized] ?? options?.identityToUsernameMap?.[normalized];
   const resolved = String(mapped ?? raw).trim();
   if (!resolved) return fallback;
   if (isPlaceholderActor(resolved)) return fallback;
@@ -94,7 +95,7 @@ export function resolveActorDisplay(
     return fallback;
   }
 
-  return normalizeActorIdentity(resolved);
+  return resolved;
 }
 
 function normalizeStepKey(value: any) {

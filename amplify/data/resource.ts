@@ -46,7 +46,11 @@ const schema = a
         departmentKey: a.string(),
         departmentName: a.string(),
       })
-      .authorization((allow) => [allow.ownerDefinedIn("profileOwner"), allow.group(ADMIN_GROUP)]),
+      .authorization((allow) => [
+        allow.ownerDefinedIn("profileOwner"),
+        allow.group(ADMIN_GROUP),
+        allow.authenticated().to(["read"]),
+      ]),
 
     // -----------------------------
     // RBAC MODELS
