@@ -113,6 +113,7 @@ export default function Users({ permissions }: PageProps) {
   const [lastName, setLastName] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
   const [departmentKey, setDepartmentKey] = useState("");
+  const [roleKey, setRoleKey] = useState("");
   const [inviteStatus, setInviteStatus] = useState("");
 
   // List state
@@ -122,6 +123,8 @@ export default function Users({ permissions }: PageProps) {
   type UserRow = Schema["UserProfile"]["type"];
   const [users, setUsers] = useState<UserRow[]>([]);
   const [departments, setDepartments] = useState<Dept[]>([]);
+  const [roles, setRoles] = useState<Schema["AppRole"]["type"][]>([]);
+  const [deptRoleLinks, setDeptRoleLinks] = useState<Schema["DepartmentRoleLink"]["type"][]>([]);
   const [search, setSearch] = useState("");
 
   // Row-level busy for dept changes (keeps rest of UI responsive)
@@ -135,15 +138,42 @@ export default function Users({ permissions }: PageProps) {
   const [menu, setMenu] = useState<MenuState>({ open: false });
   const portalMenuRef = useRef<HTMLDivElement | null>(null);
 
+  // View details modal state
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const [detailsUser, setDetailsUser] = useState<UserRow | null>(null);
+  const [editMode, setEditMode] = useState(false);
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editDepartmentKey, setEditDepartmentKey] = useState("");
+  const [editRoleKey, setEditRoleKey] = useState("");
+  const [editMobileNumber, setEditMobileNumber] = useState("");
+  const [detailsStatus, setDetailsStatus] = useState("");
+
   // RBAC display helpers
-  const [roleByDept, setRoleByDept] = useState<Record<string, string>>({});
   const [dashboardAllowedByDept, setDashboardAllowedByDept] = useState<Record<string, boolean>>({});
+  const [dashboardAllowedByRoleId, setDashboardAllowedByRoleId] = useState<Record<string, boolean>>({});
 
   const inviteLink = useMemo(() => {
     const e = email.trim().toLowerCase();
     if (!e) return "";
     return `${window.location.origin}/set-password?email=${encodeURIComponent(e)}`;
   }, [email]);
+
+  const availableRolesForDept = useMemo(() => {
+    if (!departmentKey) return [];
+    const roleIds = deptRoleLinks
+      .filter((link) => String(link.departmentKey ?? "") === departmentKey)
+      .map((link) => String(link.roleId ?? ""));
+    return roles.filter((r) => roleIds.includes(String(r.id ?? "")));
+  }, [departmentKey, deptRoleLinks, roles]);
+
+  const availableRolesForEditDept = useMemo(() => {
+    if (!editDepartmentKey) return [];
+    const roleIds = deptRoleLinks
+      .filter((link) => String(link.departmentKey ?? "") === editDepartmentKey)
+      .map((link) => String(link.roleId ?? ""));
+    return roles.filter((r) => roleIds.includes(String(r.id ?? "")));
+  }, [editDepartmentKey, deptRoleLinks, roles]);
 
   const load = async () => {
     setLoading(true);
@@ -184,13 +214,6 @@ export default function Users({ permissions }: PageProps) {
         deptToRoleIds.set(dk, arr);
       }
 
-      const deptRoleLabel: Record<string, string> = {};
-      for (const [dk, rids] of deptToRoleIds.entries()) {
-        const first = rids.map((x) => roleNameById.get(x) || "").find(Boolean);
-        deptRoleLabel[dk] = first || "—";
-      }
-      setRoleByDept(deptRoleLabel);
-
       // Dashboard access per department
       const roleDashboardAllowed = new Set<string>();
       for (const p of policies ?? []) {
@@ -208,15 +231,21 @@ export default function Users({ permissions }: PageProps) {
       }
       setDashboardAllowedByDept(deptDashboard);
 
+      const byRole: Record<string, boolean> = {};
+      for (const rid of roleDashboardAllowed) byRole[rid] = true;
+      setDashboardAllowedByRoleId(byRole);
+
       setUsers(sorted);
       setDepartments(deptList);
+      setRoles(roles ?? []);
+      setDeptRoleLinks(links ?? []);
       setStatus(`Loaded ${sorted.length} users • ${deptList.length} departments.`);
     } catch (e: any) {
       console.error(e);
       setUsers([]);
       setDepartments([]);
-      setRoleByDept({});
       setDashboardAllowedByDept({});
+      setDashboardAllowedByRoleId({});
       setStatus(e?.message ?? "Failed to load.");
     } finally {
       setLoading(false);
@@ -267,19 +296,35 @@ export default function Users({ permissions }: PageProps) {
   }, [menu]);
 
   const enriched = useMemo(() => {
+    const roleNameById = new Map<string, string>();
+    for (const r of roles ?? []) roleNameById.set(String(r.id ?? ""), String(r.name ?? ""));
+
+    const firstRoleByDept: Record<string, string> = {};
+    for (const link of deptRoleLinks ?? []) {
+      const dk = String(link.departmentKey ?? "");
+      const rid = String(link.roleId ?? "");
+      if (!dk || !rid || firstRoleByDept[dk]) continue;
+      firstRoleByDept[dk] = roleNameById.get(rid) || "";
+    }
+
     return (users ?? []).map((u, idx) => {
       const empId = empIdFromIndex(idx);
       const deptName =
         departments.find((d) => d.key === u.departmentKey)?.name ?? (u.departmentName ?? "—");
 
-      const roleName = u.departmentKey ? (roleByDept[u.departmentKey] ?? "—") : "—";
-      const dashboardAllowed = u.departmentKey ? Boolean(dashboardAllowedByDept[u.departmentKey]) : false;
+      const userRoleId = String((u as any).roleId ?? "").trim();
+      const userRoleName = String((u as any).roleName ?? "").trim();
+      const roleName = userRoleName || roleNameById.get(userRoleId) || (u.departmentKey ? (firstRoleByDept[u.departmentKey] ?? "—") : "—");
+
+      const dashboardAllowed = userRoleId
+        ? Boolean(dashboardAllowedByRoleId[userRoleId])
+        : (u.departmentKey ? Boolean(dashboardAllowedByDept[u.departmentKey]) : false);
 
       const mobile = String((u as any).mobileNumber ?? (u as any).mobile ?? (u as any).phone ?? "").trim();
 
       return { u, empId, deptName: String(deptName || "—"), roleName: String(roleName || "—"), dashboardAllowed, mobile };
     });
-  }, [users, departments, roleByDept, dashboardAllowedByDept]);
+  }, [users, departments, roles, deptRoleLinks, dashboardAllowedByDept, dashboardAllowedByRoleId]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -317,7 +362,11 @@ export default function Users({ permissions }: PageProps) {
 
       if (!e || !fn || !ln) throw new Error("Email, first name, and last name are required.");
       if (!departmentKey) throw new Error("Select a department.");
+      if (!roleKey) throw new Error("Select a role for the department.");
       if (!mob) throw new Error("Mobile number is required.");
+      if (!availableRolesForDept.some((r) => String(r.id ?? "") === roleKey)) {
+        throw new Error("Selected role is not valid for the chosen department.");
+      }
 
       const dept = departments.find((d) => d.key === departmentKey);
       const fullName = `${fn} ${ln}`.trim();
@@ -328,6 +377,7 @@ export default function Users({ permissions }: PageProps) {
         departmentKey,
         departmentName: dept?.name ?? "",
         mobileNumber: mob,
+        roleId: roleKey,
       } as any);
 
       const errs = (res as any)?.errors;
@@ -354,6 +404,7 @@ export default function Users({ permissions }: PageProps) {
       setLastName("");
       setMobileNumber("");
       setDepartmentKey("");
+      setRoleKey("");
       await load();
     } catch (e: any) {
       console.error(e);
@@ -490,6 +541,103 @@ export default function Users({ permissions }: PageProps) {
     }
   };
 
+  const openDetailsModal = (u: UserRow) => {
+    setDetailsUser(u);
+    setEditMode(false);
+    setEditFirstName(u.fullName ? u.fullName.split(" ")[0] : "");
+    setEditLastName(u.fullName ? u.fullName.split(" ").slice(1).join(" ") : "");
+    setEditDepartmentKey(String(u.departmentKey ?? ""));
+    setEditRoleKey(String((u as any).roleId ?? ""));
+    setEditMobileNumber(u.mobileNumber ?? "");
+    setDetailsStatus("");
+    setDetailsOpen(true);
+  };
+
+  const enterEditMode = () => {
+    setEditMode(true);
+    setDetailsStatus("");
+  };
+
+  const saveUserChanges = async () => {
+    if (!detailsUser?.email) return;
+    if (!editFirstName.trim() || !editLastName.trim()) {
+      setDetailsStatus("First name and last name are required.");
+      return;
+    }
+    if (!editDepartmentKey) {
+      setDetailsStatus("Department is required.");
+      return;
+    }
+    if (!editRoleKey) {
+      setDetailsStatus("Role is required.");
+      return;
+    }
+    if (!availableRolesForEditDept.some((r) => String(r.id ?? "") === editRoleKey)) {
+      setDetailsStatus("Selected role is not valid for the chosen department.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const newFullName = `${editFirstName.trim()} ${editLastName.trim()}`.trim();
+
+      // Update fullName if changed
+      if (newFullName !== detailsUser.fullName) {
+        const res1 = await client.models.UserProfile.update({
+          id: detailsUser.id,
+          fullName: newFullName,
+        });
+
+        const errs1 = (res1 as any)?.errors;
+        if (Array.isArray(errs1) && errs1.length) {
+          throw new Error(errs1.map((x: any) => x.message).join(" | "));
+        }
+      }
+
+      // Update department if changed
+      if (editDepartmentKey !== String(detailsUser.departmentKey ?? "")) {
+        const resDepth = await client.mutations.adminSetUserDepartment({
+          email: detailsUser.email,
+          departmentKey: editDepartmentKey,
+        });
+
+        const errsDepth = (resDepth as any)?.errors;
+        if (Array.isArray(errsDepth) && errsDepth.length) {
+          throw new Error(errsDepth.map((x: any) => x.message).join(" | "));
+        }
+      }
+
+      const selectedRole = availableRolesForEditDept.find((r) => String(r.id ?? "") === editRoleKey);
+      const selectedRoleName = String(selectedRole?.name ?? "").trim();
+
+      const roleChanged = editRoleKey !== String((detailsUser as any).roleId ?? "");
+      const mobileChanged = editMobileNumber !== (detailsUser.mobileNumber ?? "");
+
+      if (roleChanged || mobileChanged) {
+        const resProfile = await client.models.UserProfile.update({
+          id: detailsUser.id,
+          roleId: editRoleKey,
+          roleName: selectedRoleName || undefined,
+          mobileNumber: editMobileNumber || null,
+        } as any);
+
+        const errsProfile = (resProfile as any)?.errors;
+        if (Array.isArray(errsProfile) && errsProfile.length) {
+          throw new Error(errsProfile.map((x: any) => x.message).join(" | "));
+        }
+      }
+
+      setDetailsStatus("User updated successfully!");
+      setEditMode(false);
+      await load();
+    } catch (e: any) {
+      console.error(e);
+      setDetailsStatus(e?.message ?? "Failed to update user.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const openActionsMenu = (userId: string, btnEl: HTMLElement) => {
     const rect = btnEl.getBoundingClientRect();
     const menuWidth = 180;
@@ -522,6 +670,17 @@ export default function Users({ permissions }: PageProps) {
           const active = Boolean(row?.isActive);
           return (
             <>
+              <button
+                className="ums-menu-item"
+                onClick={() => {
+                  setMenu({ open: false });
+                  if (row) openDetailsModal(row);
+                }}
+                disabled={loading}
+              >
+                View Details
+              </button>
+
               <button
                 className="ums-menu-item"
                 onClick={() => {
@@ -807,7 +966,11 @@ export default function Users({ permissions }: PageProps) {
                     <select
                       className="ums-input"
                       value={departmentKey}
-                      onChange={(e) => setDepartmentKey(e.target.value)}
+                      onChange={(e) => {
+                        const nextDept = e.target.value;
+                        setDepartmentKey(nextDept);
+                        setRoleKey("");
+                      }}
                       disabled={loading}
                     >
                       <option value="">Select…</option>
@@ -817,6 +980,26 @@ export default function Users({ permissions }: PageProps) {
                         </option>
                       ))}
                     </select>
+                  </div>
+
+                  <div className="ums-span-2">
+                    <label className="ums-label">Role</label>
+                    <select
+                      className="ums-input"
+                      value={roleKey}
+                      onChange={(e) => setRoleKey(e.target.value)}
+                      disabled={loading || !departmentKey}
+                    >
+                      <option value="">Select…</option>
+                      {availableRolesForDept.map((r) => (
+                        <option key={String(r.id ?? "")} value={String(r.id ?? "")}>
+                          {r.name ?? "—"}
+                        </option>
+                      ))}
+                    </select>
+                    {!departmentKey && (
+                      <div className="ums-field-hint">Select a department first.</div>
+                    )}
                   </div>
                 </div>
 
@@ -847,6 +1030,176 @@ export default function Users({ permissions }: PageProps) {
 
               <div className="ums-hint">
                 Users get access from Department(Group) → Roles → Policies.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* View Details Modal */}
+        {detailsOpen && detailsUser && (
+          <div className="ums-modal-overlay" role="dialog" aria-modal="true">
+            <div className="ums-modal">
+              <div className="ums-modal-head">
+                <h3>{editMode ? "Edit User" : "User Details"}</h3>
+                <button className="ums-modal-close" onClick={() => setDetailsOpen(false)} aria-label="Close">
+                  ✕
+                </button>
+              </div>
+
+              <div className="ums-modal-body">
+                {editMode ? (
+                  <div className="ums-form-grid">
+                    <div>
+                      <label className="ums-label">First name</label>
+                      <input
+                        className="ums-input"
+                        value={editFirstName}
+                        onChange={(e) => setEditFirstName(e.target.value)}
+                        placeholder="First name"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="ums-label">Last name</label>
+                      <input
+                        className="ums-input"
+                        value={editLastName}
+                        onChange={(e) => setEditLastName(e.target.value)}
+                        placeholder="Last name"
+                      />
+                    </div>
+
+                    <div className="ums-span-2">
+                      <label className="ums-label">Email</label>
+                      <input
+                        className="ums-input"
+                        value={detailsUser.email ?? ""}
+                        disabled
+                        title="Email cannot be changed"
+                      />
+                      <div className="ums-field-hint">Email cannot be changed.</div>
+                    </div>
+
+                    <div className="ums-span-2">
+                      <label className="ums-label">Mobile number</label>
+                      <input
+                        className="ums-input"
+                        value={editMobileNumber}
+                        onChange={(e) => setEditMobileNumber(e.target.value)}
+                        placeholder="+974 1234 5678"
+                      />
+                    </div>
+
+                    <div className="ums-span-2">
+                      <label className="ums-label">Department</label>
+                      <select
+                        className="ums-input"
+                        value={editDepartmentKey}
+                        onChange={(e) => {
+                          const nextDept = e.target.value;
+                          setEditDepartmentKey(nextDept);
+                          setEditRoleKey("");
+                        }}
+                        disabled={loading}
+                      >
+                        <option value="">Select…</option>
+                        {departments.map((d) => (
+                          <option key={d.key} value={d.key}>
+                            {d.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="ums-span-2">
+                      <label className="ums-label">Role</label>
+                      <select
+                        className="ums-input"
+                        value={editRoleKey}
+                        onChange={(e) => setEditRoleKey(e.target.value)}
+                        disabled={loading || !editDepartmentKey}
+                      >
+                        <option value="">Select…</option>
+                        {availableRolesForEditDept.map((r) => (
+                          <option key={String(r.id ?? "")} value={String(r.id ?? "")}>
+                            {r.name ?? "—"}
+                          </option>
+                        ))}
+                      </select>
+                      {!editDepartmentKey && (
+                        <div className="ums-field-hint">Select a department first.</div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="ums-details-view">
+                    <div className="ums-detail-row">
+                      <span className="ums-detail-label">Name:</span>
+                      <span className="ums-detail-value">{detailsUser.fullName ?? "—"}</span>
+                    </div>
+                    <div className="ums-detail-row">
+                      <span className="ums-detail-label">Email:</span>
+                      <span className="ums-detail-value">{detailsUser.email ?? "—"}</span>
+                    </div>
+                    <div className="ums-detail-row">
+                      <span className="ums-detail-label">Mobile:</span>
+                      <span className="ums-detail-value">{detailsUser.mobileNumber ?? "—"}</span>
+                    </div>
+                    <div className="ums-detail-row">
+                      <span className="ums-detail-label">Department:</span>
+                      <span className="ums-detail-value">
+                        {departments.find((d) => d.key === detailsUser.departmentKey)?.name ?? "—"}
+                      </span>
+                    </div>
+                    <div className="ums-detail-row">
+                      <span className="ums-detail-label">Role:</span>
+                      <span className="ums-detail-value">{String((detailsUser as any).roleName ?? "").trim() || "—"}</span>
+                    </div>
+                    <div className="ums-detail-row">
+                      <span className="ums-detail-label">Status:</span>
+                      <span className={`pill ${detailsUser.isActive ? "pill-active" : "pill-inactive"}`}>
+                        {detailsUser.isActive ? "Active" : "Inactive"}
+                      </span>
+                    </div>
+                    <div className="ums-detail-row">
+                      <span className="ums-detail-label">Created:</span>
+                      <span className="ums-detail-value">
+                        {detailsUser.createdAt ? new Date(detailsUser.createdAt).toLocaleDateString() : "—"}
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {detailsStatus && <div className={`ums-toast ${detailsStatus.includes("successfully") ? "" : "error"}`}>{detailsStatus}</div>}
+              </div>
+
+              <div className="ums-modal-foot">
+                {editMode ? (
+                  <>
+                    <Button onClick={() => setEditMode(false)}>Cancel</Button>
+                    <Button
+                      variation="primary"
+                      onClick={saveUserChanges}
+                      isDisabled={loading}
+                      isLoading={loading}
+                    >
+                      Save Changes
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button onClick={() => setDetailsOpen(false)}>Close</Button>
+                    <PermissionGate moduleId="users" optionId="users_edit">
+                      <Button
+                        variation="primary"
+                        onClick={enterEditMode}
+                        isDisabled={!permissions.canUpdate || !canOption("users", "users_edit", true)}
+                      >
+                        Edit
+                      </Button>
+                    </PermissionGate>
+                  </>
+                )}
               </div>
             </div>
           </div>

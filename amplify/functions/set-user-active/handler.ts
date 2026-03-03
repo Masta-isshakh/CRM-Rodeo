@@ -78,6 +78,8 @@ export const handler: Handler = async (event) => {
     isActive: !!isActive,
     departmentKey: profile.departmentKey ?? undefined,
     departmentName: profile.departmentName ?? undefined,
+    roleId: (profile as any).roleId ?? undefined,
+    roleName: (profile as any).roleName ?? undefined,
     mobileNumber: profile.mobileNumber ?? undefined,
   });
 

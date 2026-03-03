@@ -29,6 +29,33 @@ function firstNonEmptyText(...values: any[]): string {
   return "";
 }
 
+function looksLikeUsernameValue(value: any) {
+  const v = String(value ?? "").trim();
+  if (!v) return false;
+  if (v.includes(" ")) return false;
+  if (v.includes("@")) return false;
+  return /^[a-z0-9._-]{3,}$/i.test(v);
+}
+
+function preferMappedDisplay(
+  labelValue: any,
+  identityValue: any,
+  resolveActor: (value: any, fallback?: string) => string,
+  fallback = "—"
+) {
+  const label = String(labelValue ?? "").trim();
+  if (label && !looksLikeUsernameValue(label)) return resolveActor(label, fallback);
+
+  const identity = String(identityValue ?? "").trim();
+  if (identity) {
+    const resolved = resolveActor(identity, fallback);
+    if (resolved && resolved !== fallback) return resolved;
+  }
+
+  if (label) return resolveActor(label, fallback);
+  return fallback;
+}
+
 function isPlaceholderActor(value: any) {
   const raw = String(value ?? "").trim().toLowerCase();
   return (
@@ -1132,7 +1159,12 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
 
     jobOrderSummary: {
       createDate: job.createdAt ? new Date(String(job.createdAt)).toLocaleString() : "",
-      createdBy: resolveActor(firstPreferredActor(job.createdBy, parsed?.createdBy, newRequestRoadmapActor, job.updatedBy), "—"),
+      createdBy: preferMappedDisplay(
+        firstPreferredActor(parsed?.jobOrderSummary?.createdByName, parsed?.createdByName),
+        firstPreferredActor(job.createdBy, parsed?.createdBy, newRequestRoadmapActor, job.updatedBy),
+        resolveActor,
+        "—"
+      ),
       expectedDelivery,
       actualDelivery,
     },

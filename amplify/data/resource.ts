@@ -45,6 +45,8 @@ const schema = a
         // Department = Cognito group key
         departmentKey: a.string(),
         departmentName: a.string(),
+        roleId: a.id(),
+        roleName: a.string(),
       })
       .authorization((allow) => [
         allow.ownerDefinedIn("profileOwner"),
@@ -710,6 +712,7 @@ const schema = a
         mobileNumber: a.string(),
         departmentKey: a.string().required(),
         departmentName: a.string(),
+        roleId: a.id(),
       })
       .authorization((allow) => [allow.group(ADMIN_GROUP)])
       .handler(a.handler.function(inviteUser))

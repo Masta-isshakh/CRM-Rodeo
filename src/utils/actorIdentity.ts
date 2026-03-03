@@ -2,10 +2,8 @@ export function normalizeActorIdentity(value: any) {
   return String(value ?? "").trim().toLowerCase();
 }
 
-function usernameFromEmail(email: string) {
-  const normalized = normalizeActorIdentity(email);
-  const at = normalized.indexOf("@");
-  return at > 0 ? normalized.slice(0, at) : normalized;
+function normalizeActorIdentityLoose(value: any) {
+  return normalizeActorIdentity(value).replace(/[^a-z0-9]/g, "");
 }
 
 function looksLikeOpaqueActorId(value: string) {
@@ -76,19 +74,20 @@ export function resolveActorDisplay(
   if (!raw) return fallback;
 
   const normalized = normalizeActorIdentity(raw);
-  const mapped = options?.identityToDisplayNameMap?.[normalized] ?? options?.identityToUsernameMap?.[normalized];
+  const looseNormalized = normalizeActorIdentityLoose(raw);
+  const mapped =
+    options?.identityToDisplayNameMap?.[normalized] ??
+    options?.identityToDisplayNameMap?.[looseNormalized] ??
+    options?.identityToUsernameMap?.[normalized] ??
+    options?.identityToUsernameMap?.[looseNormalized];
   const resolved = String(mapped ?? raw).trim();
   if (!resolved) return fallback;
   if (isPlaceholderActor(resolved)) return fallback;
 
   if (resolved.includes("::")) {
     const [, rhs = ""] = resolved.split("::");
-    const maybeEmail = rhs.trim();
-    if (maybeEmail.includes("@")) return usernameFromEmail(maybeEmail);
-  }
-
-  if (resolved.includes("@")) {
-    return usernameFromEmail(resolved);
+    const parsed = rhs.trim();
+    if (parsed) return parsed;
   }
 
   if (looksLikeOpaqueActorId(resolved)) {

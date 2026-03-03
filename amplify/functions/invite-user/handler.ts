@@ -70,6 +70,7 @@ export const handler: Handler = async (event) => {
   const fullName = String(event.arguments?.fullName ?? "").trim();
   const departmentKey = String(event.arguments?.departmentKey ?? "").trim();
   const departmentNameFromArgs = String(event.arguments?.departmentName ?? "").trim();
+  const roleId = String((event.arguments as any)?.roleId ?? "").trim();
 
   // ✅ NEW (backward-compatible)
   const mobileNumberRaw = (event.arguments as any)?.mobileNumber;
@@ -178,11 +179,22 @@ export const handler: Handler = async (event) => {
     limit: 1,
   });
 
+  let roleName = "";
+  if (roleId) {
+    const roleRes = await dataClient.models.AppRole.list({
+      filter: { id: { eq: roleId } },
+      limit: 1,
+    });
+    roleName = String(roleRes.data?.[0]?.name ?? "").trim();
+  }
+
   const payload: any = {
     email,
     fullName,
     departmentKey,
     departmentName,
+    roleId: roleId || undefined,
+    roleName: roleName || undefined,
     isActive: true,
     profileOwner,
     mobileNumber: mobileNumber || undefined, // ✅ save only if present
@@ -207,6 +219,8 @@ export const handler: Handler = async (event) => {
     cognitoUsername,
     departmentKey,
     departmentName,
+    roleId: roleId || null,
+    roleName: roleName || null,
     sub,
     inviteAction,
     emailDeliveryMedium: "EMAIL",

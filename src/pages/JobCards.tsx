@@ -5,7 +5,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import "./JobCards.css";
 import { getUrl } from "aws-amplify/storage";
-import { resolveActorDisplay, resolveActorUsername } from "../utils/actorIdentity";
+import { normalizeActorIdentity, resolveActorDisplay, resolveActorUsername } from "../utils/actorIdentity";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { getDataClient } from "../lib/amplifyClient";
 
@@ -132,6 +132,23 @@ function joIsPlaceholderName(s: string) {
 
 function resolveAuthenticatedEmail(user: any) {
   return resolveActorUsername(user, "");
+}
+
+function resolveCurrentActorDisplay(currentUser: any, actorIdentity: string, identityMap?: Record<string, string>) {
+  const normalizedIdentity = normalizeActorIdentity(actorIdentity);
+  const direct = identityMap?.[normalizedIdentity];
+  if (direct && !joIsPlaceholderName(String(direct))) return String(direct);
+
+  const fromName = String(currentUser?.name ?? currentUser?.displayName ?? "").trim();
+  if (fromName && !joIsPlaceholderName(fromName)) return fromName;
+
+  const loginId = String(currentUser?.signInDetails?.loginId ?? "").trim();
+  const loginKey = normalizeActorIdentity(loginId);
+  if (loginKey && identityMap?.[loginKey] && !joIsPlaceholderName(String(identityMap[loginKey]))) {
+    return String(identityMap[loginKey]);
+  }
+
+  return actorIdentity;
 }
 
 /** ✅ Best creator name for the order (handles different payload shapes) */
@@ -1104,6 +1121,7 @@ function DetailsScreen({ order, onClose, onAddService, currentUser, actorMap }: 
 // NEW JOB SCREEN (unchanged UI)
 // ============================================
 function NewJobScreen({ currentUser, onClose, onSubmit, prefill }: any) {
+  const client = useMemo(() => getDataClient(), []);
   const [step, setStep] = useState(1);
   const [orderType, setOrderType] = useState<any>(null); // 'new' or 'service'
   const [customerType, setCustomerType] = useState<any>(null);
@@ -1118,7 +1136,24 @@ function NewJobScreen({ currentUser, onClose, onSubmit, prefill }: any) {
   const [expectedDeliveryTime, setExpectedDeliveryTime] = useState("");
   const [vehicleCompletedServices, setVehicleCompletedServices] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [actorIdentityMap, setActorIdentityMap] = useState<Record<string, string>>({});
   const actorUsername = resolveAuthenticatedEmail(currentUser) || "system";
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const directory = await getUserDirectory(client);
+        if (!cancelled) setActorIdentityMap(directory.identityToUsernameMap ?? {});
+      } catch {
+        if (!cancelled) setActorIdentityMap({});
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client]);
 
   const formatAmount = (value: any) => `QAR ${Number(value || 0).toLocaleString()}`;
 
@@ -1188,6 +1223,7 @@ function NewJobScreen({ currentUser, onClose, onSubmit, prefill }: any) {
     const billId = `BILL-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
     const invoiceNumber = `INV-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
     const actorIdentity = authEmail || resolveActorUsername(currentUser, "—");
+    const actorDisplayName = resolveCurrentActorDisplay(currentUser, actorIdentity, actorIdentityMap);
 
     const newOrder = {
       id: jobOrderId,
@@ -1198,11 +1234,14 @@ function NewJobScreen({ currentUser, onClose, onSubmit, prefill }: any) {
       workStatus: "New Request",
       paymentStatus: "Unpaid",
       createdBy: actorIdentity,
+      createdByName: actorDisplayName,
       updatedBy: actorIdentity,
+      updatedByName: actorDisplayName,
       createDate: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
       jobOrderSummary: {
         createDate: new Date().toLocaleString(),
         createdBy: actorIdentity,
+        createdByName: actorDisplayName,
         expectedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleString(),
       },
       customerDetails: {
@@ -1274,6 +1313,7 @@ function NewJobScreen({ currentUser, onClose, onSubmit, prefill }: any) {
           startTimestamp: new Date().toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }),
           endTimestamp: null,
           actionBy: actorIdentity,
+          actionByName: actorDisplayName,
           status: "InProgress",
         },
         { step: "Inspection", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },

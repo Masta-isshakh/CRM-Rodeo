@@ -125,6 +125,8 @@ export const handler = async (event: {
     isActive: profile.isActive ?? true,
     departmentKey,
     departmentName: departmentName || keyToLabel(departmentKey),
+    roleId: (profile as any).roleId ?? undefined,
+    roleName: (profile as any).roleName ?? undefined,
     mobileNumber: profile.mobileNumber ?? undefined,
   });
 

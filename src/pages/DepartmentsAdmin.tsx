@@ -1,7 +1,8 @@
 // src/pages/DepartmentsAdmin.tsx
 import { useEffect, useMemo, useState } from "react";
-import { Button, TextField, SelectField } from "@aws-amplify/ui-react";
+import { Button, TextField } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
+import "./DepartmentsAdmin.css";
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
 import { getDataClient } from "../lib/amplifyClient";
@@ -38,10 +39,14 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
   const [departments, setDepartments] = useState<Dept[]>([]);
   const [roles, setRoles] = useState<Schema["AppRole"]["type"][]>([]);
   const [links, setLinks] = useState<Schema["DepartmentRoleLink"]["type"][]>([]);
+  const [deptUserCounts, setDeptUserCounts] = useState<Record<string, number>>({});
 
   const [newDept, setNewDept] = useState("");
-  const [renameFrom, setRenameFrom] = useState("");
-  const [renameTo, setRenameTo] = useState("");
+  const [showCreateRow, setShowCreateRow] = useState(false);
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [roleModalDept, setRoleModalDept] = useState<Dept | null>(null);
+  const [modalRoleName, setModalRoleName] = useState("");
+  const [modalRoleDescription, setModalRoleDescription] = useState("");
 
   const load = async () => {
     setLoading(true);
@@ -70,10 +75,25 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
       setDepartments(deptList);
       setRoles(rolesRes.data ?? []);
       setLinks(linksRes.data ?? []);
+
+      try {
+        const upRes = await client.models.UserProfile.list({ limit: 5000 });
+        const counts: Record<string, number> = {};
+        for (const row of upRes?.data ?? []) {
+          const key = String((row as any)?.departmentKey ?? "").trim();
+          if (!key) continue;
+          counts[key] = (counts[key] ?? 0) + 1;
+        }
+        setDeptUserCounts(counts);
+      } catch {
+        setDeptUserCounts({});
+      }
+
       setStatus("");
     } catch (e: any) {
       console.error(e);
       setDepartments([]);
+      setDeptUserCounts({});
       setStatus(e?.message ?? "Load failed");
     } finally {
       setLoading(false);
@@ -106,6 +126,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
       if (!name) throw new Error("Department name required");
       await client.mutations.adminCreateDepartment({ departmentName: name });
       setNewDept("");
+      setShowCreateRow(false);
       await load();
     } catch (e: any) {
       console.error(e);
@@ -115,17 +136,15 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     }
   };
 
-  const renameDept = async () => {
+  const renameDept = async (oldKey: string, newName: string) => {
     if (!permissions.canUpdate || !canOption("departments", "departments_rename", true)) return;
     setStatus("");
     setLoading(true);
     try {
-      const oldKey = renameFrom.trim();
-      const newName = renameTo.trim();
+      const oldKeyTrimmed = String(oldKey ?? "").trim();
+      const newNameTrimmed = String(newName ?? "").trim();
       if (!oldKey || !newName) throw new Error("Select old and enter new name");
-      await client.mutations.adminRenameDepartment({ oldKey, newName });
-      setRenameFrom("");
-      setRenameTo("");
+      await client.mutations.adminRenameDepartment({ oldKey: oldKeyTrimmed, newName: newNameTrimmed });
       await load();
     } catch (e: any) {
       console.error(e);
@@ -153,31 +172,62 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     }
   };
 
-  const assignRole = async (department: Dept, roleId: string) => {
+  const createRoleForDepartment = async (department: Dept, roleNameRaw: string, roleDescriptionRaw: string) => {
     if (!permissions.canUpdate || !canOption("departments", "departments_assignrole", true)) return;
-    if (!roleId) return;
+
+    const roleName = roleNameRaw.trim();
+    if (!roleName) return;
+    const roleDescription = roleDescriptionRaw.trim();
 
     setStatus("");
     setLoading(true);
     try {
-      const exists = links.some(
-        (l) => l.departmentKey === department.key && String(l.roleId) === String(roleId)
-      );
-      if (exists) return;
+      const existing = roles.find((r) => String(r.name ?? "").trim().toLowerCase() === roleName.toLowerCase());
+      const roleId = String(existing?.id ?? "").trim();
 
-      await client.models.DepartmentRoleLink.create({
-        departmentKey: department.key,
-        departmentName: department.name,
-        roleId,
-      });
+      let targetRoleId = roleId;
+      if (!targetRoleId) {
+        const created = await client.models.AppRole.create({
+          name: roleName,
+          description: roleDescription || undefined,
+          isActive: true,
+          createdAt: new Date().toISOString(),
+        });
+        targetRoleId = String((created as any)?.data?.id ?? "").trim();
+      }
+
+      if (!targetRoleId) throw new Error("Role creation failed.");
+
+      const exists = links.some(
+        (l) => String(l.departmentKey ?? "") === String(department.key ?? "") && String(l.roleId ?? "") === targetRoleId
+      );
+      if (!exists) {
+        await client.models.DepartmentRoleLink.create({
+          departmentKey: department.key,
+          departmentName: department.name,
+          roleId: targetRoleId,
+        });
+      }
 
       await load();
+      setShowRoleModal(false);
+      setRoleModalDept(null);
+      setModalRoleName("");
+      setModalRoleDescription("");
     } catch (e: any) {
       console.error(e);
-      setStatus(e?.message ?? "Assign failed");
+      setStatus(e?.message ?? "Add role failed");
     } finally {
       setLoading(false);
     }
+  };
+
+  const openRoleModal = (department: Dept) => {
+    if (!permissions.canUpdate || !canOption("departments", "departments_assignrole", true) || loading) return;
+    setRoleModalDept(department);
+    setModalRoleName("");
+    setModalRoleDescription("");
+    setShowRoleModal(true);
   };
 
   const removeRole = async (departmentKey: string, roleId: string) => {
@@ -200,170 +250,233 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     }
   };
 
+  const totalRoleAssignments = links.length;
+  const avgRolesPerDept = departments.length ? (totalRoleAssignments / departments.length).toFixed(1) : "0.0";
+
+  const onClickEditDepartment = async (dept: Dept) => {
+    if (!permissions.canUpdate || !canOption("departments", "departments_rename", true)) return;
+    const suggested = dept.name;
+    const typed = window.prompt("Rename department", suggested);
+    if (!typed) return;
+    const next = typed.trim();
+    if (!next || next === suggested) return;
+    await renameDept(dept.key, next);
+  };
+
   return (
-    <div style={{ padding: 24, width: "100%" }}>
-      <h2>Departments (Cognito Groups)</h2>
-      {status && <p style={{ opacity: 0.8 }}>{status}</p>}
-
-      <div style={{ background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
-        <h3 style={{ marginTop: 0 }}>Create Department</h3>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <TextField
-            label="Department name"
-            value={newDept}
-            onChange={(e) => setNewDept((e.target as HTMLInputElement).value)}
-          />
-          <PermissionGate moduleId="departments" optionId="departments_create">
-            <Button
-              variation="primary"
-              onClick={createDept}
-              isLoading={loading}
-              isDisabled={!permissions.canCreate || loading}
-            >
-              Create
-            </Button>
-          </PermissionGate>
-          <Button onClick={load} isLoading={loading}>
-            Refresh
-          </Button>
-        </div>
+    <div className="dep-page">
+      <div className="dep-page-title">
+        <h1><i className="fas fa-sitemap"></i> Department &amp; Role Management</h1>
+        <p>Create departments, add roles, and manage your organizational structure with full-width department and role cards.</p>
       </div>
 
-      <div style={{ marginTop: 16, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
-        <h3 style={{ marginTop: 0 }}>Rename Department</h3>
-        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
-          <SelectField
-            label="Old department"
-            value={renameFrom}
-            onChange={(e) => setRenameFrom((e.target as HTMLSelectElement).value)}
-            isDisabled={loading}
-          >
-            <option value="">Select...</option>
-            {departments.map((d) => (
-              <option key={d.key} value={d.key}>
-                {d.name} ({d.key})
-              </option>
-            ))}
-          </SelectField>
-
-          <TextField
-            label="New name"
-            value={renameTo}
-            onChange={(e) => setRenameTo((e.target as HTMLInputElement).value)}
-          />
-          <PermissionGate moduleId="departments" optionId="departments_rename">
-            <Button
-              variation="primary"
-              onClick={renameDept}
-              isDisabled={!permissions.canUpdate || loading}
-              isLoading={loading}
-            >
-              Rename
-            </Button>
-          </PermissionGate>
+      <section className="dep-panel">
+        <div className="dep-panel-head">
+          <h2><i className="fas fa-list"></i> Departments &amp; Roles</h2>
+          <div className="dep-head-actions">
+            <Button onClick={load} isLoading={loading} className="dep-btn dep-btn-muted">Refresh</Button>
+            <PermissionGate moduleId="departments" optionId="departments_create">
+              <Button
+                className="dep-btn dep-btn-primary"
+                onClick={() => setShowCreateRow((prev) => !prev)}
+                isDisabled={!permissions.canCreate || loading}
+              >
+                <i className="fas fa-plus"></i> Add New Department
+              </Button>
+            </PermissionGate>
+          </div>
         </div>
 
-        <p style={{ opacity: 0.75, marginTop: 8 }}>
-          Renaming creates a new group, migrates users, then deletes the old group (Cognito cannot rename GroupName).
-        </p>
-      </div>
+        {showCreateRow && (
+          <div className="dep-create-row">
+            <TextField
+              label="Department name"
+              value={newDept}
+              onChange={(e) => setNewDept((e.target as HTMLInputElement).value)}
+            />
+            <PermissionGate moduleId="departments" optionId="departments_create">
+              <Button
+                className="dep-btn dep-btn-success"
+                onClick={createDept}
+                isLoading={loading}
+                isDisabled={!permissions.canCreate || loading}
+              >
+                Create
+              </Button>
+            </PermissionGate>
+          </div>
+        )}
 
-      <div style={{ marginTop: 16, background: "#fff", border: "1px solid #e5e7eb", borderRadius: 10, padding: 16 }}>
-        <h3 style={{ marginTop: 0 }}>Departments</h3>
-
-        <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", minWidth: 900, borderCollapse: "collapse" }}>
-            <thead>
-              <tr style={{ textAlign: "left", borderBottom: "1px solid #e5e7eb" }}>
-                <th style={{ padding: 10 }}>Department</th>
-                <th style={{ padding: 10 }}>Roles assigned</th>
-                <th style={{ padding: 10 }}>Add role</th>
-                <th style={{ padding: 10 }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {departments.map((d) => {
-                const currentRoleIds = roleIdsByDept.get(d.key) ?? [];
-                return (
-                  <tr key={d.key} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                    <td style={{ padding: 10, fontWeight: 600 }}>
-                      {d.name}
-                      <div style={{ fontSize: 12, opacity: 0.7 }}>{d.key}</div>
-                    </td>
-
-                    <td style={{ padding: 10 }}>
-                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                        {currentRoleIds.map((rid) => {
-                          const role = roles.find((r) => r.id === rid);
-                          return (
-                            <span key={rid} style={{ border: "1px solid #ddd", borderRadius: 999, padding: "4px 10px" }}>
-                              {role?.name ?? rid}
-                              <PermissionGate moduleId="departments" optionId="departments_assignrole">
-                                <button
-                                  style={{
-                                    marginLeft: 8,
-                                    border: "none",
-                                    background: "transparent",
-                                    cursor: permissions.canUpdate && !loading ? "pointer" : "not-allowed",
-                                    opacity: permissions.canUpdate && !loading ? 1 : 0.5,
-                                  }}
-                                  onClick={() => permissions.canUpdate && !loading && removeRole(d.key, rid)}
-                                  title="Remove role"
-                                >
-                                  ✕
-                                </button>
-                              </PermissionGate>
-                            </span>
-                          );
-                        })}
-                        {!currentRoleIds.length && <span style={{ opacity: 0.7 }}>No roles</span>}
-                      </div>
-                    </td>
-
-                    <td style={{ padding: 10 }}>
-                      <PermissionGate moduleId="departments" optionId="departments_assignrole">
-                        <SelectField
-                          label=""
-                          value=""
-                          onChange={(e) => assignRole(d, (e.target as HTMLSelectElement).value)}
-                          isDisabled={!permissions.canUpdate || loading}
-                        >
-                          <option value="">Select role...</option>
-                          {roles.map((r) => (
-                            <option key={r.id} value={r.id}>
-                              {r.name}
-                            </option>
-                          ))}
-                        </SelectField>
-                      </PermissionGate>
-                    </td>
-
-                    <td style={{ padding: 10 }}>
-                      <PermissionGate moduleId="departments" optionId="departments_delete">
-                        <Button
-                          variation="destructive"
-                          onClick={() => deleteDept(d.key)}
-                          isDisabled={!permissions.canDelete || loading}
-                        >
-                          Delete
-                        </Button>
-                      </PermissionGate>
-                    </td>
-                  </tr>
-                );
-              })}
-
-              {!departments.length && (
-                <tr>
-                  <td colSpan={4} style={{ padding: 12, opacity: 0.7 }}>
-                    No departments yet.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+        <div className="dep-stats">
+          <div className="dep-stat-card">
+            <strong>{departments.length}</strong>
+            <span>Departments</span>
+          </div>
+          <div className="dep-stat-card">
+            <strong>{totalRoleAssignments}</strong>
+            <span>Total Roles</span>
+          </div>
+          <div className="dep-stat-card">
+            <strong>{avgRolesPerDept}</strong>
+            <span>Avg Roles/Dept</span>
+          </div>
         </div>
-      </div>
+
+        {status && <div className="dep-status">{status}</div>}
+
+        <div className="dep-list">
+          {departments.map((d) => {
+            const currentRoleIds = roleIdsByDept.get(d.key) ?? [];
+            const currentRoles = currentRoleIds
+              .map((rid) => roles.find((r) => String(r.id) === String(rid)) ?? null)
+              .filter(Boolean) as Schema["AppRole"]["type"][];
+
+            return (
+              <article key={d.key} className="dep-card">
+                <header className="dep-card-head">
+                  <div className="dep-card-title">
+                    <h3>{d.name}</h3>
+                    <span>{currentRoleIds.length} roles</span>
+                  </div>
+
+                  <div className="dep-card-actions">
+                    <PermissionGate moduleId="departments" optionId="departments_assignrole">
+                      <Button
+                        className="dep-btn dep-btn-success dep-mini"
+                        onClick={() => openRoleModal(d)}
+                        isDisabled={!permissions.canUpdate || loading}
+                      >
+                        <i className="fas fa-plus"></i> Add Role
+                      </Button>
+                    </PermissionGate>
+
+                    <PermissionGate moduleId="departments" optionId="departments_rename">
+                      <Button
+                        className="dep-btn dep-btn-muted dep-mini"
+                        onClick={() => void onClickEditDepartment(d)}
+                        isDisabled={!permissions.canUpdate || loading}
+                      >
+                        <i className="fas fa-edit"></i> Edit
+                      </Button>
+                    </PermissionGate>
+
+                    <PermissionGate moduleId="departments" optionId="departments_delete">
+                      <Button
+                        className="dep-btn dep-btn-danger dep-mini"
+                        onClick={() => deleteDept(d.key)}
+                        isDisabled={!permissions.canDelete || loading}
+                      >
+                        <i className="fas fa-trash"></i> Delete
+                      </Button>
+                    </PermissionGate>
+                  </div>
+                </header>
+
+                <div className="dep-card-body">
+                  <p className="dep-card-desc">
+                    Department key: <strong>{d.key}</strong>. Users in this department: <strong>{deptUserCounts[d.key] ?? 0}</strong>.
+                  </p>
+
+                  <div className="dep-roles-title">
+                    <i className="fas fa-user-shield"></i>
+                    <span>Department Roles ({currentRoleIds.length})</span>
+                  </div>
+
+                  <div className="dep-roles-list">
+                    {currentRoles.length > 0 ? (
+                      currentRoles.map((role) => (
+                        <div key={role.id} className="dep-role-item">
+                          <div className="dep-role-main">
+                            <div className="dep-role-name"><i className="fas fa-user"></i> {role.name}</div>
+                            <div className="dep-role-desc">{String(role.description ?? "Role assigned to this department")}</div>
+                          </div>
+
+                          <div className="dep-role-actions">
+                            <Button className="dep-btn dep-btn-muted dep-mini" isDisabled>
+                              <i className="fas fa-edit"></i> Edit
+                            </Button>
+                            <PermissionGate moduleId="departments" optionId="departments_assignrole">
+                              <Button
+                                className="dep-btn dep-btn-danger dep-mini"
+                                onClick={() => void removeRole(d.key, String(role.id))}
+                                isDisabled={!permissions.canUpdate || loading}
+                              >
+                                <i className="fas fa-trash"></i> Delete
+                              </Button>
+                            </PermissionGate>
+                          </div>
+                        </div>
+                      ))
+                    ) : (
+                      <div className="dep-empty-roles">No roles assigned yet.</div>
+                    )}
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+
+          {!departments.length && <div className="dep-empty">No departments yet.</div>}
+        </div>
+      </section>
+
+      {showRoleModal && roleModalDept && (
+        <div className="dep-modal-backdrop" role="dialog" aria-modal="true" aria-label="Create role">
+          <div className="dep-modal-card">
+            <div className="dep-modal-head">
+              <h3>Create Role</h3>
+              <button
+                type="button"
+                className="dep-modal-close"
+                onClick={() => {
+                  if (loading) return;
+                  setShowRoleModal(false);
+                  setRoleModalDept(null);
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="dep-modal-subtitle">Department: <strong>{roleModalDept.name}</strong></p>
+
+            <div className="dep-modal-body">
+              <TextField
+                label="Role name"
+                value={modalRoleName}
+                onChange={(e) => setModalRoleName((e.target as HTMLInputElement).value)}
+              />
+              <TextField
+                label="Role description (optional)"
+                value={modalRoleDescription}
+                onChange={(e) => setModalRoleDescription((e.target as HTMLInputElement).value)}
+              />
+            </div>
+
+            <div className="dep-modal-actions">
+              <Button
+                className="dep-btn dep-btn-muted"
+                onClick={() => {
+                  if (loading) return;
+                  setShowRoleModal(false);
+                  setRoleModalDept(null);
+                }}
+                isDisabled={loading}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="dep-btn dep-btn-success"
+                onClick={() => void createRoleForDepartment(roleModalDept, modalRoleName, modalRoleDescription)}
+                isLoading={loading}
+                isDisabled={loading || !modalRoleName.trim()}
+              >
+                Create & Add
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

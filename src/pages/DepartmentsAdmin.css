@@ -1,0 +1,395 @@
+/* src/pages/DepartmentsAdmin.css */
+
+.dep-page {
+  width: 100%;
+  min-height: 100vh;
+  padding: 6px 6px 18px;
+  background: #f1f4f8;
+  color: #1f2937;
+}
+
+.dep-page-title {
+  text-align: center;
+  border: 1px solid #d8e1ec;
+  border-radius: 8px;
+  background: #f4f7fb;
+  padding: 7px 10px;
+}
+
+.dep-page-title h1 {
+  margin: 0;
+  font-size: 26px;
+  font-weight: 800;
+  color: #1f3853;
+}
+
+.dep-page-title p {
+  margin: 4px 0 0;
+  color: #6d7d90;
+  font-size: 11px;
+}
+
+.dep-panel {
+  margin-top: 8px;
+  border: 1px solid #d9e2ed;
+  border-radius: 8px;
+  background: #f8fbff;
+  padding: 8px;
+}
+
+.dep-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid #e3e9f1;
+  padding-bottom: 6px;
+}
+
+.dep-panel-head h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 800;
+  color: #1f3a57;
+}
+
+.dep-head-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dep-create-row {
+  margin-top: 8px;
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  flex-wrap: wrap;
+  background: #ffffff;
+  border: 1px solid #e1e8f1;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.dep-stats {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dep-stat-card {
+  min-width: 74px;
+  background: #ffffff;
+  border: 1px solid #dbe3ee;
+  border-radius: 6px;
+  padding: 8px 9px;
+}
+
+.dep-stat-card strong {
+  display: block;
+  font-size: 17px;
+  font-weight: 800;
+  color: #2b79d4;
+  line-height: 1;
+}
+
+.dep-stat-card span {
+  display: block;
+  margin-top: 3px;
+  color: #6b7280;
+  font-size: 9px;
+}
+
+.dep-status {
+  margin-top: 8px;
+  border: 1px solid #cdd8e6;
+  border-radius: 6px;
+  background: #f1f5fb;
+  padding: 6px 8px;
+  color: #3e5874;
+  font-size: 11px;
+}
+
+.dep-list {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dep-card {
+  background: #ffffff;
+  border: 1px solid #d9e2ec;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.dep-card-head {
+  background: linear-gradient(90deg, #2d95d7, #2d465d);
+  color: #ffffff;
+  padding: 6px 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dep-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dep-card-title h3 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.dep-card-title span {
+  font-size: 9px;
+  font-weight: 700;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 999px;
+  padding: 1px 6px;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+.dep-card-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.dep-add-role-wrap {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.dep-add-role-wrap .amplify-select,
+.dep-add-role-wrap select {
+  min-width: 150px;
+  height: 26px;
+}
+
+.dep-card-body {
+  padding: 8px;
+}
+
+.dep-card-desc {
+  margin: 0;
+  color: #5d6f86;
+  font-size: 10px;
+  line-height: 1.4;
+  border-bottom: 1px solid #e5eaf1;
+  padding-bottom: 7px;
+}
+
+.dep-roles-title {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: #2c3e55;
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.dep-roles-list {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dep-role-item {
+  border: 1px solid #e3e9f2;
+  border-radius: 6px;
+  background: #fafcff;
+  padding: 6px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.dep-role-main {
+  min-width: 0;
+}
+
+.dep-role-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: #2a4b67;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+.dep-role-desc {
+  margin-top: 3px;
+  font-size: 9.5px;
+  color: #6f7f93;
+}
+
+.dep-role-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dep-empty,
+.dep-empty-roles {
+  border: 1px dashed #cdd8e6;
+  border-radius: 6px;
+  padding: 8px;
+  text-align: center;
+  color: #65758a;
+  background: #f8fbff;
+  font-size: 11px;
+}
+
+.dep-btn {
+  border-radius: 4px !important;
+  font-size: 10px !important;
+  font-weight: 700 !important;
+  min-height: 24px !important;
+  height: 24px !important;
+  padding: 0 8px !important;
+  border: none !important;
+}
+
+.dep-mini {
+  min-height: 22px !important;
+  height: 22px !important;
+  font-size: 9px !important;
+  padding: 0 6px !important;
+}
+
+.dep-btn i {
+  margin-right: 4px;
+}
+
+.dep-btn-primary {
+  background: #2f97da !important;
+  color: #fff !important;
+}
+
+.dep-btn-success {
+  background: #22c55e !important;
+  color: #fff !important;
+}
+
+.dep-btn-danger {
+  background: #ef4444 !important;
+  color: #fff !important;
+}
+
+.dep-btn-muted {
+  background: #8ea0ad !important;
+  color: #fff !important;
+}
+
+.dep-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(24, 39, 56, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 14px;
+}
+
+.dep-modal-card {
+  width: min(520px, 96vw);
+  background: #f8fbff;
+  border: 1px solid #d7e0eb;
+  border-radius: 10px;
+  box-shadow: 0 14px 38px rgba(15, 23, 42, 0.22);
+  overflow: hidden;
+}
+
+.dep-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  border-bottom: 1px solid #e1e8f1;
+  background: linear-gradient(90deg, #2d95d7, #2d465d);
+}
+
+.dep-modal-head h3 {
+  margin: 0;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.dep-modal-close {
+  width: 24px;
+  height: 24px;
+  border-radius: 4px;
+  border: none;
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.dep-modal-subtitle {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 11px;
+  color: #4d637d;
+  border-bottom: 1px solid #e5ebf2;
+  background: #f4f8fd;
+}
+
+.dep-modal-body {
+  display: grid;
+  gap: 10px;
+  padding: 10px 12px;
+}
+
+.dep-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  border-top: 1px solid #e2e8f0;
+  padding: 10px 12px;
+  background: #f6f9fd;
+}
+
+@media (max-width: 900px) {
+  .dep-page-title h1 {
+    font-size: 20px;
+  }
+
+  .dep-card-head {
+    align-items: flex-start;
+  }
+
+  .dep-card-actions {
+    width: 100%;
+  }
+
+  .dep-add-role-wrap {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .dep-add-role-wrap .amplify-select,
+  .dep-add-role-wrap select {
+    min-width: 100%;
+    width: 100%;
+  }
+}
