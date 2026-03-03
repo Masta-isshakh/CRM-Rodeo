@@ -1212,6 +1212,7 @@ export default function VehicleManagement({
                 placeholder="Optional"
                 value={form.vin}
                 onChange={(e) => setForm((p) => ({ ...p, vin: e.target.value }))}
+                required={false}
               />
             </div>
 
@@ -1485,6 +1486,7 @@ export default function VehicleManagement({
               placeholder="Optional"
               value={form.vin}
               onChange={(e) => setForm((p) => ({ ...p, vin: e.target.value }))}
+              required={false}
             />
           </div>
 

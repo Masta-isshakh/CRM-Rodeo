@@ -330,10 +330,11 @@ a:hover {
 
 .option-selector{display:flex;gap:10px;margin-bottom:14px}
 .option-btn{
-  flex:1;border:1px solid var(--border);background:#fff;border-radius:14px;padding:12px;
-  cursor:pointer;font-weight:800;text-align:center
+  flex:1;border:1px solid var(--primary);background:var(--primary);border-radius:14px;padding:12px;
+  cursor:pointer;font-weight:800;text-align:center;color:#fff
 }
-.option-btn.selected{border-color:rgba(37,99,235,.6);background:rgba(37,99,235,.08);color:#1d4ed8}
+.option-btn:hover{background:var(--primary2);border-color:var(--primary2)}
+.option-btn.selected{border-color:var(--primary2);background:var(--primary2);color:#fff}
 
 .form-row{display:flex;gap:12px;margin-bottom:12px;flex-wrap:wrap}
 .form-group{flex:1;min-width:240px;display:flex;flex-direction:column;gap:6px}
@@ -344,6 +345,25 @@ a:hover {
 .form-group input:focus,.form-group select:focus,textarea:focus{border-color:#93c5fd;box-shadow:0 0 0 4px rgba(59,130,246,.12)}
 
 .action-buttons{display:flex;justify-content:space-between;gap:12px;margin-top:14px;flex-wrap:wrap}
+
+.form-card .action-buttons .btn,
+.form-card .btn.btn-secondary,
+.form-card .btn.btn-primary,
+.form-card .btn.btn-success,
+.form-card .btn.btn-danger {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+}
+
+.form-card .action-buttons .btn:hover,
+.form-card .btn.btn-secondary:hover,
+.form-card .btn.btn-primary:hover,
+.form-card .btn.btn-success:hover,
+.form-card .btn.btn-danger:hover {
+  background: var(--primary2);
+  border-color: var(--primary2);
+}
 
 /* Progress */
 .progress-bar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap}

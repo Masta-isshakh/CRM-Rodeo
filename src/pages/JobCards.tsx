@@ -1248,6 +1248,11 @@ function NewJobScreen({ currentUser, onClose, onSubmit, prefill }: any) {
         customerId: customerData.id,
         email: customerData.email,
         address: customerData.address || null,
+        heardFrom: customerData.heardFrom || null,
+        referralPersonName: customerData.referralPersonName || null,
+        referralPersonMobile: customerData.referralPersonMobile || null,
+        socialPlatform: customerData.socialPlatform || null,
+        heardFromOtherNote: customerData.heardFromOtherNote || null,
         registeredVehicles: `${customerData.vehicles?.length ?? customerData.registeredVehiclesCount ?? 1} vehicles`,
         registeredVehiclesCount: customerData.vehicles?.length ?? customerData.registeredVehiclesCount ?? 1,
         completedServicesCount: customerData.completedServicesCount ?? 0,
@@ -1462,6 +1467,11 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [heardFrom, setHeardFrom] = useState("");
+  const [referralPersonName, setReferralPersonName] = useState("");
+  const [referralPersonMobile, setReferralPersonMobile] = useState("");
+  const [socialPlatform, setSocialPlatform] = useState("");
+  const [heardFromOtherNote, setHeardFromOtherNote] = useState("");
 
   const [smartSearch, setSmartSearch] = useState("");
   const [searchResults, setSearchResults] = useState<any[]>([]);
@@ -1479,12 +1489,29 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
     setSearchResults([]);
     setShowResults(false);
     setVerifiedCustomer(null);
+    setHeardFrom("");
+    setReferralPersonName("");
+    setReferralPersonMobile("");
+    setSocialPlatform("");
+    setHeardFromOtherNote("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerType]);
+
+  const sourceLabel = (src: string) => {
+    if (src === "walk_in") return "Walk-in";
+    if (src === "refer_person") return "Refer by person";
+    if (src === "social_media") return "Social media";
+    if (src === "other") return "Other";
+    return src || "";
+  };
 
   const handleSave = async () => {
     if (saving) return;
     if (!fullName || !phone) return;
+    if (!heardFrom) return;
+    if (heardFrom === "refer_person" && (!referralPersonName || !referralPersonMobile)) return;
+    if (heardFrom === "social_media" && !socialPlatform) return;
+    if (heardFrom === "other" && !heardFromOtherNote) return;
 
     setSaving(true);
     try {
@@ -1504,6 +1531,11 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
           email,
           mobile: phone,
           address: address || null,
+          heardFrom,
+          referralPersonName,
+          referralPersonMobile,
+          socialPlatform,
+          heardFromOtherNote,
           registeredVehiclesCount: 0,
           completedServicesCount: 0,
           customerSince: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
@@ -1514,7 +1546,18 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
         return;
       }
 
-      const created = await createCustomer({ fullName, phone, email, address, actor: actorUsername });
+      const created = await createCustomer({
+        fullName,
+        phone,
+        email,
+        address,
+        actor: actorUsername,
+        heardFrom,
+        referralPersonName,
+        referralPersonMobile,
+        socialPlatform,
+        heardFromOtherNote,
+      });
       setCustomerData(created);
       setVerifiedCustomer(created);
     } finally {
@@ -1532,6 +1575,11 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
         email: pendingCustomer.email,
         address: pendingCustomer.address,
         actor: actorUsername,
+        heardFrom: pendingCustomer.heardFrom,
+        referralPersonName: pendingCustomer.referralPersonName,
+        referralPersonMobile: pendingCustomer.referralPersonMobile,
+        socialPlatform: pendingCustomer.socialPlatform,
+        heardFromOtherNote: pendingCustomer.heardFromOtherNote,
       });
       setCustomerData(created);
       setVerifiedCustomer(created);
@@ -1607,7 +1655,78 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
                 <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Optional" />
               </div>
             </div>
-            <button className="btn btn-primary" onClick={() => void handleSave()} disabled={saving || !fullName || !phone}>
+
+            <div className="form-row">
+              <div className="form-group">
+                <label>Heard of us from *</label>
+                <select
+                  value={heardFrom}
+                  onChange={(e) => {
+                    setHeardFrom(e.target.value);
+                    setReferralPersonName("");
+                    setReferralPersonMobile("");
+                    setSocialPlatform("");
+                    setHeardFromOtherNote("");
+                  }}
+                >
+                  <option value="">Select…</option>
+                  <option value="walk_in">Walk-in</option>
+                  <option value="refer_person">Refer by person</option>
+                  <option value="social_media">Social media</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+            </div>
+
+            {heardFrom === "refer_person" && (
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Referred Person Name *</label>
+                  <input value={referralPersonName} onChange={(e) => setReferralPersonName(e.target.value)} />
+                </div>
+                <div className="form-group">
+                  <label>Referred Person Mobile *</label>
+                  <input value={referralPersonMobile} onChange={(e) => setReferralPersonMobile(e.target.value)} />
+                </div>
+              </div>
+            )}
+
+            {heardFrom === "social_media" && (
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Platform *</label>
+                  <select value={socialPlatform} onChange={(e) => setSocialPlatform(e.target.value)}>
+                    <option value="">Select…</option>
+                    <option value="instagram">Instagram</option>
+                    <option value="twitter">Twitter</option>
+                    <option value="tiktok">TikTok</option>
+                    <option value="website">Website</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {heardFrom === "other" && (
+              <div className="form-row">
+                <div className="form-group">
+                  <label>Other Note *</label>
+                  <input value={heardFromOtherNote} onChange={(e) => setHeardFromOtherNote(e.target.value)} />
+                </div>
+              </div>
+            )}
+            <button
+              className="btn btn-primary"
+              onClick={() => void handleSave()}
+              disabled={
+                saving ||
+                !fullName ||
+                !phone ||
+                !heardFrom ||
+                (heardFrom === "refer_person" && (!referralPersonName || !referralPersonMobile)) ||
+                (heardFrom === "social_media" && !socialPlatform) ||
+                (heardFrom === "other" && !heardFromOtherNote)
+              }
+            >
               {saving ? "Saving..." : "Save Customer"}
             </button>
           </div>
@@ -1700,6 +1819,36 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
                       <span className="verified-value">{verifiedCustomer.address}</span>
                     </div>
                   )}
+                  {(verifiedCustomer.heardFrom || "").trim() && (
+                    <div className="verified-row">
+                      <span className="verified-label">Heard of us from:</span>
+                      <span className="verified-value">{sourceLabel(String(verifiedCustomer.heardFrom || ""))}</span>
+                    </div>
+                  )}
+                  {String(verifiedCustomer.heardFrom ?? "") === "refer_person" && (
+                    <>
+                      <div className="verified-row">
+                        <span className="verified-label">Referred Name:</span>
+                        <span className="verified-value">{verifiedCustomer.referralPersonName || "—"}</span>
+                      </div>
+                      <div className="verified-row">
+                        <span className="verified-label">Referred Mobile:</span>
+                        <span className="verified-value">{verifiedCustomer.referralPersonMobile || "—"}</span>
+                      </div>
+                    </>
+                  )}
+                  {String(verifiedCustomer.heardFrom ?? "") === "social_media" && (
+                    <div className="verified-row">
+                      <span className="verified-label">Platform:</span>
+                      <span className="verified-value">{verifiedCustomer.socialPlatform || "—"}</span>
+                    </div>
+                  )}
+                  {String(verifiedCustomer.heardFrom ?? "") === "other" && (
+                    <div className="verified-row">
+                      <span className="verified-label">Other Note:</span>
+                      <span className="verified-value">{verifiedCustomer.heardFromOtherNote || "—"}</span>
+                    </div>
+                  )}
                   <div className="verified-row">
                     <span className="verified-label">Registered Vehicles:</span>
                     <span className="verified-value">{verifiedCustomer.vehicles?.length ?? verifiedCustomer.registeredVehiclesCount ?? 0}</span>
@@ -1741,6 +1890,12 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
                 <span className="verified-label">Mobile:</span>
                 <span className="verified-value">{verifiedCustomer.mobile}</span>
               </div>
+              {(verifiedCustomer.heardFrom || "").trim() && (
+                <div className="verified-row">
+                  <span className="verified-label">Heard of us from:</span>
+                  <span className="verified-value">{sourceLabel(String(verifiedCustomer.heardFrom || ""))}</span>
+                </div>
+              )}
             </div>
             <button
               className="btn btn-change-customer"
@@ -1751,6 +1906,11 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
                 setEmail("");
                 setPhone("");
                 setAddress("");
+                setHeardFrom("");
+                setReferralPersonName("");
+                setReferralPersonMobile("");
+                setSocialPlatform("");
+                setHeardFromOtherNote("");
               }}
             >
               <i className="fas fa-edit"></i> Edit Customer
@@ -1820,7 +1980,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
   }, [hasVehicles]);
 
   const handleSaveNewVehicle = async () => {
-    if (!(factory && model && year && license && carType && color && vinNumber)) return;
+    if (!(factory && model && year && license && carType && color)) return;
 
     const created = await createVehicleForCustomer({
       customerId: customerData.id,
@@ -1831,7 +1991,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
       color,
       plateNumber: license,
       vehicleType: carType,
-      vin: vinNumber.trim().toUpperCase(), // ✅ manual VIN saved
+      vin: vinNumber.trim().toUpperCase(),
       actor: actorUsername,
     });
 
@@ -1956,7 +2116,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
             {/* ✅ NEW ROW: VIN + Vehicle Type */}
             <div className="form-row">
               <div className="form-group">
-                <label>VIN Number *</label>
+                <label>VIN Number</label>
                 <input
                   value={vinNumber}
                   onChange={(e) => setVinNumber(e.target.value.toUpperCase())}
@@ -1986,7 +2146,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
             <button
               className="btn btn-success"
               onClick={() => void handleSaveNewVehicle()}
-              disabled={!(factory && model && year && license && carType && color && vinNumber)}
+              disabled={!(factory && model && year && license && carType && color)}
             >
               <i className="fas fa-save"></i> Save Vehicle
             </button>
@@ -2334,6 +2494,7 @@ function StepFourConfirm({
   const total = subtotal - discount;
 
   const customerMobile = customerData?.mobile || customerData?.phone || "Not provided";
+  const heardFrom = String(customerData?.heardFrom ?? "").trim();
   const vehicleType = vehicleData?.vehicleType || vehicleData?.carType || "N/A";
   const vehicleId =
     String(
@@ -2398,6 +2559,36 @@ function StepFourConfirm({
               <span>Home Address</span>
               <strong>{customerData?.address || "Not provided"}</strong>
             </div>
+            {heardFrom && (
+              <div className="jo-confirm-item">
+                <span>Heard of us from</span>
+                <strong>{heardFrom}</strong>
+              </div>
+            )}
+            {heardFrom === "refer_person" && (
+              <>
+                <div className="jo-confirm-item">
+                  <span>Referred Person Name</span>
+                  <strong>{customerData?.referralPersonName || "Not provided"}</strong>
+                </div>
+                <div className="jo-confirm-item">
+                  <span>Referred Person Mobile</span>
+                  <strong>{customerData?.referralPersonMobile || "Not provided"}</strong>
+                </div>
+              </>
+            )}
+            {heardFrom === "social_media" && (
+              <div className="jo-confirm-item">
+                <span>Social Platform</span>
+                <strong>{customerData?.socialPlatform || "Not provided"}</strong>
+              </div>
+            )}
+            {heardFrom === "other" && (
+              <div className="jo-confirm-item jo-confirm-item-wide">
+                <span>Other Note</span>
+                <strong>{customerData?.heardFromOtherNote || "Not provided"}</strong>
+              </div>
+            )}
             <div className="jo-confirm-item">
               <span>Registered Vehicles</span>
               <strong>{customerData?.vehicles?.length ?? customerData?.registeredVehiclesCount ?? 0}</strong>
@@ -2752,6 +2943,36 @@ function CustomerDetailsCard({ order }: any) {
           <div className="pim-info-item">
             <span className="pim-info-label">Completed Services</span>
             <span className="pim-info-value">{customerDetails.completedServicesCount}</span>
+          </div>
+        )}
+        {customerDetails.heardFrom && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Heard of us from</span>
+            <span className="pim-info-value">{customerDetails.heardFrom}</span>
+          </div>
+        )}
+        {customerDetails.heardFrom === "refer_person" && (
+          <>
+            <div className="pim-info-item">
+              <span className="pim-info-label">Referred Person Name</span>
+              <span className="pim-info-value">{customerDetails.referralPersonName || "Not provided"}</span>
+            </div>
+            <div className="pim-info-item">
+              <span className="pim-info-label">Referred Person Mobile</span>
+              <span className="pim-info-value">{customerDetails.referralPersonMobile || "Not provided"}</span>
+            </div>
+          </>
+        )}
+        {customerDetails.heardFrom === "social_media" && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Social Platform</span>
+            <span className="pim-info-value">{customerDetails.socialPlatform || "Not provided"}</span>
+          </div>
+        )}
+        {customerDetails.heardFrom === "other" && (
+          <div className="pim-info-item">
+            <span className="pim-info-label">Other Note</span>
+            <span className="pim-info-value">{customerDetails.heardFromOtherNote || "Not provided"}</span>
           </div>
         )}
       </div>

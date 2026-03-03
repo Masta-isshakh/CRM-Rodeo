@@ -127,6 +127,11 @@ const schema = a
         phone: a.string(),
         company: a.string(),
         notes: a.string(),
+        heardFrom: a.string(),
+        referralPersonName: a.string(),
+        referralPersonMobile: a.string(),
+        socialPlatform: a.string(),
+        heardFromOtherNote: a.string(),
         createdBy: a.string(),
         createdAt: a.datetime(),
 

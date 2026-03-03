@@ -36,9 +36,42 @@ type CustomerForm = {
   email: string;
   company: string;
   notes: string;
+  heardFrom: string;
+  referralPersonName: string;
+  referralPersonMobile: string;
+  socialPlatform: string;
+  heardFromOtherNote: string;
 };
 
 type FormErrors = Partial<Record<keyof CustomerForm, string>>;
+
+const HEARD_FROM_OPTIONS = [
+  { value: "walk_in", label: "Walk-in" },
+  { value: "refer_person", label: "Refer by person" },
+  { value: "social_media", label: "Social media" },
+  { value: "other", label: "Other" },
+] as const;
+
+const SOCIAL_PLATFORM_OPTIONS = [
+  { value: "instagram", label: "Instagram" },
+  { value: "twitter", label: "Twitter" },
+  { value: "tiktok", label: "TikTok" },
+  { value: "website", label: "Website" },
+] as const;
+
+function heardFromLabel(v: unknown) {
+  const key = String(v ?? "").trim().toLowerCase();
+  if (!key) return "Not provided";
+  const found = HEARD_FROM_OPTIONS.find((o) => o.value === key);
+  return found?.label ?? key;
+}
+
+function socialPlatformLabel(v: unknown) {
+  const key = String(v ?? "").trim().toLowerCase();
+  if (!key) return "Not provided";
+  const found = SOCIAL_PLATFORM_OPTIONS.find((o) => o.value === key);
+  return found?.label ?? key;
+}
 
 type CountsMap = Record<
   string,
@@ -519,6 +552,38 @@ function DetailsView(props: {
                 </div>
 
                 <div className="pim-info-item">
+                  <span className="pim-info-label">Heard of us from</span>
+                  <span className="pim-info-value">{heardFromLabel((customer as any).heardFrom)}</span>
+                </div>
+
+                {String((customer as any).heardFrom ?? "") === "refer_person" && (
+                  <>
+                    <div className="pim-info-item">
+                      <span className="pim-info-label">Referred Person Name</span>
+                      <span className="pim-info-value">{String((customer as any).referralPersonName ?? "").trim() || "Not provided"}</span>
+                    </div>
+                    <div className="pim-info-item">
+                      <span className="pim-info-label">Referred Person Mobile</span>
+                      <span className="pim-info-value">{String((customer as any).referralPersonMobile ?? "").trim() || "Not provided"}</span>
+                    </div>
+                  </>
+                )}
+
+                {String((customer as any).heardFrom ?? "") === "social_media" && (
+                  <div className="pim-info-item">
+                    <span className="pim-info-label">Social Platform</span>
+                    <span className="pim-info-value">{socialPlatformLabel((customer as any).socialPlatform)}</span>
+                  </div>
+                )}
+
+                {String((customer as any).heardFrom ?? "") === "other" && (
+                  <div className="pim-info-item">
+                    <span className="pim-info-label">Other Note</span>
+                    <span className="pim-info-value">{String((customer as any).heardFromOtherNote ?? "").trim() || "Not provided"}</span>
+                  </div>
+                )}
+
+                <div className="pim-info-item">
                   <span className="pim-info-label">Contacts</span>
                   <span className="pim-info-value">
                     <span className="count-badge">{ct.contacts} contacts</span>
@@ -789,6 +854,11 @@ export default function Customers({ permissions }: PageProps) {
     email: "",
     company: "",
     notes: "",
+    heardFrom: "",
+    referralPersonName: "",
+    referralPersonMobile: "",
+    socialPlatform: "",
+    heardFromOtherNote: "",
   });
   const [formErrors, setFormErrors] = useState<FormErrors>({});
 
@@ -881,7 +951,11 @@ export default function Customers({ permissions }: PageProps) {
           fullName.includes(term) ||
           String(c.phone ?? "").toLowerCase().includes(term) ||
           String(c.email ?? "").toLowerCase().includes(term) ||
-          String(c.company ?? "").toLowerCase().includes(term)
+          String(c.company ?? "").toLowerCase().includes(term) ||
+          String((c as any).heardFrom ?? "").toLowerCase().includes(term) ||
+          String((c as any).socialPlatform ?? "").toLowerCase().includes(term) ||
+          String((c as any).referralPersonName ?? "").toLowerCase().includes(term) ||
+          String((c as any).referralPersonMobile ?? "").toLowerCase().includes(term)
         );
       });
     }
@@ -898,7 +972,19 @@ export default function Customers({ permissions }: PageProps) {
   const paginatedData = searchResults.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   const resetForm = () => {
-    setFormData({ name: "", lastname: "", phone: "", email: "", company: "", notes: "" });
+    setFormData({
+      name: "",
+      lastname: "",
+      phone: "",
+      email: "",
+      company: "",
+      notes: "",
+      heardFrom: "",
+      referralPersonName: "",
+      referralPersonMobile: "",
+      socialPlatform: "",
+      heardFromOtherNote: "",
+    });
     setFormErrors({});
     setEditingCustomerId(null);
   };
@@ -922,6 +1008,11 @@ export default function Customers({ permissions }: PageProps) {
       email: c.email ?? "",
       company: c.company ?? "",
       notes: c.notes ?? "",
+      heardFrom: String((c as any).heardFrom ?? ""),
+      referralPersonName: String((c as any).referralPersonName ?? ""),
+      referralPersonMobile: String((c as any).referralPersonMobile ?? ""),
+      socialPlatform: String((c as any).socialPlatform ?? ""),
+      heardFromOtherNote: String((c as any).heardFromOtherNote ?? ""),
     });
     setFormErrors({});
     setShowEditCustomerModal(true);
@@ -983,6 +1074,21 @@ export default function Customers({ permissions }: PageProps) {
     const e: FormErrors = {};
     if (!formData.name.trim()) e.name = "First name is required";
     if (!formData.lastname.trim()) e.lastname = "Last name is required";
+    if (!formData.heardFrom.trim()) e.heardFrom = "Please select how customer heard about us";
+
+    if (formData.heardFrom === "refer_person") {
+      if (!formData.referralPersonName.trim()) e.referralPersonName = "Referred person name is required";
+      if (!formData.referralPersonMobile.trim()) e.referralPersonMobile = "Referred person mobile is required";
+    }
+
+    if (formData.heardFrom === "social_media") {
+      if (!formData.socialPlatform.trim()) e.socialPlatform = "Please select social media platform";
+    }
+
+    if (formData.heardFrom === "other") {
+      if (!formData.heardFromOtherNote.trim()) e.heardFromOtherNote = "Please enter note for Other";
+    }
+
     setFormErrors(e);
     return Object.keys(e).length === 0;
   };
@@ -1004,6 +1110,11 @@ export default function Customers({ permissions }: PageProps) {
         email: formData.email.trim() || undefined,
         company: formData.company.trim() || undefined,
         notes: formData.notes.trim() || undefined,
+        heardFrom: formData.heardFrom.trim() || undefined,
+        referralPersonName: formData.heardFrom === "refer_person" ? (formData.referralPersonName.trim() || undefined) : undefined,
+        referralPersonMobile: formData.heardFrom === "refer_person" ? (formData.referralPersonMobile.trim() || undefined) : undefined,
+        socialPlatform: formData.heardFrom === "social_media" ? (formData.socialPlatform.trim() || undefined) : undefined,
+        heardFromOtherNote: formData.heardFrom === "other" ? (formData.heardFromOtherNote.trim() || undefined) : undefined,
         createdBy,
         createdAt: new Date().toISOString(),
       });
@@ -1042,6 +1153,11 @@ export default function Customers({ permissions }: PageProps) {
         email: formData.email.trim() || undefined,
         company: formData.company.trim() || undefined,
         notes: formData.notes.trim() || undefined,
+        heardFrom: formData.heardFrom.trim() || undefined,
+        referralPersonName: formData.heardFrom === "refer_person" ? (formData.referralPersonName.trim() || undefined) : undefined,
+        referralPersonMobile: formData.heardFrom === "refer_person" ? (formData.referralPersonMobile.trim() || undefined) : undefined,
+        socialPlatform: formData.heardFrom === "social_media" ? (formData.socialPlatform.trim() || undefined) : undefined,
+        heardFromOtherNote: formData.heardFrom === "other" ? (formData.heardFromOtherNote.trim() || undefined) : undefined,
       });
 
       await logActivity("Customer", editingCustomerId, "UPDATE", `Customer ${formData.name} ${formData.lastname} updated`);
@@ -1057,6 +1173,11 @@ export default function Customers({ permissions }: PageProps) {
                 email: formData.email.trim() || undefined,
                 company: formData.company.trim() || undefined,
                 notes: formData.notes.trim() || undefined,
+                heardFrom: formData.heardFrom.trim() || undefined,
+                referralPersonName: formData.heardFrom === "refer_person" ? (formData.referralPersonName.trim() || undefined) : undefined,
+                referralPersonMobile: formData.heardFrom === "refer_person" ? (formData.referralPersonMobile.trim() || undefined) : undefined,
+                socialPlatform: formData.heardFrom === "social_media" ? (formData.socialPlatform.trim() || undefined) : undefined,
+                heardFromOtherNote: formData.heardFrom === "other" ? (formData.heardFromOtherNote.trim() || undefined) : undefined,
               }
             : c
         )
@@ -1192,6 +1313,99 @@ export default function Customers({ permissions }: PageProps) {
               onChange={(v) => setFormData((p) => ({ ...p, notes: v }))}
               disabled={!canCustomersEdit}
             />
+
+            <div className="form-group">
+              <label htmlFor="editHeardFrom">
+                Heard of us from <span className="required">*</span>
+              </label>
+              <select
+                id="editHeardFrom"
+                className={`form-control ${formErrors.heardFrom ? "error" : ""}`}
+                value={formData.heardFrom}
+                onChange={(e) =>
+                  setFormData((p) => ({
+                    ...p,
+                    heardFrom: e.target.value,
+                    referralPersonName: "",
+                    referralPersonMobile: "",
+                    socialPlatform: "",
+                    heardFromOtherNote: "",
+                  }))
+                }
+                disabled={!canCustomersEdit}
+              >
+                <option value="">Select…</option>
+                {HEARD_FROM_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              {formErrors.heardFrom && <div className="error-message show">{formErrors.heardFrom}</div>}
+            </div>
+
+            {formData.heardFrom === "refer_person" && (
+              <>
+                <FormField
+                  label="Referred Person Name"
+                  id="editReferralPersonName"
+                  placeholder="Enter person name"
+                  value={formData.referralPersonName}
+                  onChange={(v) => setFormData((p) => ({ ...p, referralPersonName: v }))}
+                  error={formErrors.referralPersonName}
+                  required
+                  disabled={!canCustomersEdit}
+                />
+                <FormField
+                  label="Referred Person Mobile"
+                  id="editReferralPersonMobile"
+                  type="tel"
+                  placeholder="Enter mobile number"
+                  value={formData.referralPersonMobile}
+                  onChange={(v) => setFormData((p) => ({ ...p, referralPersonMobile: v }))}
+                  error={formErrors.referralPersonMobile}
+                  required
+                  disabled={!canCustomersEdit}
+                />
+              </>
+            )}
+
+            {formData.heardFrom === "social_media" && (
+              <div className="form-group">
+                <label htmlFor="editSocialPlatform">
+                  Social Platform <span className="required">*</span>
+                </label>
+                <select
+                  id="editSocialPlatform"
+                  className={`form-control ${formErrors.socialPlatform ? "error" : ""}`}
+                  value={formData.socialPlatform}
+                  onChange={(e) => setFormData((p) => ({ ...p, socialPlatform: e.target.value }))}
+                  disabled={!canCustomersEdit}
+                >
+                  <option value="">Select…</option>
+                  {SOCIAL_PLATFORM_OPTIONS.map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                {formErrors.socialPlatform && <div className="error-message show">{formErrors.socialPlatform}</div>}
+              </div>
+            )}
+
+            {formData.heardFrom === "other" && (
+              <FormField
+                label="Other Note"
+                id="editHeardFromOtherNote"
+                type="textarea"
+                placeholder="Enter note"
+                value={formData.heardFromOtherNote}
+                onChange={(v) => setFormData((p) => ({ ...p, heardFromOtherNote: v }))}
+                error={formErrors.heardFromOtherNote}
+                required
+                disabled={!canCustomersEdit}
+              />
+            )}
           </form>
         </Modal>
 
@@ -1434,6 +1648,99 @@ export default function Customers({ permissions }: PageProps) {
             onChange={(v) => setFormData((p) => ({ ...p, notes: v }))}
             disabled={!canCustomersAdd}
           />
+
+          <div className="form-group">
+            <label htmlFor="newHeardFrom">
+              Heard of us from <span className="required">*</span>
+            </label>
+            <select
+              id="newHeardFrom"
+              className={`form-control ${formErrors.heardFrom ? "error" : ""}`}
+              value={formData.heardFrom}
+              onChange={(e) =>
+                setFormData((p) => ({
+                  ...p,
+                  heardFrom: e.target.value,
+                  referralPersonName: "",
+                  referralPersonMobile: "",
+                  socialPlatform: "",
+                  heardFromOtherNote: "",
+                }))
+              }
+              disabled={!canCustomersAdd}
+            >
+              <option value="">Select…</option>
+              {HEARD_FROM_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            {formErrors.heardFrom && <div className="error-message show">{formErrors.heardFrom}</div>}
+          </div>
+
+          {formData.heardFrom === "refer_person" && (
+            <>
+              <FormField
+                label="Referred Person Name"
+                id="newReferralPersonName"
+                placeholder="Enter person name"
+                value={formData.referralPersonName}
+                onChange={(v) => setFormData((p) => ({ ...p, referralPersonName: v }))}
+                error={formErrors.referralPersonName}
+                required
+                disabled={!canCustomersAdd}
+              />
+              <FormField
+                label="Referred Person Mobile"
+                id="newReferralPersonMobile"
+                type="tel"
+                placeholder="Enter mobile number"
+                value={formData.referralPersonMobile}
+                onChange={(v) => setFormData((p) => ({ ...p, referralPersonMobile: v }))}
+                error={formErrors.referralPersonMobile}
+                required
+                disabled={!canCustomersAdd}
+              />
+            </>
+          )}
+
+          {formData.heardFrom === "social_media" && (
+            <div className="form-group">
+              <label htmlFor="newSocialPlatform">
+                Social Platform <span className="required">*</span>
+              </label>
+              <select
+                id="newSocialPlatform"
+                className={`form-control ${formErrors.socialPlatform ? "error" : ""}`}
+                value={formData.socialPlatform}
+                onChange={(e) => setFormData((p) => ({ ...p, socialPlatform: e.target.value }))}
+                disabled={!canCustomersAdd}
+              >
+                <option value="">Select…</option>
+                {SOCIAL_PLATFORM_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              {formErrors.socialPlatform && <div className="error-message show">{formErrors.socialPlatform}</div>}
+            </div>
+          )}
+
+          {formData.heardFrom === "other" && (
+            <FormField
+              label="Other Note"
+              id="newHeardFromOtherNote"
+              type="textarea"
+              placeholder="Enter note"
+              value={formData.heardFromOtherNote}
+              onChange={(v) => setFormData((p) => ({ ...p, heardFromOtherNote: v }))}
+              error={formErrors.heardFromOtherNote}
+              required
+              disabled={!canCustomersAdd}
+            />
+          )}
         </form>
       </Modal>
 
@@ -1504,6 +1811,99 @@ export default function Customers({ permissions }: PageProps) {
             onChange={(v) => setFormData((p) => ({ ...p, notes: v }))}
             disabled={!canCustomersEdit}
           />
+
+          <div className="form-group">
+            <label htmlFor="editHeardFrom2">
+              Heard of us from <span className="required">*</span>
+            </label>
+            <select
+              id="editHeardFrom2"
+              className={`form-control ${formErrors.heardFrom ? "error" : ""}`}
+              value={formData.heardFrom}
+              onChange={(e) =>
+                setFormData((p) => ({
+                  ...p,
+                  heardFrom: e.target.value,
+                  referralPersonName: "",
+                  referralPersonMobile: "",
+                  socialPlatform: "",
+                  heardFromOtherNote: "",
+                }))
+              }
+              disabled={!canCustomersEdit}
+            >
+              <option value="">Select…</option>
+              {HEARD_FROM_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            {formErrors.heardFrom && <div className="error-message show">{formErrors.heardFrom}</div>}
+          </div>
+
+          {formData.heardFrom === "refer_person" && (
+            <>
+              <FormField
+                label="Referred Person Name"
+                id="editReferralPersonName2"
+                placeholder="Enter person name"
+                value={formData.referralPersonName}
+                onChange={(v) => setFormData((p) => ({ ...p, referralPersonName: v }))}
+                error={formErrors.referralPersonName}
+                required
+                disabled={!canCustomersEdit}
+              />
+              <FormField
+                label="Referred Person Mobile"
+                id="editReferralPersonMobile2"
+                type="tel"
+                placeholder="Enter mobile number"
+                value={formData.referralPersonMobile}
+                onChange={(v) => setFormData((p) => ({ ...p, referralPersonMobile: v }))}
+                error={formErrors.referralPersonMobile}
+                required
+                disabled={!canCustomersEdit}
+              />
+            </>
+          )}
+
+          {formData.heardFrom === "social_media" && (
+            <div className="form-group">
+              <label htmlFor="editSocialPlatform2">
+                Social Platform <span className="required">*</span>
+              </label>
+              <select
+                id="editSocialPlatform2"
+                className={`form-control ${formErrors.socialPlatform ? "error" : ""}`}
+                value={formData.socialPlatform}
+                onChange={(e) => setFormData((p) => ({ ...p, socialPlatform: e.target.value }))}
+                disabled={!canCustomersEdit}
+              >
+                <option value="">Select…</option>
+                {SOCIAL_PLATFORM_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+              {formErrors.socialPlatform && <div className="error-message show">{formErrors.socialPlatform}</div>}
+            </div>
+          )}
+
+          {formData.heardFrom === "other" && (
+            <FormField
+              label="Other Note"
+              id="editHeardFromOtherNote2"
+              type="textarea"
+              placeholder="Enter note"
+              value={formData.heardFromOtherNote}
+              onChange={(v) => setFormData((p) => ({ ...p, heardFromOtherNote: v }))}
+              error={formErrors.heardFromOtherNote}
+              required
+              disabled={!canCustomersEdit}
+            />
+          )}
         </form>
       </Modal>
 

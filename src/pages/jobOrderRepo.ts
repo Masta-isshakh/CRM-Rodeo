@@ -662,6 +662,11 @@ export async function searchCustomers(term: string): Promise<any[]> {
     mobile: c.phone ?? "",
     phone: c.phone ?? "",
     address: c.notes ?? null,
+    heardFrom: c.heardFrom ?? "",
+    referralPersonName: c.referralPersonName ?? "",
+    referralPersonMobile: c.referralPersonMobile ?? "",
+    socialPlatform: c.socialPlatform ?? "",
+    heardFromOtherNote: c.heardFromOtherNote ?? "",
     vehicles: [],
     registeredVehiclesCount: 0,
     completedServicesCount: 0,
@@ -715,6 +720,11 @@ export async function getCustomerWithVehicles(customerId: string): Promise<any |
     mobile: c.phone ?? "",
     phone: c.phone ?? "",
     address: c.notes ?? null,
+    heardFrom: c.heardFrom ?? "",
+    referralPersonName: c.referralPersonName ?? "",
+    referralPersonMobile: c.referralPersonMobile ?? "",
+    socialPlatform: c.socialPlatform ?? "",
+    heardFromOtherNote: c.heardFromOtherNote ?? "",
     vehicles,
     registeredVehiclesCount: vehicles.length,
     completedServicesCount: 0,
@@ -724,7 +734,18 @@ export async function getCustomerWithVehicles(customerId: string): Promise<any |
   };
 }
 
-export async function createCustomer(input: { fullName: string; phone: string; email?: string; address?: string; actor?: string }): Promise<any> {
+export async function createCustomer(input: {
+  fullName: string;
+  phone: string;
+  email?: string;
+  address?: string;
+  actor?: string;
+  heardFrom?: string;
+  referralPersonName?: string;
+  referralPersonMobile?: string;
+  socialPlatform?: string;
+  heardFromOtherNote?: string;
+}): Promise<any> {
   const client = getDataClient();
 
   const fullName = String(input.fullName ?? "").trim();
@@ -743,6 +764,11 @@ export async function createCustomer(input: { fullName: string; phone: string; e
     phone,
     email: String(input.email ?? "").trim() || undefined,
     notes: String(input.address ?? "").trim() || undefined,
+    heardFrom: String(input.heardFrom ?? "").trim() || undefined,
+    referralPersonName: String(input.referralPersonName ?? "").trim() || undefined,
+    referralPersonMobile: String(input.referralPersonMobile ?? "").trim() || undefined,
+    socialPlatform: String(input.socialPlatform ?? "").trim() || undefined,
+    heardFromOtherNote: String(input.heardFromOtherNote ?? "").trim() || undefined,
     createdAt: ts,
     createdBy: String(input.actor ?? "system").trim() || "system",
   } as any);
@@ -756,6 +782,11 @@ export async function createCustomer(input: { fullName: string; phone: string; e
     mobile: row.phone ?? phone,
     phone: row.phone ?? phone,
     address: row.notes ?? input.address ?? null,
+    heardFrom: row.heardFrom ?? input.heardFrom ?? "",
+    referralPersonName: row.referralPersonName ?? input.referralPersonName ?? "",
+    referralPersonMobile: row.referralPersonMobile ?? input.referralPersonMobile ?? "",
+    socialPlatform: row.socialPlatform ?? input.socialPlatform ?? "",
+    heardFromOtherNote: row.heardFromOtherNote ?? input.heardFromOtherNote ?? "",
     vehicles: [],
     registeredVehiclesCount: 0,
     completedServicesCount: 0,
@@ -1103,6 +1134,11 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
     email: job.customerEmail ?? parsed?.customerEmail ?? parsed?.customerDetails?.email ?? "",
     address: job.customerAddress ?? parsed?.customerDetails?.address ?? parsed?.address ?? null,
     company: job.customerCompany ?? parsed?.customerDetails?.company ?? null,
+    heardFrom: parsed?.customerDetails?.heardFrom ?? parsed?.heardFrom ?? null,
+    referralPersonName: parsed?.customerDetails?.referralPersonName ?? parsed?.referralPersonName ?? null,
+    referralPersonMobile: parsed?.customerDetails?.referralPersonMobile ?? parsed?.referralPersonMobile ?? null,
+    socialPlatform: parsed?.customerDetails?.socialPlatform ?? parsed?.socialPlatform ?? null,
+    heardFromOtherNote: parsed?.customerDetails?.heardFromOtherNote ?? parsed?.heardFromOtherNote ?? null,
     registeredVehiclesCount: job.registeredVehiclesCount ?? parsed?.customerDetails?.registeredVehiclesCount ?? 0,
     completedServicesCount: job.completedServicesCount ?? parsed?.customerDetails?.completedServicesCount ?? 0,
     customerSince: job.customerSince ?? parsed?.customerDetails?.customerSince ?? parsed?.customerSince ?? "",
