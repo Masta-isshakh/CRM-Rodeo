@@ -100,6 +100,27 @@ function normalizeWorkStatus(rowStatus?: string, label?: string): string {
   }
 }
 
+function normalizePaymentStatusLabel(enumVal?: string, label?: string): string {
+  const ps = String(enumVal ?? "").trim().toUpperCase();
+  if (ps === "PAID") return "Fully Paid";
+  if (ps === "PARTIAL") return "Partially Paid";
+  if (ps === "UNPAID") return "Unpaid";
+
+  const raw = String(label ?? "").trim();
+  if (!raw) return "Unpaid";
+
+  const lower = raw.toLowerCase();
+  if (lower.includes("fully paid") || lower === "paid") return "Fully Paid";
+  if (lower.includes("partially") || lower === "partial") return "Partially Paid";
+  if (lower.includes("unpaid")) return "Unpaid";
+
+  return raw;
+}
+
+function isFullyPaidStatus(enumVal?: string, label?: string): boolean {
+  return normalizePaymentStatusLabel(enumVal, label) === "Fully Paid";
+}
+
 type DocItem = {
   id: string;
   name: string;
@@ -164,6 +185,7 @@ type PaymentFormState = {
   transferProofName: string;
 
   balance: number;
+  discountFloor: number;
 };
 
 type RefundFormState = {
@@ -192,13 +214,6 @@ type ListOrder = {
 
   _parsed: any;
 };
-
-function clampDiscountQar(totalAmount: number, discount: number, maxPct: number) {
-  const pct = Math.max(0, Math.min(100, Number.isFinite(maxPct) ? maxPct : 0));
-  const maxQar = (Math.max(0, totalAmount) * pct) / 100;
-  const d = Math.max(0, discount);
-  return Math.min(d, Math.max(0, totalAmount), maxQar);
-}
 
 function roundMoney(value: number): number {
   const n = Number.isFinite(value) ? value : 0;
@@ -378,14 +393,17 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         String(o.statusEnum).toUpperCase() === "CANCELLED" ||
         String(o.workStatus).toLowerCase().includes("cancel");
 
-      const payEnum = String(o.paymentEnum).toUpperCase();
-      const payLabel = String(o.paymentStatus).toLowerCase();
+      const normalizedPay = normalizePaymentStatusLabel(o.paymentEnum, o.paymentStatus);
 
-      if (isCancelled) {
-        return payEnum === "PAID" || payEnum === "PARTIAL" || payLabel.includes("fully paid") || payLabel.includes("partially");
+      if (isFullyPaidStatus(o.paymentEnum, o.paymentStatus)) {
+        return false;
       }
 
-      return payEnum === "UNPAID" || payEnum === "PARTIAL" || payLabel.includes("unpaid") || payLabel.includes("partially");
+      if (isCancelled) {
+        return normalizedPay === "Partially Paid" || normalizedPay === "Unpaid";
+      }
+
+      return normalizedPay === "Unpaid" || normalizedPay === "Partially Paid";
     });
 
     if (!q) return list;
@@ -669,8 +687,13 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     if (!selectedOrder) return;
 
     const totalAmount = toNum(selectedOrder?.billing?.totalAmount);
-    const rawDiscount = toNum(selectedOrder?.billing?.discount);
-    const discount = clampDiscountQar(totalAmount, rawDiscount, maxPaymentDiscountPercent);
+    const rawDiscount = Math.max(0, toNum(selectedOrder?.billing?.discount));
+    const discountFloor = Math.min(rawDiscount, Math.max(0, totalAmount));
+    const allowedDiscountCap = Math.max(
+      (Math.max(0, totalAmount) * maxPaymentDiscountPercent) / 100,
+      discountFloor
+    );
+    const discount = Math.max(discountFloor, Math.min(discountFloor, allowedDiscountCap));
 
     const currentAmountPaid = toNum(selectedOrder?.billing?.amountPaid);
     const snap = computePaymentSnapshot(totalAmount, discount, currentAmountPaid);
@@ -693,6 +716,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       transferProofDataUrl: null,
       transferProofName: "",
       balance: snap.balanceDue,
+      discountFloor,
     });
     setShowPaymentPopup(true);
   };
@@ -711,10 +735,12 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
       if (name === "discount" || name === "amountToPay") {
         const maxDiscountQar = (Math.max(0, prev.totalAmount) * maxPaymentDiscountPercent) / 100;
+        const allowedDiscountCap = Math.max(maxDiscountQar, Math.max(0, prev.discountFloor || 0));
 
         let discount = Math.max(0, toNum(next.discount));
+        discount = Math.max(discount, Math.max(0, prev.discountFloor || 0));
         discount = Math.min(discount, prev.totalAmount);
-        discount = Math.min(discount, maxDiscountQar);
+        discount = Math.min(discount, allowedDiscountCap);
 
         next.discount = discount.toFixed(2);
 
@@ -774,11 +800,17 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const method = String(paymentForm.paymentMethod || "").trim();
     const amountToPay = roundMoney(toNum(paymentForm.amountToPay));
     const rawDiscount = Math.max(0, toNum(paymentForm.discount));
-    const discount = clampDiscountQar(paymentForm.totalAmount, rawDiscount, maxPaymentDiscountPercent);
-
+    const existingDiscount = Math.max(0, toNum(selectedOrder?.billing?.discount));
     const maxDiscountQar = (Math.max(0, paymentForm.totalAmount) * maxPaymentDiscountPercent) / 100;
-    if (rawDiscount > maxDiscountQar + 0.00001) {
-      setErrorMessage(`Discount exceeds limit. Max allowed is ${fmtQar(maxDiscountQar)} (${maxPaymentDiscountPercent}%).`);
+    const allowedDiscountCap = Math.max(maxDiscountQar, existingDiscount, Math.max(0, paymentForm.discountFloor || 0));
+    const discount = Math.min(
+      Math.max(rawDiscount, Math.max(0, paymentForm.discountFloor || 0)),
+      Math.max(0, paymentForm.totalAmount),
+      allowedDiscountCap
+    );
+
+    if (rawDiscount > allowedDiscountCap + 0.00001) {
+      setErrorMessage(`Discount exceeds limit. Max allowed is ${fmtQar(allowedDiscountCap)} (${maxPaymentDiscountPercent}% policy, including existing approved discount).`);
       setShowErrorPopup(true);
       return;
     }
@@ -912,7 +944,11 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       setShowSuccessPopup(true);
       closePaymentPopup();
 
-      await refreshDetails();
+      if (afterPayment.paymentStatusEnum === "PAID") {
+        closeDetailsView();
+      } else {
+        await refreshDetails();
+      }
     } catch (e) {
       setErrorMessage(`Payment failed: ${errMsg(e)}`);
       setShowErrorPopup(true);
@@ -1272,7 +1308,10 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     });
 
     const maxDiscountQarUi = paymentForm
-      ? (Math.max(0, paymentForm.totalAmount) * maxPaymentDiscountPercent) / 100
+      ? Math.max(
+          (Math.max(0, paymentForm.totalAmount) * maxPaymentDiscountPercent) / 100,
+          Math.max(0, paymentForm.discountFloor || 0)
+        )
       : 0;
     const summaryPaymentSnap = computePaymentSnapshot(
       toNum(selectedOrder?.billing?.totalAmount),

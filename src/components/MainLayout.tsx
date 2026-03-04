@@ -9,6 +9,7 @@ import Employees from "../pages/Employees";
 import ActivityLog from "../pages/ActivityLogs";
 
 import JobCards from "../pages/JobCards";
+import ServiceCreation from "../pages/ServiceCreation";
 import CallTracking from "../pages/CallTracking";
 import ServiceExecution from "../pages/ServiceExecutionModule";
 import Users from "../pages/UserAdmin";
@@ -38,6 +39,7 @@ type Page =
   | "employees"
   | "activitylog"
   | "jobcards"
+  | "servicecreation"
   | "jobhistory"
   | "serviceexecution"
   | "paymentinvoices"
@@ -115,6 +117,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
       // Job ecosystem (policy JOB_CARDS)
       jobcards: jobCardsRead && listOn("joborder", "joborder_list"),
+      servicecreation: jobCardsRead && listOn("joborder", "joborder_list"),
       jobhistory: jobCardsRead && listOn("jobhistory", "jobhistory_list"),
       serviceexecution: jobCardsRead && listOn("serviceexec", "serviceexec_list"),
       paymentinvoices: jobCardsRead && listOn("payment", "payment_list"),
@@ -147,6 +150,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !show.activitylog &&
     !show.calltracking &&
     !show.jobcards &&
+    !show.servicecreation &&
     !show.jobhistory &&
     !show.serviceexecution &&
     !show.paymentinvoices &&
@@ -165,6 +169,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.customers) allowedPages.push("customers");
     if (show.vehicles) allowedPages.push("vehicles");
     if (show.jobcards) allowedPages.push("jobcards");
+    if (show.servicecreation) allowedPages.push("servicecreation");
     if (show.jobhistory) allowedPages.push("jobhistory");
     if (show.serviceexecution) allowedPages.push("serviceexecution");
     if (show.paymentinvoices) allowedPages.push("paymentinvoices");
@@ -185,6 +190,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       (page === "customers" && show.customers) ||
       (page === "vehicles" && show.vehicles) ||
       (page === "jobcards" && show.jobcards) ||
+      (page === "servicecreation" && show.servicecreation) ||
       (page === "jobhistory" && show.jobhistory) ||
       (page === "serviceexecution" && show.serviceexecution) ||
       (page === "paymentinvoices" && show.paymentinvoices) ||
@@ -276,6 +282,12 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             {show.jobcards && (
               <button className={page === "jobcards" ? "active" : ""} onClick={() => go("jobcards")}>
                 Job Cards
+              </button>
+            )}
+
+            {show.servicecreation && (
+              <button className={page === "servicecreation" ? "active" : ""} onClick={() => go("servicecreation")}>
+                Service Creation
               </button>
             )}
 
@@ -432,6 +444,11 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             {page === "jobcards" && show.jobcards && (
               <PermissionGate moduleId="joborder" optionId="joborder_list">
                 <JobCards permissions={canAny("JOB_CARDS")} currentUser={currentUser} />
+              </PermissionGate>
+            )}
+            {page === "servicecreation" && show.servicecreation && (
+              <PermissionGate moduleId="joborder" optionId="joborder_list">
+                <ServiceCreation />
               </PermissionGate>
             )}
             {page === "jobhistory" && show.jobhistory && (

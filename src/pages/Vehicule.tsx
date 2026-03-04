@@ -8,6 +8,7 @@ import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
 import { getCurrentUser } from "aws-amplify/auth";
 import { resolveActorUsername } from "../utils/actorIdentity";
+import { normalizePaymentStatusLabel as normalizePaymentStatusLabelShared } from "../utils/paymentStatus";
 import { logActivity } from "../utils/activityLogger";
 import type { ReactNode } from "react";
 import { usePermissions } from "../lib/userPermissions";
@@ -88,6 +89,11 @@ function resolveVehicleIdRaw(source: any): string {
 
 function resolveVehicleIdDisplay(source: any): string {
   return resolveVehicleIdRaw(source) || "—";
+}
+
+function normalizePaymentStatusLabel(value: any): string {
+  const out = normalizePaymentStatusLabelShared(value);
+  return out || "—";
 }
 
 // ----------------------
@@ -1071,7 +1077,7 @@ export default function VehicleManagement({
                           <tr key={o.id}>
                             <td>{o.orderNumber ?? o.id}</td>
                             <td>{o.status ?? "—"}</td>
-                            <td>{o.paymentStatus ?? "—"}</td>
+                            <td>{normalizePaymentStatusLabel(o.paymentStatus)}</td>
                             <td>{typeof o.totalAmount === "number" ? `QAR ${o.totalAmount.toFixed(2)}` : "—"}</td>
                             <td>{o.updatedAt ? new Date(o.updatedAt).toLocaleString() : "—"}</td>
                           </tr>

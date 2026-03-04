@@ -104,7 +104,8 @@ export default function Users({ permissions }: PageProps) {
   }
 
   const client = getDataClient();
-  const { canOption } = usePermissions();
+  const { canOption, email: currentUserEmail, isAdminGroup } = usePermissions();
+  const canShowRootAdminUser = canOption("users", "users_show_root_admin", false);
 
   // Invite modal state
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -153,6 +154,8 @@ export default function Users({ permissions }: PageProps) {
   const [dashboardAllowedByDept, setDashboardAllowedByDept] = useState<Record<string, boolean>>({});
   const [dashboardAllowedByRoleId, setDashboardAllowedByRoleId] = useState<Record<string, boolean>>({});
 
+  const isRootAdminSyntheticUser = (u: any) => Boolean(u?._isRootAdminSynthetic);
+
   const inviteLink = useMemo(() => {
     const e = email.trim().toLowerCase();
     if (!e) return "";
@@ -199,6 +202,25 @@ export default function Users({ permissions }: PageProps) {
       const sorted = [...(allUsers ?? [])].sort((a, b) =>
         String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""))
       );
+
+      if (isAdminGroup && canShowRootAdminUser) {
+        const me = String(currentUserEmail ?? "").trim().toLowerCase();
+        if (me && !sorted.some((u: any) => String(u?.email ?? "").trim().toLowerCase() === me)) {
+          sorted.unshift({
+            id: `root-admin-${me}`,
+            email: me,
+            fullName: "Root Admin",
+            departmentKey: "Admins",
+            departmentName: "Admins",
+            roleName: "Root Admin",
+            roleId: "",
+            isActive: true,
+            mobileNumber: "",
+            createdAt: new Date(0).toISOString(),
+            _isRootAdminSynthetic: true,
+          } as any);
+        }
+      }
 
       // Role map per department
       const roleNameById = new Map<string, string>();
@@ -255,7 +277,7 @@ export default function Users({ permissions }: PageProps) {
   useEffect(() => {
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isAdminGroup, canShowRootAdminUser, currentUserEmail]);
 
   useEffect(() => setPageIndex(0), [search, pageSize]);
 
@@ -316,7 +338,9 @@ export default function Users({ permissions }: PageProps) {
       const userRoleName = String((u as any).roleName ?? "").trim();
       const roleName = userRoleName || roleNameById.get(userRoleId) || (u.departmentKey ? (firstRoleByDept[u.departmentKey] ?? "—") : "—");
 
-      const dashboardAllowed = userRoleId
+      const dashboardAllowed = isRootAdminSyntheticUser(u)
+        ? true
+        : userRoleId
         ? Boolean(dashboardAllowedByRoleId[userRoleId])
         : (u.departmentKey ? Boolean(dashboardAllowedByDept[u.departmentKey]) : false);
 
@@ -422,6 +446,7 @@ export default function Users({ permissions }: PageProps) {
   const setDepartmentForUser = async (u: UserRow, deptKey: string) => {
     if (!permissions.canUpdate || !canOption("users", "users_edit", true)) return;
     if (!u.email) return;
+    if (isRootAdminSyntheticUser(u)) return;
 
     const nextKey = String(deptKey ?? "").trim();
     if (!nextKey) return; // do not allow empty (backend requires)
@@ -488,6 +513,7 @@ export default function Users({ permissions }: PageProps) {
   const toggleActive = async (u: UserRow) => {
     if (!permissions.canUpdate || !canOption("users", "users_edit", true)) return;
     if (!u.email) return;
+    if (isRootAdminSyntheticUser(u)) return;
 
     setStatus("");
     setLoading(true);
@@ -517,6 +543,7 @@ export default function Users({ permissions }: PageProps) {
   const deleteUser = async (u: UserRow) => {
     if (!permissions.canDelete || !canOption("users", "users_delete", true)) return;
     if (!u.email) return;
+    if (isRootAdminSyntheticUser(u)) return;
 
     const ok = confirm(`Delete user ${u.email}? This cannot be undone.`);
     if (!ok) return;
@@ -560,6 +587,10 @@ export default function Users({ permissions }: PageProps) {
 
   const saveUserChanges = async () => {
     if (!detailsUser?.email) return;
+    if (isRootAdminSyntheticUser(detailsUser)) {
+      setDetailsStatus("Root admin user is read-only in this page.");
+      return;
+    }
     if (!editFirstName.trim() || !editLastName.trim()) {
       setDetailsStatus("First name and last name are required.");
       return;
@@ -810,6 +841,7 @@ export default function Users({ permissions }: PageProps) {
               <tbody>
                 {pageRows.map((row) => {
                   const u = row.u;
+                  const isRootAdminRow = isRootAdminSyntheticUser(u);
                   const active = Boolean(u.isActive);
                   const dashAllowed = row.dashboardAllowed && active;
 
@@ -825,7 +857,7 @@ export default function Users({ permissions }: PageProps) {
                       <td>
                         <span className="pill pill-dept">{row.deptName}</span>
 
-                        {permissions.canUpdate && (
+                        {permissions.canUpdate && !isRootAdminRow && (
                           <PermissionGate moduleId="users" optionId="users_edit">
                           <div className="ums-inline-edit">
                             <select
@@ -872,7 +904,7 @@ export default function Users({ permissions }: PageProps) {
                       </td>
 
                       <td className="ums-actions-cell">
-                        {(permissions.canUpdate || permissions.canDelete) && (
+                        {!isRootAdminRow && (permissions.canUpdate || permissions.canDelete) && (
                           <PermissionGate moduleId="users" optionId="users_edit">
                             <button
                               className="ums-actions-btn"
@@ -1167,6 +1199,12 @@ export default function Users({ permissions }: PageProps) {
                         {detailsUser.createdAt ? new Date(detailsUser.createdAt).toLocaleDateString() : "—"}
                       </span>
                     </div>
+                    {isRootAdminSyntheticUser(detailsUser) && (
+                      <div className="ums-detail-row">
+                        <span className="ums-detail-label">Note:</span>
+                        <span className="ums-detail-value">Root admin is read-only in Users Admin.</span>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1193,7 +1231,7 @@ export default function Users({ permissions }: PageProps) {
                       <Button
                         variation="primary"
                         onClick={enterEditMode}
-                        isDisabled={!permissions.canUpdate || !canOption("users", "users_edit", true)}
+                        isDisabled={isRootAdminSyntheticUser(detailsUser) || !permissions.canUpdate || !canOption("users", "users_edit", true)}
                       >
                         Edit
                       </Button>

@@ -22,6 +22,14 @@ import { getUrl } from "aws-amplify/storage";
 import { getUserDirectory, normalizeIdentity } from "../utils/userDirectoryCache";
 import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
 import { usePermissions } from "../lib/userPermissions";
+import {
+  computePaymentSnapshot,
+  derivePaymentStatusFromFinancials,
+  pickBillingFirstValue,
+  pickPaymentEnum,
+  pickPaymentLabel,
+  normalizePaymentStatusLabel as normalizePaymentStatusLabelShared,
+} from "../utils/paymentStatus";
 
 // -------------------- helpers --------------------
 function safeJsonParse<T>(raw: any, fallback: T): T {
@@ -97,6 +105,15 @@ function normalizeWorkStatusLabel(value: any, fallback = "Service_Operation") {
   return isServiceOperationStep(raw) ? "Service_Operation" : raw;
 }
 
+function normalizePaymentStatusLabel(value: any) {
+  return normalizePaymentStatusLabelShared(value);
+}
+
+function isServiceExecutionWorkStatus(value: any) {
+  const n = normalizeStepName(value);
+  return n === "inprogress" || n === "serviceoperation";
+}
+
 function getWorkStatusClass(status: any) {
   const statusMap: any = {
     "New Request": "status-new-request",
@@ -112,8 +129,9 @@ function getWorkStatusClass(status: any) {
 }
 
 function getPaymentStatusClass(status: any) {
-  if (status === "Fully Paid") return "payment-full";
-  if (status === "Partially Paid") return "payment-partial";
+  const normalized = normalizePaymentStatusLabel(status);
+  if (normalized === "Fully Paid") return "payment-full";
+  if (normalized === "Partially Paid") return "payment-partial";
   return "payment-unpaid";
 }
 
@@ -141,6 +159,17 @@ function firstNonEmptyText(...values: any[]) {
     if (out) return out;
   }
   return "";
+}
+
+function toNum(v: any): number {
+  if (typeof v === "number" && Number.isFinite(v)) return v;
+  const s = String(v ?? "");
+  const n = Number(s.replace(/[^0-9.-]/g, ""));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function fmtQar(n: number) {
+  return `QAR ${Number.isFinite(n) ? n.toFixed(2) : "0.00"}`;
 }
 
 type AssigneeOption = { value: string; label: string };
@@ -197,7 +226,7 @@ async function resolveMaybeStorageUrl(urlOrPath: string): Promise<string> {
 // -------------------- main component --------------------
 const ServiceExecutionModule = ({ currentUser }: any) => {
   const client = useMemo(() => getDataClient(), []);
-  const { isAdminGroup } = usePermissions();
+  const { isAdminGroup, canOption } = usePermissions();
 
   // live list from backend
   const [jobs, setJobs] = useState<any[]>([]);
@@ -328,6 +357,10 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   const pendingPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPersistJobRef = useRef<any | null>(null);
 
+  const canOpenServiceActions = canOption("serviceexec", "serviceexec_actions", true);
+  const canViewUnassignedTab = canOption("serviceexec", "serviceexec_unassigned_tab", canOpenServiceActions);
+  const canViewTeamTab = canOption("serviceexec", "serviceexec_team_tab", canOpenServiceActions);
+
   // close dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (event: any) => {
@@ -385,7 +418,15 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
               ? new Date(String(row.createdAt)).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
               : "",
             workStatus: normalizeWorkStatusLabel(parsed.workStatusLabel ?? row.workStatusLabel),
-            paymentStatus: parsed.paymentStatusLabel ?? row.paymentStatusLabel ?? "Unpaid",
+            paymentStatus: derivePaymentStatusFromFinancials({
+              paymentEnum: pickPaymentEnum(row, parsed),
+              paymentLabel: pickPaymentLabel(row, parsed),
+              totalAmount: pickBillingFirstValue("totalAmount", row, parsed),
+              discount: pickBillingFirstValue("discount", row, parsed),
+              amountPaid: pickBillingFirstValue("amountPaid", row, parsed),
+              netAmount: pickBillingFirstValue("netAmount", row, parsed),
+              balanceDue: pickBillingFirstValue("balanceDue", row, parsed),
+            }),
             roadmap,
             services,
           };
@@ -400,10 +441,14 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   useEffect(() => setCurrentPage(1), [currentTab, currentSearch, pageSize]);
 
   useEffect(() => {
-    if (!isAdminGroup && currentTab !== "assigned") {
+    if (currentTab === "team" && !canViewTeamTab) {
+      setCurrentTab("assigned");
+      return;
+    }
+    if (currentTab === "unassigned" && !canViewUnassignedTab) {
       setCurrentTab("assigned");
     }
-  }, [isAdminGroup, currentTab]);
+  }, [currentTab, canViewTeamTab, canViewUnassignedTab]);
 
   // filter: must be Service_Operation step active
   const filteredJobs = useMemo(() => {
@@ -412,23 +457,25 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
     list = list.filter((job) => {
       const inprogressStep = job.roadmap?.find((s: any) => isServiceOperationStep(s.step));
-      return inprogressStep && inprogressStep.stepStatus === "Active";
+      const roadmapActive = inprogressStep && inprogressStep.stepStatus === "Active";
+      const workStatusActive = isServiceExecutionWorkStatus(job.workStatus);
+      return Boolean(roadmapActive || workStatusActive);
     });
 
-    if (!isAdminGroup || currentTab === "assigned") {
-      list = list.filter((j) => {
-        const nextService = pickNextActiveService(j.services);
-        return nextService && isAssignedToCurrentUser(nextService.assignedTo);
-      });
-    } else if (currentTab === "unassigned") {
+    if (currentTab === "unassigned" && canViewUnassignedTab) {
       list = list.filter((j) => {
         const nextService = pickNextActiveService(j.services);
         return nextService && !nextService.assignedTo;
       });
-    } else {
+    } else if (currentTab === "team" && canViewTeamTab) {
       list = list.filter((j) => {
         const nextService = pickNextActiveService(j.services);
         return nextService && nextService.assignedTo && !isAssignedToCurrentUser(nextService.assignedTo);
+      });
+    } else {
+      list = list.filter((j) => {
+        const nextService = pickNextActiveService(j.services);
+        return nextService && isAssignedToCurrentUser(nextService.assignedTo);
       });
     }
 
@@ -442,12 +489,14 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     }
 
     return list;
-  }, [jobs, currentTab, currentSearch, currentUser, nameToEmailMap, emailToNameMap, currentUserIdentitySet, isAdminGroup]);
+  }, [jobs, currentTab, currentSearch, currentUser, nameToEmailMap, emailToNameMap, currentUserIdentitySet, canViewTeamTab, canViewUnassignedTab]);
 
   const counts = useMemo(() => {
     const base = jobs.filter((job) => {
       const inprogressStep = job.roadmap?.find((s: any) => isServiceOperationStep(s.step));
-      return inprogressStep && inprogressStep.stepStatus === "Active";
+      const roadmapActive = inprogressStep && inprogressStep.stepStatus === "Active";
+      const workStatusActive = isServiceExecutionWorkStatus(job.workStatus);
+      return Boolean(roadmapActive || workStatusActive);
     });
 
     const assigned = base.filter((j) => {
@@ -455,18 +504,18 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
       return nextService && isAssignedToCurrentUser(nextService.assignedTo);
     }).length;
 
-    const unassigned = isAdminGroup ? base.filter((j) => {
+    const unassigned = canViewUnassignedTab ? base.filter((j) => {
       const nextService = pickNextActiveService(j.services);
       return nextService && !nextService.assignedTo;
     }).length : 0;
 
-    const team = isAdminGroup ? base.filter((j) => {
+    const team = canViewTeamTab ? base.filter((j) => {
       const nextService = pickNextActiveService(j.services);
       return nextService && nextService.assignedTo && !isAssignedToCurrentUser(nextService.assignedTo);
     }).length : 0;
 
     return { assigned, unassigned, team };
-  }, [jobs, currentUser, nameToEmailMap, emailToNameMap, currentUserIdentitySet, isAdminGroup]);
+  }, [jobs, currentUser, nameToEmailMap, emailToNameMap, currentUserIdentitySet, canViewTeamTab, canViewUnassignedTab]);
 
   // pagination
   const totalPages = Math.max(1, Math.ceil(filteredJobs.length / pageSize));
@@ -509,6 +558,107 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
         vin: row?.vin ?? null,
       };
 
+      const parsed = safeJsonParse<any>(row?.dataJson, {});
+
+      let paymentRows: any[] = [];
+      try {
+        const byIdx = await (client.models.JobOrderPayment as any).listPaymentsByJobOrder?.({
+          jobOrderId: String(detailed._backendId),
+          limit: 500,
+        });
+        paymentRows = byIdx?.data ?? [];
+      } catch {
+        const pRes = await client.models.JobOrderPayment.list({
+          limit: 500,
+          filter: { jobOrderId: { eq: String(detailed._backendId) } } as any,
+        });
+        paymentRows = pRes?.data ?? [];
+      }
+
+      const paymentActivityLog = [...paymentRows]
+        .sort((a, b) => String(a?.paidAt ?? a?.createdAt ?? "").localeCompare(String(b?.paidAt ?? b?.createdAt ?? "")))
+        .map((p, idx) => ({
+          serial: idx + 1,
+          amount: fmtQar(toNum(p?.amount)),
+          discount: fmtQar(0),
+          paymentMethod: String(p?.method ?? "Cash"),
+          cashierName: String(p?.createdBy ?? "").trim(),
+          timestamp: p?.paidAt
+            ? new Date(String(p.paidAt)).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+            : (p?.createdAt
+                ? new Date(String(p.createdAt)).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
+                : "—"),
+        }));
+
+      let normalizedInvoices: any[] = [];
+      try {
+        let invRows: any[] = [];
+        try {
+          const byIdxInv = await (client.models.JobOrderInvoice as any).listInvoicesByJobOrder?.({
+            jobOrderId: String(detailed._backendId),
+            limit: 500,
+          });
+          invRows = byIdxInv?.data ?? [];
+        } catch {
+          const invRes = await client.models.JobOrderInvoice.list({
+            limit: 500,
+            filter: { jobOrderId: { eq: String(detailed._backendId) } } as any,
+          });
+          invRows = invRes?.data ?? [];
+        }
+
+        invRows.sort((a, b) => String(a?.createdAt ?? "").localeCompare(String(b?.createdAt ?? "")));
+
+        const out: any[] = [];
+        for (const inv of invRows) {
+          const invoiceId = String(inv?.id ?? "");
+          let svcRows: any[] = [];
+          try {
+            const byIdxSvc = await (client.models.JobOrderInvoiceService as any).listInvoiceServicesByInvoice?.({
+              invoiceId,
+              limit: 500,
+            });
+            svcRows = byIdxSvc?.data ?? [];
+          } catch {
+            const svcRes = await client.models.JobOrderInvoiceService.list({
+              limit: 500,
+              filter: { invoiceId: { eq: invoiceId } } as any,
+            });
+            svcRows = svcRes?.data ?? [];
+          }
+
+          out.push({
+            id: invoiceId,
+            number: String(inv?.number ?? "—"),
+            amount: toNum(inv?.amount),
+            discount: toNum(inv?.discount),
+            status: String(inv?.status ?? "Unpaid"),
+            paymentMethod: inv?.paymentMethod ?? null,
+            createdAt: inv?.createdAt ?? null,
+            services: svcRows.map((s) => String(s?.serviceName ?? "").trim()).filter(Boolean),
+          });
+        }
+        normalizedInvoices = out;
+      } catch {
+        normalizedInvoices = [];
+      }
+
+      const totalAmountRaw = toNum(pickBillingFirstValue("totalAmount", detailed, row, parsed));
+      const discountRaw = toNum(pickBillingFirstValue("discount", detailed, row, parsed));
+      const amountPaidRaw = toNum(pickBillingFirstValue("amountPaid", detailed, row, parsed));
+      const paymentSnap = computePaymentSnapshot(totalAmountRaw, discountRaw, amountPaidRaw);
+
+      const billing = {
+        billId: String(row?.billId ?? parsed?.billing?.billId ?? detailed?.billing?.billId ?? ""),
+        totalAmount: fmtQar(paymentSnap.totalAmount),
+        discount: fmtQar(paymentSnap.discount),
+        netAmount: fmtQar(paymentSnap.netAmount),
+        amountPaid: fmtQar(paymentSnap.amountPaid),
+        balanceDue: fmtQar(paymentSnap.balanceDue),
+        paymentMethod: String(row?.paymentMethod ?? parsed?.billing?.paymentMethod ?? detailed?.billing?.paymentMethod ?? ""),
+        invoices: normalizedInvoices,
+      };
+
       const services = normalizeServices(String(detailed.id), detailed.services || []);
 
       const merged = {
@@ -517,8 +667,19 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
         mobile: row?.customerPhone ?? detailed.mobile,
         vehiclePlate: row?.plateNumber ?? detailed.vehiclePlate,
         orderType: row?.orderType ?? detailed.orderType,
+        paymentStatus: derivePaymentStatusFromFinancials({
+          paymentEnum: pickPaymentEnum(detailed, row, parsed),
+          paymentLabel: pickPaymentLabel(detailed, row, parsed),
+          totalAmount: pickBillingFirstValue("totalAmount", detailed, row, parsed),
+          discount: pickBillingFirstValue("discount", detailed, row, parsed),
+          amountPaid: pickBillingFirstValue("amountPaid", detailed, row, parsed),
+          netAmount: pickBillingFirstValue("netAmount", detailed, row, parsed),
+          balanceDue: pickBillingFirstValue("balanceDue", detailed, row, parsed),
+        }),
         customerDetails: Object.keys(customerDetails).length ? customerDetails : detailed.customerDetails,
         vehicleDetails,
+        billing,
+        paymentActivityLog,
         services,
       };
 
@@ -798,6 +959,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                   jobId={currentDetailsJob.id}
                   jobOrderBackendId={currentDetailsJob._backendId}
                   orderNumber={currentDetailsJob.id}
+                  vehicleType={currentDetailsJob?.vehicleDetails?.type}
                   services={isAdminGroup ? (currentDetailsJob.services || []) : (currentDetailsJob.services || []).filter((s: any) => isAssignedToCurrentUser(s?.assignedTo))}
                   onServicesReorder={handleServicesReorder}
                   onServiceUpdate={handleServiceUpdate}
@@ -848,7 +1010,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
   // ---------------- LIST SCREEN ----------------
   const tabTitle =
-    !isAdminGroup || currentTab === "assigned" ? "Assigned to me" : currentTab === "unassigned" ? "Unassigned tasks" : "Team tasks";
+    currentTab === "unassigned" ? "Unassigned tasks" : currentTab === "team" ? "Team tasks" : "Assigned to me";
 
   return (
     <div className="service-execution-wrapper">
@@ -865,15 +1027,15 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
           <div className={`task-tab ${currentTab === "assigned" ? "active" : ""}`} onClick={() => setCurrentTab("assigned")}>
             <i className="fas fa-user-check"></i> Assign to me ({counts.assigned})
           </div>
-          {isAdminGroup && (
-            <>
-              <div className={`task-tab ${currentTab === "unassigned" ? "active" : ""}`} onClick={() => setCurrentTab("unassigned")}>
-                <i className="fas fa-user-slash"></i> Unassigned tasks ({counts.unassigned})
-              </div>
-              <div className={`task-tab ${currentTab === "team" ? "active" : ""}`} onClick={() => setCurrentTab("team")}>
-                <i className="fas fa-users"></i> Team tasks ({counts.team})
-              </div>
-            </>
+          {canViewUnassignedTab && (
+            <div className={`task-tab ${currentTab === "unassigned" ? "active" : ""}`} onClick={() => setCurrentTab("unassigned")}>
+              <i className="fas fa-user-slash"></i> Unassigned tasks ({counts.unassigned})
+            </div>
+          )}
+          {canViewTeamTab && (
+            <div className={`task-tab ${currentTab === "team" ? "active" : ""}`} onClick={() => setCurrentTab("team")}>
+              <i className="fas fa-users"></i> Team tasks ({counts.team})
+            </div>
           )}
         </div>
 
@@ -1168,7 +1330,7 @@ function JobOrderSummaryCard({ order, identityToUsernameMap }: any) {
         <div className="epm-info-item"><span className="epm-info-label">Created By</span><span className="epm-info-value">{createdByDisplay}</span></div>
         <div className="epm-info-item"><span className="epm-info-label">Expected Delivery Date</span><span className="epm-info-value">{summary.expectedDeliveryDate || order.jobOrderSummary?.expectedDelivery || "—"}</span></div>
         <div className="epm-info-item"><span className="epm-info-label">Work Status</span><span className={`epm-status-badge status-badge ${getWorkStatusClass(summary.workStatus || normalizeWorkStatusLabel(order.workStatus))}`}>{summary.workStatus || normalizeWorkStatusLabel(order.workStatus) || "—"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Payment Status</span><span className={`epm-status-badge status-badge ${getPaymentStatusClass(summary.paymentStatus || order.paymentStatus)}`}>{summary.paymentStatus || order.paymentStatus || "—"}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">Payment Status</span><span className={`epm-status-badge status-badge ${getPaymentStatusClass(normalizePaymentStatusLabel(summary.paymentStatus || order.paymentStatus))}`}>{normalizePaymentStatusLabel(summary.paymentStatus || order.paymentStatus)}</span></div>
         <div className="epm-info-item"><span className="epm-info-label">Exit Permit Status</span><span className={`epm-status-badge status-badge ${permitStatusClass(exitPermitStatus)}`}>{exitPermitStatus}</span></div>
         <div className="epm-info-item"><span className="epm-info-label">Customer Name</span><span className="epm-info-value">{summary.customerName || order.customerName || "—"}</span></div>
         <div className="epm-info-item"><span className="epm-info-label">Customer Mobile</span><span className="epm-info-value">{summary.customerMobile || order.mobile || "—"}</span></div>
@@ -1296,6 +1458,11 @@ function BillingCard({ order }: any) {
     return Number.isFinite(n) ? n : 0;
   };
   const fmtQar = (n: number) => `QAR ${Number.isFinite(n) ? n.toFixed(2) : "0.00"}`;
+  const snap = computePaymentSnapshot(
+    toNum(order?.billing?.totalAmount),
+    toNum(order?.billing?.discount),
+    toNum(order?.billing?.amountPaid)
+  );
   const invoices: InvoiceUi[] = Array.isArray(order?.billing?.invoices)
     ? order.billing.invoices.map((inv: any) => ({
         ...inv,
@@ -1316,11 +1483,11 @@ function BillingCard({ order }: any) {
 
       <div className="jh-billing bi-summary">
         <div className="bi-row"><span className="bi-label">Bill ID</span><strong className="bi-value">{order.billing?.billId || "—"}</strong></div>
-        <div className="bi-row"><span className="bi-label">Total</span><strong className="bi-value">{order.billing?.totalAmount || "—"}</strong></div>
-        <div className="bi-row"><span className="bi-label">Discount</span><strong className="jh-green bi-value">{order.billing?.discount || "—"}</strong></div>
-        <div className="bi-row"><span className="bi-label">Net</span><strong className="bi-value">{order.billing?.netAmount || "—"}</strong></div>
-        <div className="bi-row"><span className="bi-label">Paid</span><strong className="jh-green bi-value">{order.billing?.amountPaid || "—"}</strong></div>
-        <div className="bi-row"><span className="bi-label">Balance</span><strong className="jh-red bi-value">{order.billing?.balanceDue || "—"}</strong></div>
+        <div className="bi-row"><span className="bi-label">Total</span><strong className="bi-value">{fmtQar(snap.totalAmount)}</strong></div>
+        <div className="bi-row"><span className="bi-label">Discount</span><strong className="jh-green bi-value">{fmtQar(snap.discount)}</strong></div>
+        <div className="bi-row"><span className="bi-label">Net</span><strong className="bi-value">{fmtQar(snap.netAmount)}</strong></div>
+        <div className="bi-row"><span className="bi-label">Paid</span><strong className="jh-green bi-value">{fmtQar(snap.amountPaid)}</strong></div>
+        <div className="bi-row"><span className="bi-label">Balance</span><strong className="jh-red bi-value">{fmtQar(snap.balanceDue)}</strong></div>
         <div className="bi-row"><span className="bi-label">Method</span><strong className="bi-value">{order.billing?.paymentMethod || "—"}</strong></div>
       </div>
 

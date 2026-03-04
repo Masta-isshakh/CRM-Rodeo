@@ -5,6 +5,12 @@ import PermissionGate from "./PermissionGate";
 import { getDataClient } from "../lib/amplifyClient";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { resolveActorDisplay } from "../utils/actorIdentity";
+import {
+  derivePaymentStatusFromFinancials,
+  pickBillingFirstValue,
+  pickPaymentEnum,
+  pickPaymentLabel,
+} from "../utils/paymentStatus";
 
 type Decision = "approved" | "declined" | "pending";
 
@@ -200,7 +206,15 @@ const ServiceApprovalHistory: React.FC = () => {
 
             invoice: String(job?.billId ?? "—"),
             newInvoice: "",
-            paymentStatus: String(job?.paymentStatus ?? "—"),
+            paymentStatus: derivePaymentStatusFromFinancials({
+              paymentEnum: pickPaymentEnum(job),
+              paymentLabel: pickPaymentLabel(job),
+              totalAmount: pickBillingFirstValue("totalAmount", job),
+              discount: pickBillingFirstValue("discount", job),
+              amountPaid: pickBillingFirstValue("amountPaid", job),
+              netAmount: pickBillingFirstValue("netAmount", job),
+              balanceDue: pickBillingFirstValue("balanceDue", job),
+            }),
 
             requestedBy: String(r.requestedBy ?? "—"),
             vehicleDetails: vehicleDetails || "—",

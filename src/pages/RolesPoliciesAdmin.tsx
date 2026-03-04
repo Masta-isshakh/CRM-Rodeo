@@ -217,6 +217,8 @@ const MODULE_DEFINITIONS = [
     options: [
       { id: "serviceexec_list", label: "Show Service Execution page in sidebar", prefix: "-" },
       { id: "serviceexec_actions", label: "Actions", prefix: "a." },
+      { id: "serviceexec_unassigned_tab", label: "Unassigned Tasks Tab", prefix: "a.1" },
+      { id: "serviceexec_team_tab", label: "Team Tasks Tab", prefix: "a.2" },
       { id: "serviceexec_summary", label: "Job Order Summary", prefix: "-" },
       { id: "serviceexec_roadmap", label: "Roadmap", prefix: "-" },
       { id: "serviceexec_customer", label: "Customer Information", prefix: "-" },
@@ -368,6 +370,7 @@ const MODULE_DEFINITIONS = [
       { id: "users_invite", label: "Invite User", prefix: "a." },
       { id: "users_edit", label: "Edit User / Department", prefix: "b." },
       { id: "users_delete", label: "Delete User", prefix: "c." },
+      { id: "users_show_root_admin", label: "Show Root Admin User", prefix: "d." },
     ],
   },
 

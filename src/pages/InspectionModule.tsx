@@ -25,43 +25,15 @@ import {
   getInspectionReport,
   buildInspectionReportHtml,
 } from "./inspectionRepo";
+import { listServiceCatalog, resolveServicePriceForVehicleType, type ServiceCatalogItem } from "./serviceCatalogRepo";
 import { resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
-
-// ============================================
-// CATALOG
-// ============================================
-const YOUR_PRODUCTS = [
-  { name: "Extra Cool Tint", suvPrice: 3200, sedanPrice: 2900 },
-  { name: "UV Protection Film", suvPrice: 2500, sedanPrice: 2200 },
-  { name: "Cool Shade Tint", suvPrice: 1800, sedanPrice: 1500 },
-  { name: "Smart Pro Protection", suvPrice: 17500, sedanPrice: 15500 },
-  { name: "Full Body Protection", suvPrice: 5500, sedanPrice: 4400 },
-  { name: "Quarter Panel Protection", suvPrice: 4300, sedanPrice: 3500 },
-  { name: "Glass Protection (Light)", suvPrice: 400, sedanPrice: 400 },
-  { name: "Extreme Glass Protection", suvPrice: 1200, sedanPrice: 1200 },
-  { name: "City Glass Protection", suvPrice: 800, sedanPrice: 800 },
-  { name: "Matte Protection", suvPrice: 18500, sedanPrice: 16500 },
-  { name: "Color Change", suvPrice: 20500, sedanPrice: 18500 },
-  { name: "Leather Protection", suvPrice: 1200, sedanPrice: 1200 },
-  { name: "Wheel Protection", suvPrice: 600, sedanPrice: 600 },
-  { name: "VIP Interior & Exterior Polish", suvPrice: 1650, sedanPrice: 1650 },
-  { name: "Interior Polish", suvPrice: 850, sedanPrice: 850 },
-  { name: "Exterior Polish", suvPrice: 800, sedanPrice: 800 },
-  { name: "Nano Interior & Exterior Polish", suvPrice: 2200, sedanPrice: 2200 },
-  { name: "Rear Bumper Protection", suvPrice: 2200, sedanPrice: 2200 },
-  { name: "Fender Protection", suvPrice: 2000, sedanPrice: 2000 },
-  { name: "Roof Protection", suvPrice: 2200, sedanPrice: 2200 },
-  { name: "Single Door Protection", suvPrice: 400, sedanPrice: 400 },
-  { name: "Front Bumper Protection", suvPrice: 1500, sedanPrice: 1500 },
-  { name: "Mirror Protection (Each)", suvPrice: 150, sedanPrice: 150 },
-  { name: "Front Fender Protection (Each)", suvPrice: 500, sedanPrice: 500 },
-  { name: "Rear Fender for Pickups & Small Cars", suvPrice: 1700, sedanPrice: 1700 },
-  { name: "Rear Fender Protection (Each)", suvPrice: 2800, sedanPrice: 2800 },
-  { name: "Headlight Protection (Each)", suvPrice: 150, sedanPrice: 150 },
-  { name: "Trunk Door Protection", suvPrice: 1000, sedanPrice: 1000 },
-  { name: "Tire Base Protection (Each)", suvPrice: 400, sedanPrice: 400 },
-  { name: "Pedal Protection (Each)", suvPrice: 400, sedanPrice: 400 },
-];
+import {
+  derivePaymentStatusFromFinancials,
+  normalizePaymentStatusLabel as normalizePaymentStatusLabelShared,
+  pickBillingFirstValue,
+  pickPaymentEnum,
+  pickPaymentLabel,
+} from "../utils/paymentStatus";
 
 type AnyObj = Record<string, any>;
 
@@ -119,9 +91,14 @@ function getWorkStatusClass(status: any) {
 }
 
 function getPaymentStatusClass(status: any) {
-  if (status === "Fully Paid") return "payment-full";
-  if (status === "Partially Paid") return "payment-partial";
+  const normalized = normalizePaymentStatusLabel(status);
+  if (normalized === "Fully Paid") return "payment-full";
+  if (normalized === "Partially Paid") return "payment-partial";
   return "payment-unpaid";
+}
+
+function normalizePaymentStatusLabel(value: any) {
+  return normalizePaymentStatusLabelShared(value);
 }
 
 function getServiceStatusClass(status: any) {
@@ -166,6 +143,7 @@ function roadmapMark(roadmap: AnyObj[], stepName: string, patch: AnyObj) {
 }
 
 function deriveDetailData(order: AnyObj, row: AnyObj) {
+  const parsed = (order as any)?._parsed ?? {};
   const expectedDelivery =
     order.expectedDeliveryDate || order.expectedDeliveryTime
       ? `${order.expectedDeliveryDate ?? ""} ${order.expectedDeliveryTime ?? ""}`.trim()
@@ -185,7 +163,15 @@ function deriveDetailData(order: AnyObj, row: AnyObj) {
     expectedDelivery,
 
     workStatus: order.workStatusLabel || row.workStatus || "New Request",
-    paymentStatus: order.paymentStatusLabel || "Unpaid",
+    paymentStatus: derivePaymentStatusFromFinancials({
+      paymentEnum: pickPaymentEnum(order, row, parsed),
+      paymentLabel: pickPaymentLabel(order, row, parsed),
+      totalAmount: pickBillingFirstValue("totalAmount", order, row, parsed),
+      discount: pickBillingFirstValue("discount", order, row, parsed),
+      amountPaid: pickBillingFirstValue("amountPaid", order, row, parsed),
+      netAmount: pickBillingFirstValue("netAmount", order, row, parsed),
+      balanceDue: pickBillingFirstValue("balanceDue", order, row, parsed),
+    }),
 
     customerId: order.customerId || order.customerDetails?.customerId || "N/A",
     email: order.customerEmail || order.customerDetails?.email || "N/A",
@@ -201,6 +187,7 @@ function deriveDetailData(order: AnyObj, row: AnyObj) {
 
 function InspectionModule({ currentUser }: any) {
   const [inspectionConfig, setInspectionConfig] = useState<any[]>(inspectionListConfig);
+  const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
 
   const sectionConfig = useMemo(() => {
     const exterior = inspectionConfig.find((c: AnyObj) => c.category === "Exterior of the Vehicle");
@@ -284,6 +271,22 @@ function InspectionModule({ currentUser }: any) {
         setInspectionConfig(inspectionListConfig);
       }
     })();
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const catalog = await listServiceCatalog();
+        if (!cancelled) setServiceCatalog(catalog);
+      } catch {
+        if (!cancelled) setServiceCatalog([]);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const refreshOrders = async () => {
@@ -1003,7 +1006,7 @@ function InspectionModule({ currentUser }: any) {
       )}
 
       {screenState === "addService" && currentAddServiceOrder && (
-        <AddServiceScreen order={currentAddServiceOrder} products={YOUR_PRODUCTS} onClose={() => setScreenState("details")} onSubmit={handleAddServiceSubmit} />
+        <AddServiceScreen order={currentAddServiceOrder} products={serviceCatalog} onClose={() => setScreenState("details")} onSubmit={handleAddServiceSubmit} />
       )}
 
       {screenState === "details" && activeRow && activeOrder && detailData && (
@@ -1335,11 +1338,21 @@ function AddServiceScreen({ order, products = [], onClose, onSubmit }: any) {
   const vehicleType = order?.vehicleDetails?.type || "SUV";
 
   const handleToggleService = (product: any) => {
-    const price = vehicleType === "SUV" ? product.suvPrice : product.sedanPrice;
-    if (selectedServices.some((s) => s.name === product.name)) {
-      setSelectedServices(selectedServices.filter((s) => s.name !== product.name));
+    const price = resolveServicePriceForVehicleType(product, vehicleType);
+    const productKey = String(product.serviceCode || product.id || product.name);
+    const isSelected = selectedServices.some((s: any) => String(s.serviceCode || s.catalogId || s.name) === productKey);
+    if (isSelected) {
+      setSelectedServices(selectedServices.filter((s: any) => String(s.serviceCode || s.catalogId || s.name) !== productKey));
     } else {
-      setSelectedServices([...selectedServices, { name: product.name, price }]);
+      setSelectedServices([
+        ...selectedServices,
+        {
+          name: product.name,
+          price,
+          serviceCode: product.serviceCode || undefined,
+          catalogId: product.id || undefined,
+        },
+      ]);
     }
   };
 
@@ -1368,20 +1381,27 @@ function AddServiceScreen({ order, products = [], onClose, onSubmit }: any) {
 
           <div className="form-card-content">
             <p>Select services for {vehicleType}:</p>
+            {products.length === 0 ? (
+              <div className="empty-state" style={{ padding: "28px 12px" }}>
+                <div className="empty-text">No services configured yet</div>
+                <div className="empty-subtext">Create services from Service Creation before adding services.</div>
+              </div>
+            ) : (
             <div className="services-grid">
               {products.map((product: any) => (
                 <div
-                  key={product.name}
-                  className={`service-checkbox ${selectedServices.some((s) => s.name === product.name) ? "selected" : ""}`}
+                  key={String(product.id || product.serviceCode || product.name)}
+                  className={`service-checkbox ${selectedServices.some((s: any) => String(s.serviceCode || s.catalogId || s.name) === String(product.serviceCode || product.id || product.name)) ? "selected" : ""}`}
                   onClick={() => handleToggleService(product)}
                 >
                   <div className="service-info">
                     <div className="service-name">{product.name}</div>
                   </div>
-                  <div className="service-price">{formatPrice(vehicleType === "SUV" ? product.suvPrice : product.sedanPrice)}</div>
+                  <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
                 </div>
               ))}
             </div>
+            )}
 
             <div className="price-summary-box">
               <h4>Price Summary</h4>
@@ -1399,7 +1419,7 @@ function AddServiceScreen({ order, products = [], onClose, onSubmit }: any) {
 
             <div className="action-buttons">
               <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-              <button className="btn btn-primary" onClick={() => onSubmit({ selectedServices, discountPercent })} disabled={selectedServices.length === 0}>
+              <button className="btn btn-primary" onClick={() => onSubmit({ selectedServices, discountPercent })} disabled={selectedServices.length === 0 || products.length === 0}>
                 Add Services
               </button>
             </div>

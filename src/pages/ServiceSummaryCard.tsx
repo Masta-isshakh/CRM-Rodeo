@@ -31,6 +31,7 @@ import "./ServiceExecutionModule.css"
 
 import PermissionGate from "./PermissionGate";
 import { useApprovalRequests } from "./ApprovalRequestsContext";
+import { listServiceCatalog, resolveServicePriceForVehicleType, type ServiceCatalogItem } from "./serviceCatalogRepo";
 
 type ServiceStatus =
   | "Pending"
@@ -83,6 +84,7 @@ type Props = {
   jobOrderBackendId?: string;
   orderNumber?: string;
   isAdmin?: boolean;
+  vehicleType?: unknown;
 };
 
 function normalizeIdentity(v: any) {
@@ -495,6 +497,7 @@ export default function ServiceSummaryCard({
   jobOrderBackendId,
   orderNumber,
   isAdmin = false,
+  vehicleType,
 }: Props) {
   const [localServices, setLocalServices] = useState<Service[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
@@ -507,6 +510,28 @@ export default function ServiceSummaryCard({
   const [addPrice, setAddPrice] = useState<number>(600);
   const [addBusy, setAddBusy] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
+  const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [addSelectedCatalogId, setAddSelectedCatalogId] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    setCatalogLoading(true);
+    (async () => {
+      try {
+        const catalog = await listServiceCatalog();
+        if (!cancelled) setServiceCatalog(catalog);
+      } catch {
+        if (!cancelled) setServiceCatalog([]);
+      } finally {
+        if (!cancelled) setCatalogLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const jobChanged = previousJobIdRef.current !== jobId;
@@ -532,6 +557,17 @@ export default function ServiceSummaryCard({
   const sortedServices = useMemo(() => {
     return [...localServices].sort((a, b) => (a.order || 0) - (b.order || 0));
   }, [localServices]);
+
+  const selectableCatalog = useMemo(
+    () => serviceCatalog.filter((item) => item.isActive !== false),
+    [serviceCatalog]
+  );
+
+  const catalogById = useMemo(() => {
+    const map = new Map<string, ServiceCatalogItem>();
+    for (const item of selectableCatalog) map.set(item.id, item);
+    return map;
+  }, [selectableCatalog]);
 
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
@@ -572,9 +608,30 @@ export default function ServiceSummaryCard({
 
   const openAddModal = () => {
     setAddError(null);
-    setAddName("");
-    setAddPrice(600);
+    const first = selectableCatalog[0];
+    if (first) {
+      setAddSelectedCatalogId(first.id);
+      setAddName(first.name);
+      setAddPrice(resolveServicePriceForVehicleType(first, vehicleType));
+    } else {
+      setAddSelectedCatalogId("");
+      setAddName("");
+      setAddPrice(600);
+    }
     setAddOpen(true);
+  };
+
+  const handleCatalogChange = (catalogId: string) => {
+    setAddSelectedCatalogId(catalogId);
+    const selected = catalogById.get(catalogId);
+    if (!selected) {
+      setAddName("");
+      setAddPrice(0);
+      return;
+    }
+
+    setAddName(selected.name);
+    setAddPrice(resolveServicePriceForVehicleType(selected, vehicleType));
   };
 
   const submitAdd = async () => {
@@ -623,21 +680,17 @@ export default function ServiceSummaryCard({
             </button>
           </PermissionGate>
 
-          {isAdmin && (
-            <>
-              <PermissionGate moduleId="serviceexec" optionId="serviceexec_finish">
-                <button className="btn-finish-work" onClick={onFinishWork} disabled={!allServicesCompleted}>
-                  <FaCheckDouble /> Finish Work
-                </button>
-              </PermissionGate>
+          <PermissionGate moduleId="serviceexec" optionId="serviceexec_finish">
+            <button className="btn-finish-work" onClick={onFinishWork} disabled={!allServicesCompleted}>
+              <FaCheckDouble /> Finish Work
+            </button>
+          </PermissionGate>
 
-              <PermissionGate moduleId="serviceexec" optionId="serviceexec_addservice">
-                <button className="btn-add-service" onClick={openAddModal}>
-                  <FaPlusCircle /> Add service
-                </button>
-              </PermissionGate>
-            </>
-          )}
+          <PermissionGate moduleId="serviceexec" optionId="serviceexec_addservice">
+            <button className="btn-add-service" onClick={openAddModal}>
+              <FaPlusCircle /> Add service
+            </button>
+          </PermissionGate>
         </span>
       </h3>
 
@@ -709,10 +762,23 @@ export default function ServiceSummaryCard({
             </div>
 
             <div className="sem-modal-body">
-              <label className="sem-field">
-                <span>Service name</span>
-                <input value={addName} onChange={(e) => setAddName(e.target.value)} placeholder="e.g. Wheel Protection" />
-              </label>
+              {selectableCatalog.length > 0 ? (
+                <label className="sem-field">
+                  <span>Service</span>
+                  <select value={addSelectedCatalogId} onChange={(e) => handleCatalogChange(e.target.value)} disabled={catalogLoading}>
+                    {selectableCatalog.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.serviceCode} - {item.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <label className="sem-field">
+                  <span>Service name</span>
+                  <input value={addName} onChange={(e) => setAddName(e.target.value)} placeholder="e.g. Wheel Protection" />
+                </label>
+              )}
 
               <label className="sem-field">
                 <span>Price (QAR)</span>

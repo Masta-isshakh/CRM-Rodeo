@@ -6,6 +6,20 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function safeJsonParse<T>(raw: any, fallback: T): T {
+  try {
+    if (raw == null) return fallback;
+    if (typeof raw === "string") {
+      const s = raw.trim();
+      if (!s) return fallback;
+      return JSON.parse(s) as T;
+    }
+    return raw as T;
+  } catch {
+    return fallback;
+  }
+}
+
 async function listAll<T>(
   listFn: (args: any) => Promise<any>,
   max = 5000
@@ -80,7 +94,9 @@ export async function recomputeJobOrderPaymentSummary(
 
   // 4) Determine net amount
   const totalAmount = toNum(job.totalAmount);
-  const discount = toNum(job.discount);
+  const parsed = safeJsonParse<any>(job.dataJson, {});
+  const parsedDiscount = toNum(parsed?.billing?.discount);
+  const discount = Math.max(toNum(job.discount), parsedDiscount);
   const netAmountField = toNum(job.netAmount);
 
   const net =
@@ -119,14 +135,31 @@ export async function recomputeJobOrderPaymentSummary(
   const paymentMethod =
     latestMethod || String(job.paymentMethod ?? "").trim() || undefined;
 
+  const nextDataJson = JSON.stringify({
+    ...parsed,
+    billing: {
+      ...(parsed?.billing ?? {}),
+      totalAmount,
+      discount,
+      netAmount: net,
+      amountPaid: sumPaid,
+      balanceDue,
+      paymentMethod: paymentMethod ?? null,
+    },
+    paymentStatusLabel,
+  });
+
   // 8) Update JobOrder (this is the missing part)
   await client.models.JobOrder.update({
     id: jobOrderId,
+    discount,
+    netAmount: net,
     amountPaid: sumPaid,
     balanceDue,
     paymentStatus,
     paymentStatusLabel,
     paymentMethod,
+    dataJson: nextDataJson,
     updatedAt: nowIso(),
   } as any);
 }

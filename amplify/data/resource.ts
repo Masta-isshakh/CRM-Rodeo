@@ -189,6 +189,24 @@ const schema = a
       })
       .authorization((allow) => [allow.authenticated()]),
 
+    ServiceCatalog: a
+      .model({
+        serviceCode: a.string().required(),
+        name: a.string().required(),
+        type: a.enum(["SERVICE", "PACKAGE"]),
+        suvPrice: a.float().required(),
+        sedanPrice: a.float().required(),
+        includedServiceCodesJson: a.string(),
+        isActive: a.boolean().default(true),
+        createdAt: a.datetime(),
+        updatedAt: a.datetime(),
+      })
+      .secondaryIndexes((index) => [
+        index("serviceCode").queryField("serviceCatalogByCode"),
+        index("type").queryField("serviceCatalogByType"),
+      ])
+      .authorization((allow) => [allow.authenticated()]),
+
     ActivityLog: a
       .model({
         entityType: a.string().required(),

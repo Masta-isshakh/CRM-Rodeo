@@ -16,6 +16,13 @@ import { usePermissions } from "../lib/userPermissions";
 import { cancelJobOrderByOrderNumber, getJobOrderByOrderNumber, upsertJobOrder } from "./jobOrderRepo";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy, resolveOrderUpdatedBy } from "../utils/actorIdentity";
+import {
+  derivePaymentStatusFromFinancials,
+  normalizePaymentStatusLabel,
+  pickBillingFirstValue,
+  pickPaymentEnum,
+  pickPaymentLabel,
+} from "../utils/paymentStatus";
 
 import { getUrl, uploadData } from "aws-amplify/storage";
 
@@ -71,19 +78,7 @@ function normalizeWorkStatus(rowStatus?: string, label?: string): string {
 }
 
 function normalizePaymentLabel(enumVal?: string, label?: string): string {
-  const l = String(label ?? "").trim();
-  if (l) return l;
-
-  switch (String(enumVal || "").toUpperCase()) {
-    case "UNPAID":
-      return "Unpaid";
-    case "PARTIAL":
-      return "Partially Paid";
-    case "PAID":
-      return "Fully Paid";
-    default:
-      return "Unpaid";
-  }
+  return normalizePaymentStatusLabel(enumVal, label);
 }
 
 function nowIso() {
@@ -331,7 +326,15 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
         _parsed: parsed,
         id: String(detailed.id), // orderNumber
         workStatus: normalizeWorkStatus(row?.status, row?.workStatusLabel ?? parsed?.workStatusLabel ?? detailed?.workStatus),
-        paymentStatus: normalizePaymentLabel(row?.paymentStatus, row?.paymentStatusLabel ?? parsed?.paymentStatusLabel ?? detailed?.paymentStatus),
+        paymentStatus: derivePaymentStatusFromFinancials({
+          paymentEnum: pickPaymentEnum(detailed, row, parsed),
+          paymentLabel: pickPaymentLabel(detailed, row, parsed),
+          totalAmount: pickBillingFirstValue("totalAmount", detailed, row, parsed),
+          discount: pickBillingFirstValue("discount", detailed, row, parsed),
+          amountPaid: pickBillingFirstValue("amountPaid", detailed, row, parsed),
+          netAmount: pickBillingFirstValue("netAmount", detailed, row, parsed),
+          balanceDue: pickBillingFirstValue("balanceDue", detailed, row, parsed),
+        }),
         orderType: String(row?.orderType ?? detailed?.orderType ?? parsed?.orderType ?? "Job Order"),
         customerName: String(row?.customerName ?? detailed?.customerName ?? parsed?.customerName ?? ""),
         mobile: String(row?.customerPhone ?? detailed?.mobile ?? parsed?.customerPhone ?? ""),
@@ -592,10 +595,6 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
       workStatus: nextWorkStatusLabel,
       workStatusLabel: nextWorkStatusLabel,
       updatedBy: actor,
-
-      // keep existing payment label (don’t overwrite)
-      paymentStatus: detailed.paymentStatus,
-      paymentStatusLabel: (parsed?.paymentStatusLabel ?? detailed.paymentStatus) || "Unpaid",
 
       dataJson: JSON.stringify({
         ...parsed,
@@ -944,7 +943,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                     <div className="epm-info-item"><span className="epm-info-label">Created By</span><span className="epm-info-value">{createdByDisplay}</span></div>
                     <div className="epm-info-item"><span className="epm-info-label">Expected Delivery Date</span><span className="epm-info-value">{summary.expectedDeliveryDate || selectedOrder.jobOrderSummary?.expectedDelivery || "—"}</span></div>
                     <div className="epm-info-item"><span className="epm-info-label">Work Status</span><span className={`epm-status-badge status-badge ${workStatusClass(summary.workStatus || selectedOrder.workStatus)}`}>{summary.workStatus || selectedOrder.workStatus || "—"}</span></div>
-                    <div className="epm-info-item"><span className="epm-info-label">Payment Status</span><span className={`epm-status-badge status-badge ${paymentStatusClass(summary.paymentStatus || selectedOrder.paymentStatus)}`}>{summary.paymentStatus || selectedOrder.paymentStatus || "—"}</span></div>
+                    <div className="epm-info-item"><span className="epm-info-label">Payment Status</span><span className={`epm-status-badge status-badge ${paymentStatusClass(normalizePaymentLabel(undefined, summary.paymentStatus || selectedOrder.paymentStatus))}`}>{normalizePaymentLabel(undefined, summary.paymentStatus || selectedOrder.paymentStatus)}</span></div>
                     <div className="epm-info-item"><span className="epm-info-label">Exit Permit Status</span><span className={`epm-status-badge status-badge ${permitStatusClass(summary.exitPermitStatus || selectedOrder.exitPermitStatus || selectedOrder.exitPermit?.status || "Not Required")}`}>{summary.exitPermitStatus || selectedOrder.exitPermitStatus || selectedOrder.exitPermit?.status || "Not Required"}</span></div>
                     <div className="epm-info-item"><span className="epm-info-label">Customer Name</span><span className="epm-info-value">{summary.customerName || selectedOrder.customerName || "—"}</span></div>
                     <div className="epm-info-item"><span className="epm-info-label">Customer Mobile</span><span className="epm-info-value">{summary.customerMobile || selectedOrder.mobile || "—"}</span></div>
@@ -1233,8 +1232,8 @@ function workStatusClass(status: string) {
 
 function paymentStatusClass(status: string) {
   const s = String(status ?? "").toLowerCase();
-  if (s.includes("fully paid")) return "jh-badge jh-badge-success";
-  if (s.includes("partially")) return "jh-badge jh-badge-warn";
+  if (s.includes("fully paid") || s === "paid") return "jh-badge jh-badge-success";
+  if (s.includes("partially") || s === "partial") return "jh-badge jh-badge-warn";
   if (s.includes("unpaid")) return "jh-badge jh-badge-danger";
   if (s.includes("refunded")) return "jh-badge jh-badge-neutral";
   return "jh-badge jh-badge-neutral";

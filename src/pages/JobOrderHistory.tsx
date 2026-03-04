@@ -6,6 +6,14 @@ import PermissionGate from "./PermissionGate";
 import { getDataClient } from "../lib/amplifyClient";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { firstPreferredActorValue, resolveActorDisplay, resolveOrderCreatedBy, resolveOrderUpdatedBy } from "../utils/actorIdentity";
+import {
+  computePaymentSnapshot,
+  derivePaymentStatusFromFinancials,
+  normalizePaymentStatusLabel,
+  pickBillingFirstValue,
+  pickPaymentEnum,
+  pickPaymentLabel,
+} from "../utils/paymentStatus";
 import UnifiedJobOrderRoadmap from "../components/UnifiedJobOrderRoadmap";
 
 import { getJobOrderByOrderNumber } from "./jobOrderRepo";
@@ -75,17 +83,7 @@ function uiWorkStatus(rowStatus?: string, label?: string) {
 }
 
 function uiPaymentStatus(enumVal?: string, label?: string) {
-  // ✅ enum first (truth)
-  const ps = String(enumVal ?? "").toUpperCase();
-  if (ps === "PAID") return "Fully Paid";
-  if (ps === "PARTIAL") return "Partially Paid";
-  if (ps === "UNPAID") return "Unpaid";
-
-  // fallback label
-  const lbl = String(label ?? "").trim();
-  if (lbl) return lbl;
-
-  return "Unpaid";
+  return normalizePaymentStatusLabel(enumVal, label);
 }
 
 function normalizeIdentity(v: any) {
@@ -465,8 +463,8 @@ function workStatusClass(status: string) {
 
 function paymentStatusClass(status: string) {
   const s = String(status ?? "").toLowerCase();
-  if (s.includes("fully paid")) return "jh-badge jh-badge-success";
-  if (s.includes("partially")) return "jh-badge jh-badge-warn";
+  if (s.includes("fully paid") || s === "paid") return "jh-badge jh-badge-success";
+  if (s.includes("partially") || s === "partial") return "jh-badge jh-badge-warn";
   if (s.includes("unpaid")) return "jh-badge jh-badge-danger";
   if (s.includes("refunded")) return "jh-badge jh-badge-neutral";
   return "jh-badge jh-badge-neutral";
@@ -678,7 +676,15 @@ export default function JobOrderHistory({
             : "";
 
           const workStatus = uiWorkStatus(row.status, row.workStatusLabel ?? parsed?.workStatusLabel);
-          const paymentStatus = uiPaymentStatus(row.paymentStatus, row.paymentStatusLabel ?? parsed?.paymentStatusLabel);
+          const paymentStatus = derivePaymentStatusFromFinancials({
+            paymentEnum: pickPaymentEnum(row, parsed),
+            paymentLabel: pickPaymentLabel(row, parsed),
+            totalAmount: pickBillingFirstValue("totalAmount", row, parsed),
+            discount: pickBillingFirstValue("discount", row, parsed),
+            amountPaid: pickBillingFirstValue("amountPaid", row, parsed),
+            netAmount: pickBillingFirstValue("netAmount", row, parsed),
+            balanceDue: pickBillingFirstValue("balanceDue", row, parsed),
+          });
 
           return {
             _backendId: String(row.id),
@@ -853,19 +859,18 @@ export default function JobOrderHistory({
         Array.isArray(parsed?.documents) ? parsed.documents : Array.isArray(detailed?.documents) ? detailed.documents : [];
 
       // billing from row fields (truth)
-      const totalAmount = toNum(row?.totalAmount);
-      const discount = toNum(row?.discount);
-      const netAmount = toNum(row?.netAmount) > 0 ? toNum(row?.netAmount) : Math.max(0, totalAmount - discount);
-      const amountPaid = toNum(row?.amountPaid);
-      const balanceDue = toNum(row?.balanceDue);
+      const totalAmountRaw = toNum(pickBillingFirstValue("totalAmount", detailed, row, parsed));
+      const discountRaw = toNum(pickBillingFirstValue("discount", detailed, row, parsed));
+      const amountPaidRaw = toNum(pickBillingFirstValue("amountPaid", detailed, row, parsed));
+      const paymentSnap = computePaymentSnapshot(totalAmountRaw, discountRaw, amountPaidRaw);
 
       const billing = {
         billId: String(row?.billId ?? parsed?.billing?.billId ?? detailed?.billing?.billId ?? ""),
-        totalAmount: fmtQar(totalAmount),
-        discount: fmtQar(discount),
-        netAmount: fmtQar(netAmount),
-        amountPaid: fmtQar(amountPaid),
-        balanceDue: fmtQar(balanceDue),
+        totalAmount: fmtQar(paymentSnap.totalAmount),
+        discount: fmtQar(paymentSnap.discount),
+        netAmount: fmtQar(paymentSnap.netAmount),
+        amountPaid: fmtQar(paymentSnap.amountPaid),
+        balanceDue: fmtQar(paymentSnap.balanceDue),
         paymentMethod: String(row?.paymentMethod ?? parsed?.billing?.paymentMethod ?? detailed?.billing?.paymentMethod ?? ""),
         invoices: normalizedInvoices, // ✅ normalized invoices
       };
@@ -990,7 +995,15 @@ export default function JobOrderHistory({
         vehiclePlate: vehiclePlate,
 
         workStatus: uiWorkStatus(row?.status, row?.workStatusLabel ?? parsed?.workStatusLabel ?? detailed?.workStatus),
-        paymentStatus: uiPaymentStatus(row?.paymentStatus, row?.paymentStatusLabel ?? parsed?.paymentStatusLabel ?? detailed?.paymentStatus),
+        paymentStatus: derivePaymentStatusFromFinancials({
+          paymentEnum: pickPaymentEnum(detailed, row, parsed),
+          paymentLabel: pickPaymentLabel(detailed, row, parsed),
+          totalAmount: pickBillingFirstValue("totalAmount", detailed, row, parsed),
+          discount: pickBillingFirstValue("discount", detailed, row, parsed),
+          amountPaid: pickBillingFirstValue("amountPaid", detailed, row, parsed),
+          netAmount: pickBillingFirstValue("netAmount", detailed, row, parsed),
+          balanceDue: pickBillingFirstValue("balanceDue", detailed, row, parsed),
+        }),
 
         customerDetails: customerDetails ?? {
           customerId: row?.customerId ?? "N/A",
@@ -1024,7 +1037,15 @@ export default function JobOrderHistory({
             parsed?.expectedDeliveryDate ?? row?.expectedDeliveryDate ?? detailed?.expectedDeliveryDate
           ),
           workStatus: uiWorkStatus(row?.status, row?.workStatusLabel ?? parsed?.workStatusLabel ?? detailed?.workStatus),
-          paymentStatus: uiPaymentStatus(row?.paymentStatus, row?.paymentStatusLabel ?? parsed?.paymentStatusLabel ?? detailed?.paymentStatus),
+          paymentStatus: derivePaymentStatusFromFinancials({
+            paymentEnum: pickPaymentEnum(detailed, row, parsed),
+            paymentLabel: pickPaymentLabel(detailed, row, parsed),
+            totalAmount: pickBillingFirstValue("totalAmount", detailed, row, parsed),
+            discount: pickBillingFirstValue("discount", detailed, row, parsed),
+            amountPaid: pickBillingFirstValue("amountPaid", detailed, row, parsed),
+            netAmount: pickBillingFirstValue("netAmount", detailed, row, parsed),
+            balanceDue: pickBillingFirstValue("balanceDue", detailed, row, parsed),
+          }),
           exitPermitStatus: toSummaryStatus(
             parsed?.exitPermit?.status ?? parsed?.exitPermitInfo?.status ?? row?.exitPermitStatus ?? detailed?.exitPermitStatus,
             parsed?.exitPermit || detailed?.exitPermit || row?.exitPermitStatus ? "Completed" : "Not Required"
@@ -1324,6 +1345,11 @@ function JobHistoryDetails({
   actorMap: Record<string, string>;
 }) {
   const invoices: InvoiceUi[] = Array.isArray(order?.billing?.invoices) ? order.billing.invoices : [];
+  const billingSnap = computePaymentSnapshot(
+    toNum(order?.billing?.totalAmount),
+    toNum(order?.billing?.discount),
+    toNum(order?.billing?.amountPaid)
+  );
   const roadmap: RoadmapStepUi[] = Array.isArray(order?.roadmap) ? order.roadmap : [];
   const docs: DocUi[] = Array.isArray(order?.documents) ? order.documents : [];
   const summary = order?.summary ?? {};
@@ -1367,7 +1393,7 @@ function JobHistoryDetails({
                 <div className="epm-info-item"><span className="epm-info-label">Created By</span><span className="epm-info-value">{createdByDisplay}</span></div>
                 <div className="epm-info-item"><span className="epm-info-label">Expected Delivery Date</span><span className="epm-info-value">{summary.expectedDeliveryDate || "—"}</span></div>
                 <div className="epm-info-item"><span className="epm-info-label">Work Status</span><span className={`epm-status-badge status-badge ${workStatusClass(summary.workStatus || order.workStatus)}`}>{summary.workStatus || order.workStatus || "—"}</span></div>
-                <div className="epm-info-item"><span className="epm-info-label">Payment Status</span><span className={`epm-status-badge status-badge ${paymentStatusClass(summary.paymentStatus || order.paymentStatus)}`}>{summary.paymentStatus || order.paymentStatus || "—"}</span></div>
+                <div className="epm-info-item"><span className="epm-info-label">Payment Status</span><span className={`epm-status-badge status-badge ${paymentStatusClass(uiPaymentStatus(undefined, summary.paymentStatus || order.paymentStatus))}`}>{uiPaymentStatus(undefined, summary.paymentStatus || order.paymentStatus)}</span></div>
                 <div className="epm-info-item"><span className="epm-info-label">Exit Permit Status</span><span className={`epm-status-badge status-badge ${permitStatusClass(summary.exitPermitStatus || "Not Required")}`}>{summary.exitPermitStatus || "Not Required"}</span></div>
                 <div className="epm-info-item"><span className="epm-info-label">Customer Name</span><span className="epm-info-value">{summary.customerName || order.customerName || "—"}</span></div>
                 <div className="epm-info-item"><span className="epm-info-label">Customer Mobile</span><span className="epm-info-value">{summary.customerMobile || order.mobile || "—"}</span></div>
@@ -1521,11 +1547,11 @@ function JobHistoryDetails({
 
               <div className="jh-billing bi-summary">
                 <div className="bi-row"><span className="bi-label">Bill ID</span><strong className="bi-value">{order.billing?.billId || "—"}</strong></div>
-                <div className="bi-row"><span className="bi-label">Total</span><strong className="bi-value">{order.billing?.totalAmount || "—"}</strong></div>
-                <div className="bi-row"><span className="bi-label">Discount</span><strong className="jh-green bi-value">{order.billing?.discount || "—"}</strong></div>
-                <div className="bi-row"><span className="bi-label">Net</span><strong className="bi-value">{order.billing?.netAmount || "—"}</strong></div>
-                <div className="bi-row"><span className="bi-label">Paid</span><strong className="jh-green bi-value">{order.billing?.amountPaid || "—"}</strong></div>
-                <div className="bi-row"><span className="bi-label">Balance</span><strong className="jh-red bi-value">{order.billing?.balanceDue || "—"}</strong></div>
+                <div className="bi-row"><span className="bi-label">Total</span><strong className="bi-value">{fmtQar(billingSnap.totalAmount)}</strong></div>
+                <div className="bi-row"><span className="bi-label">Discount</span><strong className="jh-green bi-value">{fmtQar(billingSnap.discount)}</strong></div>
+                <div className="bi-row"><span className="bi-label">Net</span><strong className="bi-value">{fmtQar(billingSnap.netAmount)}</strong></div>
+                <div className="bi-row"><span className="bi-label">Paid</span><strong className="jh-green bi-value">{fmtQar(billingSnap.amountPaid)}</strong></div>
+                <div className="bi-row"><span className="bi-label">Balance</span><strong className="jh-red bi-value">{fmtQar(billingSnap.balanceDue)}</strong></div>
                 <div className="bi-row"><span className="bi-label">Method</span><strong className="bi-value">{order.billing?.paymentMethod || "—"}</strong></div>
               </div>
 

@@ -24,42 +24,15 @@ import {
   createVehicleForCustomer,
   listCompletedOrdersByPlateNumber,
 } from "./jobOrderRepo";
-
-// ============================================
-// DEMO DATA (catalog only — keep)
-// ============================================
-const YOUR_PRODUCTS = [
-  { name: "Extra Cool Tint", suvPrice: 3200, sedanPrice: 2900 },
-  { name: "UV Protection Film", suvPrice: 2500, sedanPrice: 2200 },
-  { name: "Cool Shade Tint", suvPrice: 1800, sedanPrice: 1500 },
-  { name: "Smart Pro Protection", suvPrice: 17500, sedanPrice: 15500 },
-  { name: "Full Body Protection", suvPrice: 5500, sedanPrice: 4400 },
-  { name: "Quarter Panel Protection", suvPrice: 4300, sedanPrice: 3500 },
-  { name: "Glass Protection (Light)", suvPrice: 400, sedanPrice: 400 },
-  { name: "Extreme Glass Protection", suvPrice: 1200, sedanPrice: 1200 },
-  { name: "City Glass Protection", suvPrice: 800, sedanPrice: 800 },
-  { name: "Matte Protection", suvPrice: 18500, sedanPrice: 16500 },
-  { name: "Color Change", suvPrice: 20500, sedanPrice: 18500 },
-  { name: "Leather Protection", suvPrice: 1200, sedanPrice: 1200 },
-  { name: "Wheel Protection", suvPrice: 600, sedanPrice: 600 },
-  { name: "VIP Interior & Exterior Polish", suvPrice: 1650, sedanPrice: 1650 },
-  { name: "Interior Polish", suvPrice: 850, sedanPrice: 850 },
-  { name: "Exterior Polish", suvPrice: 800, sedanPrice: 800 },
-  { name: "Nano Interior & Exterior Polish", suvPrice: 2200, sedanPrice: 2200 },
-  { name: "Rear Bumper Protection", suvPrice: 2200, sedanPrice: 2200 },
-  { name: "Fender Protection", suvPrice: 2000, sedanPrice: 2000 },
-  { name: "Roof Protection", suvPrice: 2200, sedanPrice: 2200 },
-  { name: "Single Door Protection", suvPrice: 400, sedanPrice: 400 },
-  { name: "Front Bumper Protection", suvPrice: 1500, sedanPrice: 1500 },
-  { name: "Mirror Protection (Each)", suvPrice: 150, sedanPrice: 150 },
-  { name: "Front Fender Protection (Each)", suvPrice: 500, sedanPrice: 500 },
-  { name: "Rear Fender for Pickups & Small Cars", suvPrice: 1700, sedanPrice: 1700 },
-  { name: "Rear Fender Protection (Each)", suvPrice: 2800, sedanPrice: 2800 },
-  { name: "Headlight Protection (Each)", suvPrice: 150, sedanPrice: 150 },
-  { name: "Trunk Door Protection", suvPrice: 1000, sedanPrice: 1000 },
-  { name: "Tire Base Protection (Each)", suvPrice: 400, sedanPrice: 400 },
-  { name: "Pedal Protection (Each)", suvPrice: 400, sedanPrice: 400 },
-];
+import {
+  listServiceCatalog,
+  resolveServicePriceForVehicleType,
+  type ServiceCatalogItem,
+} from "./serviceCatalogRepo";
+import {
+  computePaymentSnapshot,
+  normalizePaymentStatusLabel as normalizePaymentStatusLabelShared,
+} from "../utils/paymentStatus";
 
 function errMsg(e: unknown) {
   const anyE = e as any;
@@ -265,6 +238,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
   const [lastAction, setLastAction] = useState<"create" | "cancel" | "addService">("create");
   const [showAddServiceSuccessPopup, setShowAddServiceSuccessPopup] = useState(false);
   const [addServiceSuccessData, setAddServiceSuccessData] = useState({ orderId: "", invoiceId: "" });
+  const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
 
   // ✅ Error popup state
   const [errorOpen, setErrorOpen] = useState(false);
@@ -289,6 +263,25 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
       cancelled = true;
     };
   }, [client]);
+
+  const refreshServiceCatalog = useCallback(async () => {
+    try {
+      const services = await listServiceCatalog();
+      setServiceCatalog(services);
+    } catch {
+      setServiceCatalog([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshServiceCatalog();
+  }, [refreshServiceCatalog]);
+
+  useEffect(() => {
+    if (screenState === "newJob" || screenState === "addService") {
+      void refreshServiceCatalog();
+    }
+  }, [screenState, refreshServiceCatalog]);
 
   const showError = (args: {
     title?: string;
@@ -589,6 +582,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
       {screenState === "newJob" && (
         <NewJobScreen
           currentUser={currentUser}
+          products={serviceCatalog}
           onClose={() => {
             setScreenState("main");
             setNewJobPrefill(null);
@@ -644,7 +638,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
       )}
 
       {screenState === "addService" && currentAddServiceOrder && (
-        <AddServiceScreen order={currentAddServiceOrder} onClose={() => setScreenState("details")} onSubmit={handleAddServiceSubmit} />
+        <AddServiceScreen order={currentAddServiceOrder} products={serviceCatalog} onClose={() => setScreenState("details")} onSubmit={handleAddServiceSubmit} />
       )}
 
       {inspectionModalOpen && currentInspectionItem && (
@@ -822,7 +816,7 @@ const JobOrderRecordsTable = memo(function JobOrderRecordsTable({
                 <span className={`status-badge ${getWorkStatusClass(order.workStatus)}`}>{displayWorkStatusLabel(order.workStatus)}</span>
               </td>
               <td>
-                <span className={`status-badge ${getPaymentStatusClass(order.paymentStatus)}`}>{order.paymentStatus}</span>
+                <span className={`status-badge ${getPaymentStatusClass(order.paymentStatus)}`}>{normalizePaymentStatusLabel(order.paymentStatus)}</span>
               </td>
               <td>
                 <PermissionGate moduleId="joborder" optionId="joborder_actions">
@@ -1120,7 +1114,7 @@ function DetailsScreen({ order, onClose, onAddService, currentUser, actorMap }: 
 // ============================================
 // NEW JOB SCREEN (unchanged UI)
 // ============================================
-function NewJobScreen({ currentUser, onClose, onSubmit, prefill }: any) {
+function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }: any) {
   const client = useMemo(() => getDataClient(), []);
   const [step, setStep] = useState(1);
   const [orderType, setOrderType] = useState<any>(null); // 'new' or 'service'
@@ -1416,6 +1410,7 @@ return (
 
       {step === 4 && (
         <StepThreeServices
+          products={products}
           selectedServices={orderType === "service" ? additionalServices : selectedServices}
           setSelectedServices={orderType === "service" ? setAdditionalServices : setSelectedServices}
           vehicleType={vehicleData?.carType || vehicleData?.vehicleType || "SUV"}
@@ -2208,6 +2203,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
 // SERVICES STEP (same UI)
 // ============================================
 function StepThreeServices({
+  products,
   selectedServices,
   setSelectedServices,
   vehicleType,
@@ -2223,11 +2219,21 @@ function StepThreeServices({
   onBack,
 }: any) {
   const handleToggleService = (product: any) => {
-    const price = vehicleType === "SUV" ? product.suvPrice : product.sedanPrice;
-    if (selectedServices.some((s: any) => s.name === product.name)) {
-      setSelectedServices(selectedServices.filter((s: any) => s.name !== product.name));
+    const price = resolveServicePriceForVehicleType(product, vehicleType);
+    const productKey = String(product.serviceCode || product.id || product.name);
+    const isSelected = selectedServices.some((s: any) => String(s.serviceCode || s.catalogId || s.name) === productKey);
+    if (isSelected) {
+      setSelectedServices(selectedServices.filter((s: any) => String(s.serviceCode || s.catalogId || s.name) !== productKey));
     } else {
-      setSelectedServices([...selectedServices, { name: product.name, price }]);
+      setSelectedServices([
+        ...selectedServices,
+        {
+          name: product.name,
+          price,
+          serviceCode: product.serviceCode || undefined,
+          catalogId: product.id || undefined,
+        },
+      ]);
     }
   };
 
@@ -2247,20 +2253,27 @@ function StepThreeServices({
       <div className="form-card-content">
         <p>Select services for {vehicleType}:</p>
 
+        {products.length === 0 ? (
+          <div className="empty-state" style={{ padding: "30px 12px" }}>
+            <div className="empty-text">No services configured yet</div>
+            <div className="empty-subtext">Please create services from the Service Creation page first.</div>
+          </div>
+        ) : (
         <div className="services-grid">
-          {YOUR_PRODUCTS.map((product) => (
+          {products.map((product: any) => (
             <div
-              key={product.name}
-              className={`service-checkbox ${selectedServices.some((s: any) => s.name === product.name) ? "selected" : ""}`}
+              key={String(product.id || product.serviceCode || product.name)}
+              className={`service-checkbox ${selectedServices.some((s: any) => String(s.serviceCode || s.catalogId || s.name) === String(product.serviceCode || product.id || product.name)) ? "selected" : ""}`}
               onClick={() => handleToggleService(product)}
             >
               <div className="service-info">
                 <div className="service-name">{product.name}</div>
               </div>
-              <div className="service-price">{formatPrice(vehicleType === "SUV" ? product.suvPrice : product.sedanPrice)}</div>
+              <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
             </div>
           ))}
         </div>
+        )}
 
         <div style={{ marginTop: "20px" }}>
           <label style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "#333" }}>
@@ -2332,7 +2345,7 @@ function StepThreeServices({
         <button className="btn btn-secondary" onClick={onBack}>
           Back
         </button>
-        <button className="btn btn-primary" onClick={onNext} disabled={selectedServices.length === 0}>
+        <button className="btn btn-primary" onClick={onNext} disabled={selectedServices.length === 0 || products.length === 0}>
           Next: Confirm
         </button>
       </div>
@@ -2343,17 +2356,27 @@ function StepThreeServices({
 // ============================================
 // ADD SERVICE SCREEN
 // ============================================
-function AddServiceScreen({ order, onClose, onSubmit }: any) {
+function AddServiceScreen({ order, products = [], onClose, onSubmit }: any) {
   const [selectedServices, setSelectedServices] = useState<any[]>([]);
   const [discountPercent, setDiscountPercent] = useState(0);
   const vehicleType = order?.vehicleDetails?.type || "SUV";
 
   const handleToggleService = (product: any) => {
-    const price = vehicleType === "SUV" ? product.suvPrice : product.sedanPrice;
-    if (selectedServices.some((s) => s.name === product.name)) {
-      setSelectedServices(selectedServices.filter((s) => s.name !== product.name));
+    const price = resolveServicePriceForVehicleType(product, vehicleType);
+    const productKey = String(product.serviceCode || product.id || product.name);
+    const isSelected = selectedServices.some((s: any) => String(s.serviceCode || s.catalogId || s.name) === productKey);
+    if (isSelected) {
+      setSelectedServices(selectedServices.filter((s: any) => String(s.serviceCode || s.catalogId || s.name) !== productKey));
     } else {
-      setSelectedServices([...selectedServices, { name: product.name, price }]);
+      setSelectedServices([
+        ...selectedServices,
+        {
+          name: product.name,
+          price,
+          serviceCode: product.serviceCode || undefined,
+          catalogId: product.id || undefined,
+        },
+      ]);
     }
   };
 
@@ -2384,18 +2407,25 @@ function AddServiceScreen({ order, onClose, onSubmit }: any) {
 
           <div className="form-card-content">
             <p>Select services for {vehicleType}:</p>
+            {products.length === 0 ? (
+              <div className="empty-state" style={{ padding: "28px 12px" }}>
+                <div className="empty-text">No services configured yet</div>
+                <div className="empty-subtext">Create services from Service Creation before adding to a job order.</div>
+              </div>
+            ) : (
             <div className="services-grid">
-              {YOUR_PRODUCTS.map((product) => (
-                <div key={product.name} className={`service-checkbox ${selectedServices.some((s) => s.name === product.name) ? "selected" : ""}`} onClick={() => handleToggleService(product)}>
+              {products.map((product: any) => (
+                <div key={String(product.id || product.serviceCode || product.name)} className={`service-checkbox ${selectedServices.some((s: any) => String(s.serviceCode || s.catalogId || s.name) === String(product.serviceCode || product.id || product.name)) ? "selected" : ""}`} onClick={() => handleToggleService(product)}>
                   <div className="service-info">
                     <div className="service-name">{product.name}</div>
                   </div>
                   <PermissionGate moduleId="joborder" optionId="joborder_serviceprice">
-                    <div className="service-price">{formatPrice(vehicleType === "SUV" ? product.suvPrice : product.sedanPrice)}</div>
+                    <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
                   </PermissionGate>
                 </div>
               ))}
             </div>
+            )}
 
             <div className="price-summary-box">
               <h4>Price Summary</h4>
@@ -2428,7 +2458,7 @@ function AddServiceScreen({ order, onClose, onSubmit }: any) {
               <button className="btn btn-secondary" onClick={onClose}>
                 Cancel
               </button>
-              <button className="btn btn-primary" onClick={() => onSubmit({ selectedServices, discountPercent })} disabled={selectedServices.length === 0}>
+              <button className="btn btn-primary" onClick={() => onSubmit({ selectedServices, discountPercent })} disabled={selectedServices.length === 0 || products.length === 0}>
                 Add Services
               </button>
             </div>
@@ -2798,7 +2828,7 @@ function JobOrderSummaryCard({ order, actorMap }: any) {
         </div>
         <div className="epm-info-item">
           <span className="epm-info-label">Payment Status</span>
-          <span className={`epm-status-badge status-badge ${getPaymentStatusClass(order.paymentStatus)}`}>{order.paymentStatus}</span>
+          <span className={`epm-status-badge status-badge ${getPaymentStatusClass(order.paymentStatus)}`}>{normalizePaymentStatusLabel(order.paymentStatus)}</span>
         </div>
         
         {/* ✅ NEW: Priority Level */}
@@ -3225,6 +3255,24 @@ function ServicesCard({ order, onAddService }: any) {
 
 function BillingCard({ order }: any) {
   const billing = order.billing || {};
+  const money = (value: any) => {
+    const n = Number(String(value ?? "").replace(/[^0-9.-]/g, ""));
+    return Number.isFinite(n) ? n : 0;
+  };
+  const fmtQar = (value: number) => `QAR ${Number.isFinite(value) ? value.toFixed(2) : "0.00"}`;
+
+  const paymentSnap = computePaymentSnapshot(
+    money(billing.totalAmount),
+    money(billing.discount),
+    money(billing.amountPaid)
+  );
+  const invoices = Array.isArray(billing.invoices) ? billing.invoices : [];
+  const invoiceStatusClass = (status: string) => {
+    const s = String(status || "").toLowerCase();
+    if (s.includes("paid")) return "pim-payment-full";
+    if (s.includes("partial")) return "pim-payment-partial";
+    return "pim-payment-unpaid";
+  };
   
   return (
     <div className="epm-detail-card bi-unified-card" style={{ gridColumn: 'span 12' }}>
@@ -3243,80 +3291,84 @@ function BillingCard({ order }: any) {
         </div>
         <div className="pim-billing-row bi-row">
           <span className="pim-billing-label bi-label">Total Amount:</span>
-          <span className="pim-billing-value bi-value">{billing.totalAmount || "N/A"}</span>
+          <span className="pim-billing-value bi-value">{fmtQar(paymentSnap.totalAmount)}</span>
         </div>
-        {billing.discount && (
+        {(paymentSnap.discount > 0 || money(billing.discount) > 0) && (
           <div className="pim-billing-row bi-row">
             <span className="pim-billing-label bi-label">Discount:</span>
-            <span className="pim-billing-value bi-value">-{billing.discount}</span>
+            <span className="pim-billing-value bi-value">-{fmtQar(paymentSnap.discount)}</span>
           </div>
         )}
         <div className="pim-billing-row bi-row">
           <span className="pim-billing-label bi-label">Net Amount:</span>
-          <span className="pim-billing-value bi-value">{billing.netAmount || "N/A"}</span>
+          <span className="pim-billing-value bi-value">{fmtQar(paymentSnap.netAmount)}</span>
         </div>
         <div className="pim-billing-row bi-row">
           <span className="pim-billing-label bi-label">Amount Paid:</span>
-          <span className="pim-billing-value bi-value">{billing.amountPaid || "QAR 0"}</span>
+          <span className="pim-billing-value bi-value">{fmtQar(paymentSnap.amountPaid)}</span>
         </div>
         <div className="pim-billing-row bi-row">
           <span className="pim-billing-label bi-label">Balance Due:</span>
-          <span className="pim-billing-value bi-value">{billing.balanceDue || "N/A"}</span>
+          <span className="pim-billing-value bi-value">{fmtQar(paymentSnap.balanceDue)}</span>
         </div>
       </div>
 
-      {/* Invoices List */}
-      {billing.invoices && billing.invoices.length > 0 && (
-        <div className="bi-invoices-wrap">
-          <h4 className="bi-invoices-title">
-            <i className="fas fa-file-invoice" style={{ marginRight: '8px' }}></i>
-            Invoices ({billing.invoices.length})
-          </h4>
-          <div className="pim-invoices-list">
-            {billing.invoices.map((invoice: any, idx: number) => (
-              <div key={idx} className="pim-invoice-card bi-invoice-card">
-                <div className="pim-invoice-header">
-                  <div className="pim-invoice-number">
-                    <i className="fas fa-file-alt"></i>
-                    {invoice.number}
+      <div className="pim-subcard bi-invoices-wrap">
+        <div className="pim-subtitle bi-invoices-title">
+          <i className="fas fa-file-invoice"></i> Invoices ({invoices.length})
+        </div>
+
+        {invoices.length === 0 ? (
+          <div className="pim-empty-inline">No invoices found in normalized tables.</div>
+        ) : (
+          <div className="pim-invoices">
+            {invoices.map((inv: any, idx: number) => (
+              <div key={String(inv?.id ?? idx)} className="pim-invoice bi-invoice-card">
+                <div className="pim-invoice-head">
+                  <div className="pim-invoice-left">
+                    <div className="pim-invoice-number">Invoice #{String(inv?.number ?? "—")}</div>
+                    {inv?.createdAt ? (
+                      <div className="pim-invoice-date">
+                        {new Date(String(inv.createdAt)).toLocaleString("en-GB", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </div>
+                    ) : null}
                   </div>
-                  <span className={`pim-invoice-status ${invoice.status?.toLowerCase() || 'unpaid'}`}>
-                    {invoice.status || 'Unpaid'}
-                  </span>
-                </div>
-                <div className="pim-invoice-details">
-                  <div className="pim-invoice-detail-item">
-                    <span className="pim-invoice-detail-label">Amount:</span>
-                    <span className="pim-invoice-detail-value">{invoice.amount}</span>
+                  <div className="pim-invoice-right">
+                    <div className="pim-invoice-amount">{fmtQar(money(inv?.amount))}</div>
+                    <span className={`pim-badge ${invoiceStatusClass(String(inv?.status ?? ""))}`}>{String(inv?.status ?? "Unpaid")}</span>
                   </div>
-                  {invoice.discount && (
-                    <div className="pim-invoice-detail-item">
-                      <span className="pim-invoice-detail-label">Discount:</span>
-                      <span className="pim-invoice-detail-value">-{invoice.discount}</span>
-                    </div>
-                  )}
-                  {invoice.paymentMethod && (
-                    <div className="pim-invoice-detail-item">
-                      <span className="pim-invoice-detail-label">Payment Method:</span>
-                      <span className="pim-invoice-detail-value">{invoice.paymentMethod}</span>
-                    </div>
-                  )}
                 </div>
-                {invoice.services && invoice.services.length > 0 && (
-                  <div className="pim-invoice-services">
-                    <div className="pim-invoice-services-title">Services Included:</div>
-                    <div className="pim-invoice-services-list">
-                      {invoice.services.map((service: string, sidx: number) => (
-                        <span key={sidx} className="pim-invoice-service-tag">{service}</span>
+
+                <div className="pim-invoice-meta">
+                  <div><span>Discount</span><strong>{fmtQar(money(inv?.discount))}</strong></div>
+                  <div><span>Payment Method</span><strong>{String(inv?.paymentMethod ?? "—")}</strong></div>
+                </div>
+
+                <div className="pim-invoice-services">
+                  <div className="pim-invoice-services-title">
+                    <i className="fas fa-list-ul"></i> Services Included
+                  </div>
+                  {Array.isArray(inv?.services) && inv.services.length ? (
+                    <ul className="pim-invoice-services-list">
+                      {inv.services.map((s: any, sidx: number) => (
+                        <li key={sidx}><i className="fas fa-check-circle"></i> {String(s)}</li>
                       ))}
-                    </div>
-                  </div>
-                )}
+                    </ul>
+                  ) : (
+                    <div className="pim-empty-inline">No services linked to this invoice.</div>
+                  )}
+                </div>
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
@@ -3381,8 +3433,8 @@ function PaymentActivityLogCard({ order, actorMap }: any) {
               {/* ✅ NEW: Payment Status */}
               {order.paymentActivityLog.some((p: any) => p.paymentStatus) && (
                 <td className="pim-status-column">
-                  <span className={`pim-payment-status ${(payment.paymentStatus || '').toLowerCase()}`}>
-                    {payment.paymentStatus || '-'}
+                  <span className={`pim-payment-status ${normalizePaymentStatusLabel(payment.paymentStatus).toLowerCase().replace(/\s+/g, '-')}`}>
+                    {normalizePaymentStatusLabel(payment.paymentStatus)}
                   </span>
                 </td>
               )}
@@ -3850,9 +3902,14 @@ function displayWorkStatusLabel(status: any) {
 }
 
 function getPaymentStatusClass(status: any) {
-  if (status === "Fully Paid") return "payment-full";
-  if (status === "Partially Paid") return "payment-partial";
+  const normalized = normalizePaymentStatusLabel(status);
+  if (normalized === "Fully Paid") return "payment-full";
+  if (normalized === "Partially Paid") return "payment-partial";
   return "payment-unpaid";
+}
+
+function normalizePaymentStatusLabel(status: any) {
+  return normalizePaymentStatusLabelShared(status);
 }
 
 export default JobOrderManagement;

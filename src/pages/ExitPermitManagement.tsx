@@ -23,6 +23,13 @@ import {
 import { getDataClient } from "../lib/amplifyClient";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy, resolveOrderUpdatedBy } from "../utils/actorIdentity";
+import {
+  computePaymentSnapshot,
+  derivePaymentStatusFromFinancials,
+  pickBillingFirstValue,
+  pickPaymentEnum,
+  pickPaymentLabel,
+} from "../utils/paymentStatus";
 
 function safeLower(v: any) {
   return String(v ?? "").trim().toLowerCase();
@@ -63,11 +70,6 @@ function errMsg(e: unknown) {
   return String(anyE?.message ?? anyE?.errors?.[0]?.message ?? anyE ?? "Unknown error");
 }
 
-function toNum(x: any) {
-  const n = typeof x === "number" ? x : Number(String(x ?? "").replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(n) ? n : 0;
-}
-
 function normalizeWorkLabel(statusEnum?: string, label?: string) {
   const l = String(label ?? "").trim();
   if (l) return l;
@@ -92,8 +94,9 @@ function normalizeWorkLabel(statusEnum?: string, label?: string) {
 
 /**
  * ✅ FIX (payment status):
- * - Prefer parsed (dataJson) label over row.paymentStatusLabel (row field can be stale).
- * - If enum is missing/stale, derive from totals/amountPaid/balanceDue.
+ * - Prefer top-level JobOrder fields (paymentStatus/paymentStatusLabel) first.
+ * - Fallback to parsed (dataJson) only when top-level values are unavailable.
+ * - If labels/enums are missing, derive from totals/amountPaid/balanceDue.
  * - Keep "Fully Refunded" if label contains refund.
  */
 function getParsedPaymentLabel(parsed: any) {
@@ -111,53 +114,23 @@ function getParsedPaymentLabel(parsed: any) {
 }
 
 function derivePaymentStatusFromRow(row: any, parsed: any) {
-  // 1) If parsed explicitly says refunded -> keep it
-  const parsedLabel = getParsedPaymentLabel(parsed);
-  if (parsedLabel && /refund/i.test(parsedLabel)) return "Fully Refunded";
-
-  // 2) Enum (if correct)
-  const ps = String(row?.paymentStatus ?? "").toUpperCase();
-  if (ps === "PAID") return "Fully Paid";
-  if (ps === "PARTIAL") return "Partially Paid";
-  if (ps === "UNPAID") return "Unpaid";
-
-  // 3) Compute using amounts (row fields OR parsed/billing)
-  const total = toNum(row?.totalAmount ?? parsed?.totalAmount ?? parsed?.billing?.totalAmount);
-  const paid = toNum(row?.amountPaid ?? parsed?.amountPaid ?? parsed?.billing?.amountPaid);
-  const balance = toNum(row?.balanceDue ?? parsed?.balanceDue ?? parsed?.billing?.balanceDue);
-
-  const eps = 0.01;
-  if (total > eps) {
-    if (balance <= eps || paid >= total - eps) return "Fully Paid";
-    if (paid > eps) return "Partially Paid";
-    return "Unpaid";
-  }
-
-  // 4) Fallback label: parsed first, then row field
-  const rowLabel = String(row?.paymentStatusLabel ?? "").trim();
-  const label = parsedLabel || rowLabel;
-  if (label) return label;
-
-  return "Unpaid";
+  return derivePaymentStatusFromFinancials({
+    paymentEnum: pickPaymentEnum(row, parsed),
+    paymentLabel: pickPaymentLabel(row, parsed) ?? getParsedPaymentLabel(parsed),
+    totalAmount: pickBillingFirstValue("totalAmount", row, parsed),
+    discount: pickBillingFirstValue("discount", row, parsed),
+    amountPaid: pickBillingFirstValue("amountPaid", row, parsed),
+  });
 }
 
 function derivePaymentStatusFromUiOrder(order: any) {
-  const explicit = String(order?.paymentStatus ?? "").trim();
-  if (explicit && /refund/i.test(explicit)) return "Fully Refunded";
-  if (explicit === "Fully Paid" || explicit === "Partially Paid" || explicit === "Unpaid") return explicit;
-
-  const total = toNum(order?.billing?.totalAmount);
-  const paid = toNum(order?.billing?.amountPaid);
-  const balance = toNum(order?.billing?.balanceDue);
-
-  const eps = 0.01;
-  if (total > eps) {
-    if (balance <= eps || paid >= total - eps) return "Fully Paid";
-    if (paid > eps) return "Partially Paid";
-    return "Unpaid";
-  }
-
-  return explicit || "Unpaid";
+  return derivePaymentStatusFromFinancials({
+    paymentEnum: pickPaymentEnum(order),
+    paymentLabel: pickPaymentLabel(order),
+    totalAmount: pickBillingFirstValue("totalAmount", order),
+    discount: pickBillingFirstValue("discount", order),
+    amountPaid: pickBillingFirstValue("amountPaid", order),
+  });
 }
 
 function isExitPermitCreatedFromParsed(parsed: any) {
@@ -1404,70 +1377,83 @@ const CustomerNotesCard = ({ order }: any) => (
   </div>
 );
 
-const BillingCard = ({ order }: any) => (
-  <div className="epm-detail-card pim-detail-card bi-unified-card">
-    <h3>
-      <i className="fas fa-receipt"></i> Billing & Invoices
-    </h3>
+const BillingCard = ({ order }: any) => {
+  const money = (value: any) => {
+    const n = Number(String(value ?? "").replace(/[^0-9.-]/g, ""));
+    return Number.isFinite(n) ? n : 0;
+  };
+  const fmtQar = (value: number) => `QAR ${Number.isFinite(value) ? value.toFixed(2) : "0.00"}`;
+  const snap = computePaymentSnapshot(
+    money(order?.billing?.totalAmount),
+    money(order?.billing?.discount),
+    money(order?.billing?.amountPaid)
+  );
 
-    <div className="epm-billing-master-section bi-summary">
-      <div className="epm-card-content pim-card-content">
-        <div className="epm-info-item pim-info-item bi-row">
-          <span className="epm-info-label pim-info-label bi-label">Bill ID</span>
-          <span className="epm-info-value pim-info-value bi-value">{order.billing?.billId || "N/A"}</span>
+  return (
+    <div className="epm-detail-card pim-detail-card bi-unified-card">
+      <h3>
+        <i className="fas fa-receipt"></i> Billing & Invoices
+      </h3>
+
+      <div className="epm-billing-master-section bi-summary">
+        <div className="epm-card-content pim-card-content">
+          <div className="epm-info-item pim-info-item bi-row">
+            <span className="epm-info-label pim-info-label bi-label">Bill ID</span>
+            <span className="epm-info-value pim-info-value bi-value">{order.billing?.billId || "N/A"}</span>
+          </div>
+          <div className="epm-info-item pim-info-item bi-row">
+            <span className="epm-info-label pim-info-label bi-label">Total Amount</span>
+            <span className="epm-info-value pim-info-value bi-value">{fmtQar(snap.totalAmount)}</span>
+          </div>
+          <div className="epm-info-item pim-info-item bi-row">
+            <span className="epm-info-label pim-info-label bi-label">Discount</span>
+            <span className="epm-info-value pim-info-value bi-value">{fmtQar(snap.discount)}</span>
+          </div>
+          <div className="epm-info-item pim-info-item bi-row">
+            <span className="epm-info-label pim-info-label bi-label">Net Amount</span>
+            <span className="epm-info-value pim-info-value bi-value">{fmtQar(snap.netAmount)}</span>
+          </div>
+          <div className="epm-info-item pim-info-item bi-row">
+            <span className="epm-info-label pim-info-label bi-label">Amount Paid</span>
+            <span className="epm-info-value pim-info-value bi-value">{fmtQar(snap.amountPaid)}</span>
+          </div>
+          <div className="epm-info-item pim-info-item bi-row">
+            <span className="epm-info-label pim-info-label bi-label">Balance Due</span>
+            <span className="epm-info-value pim-info-value bi-value">{fmtQar(snap.balanceDue)}</span>
+          </div>
         </div>
-        <div className="epm-info-item pim-info-item bi-row">
-          <span className="epm-info-label pim-info-label bi-label">Total Amount</span>
-          <span className="epm-info-value pim-info-value bi-value">{order.billing?.totalAmount || "N/A"}</span>
-        </div>
-        <div className="epm-info-item pim-info-item bi-row">
-          <span className="epm-info-label pim-info-label bi-label">Discount</span>
-          <span className="epm-info-value pim-info-value bi-value">{order.billing?.discount || "N/A"}</span>
-        </div>
-        <div className="epm-info-item pim-info-item bi-row">
-          <span className="epm-info-label pim-info-label bi-label">Net Amount</span>
-          <span className="epm-info-value pim-info-value bi-value">{order.billing?.netAmount || "N/A"}</span>
-        </div>
-        <div className="epm-info-item pim-info-item bi-row">
-          <span className="epm-info-label pim-info-label bi-label">Amount Paid</span>
-          <span className="epm-info-value pim-info-value bi-value">{order.billing?.amountPaid || "N/A"}</span>
-        </div>
-        <div className="epm-info-item pim-info-item bi-row">
-          <span className="epm-info-label pim-info-label bi-label">Balance Due</span>
-          <span className="epm-info-value pim-info-value bi-value">{order.billing?.balanceDue || "N/A"}</span>
-        </div>
+
+        {order.billing?.paymentMethod && (
+          <div className="epm-billing-method">
+            <span className={`epm-payment-method-badge ${getPaymentMethodClass(order.billing.paymentMethod)}`}>
+              {order.billing.paymentMethod}
+            </span>
+          </div>
+        )}
       </div>
 
-      {order.billing?.paymentMethod && (
-        <div className="epm-billing-method">
-          <span className={`epm-payment-method-badge ${getPaymentMethodClass(order.billing.paymentMethod)}`}>
-            {order.billing.paymentMethod}
-          </span>
+      {order.billing?.invoices && order.billing.invoices.length > 0 && (
+        <div className="epm-invoices-wrap bi-invoices-wrap">
+          <div className="epm-invoices-title bi-invoices-title">
+            <i className="fas fa-file-invoice"></i> Invoices ({order.billing.invoices.length})
+          </div>
+          {order.billing.invoices.map((invoice: any, idx: number) => (
+            <div key={idx} className="epm-invoice-item bi-invoice-card">
+              <div className="epm-invoice-header">
+                <span className="epm-invoice-number">
+                  <i className="fas fa-hashtag"></i> {invoice.number}
+                </span>
+                <span className="epm-invoice-amount">
+                  <i className="fas fa-coins"></i> Amount: {invoice.amount}
+                </span>
+              </div>
+            </div>
+          ))}
         </div>
       )}
     </div>
-
-    {order.billing?.invoices && order.billing.invoices.length > 0 && (
-      <div className="epm-invoices-wrap bi-invoices-wrap">
-        <div className="epm-invoices-title bi-invoices-title">
-          <i className="fas fa-file-invoice"></i> Invoices ({order.billing.invoices.length})
-        </div>
-        {order.billing.invoices.map((invoice: any, idx: number) => (
-          <div key={idx} className="epm-invoice-item bi-invoice-card">
-            <div className="epm-invoice-header">
-              <span className="epm-invoice-number">
-                <i className="fas fa-hashtag"></i> {invoice.number}
-              </span>
-              <span className="epm-invoice-amount">
-                <i className="fas fa-coins"></i> Amount: {invoice.amount}
-              </span>
-            </div>
-          </div>
-        ))}
-      </div>
-    )}
-  </div>
-);
+  );
+};
 
 const PaymentActivityLogCard = ({ order, identityToUsernameMap }: any) => {
   if (!order.paymentActivityLog || order.paymentActivityLog.length === 0) return null;

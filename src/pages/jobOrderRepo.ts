@@ -4,6 +4,7 @@ import type { Schema } from "../../amplify/data/resource";
 import { getDataClient } from "../lib/amplifyClient";
 import { resolveActorDisplay } from "../utils/actorIdentity";
 import { getUserDirectory } from "../utils/userDirectoryCache";
+import { computePaymentSnapshot, derivePaymentStatusFromFinancials } from "../utils/paymentStatus";
 
 type CustomerRow = Schema["Customer"]["type"];
 type JobOrderRow = Schema["JobOrder"]["type"];
@@ -227,21 +228,15 @@ function deriveUiWorkStatus(job: any, parsed: any) {
 
 /** payment enum -> UI label (with refund override) */
 function deriveUiPaymentStatus(job: any, parsed: any) {
-  const ps = String(job?.paymentStatus ?? "").toUpperCase();
-
-  const label = String(parsed?.paymentStatusLabel ?? job?.paymentStatusLabel ?? "").trim();
-  const labelLower = label.toLowerCase();
-
-  if (ps === "PAID") return "Fully Paid";
-  if (ps === "PARTIAL") return "Partially Paid";
-
-  if (ps === "UNPAID") {
-    if (label && labelLower.includes("refund")) return label;
-    return "Unpaid";
-  }
-
-  if (label) return label;
-  return "Unpaid";
+  return derivePaymentStatusFromFinancials({
+    paymentEnum: job?.paymentStatus,
+    paymentLabel: job?.paymentStatusLabel ?? parsed?.paymentStatusLabel,
+    totalAmount: job?.totalAmount ?? parsed?.billing?.totalAmount,
+    discount: job?.discount ?? parsed?.billing?.discount,
+    amountPaid: job?.amountPaid ?? parsed?.billing?.amountPaid,
+    netAmount: job?.netAmount ?? parsed?.billing?.netAmount,
+    balanceDue: job?.balanceDue ?? parsed?.billing?.balanceDue,
+  });
 }
 
 /** Exit permit normalization (schema enum) */
@@ -949,12 +944,20 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
   const billingRaw = parsed?.billing ?? {};
   const billId = String(billingRaw?.billId ?? job.billId ?? "").trim();
 
-  const totalAmount = toNum(job.totalAmount ?? billingRaw?.totalAmount);
-  const discount = toNum(job.discount ?? billingRaw?.discount);
-  const netAmount = toNum(job.netAmount ?? billingRaw?.netAmount ?? Math.max(0, totalAmount - discount));
+  const totalAmountRaw = toNum(job.totalAmount ?? billingRaw?.totalAmount);
+  const discountRaw = toNum(job.discount ?? billingRaw?.discount);
+  const amountPaidRaw = toNum(job.amountPaid ?? billingRaw?.amountPaid ?? 0);
+  const paymentSnap = computePaymentSnapshot(
+    totalAmountRaw,
+    discountRaw,
+    amountPaidRaw
+  );
 
-  const amountPaid = toNum(job.amountPaid ?? 0);
-  const balanceDue = toNum(job.balanceDue ?? Math.max(0, totalAmount - amountPaid));
+  const totalAmount = paymentSnap.totalAmount;
+  const discount = paymentSnap.discount;
+  const netAmount = paymentSnap.netAmount;
+  const amountPaid = paymentSnap.amountPaid;
+  const balanceDue = paymentSnap.balanceDue;
 
   const invoices = Array.isArray(billingRaw?.invoices)
     ? billingRaw.invoices.map((inv: any) => ({
@@ -966,6 +969,60 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
         services: Array.isArray(inv.services) ? inv.services.map(String) : [],
       }))
     : [];
+
+  let normalizedInvoices: any[] = [];
+  try {
+    let invRows: any[] = [];
+    try {
+      const byIdx = await (client.models.JobOrderInvoice as any).listInvoicesByJobOrder?.({
+        jobOrderId: String(job.id),
+        limit: 500,
+      });
+      invRows = byIdx?.data ?? [];
+    } catch {
+      const invRes = await client.models.JobOrderInvoice.list({
+        limit: 500,
+        filter: { jobOrderId: { eq: String(job.id) } } as any,
+      });
+      invRows = invRes?.data ?? [];
+    }
+
+    invRows.sort((a, b) => String(a?.createdAt ?? "").localeCompare(String(b?.createdAt ?? "")));
+
+    const out: any[] = [];
+    for (const inv of invRows) {
+      const invoiceId = String(inv?.id ?? "");
+      let svcRows: any[] = [];
+      try {
+        const byIdxSvc = await (client.models.JobOrderInvoiceService as any).listInvoiceServicesByInvoice?.({
+          invoiceId,
+          limit: 500,
+        });
+        svcRows = byIdxSvc?.data ?? [];
+      } catch {
+        const svcRes = await client.models.JobOrderInvoiceService.list({
+          limit: 500,
+          filter: { invoiceId: { eq: invoiceId } } as any,
+        });
+        svcRows = svcRes?.data ?? [];
+      }
+
+      out.push({
+        id: invoiceId,
+        number: String(inv?.number ?? "—"),
+        amount: formatQar(toNum(inv?.amount)),
+        discount: formatQar(toNum(inv?.discount)),
+        status: String(inv?.status ?? "Unpaid"),
+        paymentMethod: inv?.paymentMethod ?? null,
+        createdAt: inv?.createdAt ?? null,
+        services: svcRows.map((s) => String(s?.serviceName ?? "").trim()).filter(Boolean),
+      });
+    }
+
+    normalizedInvoices = out;
+  } catch {
+    normalizedInvoices = [];
+  }
 
   const roadmap = Array.isArray(parsed?.roadmap)
     ? parsed.roadmap.map((r: any) => ({
@@ -1263,7 +1320,7 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
       amountPaid: formatQar(amountPaid),
       balanceDue: formatQar(balanceDue),
       paymentMethod: billingRaw?.paymentMethod ?? job.paymentMethod ?? null,
-      invoices,
+      invoices: normalizedInvoices.length ? normalizedInvoices : invoices,
     },
 
     services,
