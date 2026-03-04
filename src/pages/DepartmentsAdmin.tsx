@@ -11,6 +11,28 @@ import PermissionGate from "./PermissionGate";
 
 type Dept = { key: string; name: string };
 
+function normalizeDepartmentsFallback(links: any[], users: any[]): Dept[] {
+  const map = new Map<string, string>();
+
+  for (const link of links ?? []) {
+    const key = String(link?.departmentKey ?? "").trim();
+    const name = String(link?.departmentName ?? "").trim();
+    if (!key) continue;
+    map.set(key, name || key);
+  }
+
+  for (const user of users ?? []) {
+    const key = String(user?.departmentKey ?? "").trim();
+    const name = String(user?.departmentName ?? "").trim();
+    if (!key || map.has(key)) continue;
+    map.set(key, name || key);
+  }
+
+  return Array.from(map.entries())
+    .map(([key, name]) => ({ key, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 function parseAWSJSON<T>(raw: unknown): T | null {
   try {
     if (raw == null) return null;
@@ -31,7 +53,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
   }
 
   const client = getDataClient();
-  const { canOption } = usePermissions();
+  const { canOption, isAdminGroup } = usePermissions();
 
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
@@ -53,13 +75,13 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     setStatus("Loading...");
     try {
       const [deptRes, rolesRes, linksRes] = await Promise.all([
-        client.queries.adminListDepartments(),
+        isAdminGroup ? client.queries.adminListDepartments().catch(() => null) : Promise.resolve(null),
         client.models.AppRole.list({ limit: 1000 }),
         client.models.DepartmentRoleLink.list({ limit: 5000 }),
       ]);
 
       const anyErrors = (deptRes as any)?.errors;
-      if (Array.isArray(anyErrors) && anyErrors.length) {
+      if (isAdminGroup && deptRes && Array.isArray(anyErrors) && anyErrors.length) {
         throw new Error(anyErrors.map((e: any) => e.message).join(" | "));
       }
 
@@ -68,16 +90,21 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
       const parsedObj = parseAWSJSON<{ departments?: Dept[] }>(raw);
       const parsedArr = Array.isArray(raw) ? (raw as Dept[]) : parseAWSJSON<Dept[]>(raw);
 
-      const deptList =
+      const deptListFromAdminQuery =
         (parsedObj?.departments && Array.isArray(parsedObj.departments) ? parsedObj.departments : null) ??
         (Array.isArray(parsedArr) ? parsedArr : []);
+
+      const usersForFallback = await client.models.UserProfile.list({ limit: 5000 }).catch(() => ({ data: [] } as any));
+      const deptList = deptListFromAdminQuery.length
+        ? deptListFromAdminQuery
+        : normalizeDepartmentsFallback(linksRes.data ?? [], usersForFallback?.data ?? []);
 
       setDepartments(deptList);
       setRoles(rolesRes.data ?? []);
       setLinks(linksRes.data ?? []);
 
       try {
-        const upRes = await client.models.UserProfile.list({ limit: 5000 });
+        const upRes = usersForFallback;
         const counts: Record<string, number> = {};
         for (const row of upRes?.data ?? []) {
           const key = String((row as any)?.departmentKey ?? "").trim();

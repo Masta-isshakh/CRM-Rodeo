@@ -367,10 +367,11 @@ const MODULE_DEFINITIONS = [
     category: "core",
     options: [
       { id: "users_list", label: "Show Users page in sidebar", prefix: "-" },
-      { id: "users_invite", label: "Invite User", prefix: "a." },
-      { id: "users_edit", label: "Edit User / Department", prefix: "b." },
-      { id: "users_delete", label: "Delete User", prefix: "c." },
-      { id: "users_show_root_admin", label: "Show Root Admin User", prefix: "d." },
+      { id: "users_view", label: "View Users List", prefix: "a." },
+      { id: "users_invite", label: "Invite User", prefix: "b." },
+      { id: "users_edit", label: "Edit User / Department", prefix: "c." },
+      { id: "users_delete", label: "Delete User", prefix: "d." },
+      { id: "users_show_root_admin", label: "Show Root Admin User", prefix: "e." },
     ],
   },
 

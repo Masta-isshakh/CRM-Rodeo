@@ -54,6 +54,28 @@ function normalizeDepartmentsFromAdminList(deptRes: any): Dept[] {
   return [];
 }
 
+function normalizeDepartmentsFallback(users: any[], links: any[]): Dept[] {
+  const map = new Map<string, string>();
+
+  for (const link of links ?? []) {
+    const key = String(link?.departmentKey ?? "").trim();
+    const name = String(link?.departmentName ?? "").trim();
+    if (!key) continue;
+    map.set(key, name || key);
+  }
+
+  for (const user of users ?? []) {
+    const key = String(user?.departmentKey ?? "").trim();
+    const name = String(user?.departmentName ?? "").trim();
+    if (!key || map.has(key)) continue;
+    map.set(key, name || key);
+  }
+
+  return Array.from(map.entries())
+    .map(([key, name]) => ({ key, name }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 async function listAll<T>(
   listFn: (args: any) => Promise<any>,
   pageSize = 1000,
@@ -104,8 +126,9 @@ export default function Users({ permissions }: PageProps) {
   }
 
   const client = getDataClient();
-  const { canOption, email: currentUserEmail, isAdminGroup } = usePermissions();
-  const canShowRootAdminUser = canOption("users", "users_show_root_admin", false);
+  const { canOption, isAdminGroup, email: currentUserEmail } = usePermissions();
+  const canViewUsersList = permissions.canRead || canOption("users", "users_view", true);
+  const canShowRootAdminUser = canOption("users", "users_show_root_admin", true);
 
   // Invite modal state
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -184,7 +207,7 @@ export default function Users({ permissions }: PageProps) {
     try {
       const [allUsers, deptRes, links, roles, policies] = await Promise.all([
         listAll<UserRow>((args) => client.models.UserProfile.list(args), 1000, 20000),
-        client.queries.adminListDepartments(),
+        isAdminGroup ? client.queries.adminListDepartments().catch(() => null) : Promise.resolve(null),
 
         // Used only for UI labels
         listAll<any>((args) => client.models.DepartmentRoleLink.list(args), 1000, 20000),
@@ -193,22 +216,94 @@ export default function Users({ permissions }: PageProps) {
       ]);
 
       const anyErrors = (deptRes as any)?.errors;
-      if (Array.isArray(anyErrors) && anyErrors.length) {
+      if (isAdminGroup && deptRes && Array.isArray(anyErrors) && anyErrors.length) {
         throw new Error(anyErrors.map((e: any) => e.message).join(" | "));
       }
 
-      const deptList = normalizeDepartmentsFromAdminList(deptRes);
+      const deptListFromAdminQuery = deptRes ? normalizeDepartmentsFromAdminList(deptRes) : [];
+      const deptList = deptListFromAdminQuery.length
+        ? deptListFromAdminQuery
+        : normalizeDepartmentsFallback(allUsers ?? [], links ?? []);
 
       const sorted = [...(allUsers ?? [])].sort((a, b) =>
         String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? ""))
       );
 
-      if (isAdminGroup && canShowRootAdminUser) {
-        const me = String(currentUserEmail ?? "").trim().toLowerCase();
-        if (me && !sorted.some((u: any) => String(u?.email ?? "").trim().toLowerCase() === me)) {
+      if (canShowRootAdminUser) {
+        const adminRoleIds = new Set(
+          (roles ?? [])
+            .filter((r: any) => String(r?.name ?? "").trim().toLowerCase().includes("admin"))
+            .map((r: any) => String(r?.id ?? "").trim())
+            .filter(Boolean)
+        );
+
+        const adminCandidates = sorted
+          .map((u: any) => {
+            const email = String(u?.email ?? "").trim().toLowerCase();
+            if (!email) return null;
+
+            const fullName = String(u?.fullName ?? "").trim().toLowerCase();
+            const deptKey = String(u?.departmentKey ?? "").trim().toLowerCase();
+            const deptName = String(u?.departmentName ?? "").trim().toLowerCase();
+            const roleName = String((u as any)?.roleName ?? "").trim().toLowerCase();
+            const roleId = String((u as any)?.roleId ?? "").trim();
+
+            const emailHasRoot = email.includes("root");
+            const nameHasRoot = fullName.includes("root");
+            const roleHasRoot = roleName.includes("root");
+            const deptHasAdmin = deptKey.includes("admin") || deptName.includes("admin");
+            const roleHasAdmin = roleName.includes("admin") || (roleId && adminRoleIds.has(roleId));
+
+            const score =
+              (emailHasRoot ? 100 : 0) +
+              (nameHasRoot ? 80 : 0) +
+              (roleHasRoot ? 60 : 0) +
+              (deptHasAdmin ? 40 : 0) +
+              (roleHasAdmin ? 30 : 0);
+
+            return score > 0 ? { email, score } : null;
+          })
+          .filter(Boolean) as Array<{ email: string; score: number }>;
+
+        const rootCandidate = adminCandidates.sort((a, b) => b.score - a.score)[0] ?? null;
+
+        const cachedRootEmail = (() => {
+          try {
+            return String(window.localStorage.getItem("crm.rootAdminEmail") ?? "").trim().toLowerCase();
+          } catch {
+            return "";
+          }
+        })();
+
+        const sessionAdminEmail = isAdminGroup
+          ? String(currentUserEmail ?? "").trim().toLowerCase()
+          : "";
+
+        const rootEmail =
+          String(rootCandidate?.email ?? "").trim().toLowerCase() ||
+          cachedRootEmail ||
+          sessionAdminEmail ||
+          "root-admin@system";
+
+        if (rootEmail) {
+          try {
+            window.localStorage.setItem("crm.rootAdminEmail", rootEmail);
+          } catch {
+            // no-op
+          }
+        }
+
+        const hasRootAdminRow = sorted.some((u: any) => {
+          const email = String(u?.email ?? "").trim().toLowerCase();
+          const fullName = String(u?.fullName ?? "").trim().toLowerCase();
+          const roleName = String((u as any)?.roleName ?? "").trim().toLowerCase();
+          return (rootEmail && email === rootEmail) || fullName === "root admin" || roleName === "root admin";
+        });
+
+        if (!hasRootAdminRow && rootEmail) {
           sorted.unshift({
-            id: `root-admin-${me}`,
-            email: me,
+            id: "root-admin-system",
+            email: rootEmail,
             fullName: "Root Admin",
             departmentKey: "Admins",
             departmentName: "Admins",
@@ -365,14 +460,16 @@ export default function Users({ permissions }: PageProps) {
     });
   }, [enriched, search]);
 
-  const total = filtered.length;
+  const visibleRows = canViewUsersList ? filtered : [];
+
+  const total = visibleRows.length;
   const from = total ? pageIndex * pageSize + 1 : 0;
   const to = Math.min(total, (pageIndex + 1) * pageSize);
 
   const pageRows = useMemo(() => {
     const start = pageIndex * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, pageIndex, pageSize]);
+    return visibleRows.slice(start, start + pageSize);
+  }, [visibleRows, pageIndex, pageSize]);
 
   // Backend actions
   const invite = async () => {
@@ -821,6 +918,7 @@ export default function Users({ permissions }: PageProps) {
           </div>
 
           {status && <div className="ums-status">{status}</div>}
+          {!canViewUsersList && <div className="ums-status">Users list visibility is disabled for your role.</div>}
 
           <div className="ums-table-scroll">
             <table className="ums-table">

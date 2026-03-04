@@ -75,7 +75,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   const [page, setPage] = useState<Page>("dashboard");
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
-  const { loading, email, isAdminGroup, can, canOption } = usePermissions();
+  const { loading, email, isAdminGroup, can, canOption, refresh } = usePermissions();
   const canAny = (key: string) => ((can as any)(key) ?? EMPTY) as CrudPerm;
 
   // ✅ Customer permission resolver (supports both CUSTOMER and CUSTOMERS keys safely)
@@ -129,13 +129,16 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   }, [isAdminGroup, can, canOption, customerPerms]);
 
   const showAdmin = useMemo(() => {
-    const usersRead = isAdminGroup || canAny("USERS_ADMIN").canRead;
-    const departmentsRead = isAdminGroup || canAny("DEPARTMENTS_ADMIN").canRead;
+    const usersListAllowed = canOption("users", "users_list", true);
+    const usersViewAllowed = canOption("users", "users_view", true);
+    const usersRead = isAdminGroup || canAny("USERS_ADMIN").canRead || usersListAllowed || usersViewAllowed;
+    const departmentsListAllowed = canOption("departments", "departments_list", true);
+    const departmentsRead = isAdminGroup || canAny("DEPARTMENTS_ADMIN").canRead || departmentsListAllowed;
     const rolesRead = isAdminGroup || canAny("ROLES_POLICIES_ADMIN").canRead;
 
     return {
-      users: usersRead && listOn("users", "users_list"),
-      departments: departmentsRead && listOn("departments", "departments_list"),
+      users: usersRead,
+      departments: departmentsRead,
       rolespolicies: rolesRead && listOn("rolespolicies", "rolespolicies_list"),
     };
   }, [isAdminGroup, can, canOption]);
@@ -209,6 +212,12 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       setPage(allowedPages[0] ?? "dashboard");
     }
   }, [loading, page, show, showAdmin]);
+
+  useEffect(() => {
+    if (page === "users" || page === "departments") {
+      refresh();
+    }
+  }, [page, refresh]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -508,14 +517,23 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             )}
 
             {page === "users" && showAdmin.users && (
-              <PermissionGate moduleId="users" optionId="users_list">
-                <Users permissions={canAny("USERS_ADMIN")} />
-              </PermissionGate>
+              <Users
+                permissions={{
+                  ...canAny("USERS_ADMIN"),
+                  canRead:
+                    canAny("USERS_ADMIN").canRead ||
+                    canOption("users", "users_list", true) ||
+                    canOption("users", "users_view", true),
+                }}
+              />
             )}
             {page === "departments" && showAdmin.departments && (
-              <PermissionGate moduleId="departments" optionId="departments_list">
-                <DepartmentsAdmin permissions={canAny("DEPARTMENTS_ADMIN")} />
-              </PermissionGate>
+              <DepartmentsAdmin
+                permissions={{
+                  ...canAny("DEPARTMENTS_ADMIN"),
+                  canRead: canAny("DEPARTMENTS_ADMIN").canRead || canOption("departments", "departments_list", true),
+                }}
+              />
             )}
             {page === "rolespolicies" && showAdmin.rolespolicies && (
               <PermissionGate moduleId="rolespolicies" optionId="rolespolicies_list">

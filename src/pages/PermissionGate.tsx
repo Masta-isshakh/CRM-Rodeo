@@ -362,6 +362,7 @@ export function resolvePolicyAndOp(moduleId: string, optionId: string): Resolved
   // USERS ADMIN
   if (m === "users" || m === "useradmin") {
     if (o === "users_list") return { policyKey: "USERS_ADMIN", op: "canRead" };
+    if (o === "users_view") return { policyKey: "USERS_ADMIN", op: "canRead" };
     if (o === "users_invite") return { policyKey: "USERS_ADMIN", op: "canCreate", fallbackOps: ["canUpdate"] };
     if (o === "users_edit") return { policyKey: "USERS_ADMIN", op: "canUpdate" };
     if (o === "users_delete") return { policyKey: "USERS_ADMIN", op: "canDelete" };
@@ -413,6 +414,17 @@ export default function PermissionGate({
   // 1) Option-level check (includes module enabled gate)
   const optionAllowed = canOption(moduleId, optionId, true);
   if (!optionAllowed) return <>{fallback}</>;
+
+  const normalizedModule = String(moduleId ?? "").toLowerCase().trim();
+  const normalizedOption = String(optionId ?? "").toLowerCase().trim();
+  const optionAuthoritative =
+    (normalizedModule === "users" || normalizedModule === "useradmin") &&
+    (normalizedOption === "users_list" || normalizedOption === "users_view") ||
+    (normalizedModule === "departments" || normalizedModule === "departmentsadmin") &&
+    normalizedOption === "departments_list";
+  if (optionAuthoritative) {
+    return <>{children}</>;
+  }
 
   // If this exact option is explicitly configured in RoleOptionToggle,
   // option-level RBAC becomes authoritative for visibility.

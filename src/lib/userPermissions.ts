@@ -144,8 +144,15 @@ export function usePermissions() {
     (moduleId: string, optionId: string, fallback = true) => {
       if (isAdminGroup) return true;
 
+      const moduleKey = normalizeKey(moduleId);
+      const optionKey = normalizeKey(optionId);
+      const bypassModuleGate =
+        (moduleKey === "USERS" &&
+          (optionKey === "USERS_LIST" || optionKey === "USERS_VIEW" || optionKey === "USERS_SHOW_ROOT_ADMIN")) ||
+        (moduleKey === "DEPARTMENTS" && optionKey === "DEPARTMENTS_LIST");
+
       // module gate
-      if (!isModuleEnabled(moduleId, true) && normalizeKey(optionId) !== "__ENABLED") return false;
+      if (!bypassModuleGate && !isModuleEnabled(moduleId, true) && optionKey !== "__ENABLED") return false;
 
       const k = optKey(moduleId, optionId);
       return k in optionToggleMap ? Boolean(optionToggleMap[k]) : fallback;
