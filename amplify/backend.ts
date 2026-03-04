@@ -15,6 +15,7 @@ import { createDepartment } from "./functions/departments/create-department/reso
 import { deleteDepartment } from "./functions/departments/delete-department/resource";
 import { renameDepartment } from "./functions/departments/rename-department/resource";
 import { setUserDepartment } from "./functions/departments/set-user-department/resource";
+import { adminCognito } from "./functions/adminCognito/resource";
 
 import { myGroups } from "./functions/auth/my-groups/resource";
 
@@ -33,6 +34,7 @@ const backend = defineBackend({
   deleteDepartment,
   renameDepartment,
   setUserDepartment,
+  adminCognito,
 
   myGroups,
 });
@@ -50,3 +52,19 @@ myGroupsFn.addToRolePolicy(
 
 // Optional (handler already falls back to AMPLIFY_AUTH_USERPOOL_ID, but this is fine too)
 myGroupsFn.addEnvironment("USER_POOL_ID", backend.auth.resources.userPool.userPoolId);
+
+const adminCognitoFn = backend.adminCognito.resources.lambda as unknown as lambda.Function;
+
+adminCognitoFn.addToRolePolicy(
+  new PolicyStatement({
+    actions: [
+      "cognito-idp:ListUsers",
+      "cognito-idp:AdminListGroupsForUser",
+      "cognito-idp:ListGroups",
+      "cognito-idp:ListUsersInGroup",
+    ],
+    resources: [backend.auth.resources.userPool.userPoolArn],
+  })
+);
+
+adminCognitoFn.addEnvironment("USERPOOL_ID", backend.auth.resources.userPool.userPoolId);

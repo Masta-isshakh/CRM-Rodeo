@@ -284,6 +284,9 @@ export const handler = async (event: any) => {
     case "adminListUsers": {
       return await listUsers();
     }
+    case "systemListUsers": {
+      return await listUsers();
+    }
     case "adminAddUserToDepartment": {
       const { username, departmentKey } = event.arguments;
       return await addUserToDepartment(username, departmentKey);

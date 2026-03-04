@@ -1,6 +1,7 @@
 // amplify/data/resource.ts
 import { a, defineData, type ClientSchema } from "@aws-amplify/backend";
 import { myGroups } from "../functions/auth/my-groups/resource";
+import { adminCognito } from "../functions/adminCognito/resource";
 
 // functions
 import { inviteUser } from "../functions/invite-user/resource";
@@ -762,6 +763,12 @@ const schema = a
       .query()
       .authorization((allow) => [allow.group(ADMIN_GROUP)])
       .handler(a.handler.function(listDepartments))
+      .returns(a.json()),
+
+    systemListUsers: a
+      .query()
+      .authorization((allow) => [allow.authenticated()])
+      .handler(a.handler.function(adminCognito))
       .returns(a.json()),
 
     adminCreateDepartment: a

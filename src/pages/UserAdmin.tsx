@@ -319,11 +319,29 @@ export default function Users({ permissions }: PageProps) {
           ? await resolveSessionEmailFallback(String(currentUserEmail ?? ""))
           : "";
 
+        let cognitoAdminsEmail = "";
+        if (!rootCandidate && !sessionAdminEmail) {
+          try {
+            const systemUsersRes = await (client.queries as any).systemListUsers?.();
+            const raw = (systemUsersRes as any)?.data ?? systemUsersRes;
+            const parsed = safeJsonParse<any>(raw) ?? raw;
+            const users = Array.isArray(parsed?.users) ? parsed.users : Array.isArray(parsed) ? parsed : [];
+            const adminUser = (users as any[]).find((u: any) =>
+              Array.isArray(u?.groups) &&
+              u.groups.some((g: any) => String(g ?? "").trim().toLowerCase() === "admins")
+            );
+            cognitoAdminsEmail = pickEmailLike(adminUser?.email, adminUser?.username);
+          } catch {
+            cognitoAdminsEmail = "";
+          }
+        }
+
         const sanitizedCachedRootEmail = cachedRootEmail === "root-admin@system" ? "" : cachedRootEmail;
 
         const rootEmail =
           String(rootCandidate?.email ?? "").trim().toLowerCase() ||
           sessionAdminEmail ||
+          cognitoAdminsEmail ||
           sanitizedCachedRootEmail;
 
         if (rootEmail) {
