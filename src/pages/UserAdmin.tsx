@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
 import { createPortal } from "react-dom";
+import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
@@ -106,6 +107,45 @@ function normalizeKey(x: unknown) {
 function empIdFromIndex(idx: number) {
   const n = String(idx + 1).padStart(3, "0");
   return `EMP${n}`;
+}
+
+function pickEmailLike(...values: any[]): string {
+  for (const value of values) {
+    const s = String(value ?? "").trim().toLowerCase();
+    if (s.includes("@")) return s;
+  }
+  return "";
+}
+
+async function resolveSessionEmailFallback(currentEmail: string): Promise<string> {
+  const normalizedCurrent = pickEmailLike(currentEmail);
+  if (normalizedCurrent) return normalizedCurrent;
+
+  try {
+    const session = await fetchAuthSession({ forceRefresh: true });
+    const idPayload: any = session.tokens?.idToken?.payload ?? {};
+    const accessPayload: any = session.tokens?.accessToken?.payload ?? {};
+
+    const tokenEmail = pickEmailLike(
+      idPayload?.email,
+      accessPayload?.email,
+      idPayload?.["cognito:username"],
+      accessPayload?.["cognito:username"]
+    );
+    if (tokenEmail) return tokenEmail;
+  } catch {
+    // ignore
+  }
+
+  try {
+    const user = await getCurrentUser();
+    const fromUser = pickEmailLike(user?.signInDetails?.loginId, user?.username);
+    if (fromUser) return fromUser;
+  } catch {
+    // ignore
+  }
+
+  return "";
 }
 
 type MenuState =
@@ -276,14 +316,15 @@ export default function Users({ permissions }: PageProps) {
         })();
 
         const sessionAdminEmail = isAdminGroup
-          ? String(currentUserEmail ?? "").trim().toLowerCase()
+          ? await resolveSessionEmailFallback(String(currentUserEmail ?? ""))
           : "";
+
+        const sanitizedCachedRootEmail = cachedRootEmail === "root-admin@system" ? "" : cachedRootEmail;
 
         const rootEmail =
           String(rootCandidate?.email ?? "").trim().toLowerCase() ||
-          cachedRootEmail ||
           sessionAdminEmail ||
-          "root-admin@system";
+          sanitizedCachedRootEmail;
 
         if (rootEmail) {
           try {
