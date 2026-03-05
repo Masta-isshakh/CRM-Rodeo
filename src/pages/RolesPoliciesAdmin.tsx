@@ -1195,16 +1195,6 @@ export default function RoleAccessControl() {
               Currently editing: <span>{selectedRole?.name ?? "—"}</span>
             </div>
 
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-              <button
-                type="button"
-                className="rac-btn rac-btn-primary rac-create-role-btn"
-                onClick={() => setShowCreateRole(true)}
-                disabled={loading}
-              >
-                <i className="fas fa-plus" /> Create Role
-              </button>
-            </div>
           </div>
         </section>
 

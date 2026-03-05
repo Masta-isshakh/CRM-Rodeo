@@ -191,9 +191,6 @@ export default function Users({ permissions }: PageProps) {
   const [deptRoleLinks, setDeptRoleLinks] = useState<Schema["DepartmentRoleLink"]["type"][]>([]);
   const [search, setSearch] = useState("");
 
-  // Row-level busy for dept changes (keeps rest of UI responsive)
-  const [deptSavingUserId, setDeptSavingUserId] = useState<string>("");
-
   // UI/table controls
   const [pageSize, setPageSize] = useState(10);
   const [pageIndex, setPageIndex] = useState(0);
@@ -630,74 +627,6 @@ export default function Users({ permissions }: PageProps) {
     setInviteStatus("Set-password link copied.");
   };
 
-  // ✅ FIXED: reliable department change + optimistic UI + refresh event
-  const setDepartmentForUser = async (u: UserRow, deptKey: string) => {
-    if (!permissions.canUpdate || !canOption("users", "users_edit", true)) return;
-    if (!u.email) return;
-    if (isRootAdminSyntheticUser(u)) return;
-
-    const nextKey = String(deptKey ?? "").trim();
-    if (!nextKey) return; // do not allow empty (backend requires)
-    if (nextKey === String(u.departmentKey ?? "").trim()) return; // no-op
-
-    const prevKey = String(u.departmentKey ?? "");
-    const prevName = String(u.departmentName ?? "");
-    const dept = departments.find((d) => d.key === nextKey);
-
-    setStatus("");
-    setDeptSavingUserId(u.id);
-
-    // optimistic update (instant UI)
-    setUsers((prev) =>
-      (prev ?? []).map((x) =>
-        x.id === u.id
-          ? ({
-              ...x,
-              departmentKey: nextKey,
-              departmentName: dept?.name ?? (x as any).departmentName,
-            } as any)
-          : x
-      )
-    );
-
-    try {
-      const res = await client.mutations.adminSetUserDepartment({
-        email: u.email,
-        departmentKey: nextKey,
-        departmentName: dept?.name ?? "",
-      });
-
-      const errs = (res as any)?.errors;
-      if (Array.isArray(errs) && errs.length) {
-        throw new Error(errs.map((x: any) => x.message).join(" | "));
-      }
-
-      // ✅ refresh permissions in the app (your userPermissions listens to this)
-      window.dispatchEvent(new Event("rbac:refresh"));
-
-      // keep everything consistent (roles labels, dashboard allowed, etc.)
-      await load();
-    } catch (e: any) {
-      console.error(e);
-      setStatus(e?.message ?? "Failed to set department.");
-
-      // revert optimistic update on failure
-      setUsers((prev) =>
-        (prev ?? []).map((x) =>
-          x.id === u.id
-            ? ({
-                ...x,
-                departmentKey: prevKey,
-                departmentName: prevName,
-              } as any)
-            : x
-        )
-      );
-    } finally {
-      setDeptSavingUserId("");
-    }
-  };
-
   const toggleActive = async (u: UserRow) => {
     if (!permissions.canUpdate || !canOption("users", "users_edit", true)) return;
     if (!u.email) return;
@@ -1034,8 +963,6 @@ export default function Users({ permissions }: PageProps) {
                   const active = Boolean(u.isActive);
                   const dashAllowed = row.dashboardAllowed && active;
 
-                  const deptBusy = deptSavingUserId === u.id;
-
                   return (
                     <tr key={u.id}>
                       <td className="ums-mono">{row.empId}</td>
@@ -1045,35 +972,6 @@ export default function Users({ permissions }: PageProps) {
 
                       <td>
                         <span className="pill pill-dept">{row.deptName}</span>
-
-                        {permissions.canUpdate && !isRootAdminRow && (
-                          <PermissionGate moduleId="users" optionId="users_edit">
-                          <div className="ums-inline-edit">
-                            <select
-                              className="ums-pill-select"
-                              value={u.departmentKey ?? ""}
-                              onChange={(e) => setDepartmentForUser(u, e.target.value)}
-                              disabled={loading || deptBusy}
-                              title="Change department"
-                            >
-                              <option value="" disabled>
-                                Select…
-                              </option>
-                              {departments.map((d) => (
-                                <option key={d.key} value={d.key}>
-                                  {d.name}
-                                </option>
-                              ))}
-                            </select>
-
-                            {deptBusy && (
-                              <span style={{ marginLeft: 8, fontSize: 12, opacity: 0.8 }}>
-                                Saving…
-                              </span>
-                            )}
-                          </div>
-                          </PermissionGate>
-                        )}
                       </td>
 
                       <td>
