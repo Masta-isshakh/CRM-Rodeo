@@ -9,7 +9,7 @@ import ErrorPopup from "./ErrorPopup";
 import PermissionGate from "./PermissionGate";
 import { getDataClient } from "../lib/amplifyClient";
 import { getUserDirectory } from "../utils/userDirectoryCache";
-import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy, resolveOrderUpdatedBy } from "../utils/actorIdentity";
+import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
 import {
   derivePaymentStatusFromFinancials,
   pickBillingFirstValue,
@@ -22,6 +22,8 @@ import {
   getJobOrderByOrderNumber,
   upsertJobOrder,
 } from "./jobOrderRepo";
+import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
+import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
 
 import { getUrl, uploadData } from "aws-amplify/storage";
 
@@ -1300,16 +1302,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       String(selectedOrder?._row?.status || "").toUpperCase() === "CANCELLED";
 
     const docs: DocItem[] = Array.isArray(selectedOrder.documents) ? selectedOrder.documents : [];
-    const summary = selectedOrder?.summary ?? {};
-    const services: any[] = Array.isArray(selectedOrder?.services) ? selectedOrder.services : [];
-    const servicesCompleted = services.filter((service: any) => String(service?.status ?? "").trim().toLowerCase() === "completed").length;
-    const servicesProgressPercent = services.length ? Math.round((servicesCompleted / services.length) * 100) : 0;
-    const servicesProgressLabel = services.length ? `${servicesCompleted}/${services.length} completed` : "0/0 completed";
     const createdByDisplay = resolveOrderCreatedBy(selectedOrder, {
-      identityToUsernameMap: userLabelMap,
-      fallback: "—",
-    });
-    const updatedByDisplay = resolveOrderUpdatedBy(selectedOrder, {
       identityToUsernameMap: userLabelMap,
       fallback: "—",
     });
@@ -1340,69 +1333,20 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
         <div className="pim-details-body">
           <div className="pim-details-grid">
-            <div className="epm-detail-card jh-summary-card">
-              <h3><i className="fas fa-info-circle"></i> Job Order Summary</h3>
-              <div className="epm-card-content jh-kv">
-                <div className="epm-info-item"><span className="epm-info-label">Job Order ID</span><span className="epm-info-value">{summary.jobOrderId || selectedOrder.id}</span></div>
-                <div className="epm-info-item"><span className="epm-info-label">Order Type</span><span className="epm-info-value">{summary.orderType || selectedOrder.orderType || "Job Order"}</span></div>
-                <div className="epm-info-item"><span className="epm-info-label">Request Create Date</span><span className="epm-info-value">{summary.requestCreateDate || selectedOrder.jobOrderSummary?.createDate || selectedOrder.createDate || "—"}</span></div>
-                <div className="epm-info-item"><span className="epm-info-label">Created By</span><span className="epm-info-value">{createdByDisplay}</span></div>
-                <div className="epm-info-item"><span className="epm-info-label">Expected Delivery Date</span><span className="epm-info-value">{summary.expectedDeliveryDate || "—"}</span></div>
-                <div className="epm-info-item"><span className="epm-info-label">Work Status</span><span className={`epm-status-badge status-badge ${workStatusClass(summary.workStatus || selectedOrder.workStatus)}`}>{summary.workStatus || selectedOrder.workStatus || "—"}</span></div>
-                <div className="epm-info-item"><span className="epm-info-label">Payment Status</span><span className={`epm-status-badge status-badge ${payStatusClass(summary.paymentStatus || selectedOrder.paymentStatus)}`}>{summary.paymentStatus || selectedOrder.paymentStatus || "—"}</span></div>
-                <div className="epm-info-item"><span className="epm-info-label">Exit Permit Status</span><span className="epm-info-value">{summary.exitPermitStatus || "Not Required"}</span></div>
-                <div className="epm-info-item"><span className="epm-info-label">Customer Name</span><span className="epm-info-value">{summary.customerName || selectedOrder.customerName || "—"}</span></div>
-                <div className="epm-info-item"><span className="epm-info-label">Customer Mobile</span><span className="epm-info-value">{summary.customerMobile || selectedOrder.mobile || "—"}</span></div>
-                <div className="epm-info-item"><span className="epm-info-label">Vehicle Plate</span><span className="epm-info-value">{summary.vehiclePlate || selectedOrder.vehiclePlate || "—"}</span></div>
-                <div className="epm-info-item"><span className="epm-info-label">Order Status (Enum)</span><span className="epm-info-value">{summary.orderStatusEnum || "—"}</span></div>
-                <div className="epm-info-item"><span className="epm-info-label">Payment Status (Enum)</span><span className="epm-info-value">{summary.paymentStatusEnum || "—"}</span></div>
-                <div className="epm-info-item"><span className="epm-info-label">Last Updated</span><span className="epm-info-value">{summary.updatedAt || "—"}</span></div>
-                <div className="epm-info-item"><span className="epm-info-label">Updated By</span><span className="epm-info-value">{updatedByDisplay}</span></div>
-                {services.length > 0 ? (
-                  <div className="epm-info-item" style={{ gridColumn: "span 2" }}>
-                    <span className="epm-info-label">Service Progress</span>
-                    <div style={{ display: "flex", gap: "12px", alignItems: "center", width: "100%" }}>
-                      <div style={{ flex: 1 }}>
-                        <div className="epm-progress-bar">
-                          <div className="epm-progress-fill" style={{ width: `${servicesProgressPercent}%` }} />
-                        </div>
-                      </div>
-                      <span className="epm-progress-text">{servicesProgressLabel}</span>
-                    </div>
-                  </div>
-                ) : null}
-              </div>
-            </div>
+            <UnifiedJobOrderSummaryCard
+              order={selectedOrder}
+              className="jh-summary-card"
+              identityToUsernameMap={userLabelMap}
+              createdByOverride={createdByDisplay}
+              paymentStatusOverride={selectedOrder?.paymentStatus}
+            />
 
             <PermissionGate moduleId="payment" optionId="payment_customer">
-              <div className="jh-card cv-unified-card">
-                <h3><i className="fas fa-user"></i> Customer Information</h3>
-                <div className="jh-kv cv-unified-grid">
-                  <div><span>Customer ID</span><strong>{selectedOrder.customerDetails?.customerId || "—"}</strong></div>
-                  <div><span>Name</span><strong>{selectedOrder.customerDetails?.name || selectedOrder.customerName || "—"}</strong></div>
-                  <div><span>Mobile</span><strong>{selectedOrder.customerDetails?.mobile || selectedOrder.mobile || "—"}</strong></div>
-                  <div><span>Email</span><strong>{selectedOrder.customerDetails?.email || "—"}</strong></div>
-                  <div><span>Address</span><strong>{selectedOrder.customerDetails?.address || "—"}</strong></div>
-                  <div><span>Vehicles</span><strong>{selectedOrder.customerDetails?.registeredVehiclesCount ?? 0}</strong></div>
-                  <div><span>Customer Since</span><strong>{selectedOrder.customerDetails?.customerSince || "—"}</strong></div>
-                </div>
-              </div>
+              <UnifiedCustomerInfoCard order={selectedOrder} className="cv-unified-card" />
             </PermissionGate>
 
             <PermissionGate moduleId="payment" optionId="payment_vehicle">
-              <div className="jh-card cv-unified-card">
-                <h3><i className="fas fa-car"></i> Vehicle Information</h3>
-                <div className="jh-kv cv-unified-grid">
-                  <div><span>Vehicle ID</span><strong>{String(selectedOrder?.vehicleDetails?.vehicleId ?? selectedOrder?.vehicleDetails?.id ?? selectedOrder?.vehicleId ?? "").trim() || "—"}</strong></div>
-                  <div><span>Make</span><strong>{selectedOrder.vehicleDetails?.make || "—"}</strong></div>
-                  <div><span>Model</span><strong>{selectedOrder.vehicleDetails?.model || "—"}</strong></div>
-                  <div><span>Year</span><strong>{selectedOrder.vehicleDetails?.year || "—"}</strong></div>
-                  <div><span>Type</span><strong>{selectedOrder.vehicleDetails?.type || "—"}</strong></div>
-                  <div><span>Color</span><strong>{selectedOrder.vehicleDetails?.color || "—"}</strong></div>
-                  <div><span>Plate</span><strong>{selectedOrder.vehicleDetails?.plateNumber || selectedOrder.vehiclePlate || "—"}</strong></div>
-                  <div><span>VIN</span><strong>{selectedOrder.vehicleDetails?.vin || "—"}</strong></div>
-                </div>
-              </div>
+              <UnifiedVehicleInfoCard order={selectedOrder} className="cv-unified-card" />
             </PermissionGate>
 
             <PermissionGate moduleId="payment" optionId="payment_services">

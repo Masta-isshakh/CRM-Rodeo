@@ -2558,6 +2558,10 @@ i {
   justify-content: center;
 }
 
+.jo-details-v3 .jo-info-item-wide-2 {
+  grid-column: span 2;
+}
+
 .jo-details-v3 .pim-info-item:nth-child(4n),
 .jo-details-v3 .epm-info-item:nth-child(4n) {
   border-right: none;
@@ -2796,6 +2800,10 @@ i {
   .jo-details-v3 .epm-info-item:nth-child(3n) {
     border-right: none;
   }
+
+  .jo-details-v3 .jo-info-item-wide-2 {
+    grid-column: span 2;
+  }
 }
 
 @media (max-width: 900px) {
@@ -2846,6 +2854,10 @@ i {
   .jo-details-v3 .pim-info-item:nth-child(2n),
   .jo-details-v3 .epm-info-item:nth-child(2n) {
     border-right: none;
+  }
+
+  .jo-details-v3 .jo-info-item-wide-2 {
+    grid-column: span 2;
   }
 
   .jo-delivery-card .jo-delivery-grid {
@@ -2916,6 +2928,10 @@ i {
   .jo-details-v3 .pim-info-item,
   .jo-details-v3 .epm-info-item {
     border-right: none !important;
+  }
+
+  .jo-details-v3 .jo-info-item-wide-2 {
+    grid-column: span 1;
   }
 
   .jo-details-v3 .pim-service-meta {

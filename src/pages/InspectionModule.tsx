@@ -7,6 +7,8 @@ import "./JobCards.css";
 import SuccessPopup from "./SuccessPopup";
 import PermissionGate from "./PermissionGate";
 import inspectionListConfig from "./inspectionConfig";
+import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
+import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
 
 import {
   listJobOrdersForMain,
@@ -30,7 +32,6 @@ import { listServiceCatalog, resolveServicePriceForVehicleType, type ServiceCata
 import { resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
 import {
   derivePaymentStatusFromFinancials,
-  normalizePaymentStatusLabel as normalizePaymentStatusLabelShared,
   pickBillingFirstValue,
   pickPaymentEnum,
   pickPaymentLabel,
@@ -82,31 +83,6 @@ function normalizeStepName(value: any) {
 function isServiceOperationStepName(value: any) {
   const n = normalizeStepName(value);
   return n === "inprogress" || n === "serviceoperation";
-}
-
-function getWorkStatusClass(status: any) {
-  const statusMap: any = {
-    "New Request": "status-new-request",
-    Inspection: "status-inspection",
-    Service_Operation: "status-inprogress",
-    Inprogress: "status-inprogress",
-    "Quality Check": "status-quality-check",
-    Ready: "status-ready",
-    Completed: "status-completed",
-    Cancelled: "status-cancelled",
-  };
-  return statusMap[String(status ?? "")] || "status-inprogress";
-}
-
-function getPaymentStatusClass(status: any) {
-  const normalized = normalizePaymentStatusLabel(status);
-  if (normalized === "Fully Paid") return "payment-full";
-  if (normalized === "Partially Paid") return "payment-partial";
-  return "payment-unpaid";
-}
-
-function normalizePaymentStatusLabel(value: any) {
-  return normalizePaymentStatusLabelShared(value);
 }
 
 function getServiceStatusClass(status: any) {
@@ -1058,18 +1034,14 @@ function InspectionModule({ currentUser }: any) {
           <div className="detail-container pim-details-body">
             <div className="detail-cards pim-details-grid">
               <PermissionGate moduleId="inspection" optionId="inspection_summary">
-                <div className="pim-detail-card">
-                  <h3><i className="fas fa-info-circle"></i> Job Order Summary</h3>
-                  <div className="pim-card-content">
-                    <div className="pim-info-item"><span className="pim-info-label">Job Order ID</span><span className="pim-info-value">{activeRow.id}</span></div>
-                    <div className="pim-info-item"><span className="pim-info-label">Order Type</span><span className="pim-info-value">{detailData.orderType || activeOrder.orderType || "Job Order"}</span></div>
-                    <div className="pim-info-item"><span className="pim-info-label">Request Create Date</span><span className="pim-info-value">{detailData.createDate || "Not specified"}</span></div>
-                    <div className="pim-info-item"><span className="pim-info-label">Created By</span><span className="pim-info-value">{detailData.createdBy || "—"}</span></div>
-                    <div className="pim-info-item"><span className="pim-info-label">Expected Delivery</span><span className="pim-info-value">{detailData.expectedDelivery || "Not specified"}</span></div>
-                    <div className="pim-info-item"><span className="pim-info-label">Work Status</span><span className="pim-info-value"><span className={`epm-status-badge status-badge ${getWorkStatusClass(detailData.workStatus)}`}>{detailData.workStatus}</span></span></div>
-                    <div className="pim-info-item"><span className="pim-info-label">Payment Status</span><span className="pim-info-value"><span className={`epm-status-badge status-badge ${getPaymentStatusClass(detailData.paymentStatus)}`}>{detailData.paymentStatus}</span></span></div>
-                  </div>
-
+                <>
+                  <UnifiedJobOrderSummaryCard
+                    order={activeOrder}
+                    className="jh-summary-card"
+                    createdByOverride={detailData?.createdBy || "—"}
+                    paymentStatusOverride={detailData?.paymentStatus}
+                    workStatusOverride={detailData?.workStatus}
+                  />
                   {reportHtml && (
                     <div className="inspection-summary-actions">
                       <button className="btn btn-primary" onClick={downloadReport}>
@@ -1077,7 +1049,15 @@ function InspectionModule({ currentUser }: any) {
                       </button>
                     </div>
                   )}
-                </div>
+                </>
+              </PermissionGate>
+
+              <PermissionGate moduleId="inspection" optionId="inspection_summary">
+                <UnifiedCustomerInfoCard order={activeOrder} className="cv-unified-card" />
+              </PermissionGate>
+
+              <PermissionGate moduleId="inspection" optionId="inspection_summary">
+                <UnifiedVehicleInfoCard order={activeOrder} className="cv-unified-card" />
               </PermissionGate>
 
               <PermissionGate moduleId="inspection" optionId="inspection_services">

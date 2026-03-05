@@ -33,6 +33,9 @@ import {
   computePaymentSnapshot,
   normalizePaymentStatusLabel as normalizePaymentStatusLabelShared,
 } from "../utils/paymentStatus";
+import { usePermissions } from "../lib/userPermissions";
+import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
+import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
 
 function errMsg(e: unknown) {
   const anyE = e as any;
@@ -339,6 +342,7 @@ function resolveCashierName(payment: any, identityMap?: Record<string, string>) 
 // ============================================
 function JobOrderManagement({ currentUser, navigationData, onClearNavigation, onNavigateBack }: any) {
   const client = useMemo(() => getDataClient(), []);
+  const { canOption, getOptionNumber } = usePermissions();
   const [screenState, setScreenState] = useState<"main" | "details" | "newJob" | "addService">("main");
   const [currentDetailsOrder, setCurrentDetailsOrder] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -424,6 +428,13 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
 
+  const maxServiceDiscountPercent = useMemo(() => {
+    if (!canOption("joborder", "joborder_servicediscount_percent", true)) return 0;
+    const configured = Number(getOptionNumber("joborder", "joborder_servicediscount_percent", 15));
+    if (!Number.isFinite(configured)) return 15;
+    return Math.max(0, Math.min(100, configured));
+  }, [canOption, getOptionNumber]);
+
   
 
   async function refreshMainOrders() {
@@ -496,7 +507,8 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
       `BILL-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
 
     const subtotal = selectedServices.reduce((sum: number, s: any) => sum + (s.price || 0), 0);
-    const discount = (subtotal * (discountPercent || 0)) / 100;
+    const safeDiscountPercent = Math.max(0, Math.min(maxServiceDiscountPercent, Number(discountPercent || 0)));
+    const discount = (subtotal * safeDiscountPercent) / 100;
     const netAmount = subtotal - discount;
 
     const existingTotal = parseAmount(currentAddServiceOrder.billing?.totalAmount);
@@ -763,7 +775,13 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
       )}
 
       {screenState === "addService" && currentAddServiceOrder && (
-        <AddServiceScreen order={currentAddServiceOrder} products={serviceCatalog} onClose={() => setScreenState("details")} onSubmit={handleAddServiceSubmit} />
+        <AddServiceScreen
+          order={currentAddServiceOrder}
+          products={serviceCatalog}
+          maxDiscountPercent={maxServiceDiscountPercent}
+          onClose={() => setScreenState("details")}
+          onSubmit={handleAddServiceSubmit}
+        />
       )}
 
       {inspectionModalOpen && currentInspectionItem && (
@@ -1191,10 +1209,10 @@ function DetailsScreen({ order, onClose, onAddService, currentUser, actorMap }: 
             <JobOrderSummaryCard order={order} currentUser={currentUser} actorMap={actorMap} />
           </PermissionGate>
           <PermissionGate moduleId="joborder" optionId="joborder_customer">
-            <CustomerDetailsCard order={order} />
+            <UnifiedCustomerInfoCard order={order} className="cv-unified-card" />
           </PermissionGate>
           <PermissionGate moduleId="joborder" optionId="joborder_vehicle">
-            <VehicleDetailsCard order={order} />
+            <UnifiedVehicleInfoCard order={order} className="cv-unified-card" />
           </PermissionGate>
           <PermissionGate moduleId="joborder" optionId="joborder_services">
             <ServicesCard order={order} onAddService={onAddService} />
@@ -1241,6 +1259,7 @@ function DetailsScreen({ order, onClose, onAddService, currentUser, actorMap }: 
 // ============================================
 function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }: any) {
   const client = useMemo(() => getDataClient(), []);
+  const { canOption, getOptionNumber } = usePermissions();
   const [step, setStep] = useState(1);
   const [orderType, setOrderType] = useState<any>(null); // 'new' or 'service'
   const [customerType, setCustomerType] = useState<any>(null);
@@ -1257,6 +1276,12 @@ function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actorIdentityMap, setActorIdentityMap] = useState<Record<string, string>>({});
   const actorUsername = resolveAuthenticatedEmail(currentUser) || "system";
+  const maxJobOrderDiscountPercent = useMemo(() => {
+    if (!canOption("joborder", "joborder_discount_percent", true)) return 0;
+    const configured = Number(getOptionNumber("joborder", "joborder_discount_percent", 20));
+    if (!Number.isFinite(configured)) return 20;
+    return Math.max(0, Math.min(100, configured));
+  }, [canOption, getOptionNumber]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1336,7 +1361,12 @@ function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }
 
     const servicesToBill = orderType === "service" ? additionalServices : selectedServices;
     const subtotal = servicesToBill.reduce((sum: number, s: any) => sum + (s.price || 0), 0);
-    const discount = Math.min(Math.max(0, discountAmount || 0), Math.max(0, subtotal));
+    const maxAllowedDiscountAmount = (Math.max(0, subtotal) * maxJobOrderDiscountPercent) / 100;
+    const discount = Math.min(
+      Math.max(0, discountAmount || 0),
+      Math.max(0, subtotal),
+      Math.max(0, maxAllowedDiscountAmount)
+    );
     const discountPercent = subtotal > 0 ? (discount / subtotal) * 100 : 0;
     const netAmount = subtotal - discount;
 
@@ -1548,6 +1578,7 @@ return (
           selectedServices={orderType === "service" ? additionalServices : selectedServices}
           setSelectedServices={orderType === "service" ? setAdditionalServices : setSelectedServices}
           vehicleType={vehicleData?.carType || vehicleData?.vehicleType || "SUV"}
+          maxDiscountPercent={maxJobOrderDiscountPercent}
           discountAmount={discountAmount}
           setDiscountAmount={setDiscountAmount}
           orderNotes={orderNotes}
@@ -1567,6 +1598,7 @@ return (
           customerData={customerData}
           vehicleData={vehicleData}
           selectedServices={orderType === "service" ? additionalServices : selectedServices}
+          maxDiscountPercent={maxJobOrderDiscountPercent}
           discountAmount={discountAmount}
           orderNotes={orderNotes}
           expectedDeliveryDate={expectedDeliveryDate}
@@ -2341,6 +2373,7 @@ function StepThreeServices({
   selectedServices,
   setSelectedServices,
   vehicleType,
+  maxDiscountPercent,
   discountAmount,
   setDiscountAmount,
   orderNotes,
@@ -2369,7 +2402,13 @@ function StepThreeServices({
   const formatPrice = (price: number) => `QAR ${price.toLocaleString()}`;
 
   const subtotal = selectedServices.reduce((sum: number, s: any) => sum + s.price, 0);
-  const discount = Math.min(Math.max(0, Number(discountAmount || 0)), Math.max(0, subtotal));
+  const normalizedMaxDiscountPercent = Math.max(0, Math.min(100, Number(maxDiscountPercent ?? 0)));
+  const maxDiscountAmountByPolicy = (Math.max(0, subtotal) * normalizedMaxDiscountPercent) / 100;
+  const discount = Math.min(
+    Math.max(0, Number(discountAmount || 0)),
+    Math.max(0, subtotal),
+    Math.max(0, maxDiscountAmountByPolicy)
+  );
   const discountPercent = subtotal > 0 ? (discount / subtotal) * 100 : 0;
   const total = subtotal - discount;
 
@@ -2458,10 +2497,10 @@ function StepThreeServices({
                 <input
                   type="number"
                   min="0"
-                  max="100"
+                  max={normalizedMaxDiscountPercent}
                   value={Number(discountPercent.toFixed(2))}
                   onChange={(e) => {
-                    const pct = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
+                    const pct = Math.max(0, Math.min(normalizedMaxDiscountPercent, parseFloat(e.target.value) || 0));
                     setDiscountAmount((subtotal * pct) / 100);
                   }}
                   style={{ width: "80px", color: "#333", backgroundColor: "#fff" }}
@@ -2477,17 +2516,21 @@ function StepThreeServices({
                 <input
                   type="number"
                   min="0"
-                  max={Math.max(0, subtotal)}
+                  max={Math.max(0, Math.min(subtotal, maxDiscountAmountByPolicy))}
                   step="0.01"
                   value={Number(discount.toFixed(2))}
                   onChange={(e) => {
-                    const amount = Math.max(0, Math.min(subtotal, parseFloat(e.target.value) || 0));
+                    const amount = Math.max(0, Math.min(subtotal, maxDiscountAmountByPolicy, parseFloat(e.target.value) || 0));
                     setDiscountAmount(amount);
                   }}
                   style={{ width: "120px", color: "#333", backgroundColor: "#fff" }}
                 />
               </PermissionGate>
             </div>
+          </div>
+          <div className="price-row">
+            <span>Max Allowed Discount:</span>
+            <span>{Number(normalizedMaxDiscountPercent.toFixed(2))}%</span>
           </div>
           <div className="price-row discount-amount">
             <span>Discount Amount:</span>
@@ -2515,7 +2558,7 @@ function StepThreeServices({
 // ============================================
 // ADD SERVICE SCREEN
 // ============================================
-function AddServiceScreen({ order, products = [], onClose, onSubmit }: any) {
+function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClose, onSubmit }: any) {
   const [selectedServices, setSelectedServices] = useState<any[]>([]);
   const [discountPercent, setDiscountPercent] = useState(0);
   const vehicleType = order?.vehicleDetails?.type || "SUV";
@@ -2536,7 +2579,9 @@ function AddServiceScreen({ order, products = [], onClose, onSubmit }: any) {
 
   const formatPrice = (price: number) => `QAR ${price.toLocaleString()}`;
   const subtotal = selectedServices.reduce((sum, s) => sum + s.price, 0);
-  const discount = (subtotal * discountPercent) / 100;
+  const normalizedMaxDiscountPercent = Math.max(0, Math.min(100, Number(maxDiscountPercent || 0)));
+  const effectiveDiscountPercent = Math.max(0, Math.min(normalizedMaxDiscountPercent, Number(discountPercent || 0)));
+  const discount = (subtotal * effectiveDiscountPercent) / 100;
   const total = subtotal - discount;
 
   return (
@@ -2592,10 +2637,27 @@ function AddServiceScreen({ order, products = [], onClose, onSubmit }: any) {
                   <span>Apply Discount:</span>
                   <div>
                     <PermissionGate moduleId="joborder" optionId="joborder_servicediscount_percent">
-                      <input type="number" min="0" max="100" value={discountPercent} onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)} style={{ width: "80px" }} />
+                      <input
+                        type="number"
+                        min="0"
+                        max={normalizedMaxDiscountPercent}
+                        value={Number(effectiveDiscountPercent.toFixed(2))}
+                        onChange={(e) =>
+                          setDiscountPercent(
+                            Math.max(0, Math.min(normalizedMaxDiscountPercent, parseFloat(e.target.value) || 0))
+                          )
+                        }
+                        style={{ width: "80px" }}
+                      />
                       <span> %</span>
                     </PermissionGate>
                   </div>
+                </div>
+              </PermissionGate>
+              <PermissionGate moduleId="joborder" optionId="joborder_servicediscount_percent">
+                <div className="price-row">
+                  <span>Max Allowed Discount:</span>
+                  <span>{Number(normalizedMaxDiscountPercent.toFixed(2))}%</span>
                 </div>
               </PermissionGate>
               <div className="price-row discount-amount">
@@ -2612,7 +2674,11 @@ function AddServiceScreen({ order, products = [], onClose, onSubmit }: any) {
               <button className="btn btn-secondary" onClick={onClose}>
                 Cancel
               </button>
-              <button className="btn btn-primary" onClick={() => onSubmit({ selectedServices, discountPercent })} disabled={selectedServices.length === 0 || products.length === 0}>
+              <button
+                className="btn btn-primary"
+                onClick={() => onSubmit({ selectedServices, discountPercent: effectiveDiscountPercent })}
+                disabled={selectedServices.length === 0 || products.length === 0}
+              >
                 Add Services
               </button>
             </div>
@@ -2664,6 +2730,7 @@ function StepFourConfirm({
   customerData,
   vehicleData,
   selectedServices,
+  maxDiscountPercent,
   discountAmount,
   orderNotes,
   expectedDeliveryDate,
@@ -2674,7 +2741,13 @@ function StepFourConfirm({
 }: any) {
   const formatPrice = (price: number) => `QAR ${price.toLocaleString()}`;
   const subtotal = selectedServices.reduce((sum: number, s: any) => sum + s.price, 0);
-  const discount = Math.min(Math.max(0, Number(discountAmount || 0)), Math.max(0, subtotal));
+  const normalizedMaxDiscountPercent = Math.max(0, Math.min(100, Number(maxDiscountPercent ?? 0)));
+  const maxDiscountAmountByPolicy = (Math.max(0, subtotal) * normalizedMaxDiscountPercent) / 100;
+  const discount = Math.min(
+    Math.max(0, Number(discountAmount || 0)),
+    Math.max(0, subtotal),
+    Math.max(0, maxDiscountAmountByPolicy)
+  );
   const discountPercent = subtotal > 0 ? (discount / subtotal) * 100 : 0;
   const total = subtotal - discount;
 
@@ -2953,308 +3026,13 @@ function StepFourConfirm({
 // SIMPLE DISPLAY CARDS
 // ============================================
 function JobOrderSummaryCard({ order, actorMap }: any) {
-  const summary = order.jobOrderSummary || {};
-  const delivery = order.deliveryInfo || {};
-  const serviceProgress = (() => {
-    const services = Array.isArray(order?.services) ? order.services : [];
-    const total = services.length;
-    if (!total) return order.serviceProgressInfo || {};
-
-    const completed = services.filter((service: any) => {
-      const status = String(service?.status ?? "").trim().toLowerCase();
-      return status === "completed";
-    }).length;
-
-    const percent = Math.round((completed / Math.max(1, total)) * 100);
-    return {
-      ...(order.serviceProgressInfo || {}),
-      progress: {
-        percent,
-        label: `${completed}/${total} completed`,
-      },
-    };
-  })();
-    const createdBy = resolveCreatedBy(order, actorMap);
-
-  
+  const createdBy = resolveCreatedBy(order, actorMap);
   return (
-    <div className="epm-detail-card">
-      <h3>
-        <i className="fas fa-info-circle"></i> Job Order Summary
-      </h3>
-      <div className="epm-card-content">
-        <div className="epm-info-item">
-          <span className="epm-info-label">Job Order ID</span>
-          <span className="epm-info-value">{order.id}</span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Order Type</span>
-          <span className="epm-info-value">{order.orderType}</span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Work Status</span>
-          <span className={`epm-status-badge status-badge ${getWorkStatusClass(order.workStatus)}`}>{displayWorkStatusLabel(order.workStatus)}</span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Payment Status</span>
-          <span className={`epm-status-badge status-badge ${getPaymentStatusClass(order.paymentStatus)}`}>{normalizePaymentStatusLabel(order.paymentStatus)}</span>
-        </div>
-        
-        {/* ✅ NEW: Priority Level */}
-        {order.priorityLevel && (
-          <div className="epm-info-item">
-            <span className="epm-info-label">Priority</span>
-            <span 
-              className="epm-priority-badge"
-              style={{ 
-                backgroundColor: order.priorityBg, 
-                color: order.priorityColor,
-                padding: '4px 12px',
-                borderRadius: '4px',
-                fontWeight: '600'
-              }}
-            >
-              {order.priorityLevel}
-            </span>
-          </div>
-        )}
-        
-        {/* ✅ NEW: Service Progress */}
-        {serviceProgress.progress && (
-          <div className="epm-info-item" style={{ gridColumn: 'span 2' }}>
-            <span className="epm-info-label">Service Progress</span>
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', width: '100%' }}>
-              <div style={{ flex: 1 }}>
-                <div className="epm-progress-bar">
-                  <div 
-                    className="epm-progress-fill" 
-                    style={{ width: `${serviceProgress.progress.percent}%` }}
-                  ></div>
-                </div>
-              </div>
-              <span className="epm-progress-text">{serviceProgress.progress.label}</span>
-            </div>
-          </div>
-        )}
-        
-        {summary.createDate && (
-          <div className="epm-info-item">
-            <span className="epm-info-label">Created On</span>
-            <span className="epm-info-value">{summary.createDate}</span>
-          </div>
-        )}
-
-        <div className="epm-info-item">
-          <span className="epm-info-label">Created By</span>
-          <span className="epm-info-value">{createdBy || "—"}</span>
-        </div>
-        {summary.expectedDelivery && (
-          <div className="epm-info-item">
-            <span className="epm-info-label">Expected Delivery</span>
-            <span className="epm-info-value">{summary.expectedDelivery}</span>
-          </div>
-        )}
-        
-        {/* ✅ NEW: Estimated vs Actual Hours */}
-        {(delivery.estimatedHours || delivery.actualHours) && (
-          <div className="epm-info-item">
-            <span className="epm-info-label">Time Estimate</span>
-            <span className="epm-info-value">
-              Est: {delivery.estimatedHours || 'N/A'} {delivery.actualHours && `| Actual: ${delivery.actualHours}`}
-            </span>
-          </div>
-        )}
-        
-        {order.customerNotes && (
-          <div className="epm-info-item" style={{ flexDirection: 'column', alignItems: 'flex-start', gap: '6px' }}>
-            <span className="epm-info-label">Customer Notes</span>
-            <span className="epm-info-value" style={{ whiteSpace: 'pre-wrap', fontSize: '13px' }}>{order.customerNotes}</span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function CustomerDetailsCard({ order }: any) {
-  const customerDetails = order.customerDetails || {};
-  
-  return (
-    <div className="pim-detail-card cv-unified-card">
-      <h3>
-        <i className="fas fa-user"></i> Customer Information
-      </h3>
-      <div className="pim-card-content cv-unified-grid">
-        <div className="pim-info-item">
-          <span className="pim-info-label">Customer Name</span>
-          <span className="pim-info-value">{order.customerName}</span>
-        </div>
-        <div className="pim-info-item">
-          <span className="pim-info-label">Mobile</span>
-          <span className="pim-info-value">{order.mobile}</span>
-        </div>
-        {customerDetails.email && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Email</span>
-            <span className="pim-info-value">{customerDetails.email}</span>
-          </div>
-        )}
-        {customerDetails.customerId && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Customer ID</span>
-            <span className="pim-info-value">{customerDetails.customerId}</span>
-          </div>
-        )}
-        
-        {/* ✅ NEW: Customer Address */}
-        {customerDetails.address && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Address</span>
-            <span className="pim-info-value">{customerDetails.address}</span>
-          </div>
-        )}
-        
-        {/* ✅ NEW: Customer Company */}
-        {customerDetails.company && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Company</span>
-            <span className="pim-info-value">{customerDetails.company}</span>
-          </div>
-        )}
-        
-        {/* ✅ NEW: Customer Since */}
-        {customerDetails.customerSince && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Customer Since</span>
-            <span className="pim-info-value">{customerDetails.customerSince}</span>
-          </div>
-        )}
-        
-        {/* ✅ NEW: Registered Vehicles Count */}
-        {customerDetails.registeredVehiclesCount !== undefined && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Registered Vehicles</span>
-            <span className="pim-info-value">{customerDetails.registeredVehiclesCount}</span>
-          </div>
-        )}
-        
-        {customerDetails.completedServicesCount !== undefined && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Completed Services</span>
-            <span className="pim-info-value">{customerDetails.completedServicesCount}</span>
-          </div>
-        )}
-        {customerDetails.heardFrom && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Heard of us from</span>
-            <span className="pim-info-value">{customerDetails.heardFrom}</span>
-          </div>
-        )}
-        {customerDetails.heardFrom === "refer_person" && (
-          <>
-            <div className="pim-info-item">
-              <span className="pim-info-label">Referred Person Name</span>
-              <span className="pim-info-value">{customerDetails.referralPersonName || "Not provided"}</span>
-            </div>
-            <div className="pim-info-item">
-              <span className="pim-info-label">Referred Person Mobile</span>
-              <span className="pim-info-value">{customerDetails.referralPersonMobile || "Not provided"}</span>
-            </div>
-          </>
-        )}
-        {customerDetails.heardFrom === "social_media" && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Social Platform</span>
-            <span className="pim-info-value">{customerDetails.socialPlatform || "Not provided"}</span>
-          </div>
-        )}
-        {customerDetails.heardFrom === "other" && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Other Note</span>
-            <span className="pim-info-value">{customerDetails.heardFromOtherNote || "Not provided"}</span>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-function VehicleDetailsCard({ order }: any) {
-  const vehicleDetails = order.vehicleDetails || {};
-  const vehicleId =
-    String(
-      vehicleDetails?.vehicleId ??
-        vehicleDetails?.id ??
-        order?.vehicleId ??
-        order?.vehicleDetails?.vehicleId ??
-        ""
-    ).trim() || "—";
-  
-  return (
-    <div className="pim-detail-card cv-unified-card">
-      <h3>
-        <i className="fas fa-car"></i> Vehicle Information
-      </h3>
-      <div className="pim-card-content cv-unified-grid">
-        <div className="pim-info-item">
-          <span className="pim-info-label">Plate Number</span>
-          <span className="pim-info-value">{order.vehiclePlate || vehicleDetails.plateNumber}</span>
-        </div>
-        <div className="pim-info-item">
-          <span className="pim-info-label">Vehicle ID</span>
-          <span className="pim-info-value">{vehicleId}</span>
-        </div>
-        {vehicleDetails.make && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Make & Model</span>
-            <span className="pim-info-value">{vehicleDetails.make} {vehicleDetails.model}</span>
-          </div>
-        )}
-        {vehicleDetails.year && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Year</span>
-            <span className="pim-info-value">{vehicleDetails.year}</span>
-          </div>
-        )}
-        {vehicleDetails.type && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Vehicle Type</span>
-            <span className="pim-info-value">{vehicleDetails.type}</span>
-          </div>
-        )}
-        {vehicleDetails.color && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Color</span>
-            <span className="pim-info-value">{vehicleDetails.color}</span>
-          </div>
-        )}
-        {vehicleDetails.vin && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">VIN</span>
-            <span className="pim-info-value">{vehicleDetails.vin}</span>
-          </div>
-        )}
-        {/* ✅ NEW: Registration Date */}
-        {vehicleDetails.registrationDate && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Registration Date</span>
-            <span className="pim-info-value">{vehicleDetails.registrationDate}</span>
-          </div>
-        )}
-        {vehicleDetails.mileage && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Mileage</span>
-            <span className="pim-info-value">{vehicleDetails.mileage}</span>
-          </div>
-        )}
-        {vehicleDetails.ownedBy && (
-          <div className="pim-info-item">
-            <span className="pim-info-label">Owned By</span>
-            <span className="pim-info-value">{vehicleDetails.ownedBy}</span>
-          </div>
-        )}
-      </div>
-    </div>
+    <UnifiedJobOrderSummaryCard
+      order={order}
+      identityToUsernameMap={actorMap}
+      createdByOverride={createdBy}
+    />
   );
 }
 

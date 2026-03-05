@@ -9,6 +9,8 @@ import "./JobCards.css";
 import SuccessPopup from "./SuccessPopup";
 import ErrorPopup from "./ErrorPopup";
 import UnifiedJobOrderRoadmap from "../components/UnifiedJobOrderRoadmap";
+import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
+import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
 
 // ✅ Correct path (your PermissionGate lives here)
 import PermissionGate from "./PermissionGate";
@@ -24,7 +26,7 @@ import { uploadData } from "aws-amplify/storage";
 
 import { getDataClient } from "../lib/amplifyClient";
 import { getUserDirectory } from "../utils/userDirectoryCache";
-import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy, resolveOrderUpdatedBy } from "../utils/actorIdentity";
+import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
 import {
   computePaymentSnapshot,
   derivePaymentStatusFromFinancials,
@@ -254,29 +256,34 @@ function isExitPermitCreatedFromOrder(order: any) {
 
 function mapExitPermitStatusToUi(status: any, hasPermitId = false) {
   const s = String(status ?? "").trim().toUpperCase();
-  if (s === "APPROVED" || s === "CREATED" || s === "COMPLETED") return "Completed";
-  if (s === "PENDING" || s === "NOT_CREATED" || s === "NOT CREATED") return "Pending";
-  if (s === "REJECTED") return "Rejected";
-  if (s === "NOT_REQUIRED" || s === "NOT REQUIRED") return "Not Required";
   if (hasPermitId) return "Completed";
-  return "Not Required";
+  if (s === "APPROVED" || s === "CREATED" || s === "COMPLETED") return "Completed";
+  return "Not Created";
 }
 
 function deriveExitPermitStatusLabel(row: any, parsed: any) {
+  const permitId = String(
+    parsed?.exitPermit?.permitId ??
+      parsed?.exitPermitInfo?.permitId ??
+      row?.exitPermit?.permitId ??
+      row?.exitPermitInfo?.permitId ??
+      ""
+  ).trim();
+  const hasPermitId = Boolean(permitId);
+
   const fromSchema = String(row?.exitPermitStatus ?? "").trim();
-  if (fromSchema) return mapExitPermitStatusToUi(fromSchema);
+  if (fromSchema) return mapExitPermitStatusToUi(fromSchema, hasPermitId);
 
   const fromTopLevelParsed = String(parsed?.exitPermitStatus ?? "").trim();
-  if (fromTopLevelParsed) return mapExitPermitStatusToUi(fromTopLevelParsed);
+  if (fromTopLevelParsed) return mapExitPermitStatusToUi(fromTopLevelParsed, hasPermitId);
 
   const fromInfo = String(parsed?.exitPermitInfo?.status ?? row?.exitPermitInfo?.status ?? "").trim();
-  if (fromInfo) return mapExitPermitStatusToUi(fromInfo);
+  if (fromInfo) return mapExitPermitStatusToUi(fromInfo, hasPermitId);
 
   const fromPermit = String(parsed?.exitPermit?.status ?? row?.exitPermit?.status ?? "").trim();
-  if (fromPermit) return mapExitPermitStatusToUi(fromPermit);
+  if (fromPermit) return mapExitPermitStatusToUi(fromPermit, hasPermitId);
 
-  const permitId = String(parsed?.exitPermit?.permitId ?? row?.exitPermit?.permitId ?? "").trim();
-  return mapExitPermitStatusToUi("", Boolean(permitId));
+  return mapExitPermitStatusToUi("", hasPermitId);
 }
 
 function getExitPermitPaymentBadgeClass(status: any) {
@@ -286,6 +293,7 @@ function getExitPermitPaymentBadgeClass(status: any) {
 function getPermitHeaderBadgeClass(status: any) {
   const s = String(status ?? "").trim().toLowerCase();
   if (s === "completed" || s === "created" || s === "approved") return "permit-completed";
+  if (s === "not created") return "permit-pending";
   if (s === "pending") return "permit-pending";
   if (s === "rejected") return "permit-rejected";
   return "permit-not-required";
@@ -950,54 +958,6 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
                 <i className="fas fa-clipboard-list"></i> Job Order Details - <span>{selectedOrder?.id}</span>
               </h2>
               <div className="pim-details-header-badges">
-                {selectedOrder?.priorityLevel && (
-                  <span
-                    className="pim-priority-badge"
-                    style={{
-                      backgroundColor: selectedOrder.priorityBg,
-                      color: selectedOrder.priorityColor,
-                      borderLeft: `3px solid ${selectedOrder.priorityColor}`,
-                    }}
-                  >
-                    <i className="fas fa-exclamation-circle"></i> {selectedOrder.priorityLevel}
-                  </span>
-                )}
-
-                {selectedOrder?.qualityCheck && (
-                  <span className={`pim-qc-badge ${String(selectedOrder.qualityCheck.status || "").toLowerCase()}`}>
-                    <i
-                      className={
-                        selectedOrder.qualityCheck.status === "PASSED"
-                          ? "fas fa-check-circle"
-                          : selectedOrder.qualityCheck.status === "FAILED"
-                          ? "fas fa-times-circle"
-                          : "fas fa-hourglass-half"
-                      }
-                    ></i>
-                    {selectedOrder.qualityCheck.displayText}
-                  </span>
-                )}
-
-                {selectedOrder?.exitPermitInfo && (
-                  <span
-                    className={`pim-permit-badge ${selectedOrder.exitPermitInfo.required ? "required" : "not-required"} ${getPermitHeaderBadgeClass(
-                      mapExitPermitStatusToUi(selectedOrder.exitPermitInfo.status, Boolean(selectedOrder?.exitPermit?.permitId))
-                    )}`}
-                  >
-                    <i
-                      className={
-                        mapExitPermitStatusToUi(
-                          selectedOrder.exitPermitInfo.status,
-                          Boolean(selectedOrder?.exitPermit?.permitId)
-                        ) === "Completed"
-                          ? "fas fa-certificate"
-                          : "fas fa-file"
-                      }
-                    ></i>
-                    Exit Permit: {mapExitPermitStatusToUi(selectedOrder.exitPermitInfo.status, Boolean(selectedOrder?.exitPermit?.permitId))}
-                  </span>
-                )}
-
                 {selectedOrder?.technicianAssignment?.name && (
                   <span className="pim-tech-badge">
                     <i className="fas fa-user-tie"></i> {selectedOrder.technicianAssignment.displayText}
@@ -1295,127 +1255,16 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
 /* -------------------- Cards -------------------- */
 
 const JobOrderSummaryCard = ({ order, identityToUsernameMap }: any) => {
-  const summary = order?.summary ?? {};
-  const services: any[] = Array.isArray(order?.services) ? order.services : [];
-  const servicesCompleted = services.filter((service: any) => String(service?.status ?? "").trim().toLowerCase() === "completed").length;
-  const servicesProgressPercent = services.length ? Math.round((servicesCompleted / services.length) * 100) : 0;
-  const servicesProgressLabel = services.length ? `${servicesCompleted}/${services.length} completed` : "0/0 completed";
   const createdByDisplay = resolveOrderCreatedBy(order, {
     identityToUsernameMap,
     fallback: "—",
   });
-  const updatedByDisplay = resolveOrderUpdatedBy(order, {
-    identityToUsernameMap,
-    fallback: "—",
-  });
-
-  return (
-    <div className="epm-detail-card jh-summary-card">
-      <h3>
-        <i className="fas fa-info-circle"></i> Job Order Summary
-      </h3>
-      <div className="epm-card-content jh-kv">
-        <div className="epm-info-item">
-          <span className="epm-info-label">Job Order ID</span>
-          <span className="epm-info-value">{summary.jobOrderId || order.id}</span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Order Type</span>
-          <span className="epm-info-value">{summary.orderType || order.orderType || "Job Order"}</span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Request Create Date</span>
-          <span className="epm-info-value">{summary.requestCreateDate || order.jobOrderSummary?.createDate || order.createDate || "—"}</span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Created By</span>
-          <span className="epm-info-value">{createdByDisplay}</span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Expected Delivery Date</span>
-          <span className="epm-info-value">{summary.expectedDeliveryDate || "—"}</span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Work Status</span>
-          <span className={`epm-status-badge status-badge ${getWorkStatusClass(summary.workStatus || order.workStatus)}`}>{summary.workStatus || order.workStatus || "—"}</span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Payment Status</span>
-          <span className={`epm-status-badge status-badge ${paymentBadgeClass(summary.paymentStatus || order.paymentStatus)}`}>{summary.paymentStatus || order.paymentStatus || "—"}</span>
-        </div>
-        <div className="epm-info-item">
-          <span className="epm-info-label">Exit Permit Status</span>
-          <span className={`epm-status-badge status-badge ${getPermitHeaderBadgeClass(summary.exitPermitStatus || "Not Required")}`}>{summary.exitPermitStatus || "Not Required"}</span>
-        </div>
-        <div className="epm-info-item"><span className="epm-info-label">Customer Name</span><span className="epm-info-value">{summary.customerName || order.customerName || "—"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Customer Mobile</span><span className="epm-info-value">{summary.customerMobile || order.mobile || "—"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Vehicle Plate</span><span className="epm-info-value">{summary.vehiclePlate || order.vehiclePlate || "—"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Order Status (Enum)</span><span className="epm-info-value">{summary.orderStatusEnum || "—"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Payment Status (Enum)</span><span className="epm-info-value">{summary.paymentStatusEnum || "—"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Last Updated</span><span className="epm-info-value">{summary.updatedAt || "—"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Updated By</span><span className="epm-info-value">{updatedByDisplay}</span></div>
-        {services.length > 0 ? (
-          <div className="epm-info-item" style={{ gridColumn: "span 2" }}>
-            <span className="epm-info-label">Service Progress</span>
-            <div style={{ display: "flex", gap: "12px", alignItems: "center", width: "100%" }}>
-              <div style={{ flex: 1 }}>
-                <div className="epm-progress-bar">
-                  <div className="epm-progress-fill" style={{ width: `${servicesProgressPercent}%` }} />
-                </div>
-              </div>
-              <span className="epm-progress-text">{servicesProgressLabel}</span>
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </div>
-  );
+  return <UnifiedJobOrderSummaryCard order={order} className="jh-summary-card" identityToUsernameMap={identityToUsernameMap} createdByOverride={createdByDisplay} />;
 };
 
-const CustomerDetailsCard = ({ order }: any) => (
-  <div className="jh-card cv-unified-card">
-    <h3>
-      <i className="fas fa-user"></i> Customer Information
-    </h3>
-    <div className="jh-kv cv-unified-grid">
-      <div><span>Customer ID</span><strong>{order.customerDetails?.customerId || "—"}</strong></div>
-      <div><span>Name</span><strong>{order.customerDetails?.name || order.customerName || "—"}</strong></div>
-      <div><span>Mobile</span><strong>{order.customerDetails?.mobile || order.mobile || "—"}</strong></div>
-      <div><span>Email</span><strong>{order.customerDetails?.email || "—"}</strong></div>
-      <div><span>Address</span><strong>{order.customerDetails?.address || "—"}</strong></div>
-      <div><span>Vehicles</span><strong>{order.customerDetails?.registeredVehiclesCount ?? 0}</strong></div>
-      <div><span>Customer Since</span><strong>{order.customerDetails?.customerSince || "—"}</strong></div>
-    </div>
-  </div>
-);
+const CustomerDetailsCard = ({ order }: any) => <UnifiedCustomerInfoCard order={order} className="cv-unified-card" />;
 
-const VehicleDetailsCard = ({ order }: any) => {
-  const vehicleId =
-    String(
-      order?.vehicleDetails?.vehicleId ??
-      order?.vehicleDetails?.id ??
-      order?.vehicleId ??
-      ""
-    ).trim() || "—";
-
-  return (
-    <div className="jh-card cv-unified-card">
-      <h3>
-        <i className="fas fa-car"></i> Vehicle Information
-      </h3>
-      <div className="jh-kv cv-unified-grid">
-        <div><span>Vehicle ID</span><strong>{vehicleId}</strong></div>
-        <div><span>Make</span><strong>{order.vehicleDetails?.make || "—"}</strong></div>
-        <div><span>Model</span><strong>{order.vehicleDetails?.model || "—"}</strong></div>
-        <div><span>Year</span><strong>{order.vehicleDetails?.year || "—"}</strong></div>
-        <div><span>Type</span><strong>{order.vehicleDetails?.type || "—"}</strong></div>
-        <div><span>Color</span><strong>{order.vehicleDetails?.color || "—"}</strong></div>
-        <div><span>Plate</span><strong>{order.vehicleDetails?.plateNumber || order.vehiclePlate || "—"}</strong></div>
-        <div><span>VIN</span><strong>{order.vehicleDetails?.vin || "—"}</strong></div>
-      </div>
-    </div>
-  );
-};
+const VehicleDetailsCard = ({ order }: any) => <UnifiedVehicleInfoCard order={order} className="cv-unified-card" />;
 
 const DocumentsCard = ({ order }: any) => {
   const documents = Array.isArray(order.documents) ? order.documents : [];

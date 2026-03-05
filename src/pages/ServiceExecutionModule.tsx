@@ -9,6 +9,8 @@ import ServiceSummaryCard from "./ServiceSummaryCard";
 import SuccessPopup from "./SuccessPopup";
 import PermissionGate from "./PermissionGate";
 import UnifiedJobOrderRoadmap from "../components/UnifiedJobOrderRoadmap";
+import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
+import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
 
 import { getDataClient } from "../lib/amplifyClient";
 
@@ -182,40 +184,17 @@ function isServiceExecutionWorkStatus(value: any) {
   return n === "inprogress" || n === "serviceoperation";
 }
 
-function getWorkStatusClass(status: any) {
-  const statusMap: any = {
-    "New Request": "status-new-request",
-    Inspection: "status-inspection",
-    Service_Operation: "status-inprogress",
-    Inprogress: "status-inprogress",
-    "Quality Check": "status-quality-check",
-    Ready: "status-ready",
-    Completed: "status-completed",
-    Cancelled: "status-cancelled",
-  };
-  return statusMap[String(status ?? "")] || "status-inprogress";
-}
-
-function getPaymentStatusClass(status: any) {
-  const normalized = normalizePaymentStatusLabel(status);
-  if (normalized === "Fully Paid") return "payment-full";
-  if (normalized === "Partially Paid") return "payment-partial";
-  return "payment-unpaid";
-}
-
 function mapExitPermitStatusToUi(v: any, hasPermitId = false) {
   const s = String(v ?? "").trim().toUpperCase();
-  if (s === "APPROVED" || s === "CREATED" || s === "COMPLETED") return "Completed";
-  if (s === "PENDING" || s === "NOT_CREATED" || s === "NOT CREATED") return "Pending";
-  if (s === "REJECTED") return "Rejected";
-  if (s === "NOT_REQUIRED" || s === "NOT REQUIRED") return "Not Required";
   if (hasPermitId) return "Completed";
-  return "Not Required";
+  if (s === "APPROVED" || s === "CREATED" || s === "COMPLETED") return "Completed";
+  return "Not Created";
 }
 
 function permitStatusClass(status: any) {
   const s = String(status ?? "").trim().toLowerCase();
   if (s === "completed") return "permit-completed";
+  if (s === "not created") return "permit-pending";
   if (s === "pending") return "permit-pending";
   if (s === "rejected") return "permit-rejected";
   return "permit-not-required";
@@ -1351,101 +1330,30 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
 // -------------------- cards --------------------
 function CustomerInfoCard({ order }: any) {
-  return (
-    <div className="jh-card cv-unified-card">
-      <h3><i className="fas fa-user"></i> Customer Information</h3>
-      <div className="jh-kv cv-unified-grid">
-        <div><span>Customer ID</span><strong>{order.customerDetails?.customerId || "—"}</strong></div>
-        <div><span>Name</span><strong>{order.customerDetails?.name || order.customerName || "—"}</strong></div>
-        <div><span>Mobile</span><strong>{order.customerDetails?.mobile || order.mobile || "—"}</strong></div>
-        <div><span>Email</span><strong>{order.customerDetails?.email || "—"}</strong></div>
-        <div><span>Address</span><strong>{order.customerDetails?.address || "—"}</strong></div>
-        <div><span>Vehicles</span><strong>{order.customerDetails?.registeredVehiclesCount ?? 0}</strong></div>
-        <div><span>Customer Since</span><strong>{order.customerDetails?.customerSince || "—"}</strong></div>
-      </div>
-    </div>
-  );
+  return <UnifiedCustomerInfoCard order={order} className="cv-unified-card" />;
 }
 
 function VehicleInfoCard({ order }: any) {
-  const vehicleId =
-    String(
-      order?.vehicleDetails?.vehicleId ??
-      order?.vehicleDetails?.id ??
-      order?.vehicleId ??
-      ""
-    ).trim() || "—";
-
-  return (
-    <div className="epm-detail-card cv-unified-card">
-      <h3><i className="fas fa-car"></i> Vehicle Information</h3>
-      <div className="epm-card-content cv-unified-grid">
-        <div className="epm-info-item"><span className="epm-info-label">Vehicle ID</span><span className="epm-info-value">{vehicleId}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Make</span><span className="epm-info-value">{order.vehicleDetails?.make || "N/A"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Model</span><span className="epm-info-value">{order.vehicleDetails?.model || "N/A"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Year</span><span className="epm-info-value">{order.vehicleDetails?.year || "N/A"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Type</span><span className="epm-info-value">{order.vehicleDetails?.type || "N/A"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Color</span><span className="epm-info-value">{order.vehicleDetails?.color || "N/A"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Plate Number</span><span className="epm-info-value">{order.vehicleDetails?.plateNumber || order.vehiclePlate || "N/A"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">VIN</span><span className="epm-info-value">{order.vehicleDetails?.vin || "N/A"}</span></div>
-      </div>
-    </div>
-  );
+  return <UnifiedVehicleInfoCard order={order} className="cv-unified-card" />;
 }
 
 function JobOrderSummaryCard({ order, identityToUsernameMap }: any) {
-  const summary = order?.summary ?? {};
-  const services: any[] = Array.isArray(order?.services) ? order.services : [];
-  const servicesCompleted = services.filter((service: any) => String(service?.status ?? "").trim().toLowerCase() === "completed").length;
-  const servicesProgressPercent = services.length ? Math.round((servicesCompleted / services.length) * 100) : 0;
-  const servicesProgressLabel = services.length ? `${servicesCompleted}/${services.length} completed` : "0/0 completed";
   const createdByDisplay = resolveOrderCreatedBy(order, {
     identityToUsernameMap,
     fallback: "—",
   });
-  const updatedByDisplay = resolveActorDisplay(order?.updatedByName ?? order?.updatedBy ?? "", {
-    identityToUsernameMap,
-    fallback: "—",
-  });
-  const exitPermitStatus =
-    summary.exitPermitStatus ||
-    mapExitPermitStatusToUi(order?.exitPermitStatus ?? order?.exitPermit?.status ?? order?.exitPermitInfo?.status, Boolean(firstNonEmptyText(order?.exitPermit?.permitId, order?.exitPermitInfo?.permitId))) ||
-    "Not Required";
+  const normalizedWorkStatus = normalizeWorkStatusLabel(order?.summary?.workStatus || order?.workStatus);
+  const normalizedPaymentStatus = normalizePaymentStatusLabel(order?.summary?.paymentStatus || order?.paymentStatus);
 
   return (
-    <div className="epm-detail-card jh-summary-card">
-      <h3><i className="fas fa-info-circle"></i> Job Order Summary</h3>
-      <div className="epm-card-content jh-kv">
-        <div className="epm-info-item"><span className="epm-info-label">Job Order ID</span><span className="epm-info-value">{summary.jobOrderId || order.id}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Order Type</span><span className="epm-info-value">{summary.orderType || order.orderType || "Job Order"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Request Create Date</span><span className="epm-info-value">{summary.requestCreateDate || order.jobOrderSummary?.createDate || order.createDate || "—"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Created By</span><span className="epm-info-value">{createdByDisplay}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Expected Delivery Date</span><span className="epm-info-value">{summary.expectedDeliveryDate || order.jobOrderSummary?.expectedDelivery || "—"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Work Status</span><span className={`epm-status-badge status-badge ${getWorkStatusClass(summary.workStatus || normalizeWorkStatusLabel(order.workStatus))}`}>{summary.workStatus || normalizeWorkStatusLabel(order.workStatus) || "—"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Payment Status</span><span className={`epm-status-badge status-badge ${getPaymentStatusClass(normalizePaymentStatusLabel(summary.paymentStatus || order.paymentStatus))}`}>{normalizePaymentStatusLabel(summary.paymentStatus || order.paymentStatus)}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Exit Permit Status</span><span className={`epm-status-badge status-badge ${permitStatusClass(exitPermitStatus)}`}>{exitPermitStatus}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Customer Name</span><span className="epm-info-value">{summary.customerName || order.customerName || "—"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Customer Mobile</span><span className="epm-info-value">{summary.customerMobile || order.mobile || "—"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Vehicle Plate</span><span className="epm-info-value">{summary.vehiclePlate || order.vehiclePlate || "—"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Order Status (Enum)</span><span className="epm-info-value">{summary.orderStatusEnum || order.statusEnum || "—"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Payment Status (Enum)</span><span className="epm-info-value">{summary.paymentStatusEnum || order.paymentEnum || "—"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Last Updated</span><span className="epm-info-value">{summary.updatedAt || order.updatedAt || "—"}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Updated By</span><span className="epm-info-value">{updatedByDisplay}</span></div>
-        {services.length > 0 ? (
-          <div className="epm-info-item" style={{ gridColumn: "span 2" }}>
-            <span className="epm-info-label">Service Progress</span>
-            <div style={{ display: "flex", gap: "12px", alignItems: "center", width: "100%" }}>
-              <div style={{ flex: 1 }}>
-                <div className="epm-progress-bar">
-                  <div className="epm-progress-fill" style={{ width: `${servicesProgressPercent}%` }} />
-                </div>
-              </div>
-              <span className="epm-progress-text">{servicesProgressLabel}</span>
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </div>
+    <UnifiedJobOrderSummaryCard
+      order={order}
+      className="jh-summary-card"
+      identityToUsernameMap={identityToUsernameMap}
+      createdByOverride={createdByDisplay}
+      workStatusOverride={normalizedWorkStatus}
+      paymentStatusOverride={normalizedPaymentStatus}
+    />
   );
 }
 
