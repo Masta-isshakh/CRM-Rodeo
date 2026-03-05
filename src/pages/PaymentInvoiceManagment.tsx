@@ -7,11 +7,15 @@ import "./JobCards.css";
 import SuccessPopup from "./SuccessPopup";
 import ErrorPopup from "./ErrorPopup";
 import PermissionGate from "./PermissionGate";
-
-import { usePermissions } from "../lib/userPermissions";
 import { getDataClient } from "../lib/amplifyClient";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy, resolveOrderUpdatedBy } from "../utils/actorIdentity";
+import {
+  derivePaymentStatusFromFinancials,
+  pickBillingFirstValue,
+  pickPaymentEnum,
+  pickPaymentLabel,
+} from "../utils/paymentStatus";
 
 import {
   cancelJobOrderByOrderNumber,
@@ -102,15 +106,16 @@ function normalizeWorkStatus(rowStatus?: string, label?: string): string {
 
 function normalizePaymentStatusLabel(enumVal?: string, label?: string): string {
   const ps = String(enumVal ?? "").trim().toUpperCase();
-  if (ps === "PAID") return "Fully Paid";
-  if (ps === "PARTIAL") return "Partially Paid";
-  if (ps === "UNPAID") return "Unpaid";
+  const psCompact = ps.replace(/[\s_-]+/g, "");
+  if (ps === "PAID" || ps === "FULLY_PAID" || psCompact === "FULLYPAID") return "Fully Paid";
+  if (ps === "PARTIAL" || ps === "PARTIALLY_PAID" || psCompact === "PARTIALLYPAID") return "Partially Paid";
+  if (ps === "UNPAID" || ps === "NOT_PAID" || psCompact === "NOTPAID") return "Unpaid";
 
   const raw = String(label ?? "").trim();
   if (!raw) return "Unpaid";
 
   const lower = raw.toLowerCase();
-  if (lower.includes("fully paid") || lower === "paid") return "Fully Paid";
+  if (lower.includes("fully paid") || lower.includes("fully_paid") || lower.includes("fullypaid") || lower === "paid") return "Fully Paid";
   if (lower.includes("partially") || lower === "partial") return "Partially Paid";
   if (lower.includes("unpaid")) return "Unpaid";
 
@@ -178,6 +183,7 @@ type PaymentFormState = {
   amountPaid: number;
 
   discount: string;
+  discountPercent: string;
   amountToPay: string;
   paymentMethod: string;
 
@@ -243,20 +249,10 @@ function computePaymentSnapshot(totalAmountRaw: number, discountRaw: number, amo
 
 export default function PaymentInvoiceManagement({ currentUser }: { currentUser: any; permissions?: any }) {
   const client = useMemo(() => getDataClient(), []);
-  const { getOptionNumber } = usePermissions();
   const [userLabelMap, setUserLabelMap] = useState<Record<string, string>>({});
 
   // ✅ numeric limit (percent)
-  const maxPaymentDiscountPercent = useMemo(() => {
-    const raw = Number(
-      getOptionNumber(
-        "payment",
-        "payment_max_discount_percent",
-        getOptionNumber("payment", "payment_discount_percent", 10)
-      )
-    );
-    return Math.max(0, Math.min(100, Number.isFinite(raw) ? raw : 10));
-  }, [getOptionNumber]);
+  const maxPaymentDiscountPercent = 100;
 
   const [allOrders, setAllOrders] = useState<ListOrder[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -352,12 +348,15 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
             : "";
 
           const workStatus = normalizeWorkStatus(row.status, row.workStatusLabel ?? parsed.workStatusLabel);
-          const paymentSnap = computePaymentSnapshot(
-            toNum(row?.totalAmount ?? parsed?.billing?.totalAmount),
-            toNum(row?.discount ?? parsed?.billing?.discount),
-            toNum(row?.amountPaid ?? parsed?.billing?.amountPaid)
-          );
-          const paymentStatus = paymentSnap.paymentStatusLabel;
+          const paymentStatus = derivePaymentStatusFromFinancials({
+            paymentEnum: pickPaymentEnum(row, parsed),
+            paymentLabel: pickPaymentLabel(row, parsed),
+            totalAmount: pickBillingFirstValue("totalAmount", row, parsed),
+            discount: pickBillingFirstValue("discount", row, parsed),
+            amountPaid: pickBillingFirstValue("amountPaid", row, parsed),
+            netAmount: pickBillingFirstValue("netAmount", row, parsed),
+            balanceDue: pickBillingFirstValue("balanceDue", row, parsed),
+          });
 
           return {
             _backendId: String(row.id),
@@ -371,7 +370,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
             statusEnum: String(row.status ?? ""),
             workStatus,
 
-            paymentEnum: String(row.paymentStatus ?? paymentSnap.paymentStatusEnum),
+            paymentEnum: String(row.paymentStatus ?? pickPaymentEnum(row, parsed) ?? ""),
             paymentStatus,
 
             _parsed: parsed,
@@ -711,6 +710,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       netAmount: snap.netAmount,
       amountPaid: snap.amountPaid,
       discount: String(snap.discount.toFixed(2)),
+      discountPercent: String(totalAmount > 0 ? ((snap.discount / totalAmount) * 100).toFixed(2) : "0.00"),
       amountToPay: "",
       paymentMethod: String(selectedOrder?.billing?.paymentMethod || ""),
       transferProofDataUrl: null,
@@ -733,16 +733,27 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       if (!prev) return prev;
       const next = { ...prev, [name]: value } as PaymentFormState;
 
-      if (name === "discount" || name === "amountToPay") {
+      if (name === "discount" || name === "discountPercent" || name === "amountToPay") {
         const maxDiscountQar = (Math.max(0, prev.totalAmount) * maxPaymentDiscountPercent) / 100;
         const allowedDiscountCap = Math.max(maxDiscountQar, Math.max(0, prev.discountFloor || 0));
 
         let discount = Math.max(0, toNum(next.discount));
+        if (name === "discountPercent") {
+          let percent = Math.max(0, toNum(next.discountPercent));
+          percent = Math.min(percent, 100);
+          next.discountPercent = percent.toFixed(2);
+          discount = (Math.max(0, prev.totalAmount) * percent) / 100;
+        }
+
         discount = Math.max(discount, Math.max(0, prev.discountFloor || 0));
         discount = Math.min(discount, prev.totalAmount);
         discount = Math.min(discount, allowedDiscountCap);
 
         next.discount = discount.toFixed(2);
+        next.discountPercent =
+          prev.totalAmount > 0
+            ? ((discount / prev.totalAmount) * 100).toFixed(2)
+            : "0.00";
 
         const net = roundMoney(Math.max(0, prev.totalAmount - discount));
         next.netAmount = net;
@@ -944,11 +955,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       setShowSuccessPopup(true);
       closePaymentPopup();
 
-      if (afterPayment.paymentStatusEnum === "PAID") {
-        closeDetailsView();
-      } else {
-        await refreshDetails();
-      }
+      await refreshDetails();
     } catch (e) {
       setErrorMessage(`Payment failed: ${errMsg(e)}`);
       setShowErrorPopup(true);
@@ -1644,6 +1651,19 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                             step={0.01}
                           />
                           <div className="pim-help">Max discount: {maxPaymentDiscountPercent}% ({fmtQar(maxDiscountQarUi)})</div>
+                        </div>
+                        <div className="pim-field">
+                          <label>Total Discount (%)</label>
+                          <input
+                            type="number"
+                            name="discountPercent"
+                            value={paymentForm.discountPercent}
+                            onChange={handlePaymentChange}
+                            min={0}
+                            max={100}
+                            step={0.01}
+                          />
+                          <div className="pim-help">Changing either discount field updates the other automatically.</div>
                         </div>
                       </PermissionGate>
 

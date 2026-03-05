@@ -326,11 +326,43 @@ export default function Users({ permissions }: PageProps) {
             const raw = (systemUsersRes as any)?.data ?? systemUsersRes;
             const parsed = safeJsonParse<any>(raw) ?? raw;
             const users = Array.isArray(parsed?.users) ? parsed.users : Array.isArray(parsed) ? parsed : [];
-            const adminUser = (users as any[]).find((u: any) =>
-              Array.isArray(u?.groups) &&
-              u.groups.some((g: any) => String(g ?? "").trim().toLowerCase() === "admins")
-            );
-            cognitoAdminsEmail = pickEmailLike(adminUser?.email, adminUser?.username);
+            const currentEmailNormalized = pickEmailLike(currentUserEmail);
+
+            const rankedAdminUsers = (users as any[])
+              .filter(
+                (u: any) =>
+                  Array.isArray(u?.groups) &&
+                  u.groups.some((g: any) => String(g ?? "").trim().toLowerCase() === "admins")
+              )
+              .map((u: any) => {
+                const userEmail = pickEmailLike(u?.email);
+                const userName = pickEmailLike(u?.username);
+                const displayName = String(u?.fullName ?? u?.name ?? "").trim().toLowerCase();
+
+                const emailHasRoot = userEmail.includes("root");
+                const usernameHasRoot = userName.includes("root");
+                const nameHasRoot = displayName.includes("root");
+                const notCurrentUser =
+                  currentEmailNormalized && userEmail
+                    ? userEmail !== currentEmailNormalized
+                    : true;
+
+                const score =
+                  (emailHasRoot ? 100 : 0) +
+                  (usernameHasRoot ? 90 : 0) +
+                  (nameHasRoot ? 70 : 0) +
+                  (notCurrentUser ? 10 : 0);
+
+                return {
+                  email: userEmail,
+                  username: userName,
+                  score,
+                };
+              })
+              .sort((a, b) => b.score - a.score);
+
+            const bestAdminUser = rankedAdminUsers[0];
+            cognitoAdminsEmail = pickEmailLike(bestAdminUser?.email, bestAdminUser?.username);
           } catch {
             cognitoAdminsEmail = "";
           }

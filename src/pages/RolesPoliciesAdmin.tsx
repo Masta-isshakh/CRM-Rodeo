@@ -231,6 +231,7 @@ const MODULE_DEFINITIONS = [
       { id: "serviceexec_exitpermit", label: "Exit Permit", prefix: "-" },
       { id: "serviceexec_documents", label: "Documents", prefix: "-" },
       { id: "serviceexec_edit", label: "Edit Service", prefix: "b." },
+      { id: "serviceexec_assign", label: "Assign Service", prefix: "b.1" },
       { id: "serviceexec_addservice", label: "Add Service", prefix: "c." },
       { id: "serviceexec_finish", label: "Finish Service", prefix: "d." },
     ],

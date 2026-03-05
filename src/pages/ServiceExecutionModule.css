@@ -1173,6 +1173,30 @@
   padding-top: 6px;
 }
 
+.sem-package-group-header {
+  margin: 8px 0 4px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--surface) 0%, #f8fafc 100%);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+  text-transform: uppercase;
+  color: var(--text);
+}
+
+.sem-package-group-header-content {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sem-package-group-icon {
+  font-size: 11px;
+  opacity: 0.85;
+}
+
 /* Service item card */
 .service-item {
   background: #ffffff;

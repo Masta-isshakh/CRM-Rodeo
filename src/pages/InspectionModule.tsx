@@ -5,7 +5,7 @@ import "./InspectionModule.css";
 import "./JobCards.css";
 
 import SuccessPopup from "./SuccessPopup";
-import PermissionGate from "./PermissionGate"; // ✅ use the real PermissionGate
+import PermissionGate from "./PermissionGate";
 import inspectionListConfig from "./inspectionConfig";
 
 import {
@@ -25,6 +25,7 @@ import {
   getInspectionReport,
   buildInspectionReportHtml,
 } from "./inspectionRepo";
+import { uploadData } from "aws-amplify/storage";
 import { listServiceCatalog, resolveServicePriceForVehicleType, type ServiceCatalogItem } from "./serviceCatalogRepo";
 import { resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
 import {
@@ -40,6 +41,13 @@ type AnyObj = Record<string, any>;
 function errMsg(e: unknown) {
   const anyE = e as any;
   return String(anyE?.message ?? anyE?.errors?.[0]?.message ?? anyE ?? "Unknown error");
+}
+
+function safeFileName(name: string) {
+  return String(name || "file")
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9._-]/g, "");
 }
 
 const buildSectionState = (sectionConfig: AnyObj, sectionKey: string) => {
@@ -734,8 +742,31 @@ function InspectionModule({ currentUser }: any) {
             actor: resolveActorName(currentUser),
           });
 
-          const now = new Date().toLocaleString();
           const actorEmail = resolveActorName(currentUser);
+          const reportStoragePath = `job-orders/${activeRow.id}/inspection/Inspection_Report_${safeFileName(activeRow.id)}_${Date.now()}.html`;
+          const reportBlob = new Blob([html], { type: "text/html" });
+          await uploadData({
+            path: reportStoragePath,
+            data: reportBlob,
+            options: { contentType: "text/html" },
+          }).result;
+
+          const existingDocs = Array.isArray(activeOrder?.documents) ? activeOrder.documents : [];
+          const docsWithoutOldInspection = existingDocs.filter(
+            (d: any) => String(d?.type ?? "").trim().toLowerCase() !== "inspection report"
+          );
+          const inspectionDoc = {
+            id: `DOC-INSP-${Date.now()}`,
+            name: `Inspection_Report_${activeRow.id}.html`,
+            type: "Inspection Report",
+            category: "Inspection",
+            addedAt: new Date().toISOString(),
+            uploadedBy: actorEmail,
+            storagePath: reportStoragePath,
+          };
+          const updatedDocs = [...docsWithoutOldInspection, inspectionDoc];
+
+          const now = new Date().toLocaleString();
           let rm = ensureRoadmap(activeOrder, currentUser);
 
           rm = roadmapMark(rm, "Inspection", {
@@ -758,6 +789,7 @@ function InspectionModule({ currentUser }: any) {
             workStatusLabel: "Service_Operation",
             updatedBy: actorEmail,
             roadmap: rm,
+            documents: updatedDocs,
           } as AnyObj;
 
           const { backendId } = await upsertJobOrder(updated);

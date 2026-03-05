@@ -20,8 +20,12 @@ import {
 
 import { getUrl } from "aws-amplify/storage";
 import { getUserDirectory, normalizeIdentity } from "../utils/userDirectoryCache";
-import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
+import {
+  buildAssigneeOptionsFromDirectory,
+  buildTechnicianNamesFromDirectory,
+} from "../utils/userOptionDedupe";
 import { usePermissions } from "../lib/userPermissions";
+import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
 import {
   computePaymentSnapshot,
   derivePaymentStatusFromFinancials,
@@ -72,6 +76,70 @@ function resolveActorEmail(user: any) {
     user?.email ?? user?.attributes?.email ?? user?.signInDetails?.loginId ?? user?.name ?? user?.username ?? ""
   ).trim();
   return raw.includes("@") ? raw : "";
+}
+
+function pickEmailLike(...values: any[]) {
+  for (const value of values) {
+    const out = String(value ?? "").trim().toLowerCase();
+    if (out.includes("@")) return out;
+  }
+  return "";
+}
+
+function displayNameQuality(value: any) {
+  const name = String(value ?? "").trim();
+  const normalized = normalizeIdentity(name);
+  if (!normalized) return 0;
+  if (normalized === "unknown" || normalized === "system" || normalized === "system user" || normalized === "n/a" || normalized === "na") {
+    return 0;
+  }
+  if (normalized.includes("@")) return 1;
+  const parts = name.split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) return 3;
+  return 2;
+}
+
+function dedupeDirectoryUsers(users: any[]) {
+  const merged = new Map<string, any>();
+
+  const keyFor = (u: any) => {
+    const email = pickEmailLike(u?.email, u?.username, u?.attributes?.email);
+    if (email) return `email:${email}`;
+    const id = normalizeIdentity(u?.id);
+    if (id) return `id:${id}`;
+    const profileOwner = normalizeIdentity(u?.profileOwner);
+    if (profileOwner) return `profileOwner:${profileOwner}`;
+    const sub = normalizeIdentity(u?.sub);
+    if (sub) return `sub:${sub}`;
+    return "";
+  };
+
+  for (const user of users || []) {
+    const key = keyFor(user);
+    if (!key) continue;
+
+    const existing = merged.get(key);
+    if (!existing) {
+      merged.set(key, { ...user });
+      continue;
+    }
+
+    const currentName = String(existing?.name ?? "").trim();
+    const incomingName = String(user?.name ?? "").trim();
+    const bestName = displayNameQuality(incomingName) > displayNameQuality(currentName) ? incomingName : currentName;
+
+    merged.set(key, {
+      ...existing,
+      ...user,
+      name: bestName || currentName || incomingName,
+      email: pickEmailLike(existing?.email, user?.email, existing?.username, user?.username),
+      id: existing?.id ?? user?.id,
+      profileOwner: existing?.profileOwner ?? user?.profileOwner,
+      sub: existing?.sub ?? user?.sub,
+    });
+  }
+
+  return Array.from(merged.values());
 }
 
 function resolveActorName(user: any) {
@@ -235,30 +303,15 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   // user lists (optional)
   const [systemUsers, setSystemUsers] = useState<any[]>([]);
   const [actorLabelMap, setActorLabelMap] = useState<Record<string, string>>({});
-  const technicianNames = useMemo(() => systemUsers.map((u) => u.name).filter(Boolean), [systemUsers]);
-  const assigneeOptions = useMemo<AssigneeOption[]>(() => {
-    const out: AssigneeOption[] = [];
-    const seen = new Set<string>();
+  const technicianNames = useMemo(
+    () => buildTechnicianNamesFromDirectory(systemUsers, actorLabelMap, currentUser),
+    [systemUsers, actorLabelMap, currentUser]
+  );
 
-    const add = (value: any, label: any) => {
-      const normalizedValue = normalizeIdentity(value);
-      if (!normalizedValue || seen.has(normalizedValue)) return;
-      seen.add(normalizedValue);
-      out.push({
-        value: normalizedValue,
-        label: String(label ?? value ?? normalizedValue).trim() || normalizedValue,
-      });
-    };
-
-    for (const u of systemUsers) {
-      add(u?.email, u?.name || u?.email);
-    }
-
-    const meEmail = resolveActorEmail(currentUser);
-    add(meEmail, currentUser?.name || meEmail);
-
-    return out;
-  }, [systemUsers, currentUser]);
+  const assigneeOptions = useMemo<AssigneeOption[]>(
+    () => buildAssigneeOptionsFromDirectory(systemUsers, actorLabelMap, currentUser),
+    [systemUsers, actorLabelMap, currentUser]
+  );
 
   const assigneeLabelByValue = useMemo(() => {
     const map = new Map<string, string>();
@@ -360,6 +413,8 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   const canOpenServiceActions = canOption("serviceexec", "serviceexec_actions", true);
   const canViewUnassignedTab = canOption("serviceexec", "serviceexec_unassigned_tab", canOpenServiceActions);
   const canViewTeamTab = canOption("serviceexec", "serviceexec_team_tab", canOpenServiceActions);
+  const canEditService = canOption("serviceexec", "serviceexec_edit", isAdminGroup);
+  const canAssignService = canOption("serviceexec", "serviceexec_assign", canEditService);
 
   // close dropdown on outside click
   useEffect(() => {
@@ -382,8 +437,45 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
       try {
         const directory = await getUserDirectory(client);
         if (cancelled) return;
-        setSystemUsers(directory.users);
-        setActorLabelMap(directory.identityToUsernameMap ?? {});
+
+        const identityMap: Record<string, string> = {
+          ...(directory.identityToUsernameMap ?? {}),
+        };
+
+        const mergedUsers: any[] = Array.isArray(directory.users) ? [...directory.users] : [];
+
+        try {
+          const systemUsersRes = await (client.queries as any).systemListUsers?.();
+          const raw = (systemUsersRes as any)?.data ?? systemUsersRes;
+          const parsed = safeJsonParse<any>(raw, raw);
+          const listed = Array.isArray(parsed?.users) ? parsed.users : Array.isArray(parsed) ? parsed : [];
+
+          for (const user of listed) {
+            const email = pickEmailLike(user?.email, user?.username, user?.attributes?.email);
+            const fullName = String(user?.fullName ?? user?.name ?? user?.displayName ?? "").trim();
+            const sub = String(user?.sub ?? user?.userId ?? user?.id ?? "").trim();
+            if (!email && !fullName && !sub) continue;
+
+            const profileOwner = email && sub ? `${sub}::${email}` : undefined;
+
+            mergedUsers.push({
+              name: fullName || email || sub,
+              email: email || "",
+              id: sub || undefined,
+              profileOwner,
+              sub: sub || undefined,
+            });
+
+            if (email && fullName) {
+              identityMap[normalizeIdentity(email)] = fullName;
+            }
+          }
+        } catch {
+          // Fallback to directory users only
+        }
+
+        setSystemUsers(dedupeDirectoryUsers(mergedUsers));
+        setActorLabelMap(identityMap);
       } catch {
         setSystemUsers([]);
         setActorLabelMap({});
@@ -960,7 +1052,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                   jobOrderBackendId={currentDetailsJob._backendId}
                   orderNumber={currentDetailsJob.id}
                   vehicleType={currentDetailsJob?.vehicleDetails?.type}
-                  services={isAdminGroup ? (currentDetailsJob.services || []) : (currentDetailsJob.services || []).filter((s: any) => isAssignedToCurrentUser(s?.assignedTo))}
+                  services={currentDetailsJob.services || []}
                   onServicesReorder={handleServicesReorder}
                   onServiceUpdate={handleServiceUpdate}
                   onAddService={handleAddService}
@@ -970,7 +1062,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                   setEditMode={setDetailsEditMode}
                   availableTechs={technicianNames}
                   availableAssignees={assigneeOptions}
-                  isAdmin={isAdminGroup}
+                  isAdmin={canAssignService}
                 />
               </PermissionGate>
 

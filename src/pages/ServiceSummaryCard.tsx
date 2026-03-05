@@ -28,8 +28,8 @@ import {
   FaWrench,
 } from "react-icons/fa";
 import "./ServiceExecutionModule.css"
-
 import PermissionGate from "./PermissionGate";
+import { dedupeTextOptions, dedupeUserOptions } from "../utils/userOptionDedupe";
 import { useApprovalRequests } from "./ApprovalRequestsContext";
 import { listServiceCatalog, resolveServicePriceForVehicleType, type ServiceCatalogItem } from "./serviceCatalogRepo";
 
@@ -93,6 +93,42 @@ function normalizeIdentity(v: any) {
 
 function displayServiceStatus(status: string) {
   return status === "Inprogress" ? "Service_Operation" : status;
+}
+
+function groupServicesByPackage(services: Service[]) {
+  const groups: Array<{ key: string; packageTitle: string | null; items: Service[] }> = [];
+  const packageGroupIndex = new Map<string, number>();
+
+  for (const service of services || []) {
+    const packageCode = normalizeIdentity((service as any)?.packageCode);
+    const packageName = String((service as any)?.packageName || "").trim();
+    const packageKey = packageCode || (packageName ? `pkg:${normalizeIdentity(packageName)}` : "");
+
+    if (!packageKey) {
+      groups.push({ key: `single-${groups.length}-${service.id}`, packageTitle: null, items: [service] });
+      continue;
+    }
+
+    const existingIdx = packageGroupIndex.get(packageKey);
+    if (typeof existingIdx === "number") {
+      groups[existingIdx].items.push(service);
+      continue;
+    }
+
+    packageGroupIndex.set(packageKey, groups.length);
+    groups.push({
+      key: `package-${packageKey}`,
+      packageTitle: `Package: ${packageName || (service as any)?.packageCode || "Unnamed Package"}`,
+      items: [service],
+    });
+  }
+
+  return groups;
+}
+
+function getServiceDisplayName(service: Service) {
+  const name = String(service?.name || "").trim() || "Unnamed service";
+  return name;
 }
 
 // -------------------------
@@ -242,19 +278,19 @@ function ServiceItem({
   };
 
   const normalizedAssigneeOptions = useMemo<AssigneeOption[]>(() => {
-    const seen = new Set<string>();
-    const out: AssigneeOption[] = [];
-
-    for (const item of availableAssignees || []) {
-      const value = normalizeIdentity(typeof item === "string" ? item : item?.value);
-      const label = String(typeof item === "string" ? item : item?.label ?? item?.value ?? "").trim();
-      if (!value || seen.has(value)) continue;
-      seen.add(value);
-      out.push({ value, label: label || value });
-    }
-
-    return out;
+    return dedupeUserOptions(
+      (availableAssignees || []).map((item) => {
+        if (typeof item === "string") {
+          return { value: item, label: item };
+        }
+        return { value: item?.value, label: item?.label ?? item?.value };
+      })
+    );
   }, [availableAssignees]);
+
+  const normalizedTechOptions = useMemo(() => {
+    return dedupeTextOptions(availableTechs || []);
+  }, [availableTechs]);
 
   const assigneeLabelByValue = useMemo(() => {
     const map = new Map<string, string>();
@@ -347,7 +383,7 @@ function ServiceItem({
           <span className="drag-handle" style={{ visibility: editMode ? "visible" : "hidden" }}>
             <FaGripVertical />
           </span>
-          {service.name}
+          {getServiceDisplayName(service)}
         </div>
 
         <span className={`status-badge ${getStatusClass(service.status)} service-status-badge`}>
@@ -405,8 +441,8 @@ function ServiceItem({
 
                 {techDropdownOpen && (
                   <div className="tech-dropdown-content show">
-                    {availableTechs.map((tech, idx) => (
-                      <div key={idx} className="tech-option">
+                    {normalizedTechOptions.map((tech, idx) => (
+                      <div key={normalizeIdentity(tech)} className="tech-option">
                         <input
                           type="checkbox"
                           id={`tech-${service.id}-${idx}`}
@@ -699,19 +735,31 @@ export default function ServiceSummaryCard({
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={sortedServices.map((s) => s.id)} strategy={verticalListSortingStrategy}>
               <div className="services-list">
-                {sortedServices.map((service) => (
-                  <SortableServiceItem
-                    key={service.id}
-                    id={service.id}
-                    service={service}
-                    editMode={editMode}
-                    onUpdate={handleServiceUpdate}
-                    availableTechs={availableTechs}
-                    availableAssignees={availableAssignees}
-                    jobOrderBackendId={jobOrderBackendId}
-                    orderNumber={orderNumber}
-                    canAssign={isAdmin}
-                  />
+                {groupServicesByPackage(sortedServices).map((group) => (
+                  <React.Fragment key={group.key}>
+                    {group.packageTitle && (
+                      <div className="sem-package-group-header">
+                        <span className="sem-package-group-header-content">
+                          <i className="fas fa-box-open sem-package-group-icon" aria-hidden="true"></i>
+                          {group.packageTitle}
+                        </span>
+                      </div>
+                    )}
+                    {group.items.map((service) => (
+                      <SortableServiceItem
+                        key={service.id}
+                        id={service.id}
+                        service={service}
+                        editMode={editMode}
+                        onUpdate={handleServiceUpdate}
+                        availableTechs={availableTechs}
+                        availableAssignees={availableAssignees}
+                        jobOrderBackendId={jobOrderBackendId}
+                        orderNumber={orderNumber}
+                        canAssign={isAdmin}
+                      />
+                    ))}
+                  </React.Fragment>
                 ))}
               </div>
             </SortableContext>
@@ -719,18 +767,30 @@ export default function ServiceSummaryCard({
         ) : (
           <div className="services-list">
             {sortedServices.length > 0 ? (
-              sortedServices.map((service) => (
-                <ServiceItem
-                  key={service.id}
-                  service={service}
-                  editMode={editMode}
-                  onUpdate={handleServiceUpdate}
-                  availableTechs={availableTechs}
-                  availableAssignees={availableAssignees}
-                  jobOrderBackendId={jobOrderBackendId}
-                  orderNumber={orderNumber}
-                  canAssign={isAdmin}
-                />
+              groupServicesByPackage(sortedServices).map((group) => (
+                <React.Fragment key={group.key}>
+                  {group.packageTitle && (
+                    <div className="sem-package-group-header">
+                      <span className="sem-package-group-header-content">
+                        <i className="fas fa-box-open sem-package-group-icon" aria-hidden="true"></i>
+                        {group.packageTitle}
+                      </span>
+                    </div>
+                  )}
+                  {group.items.map((service) => (
+                    <ServiceItem
+                      key={service.id}
+                      service={service}
+                      editMode={editMode}
+                      onUpdate={handleServiceUpdate}
+                      availableTechs={availableTechs}
+                      availableAssignees={availableAssignees}
+                      jobOrderBackendId={jobOrderBackendId}
+                      orderNumber={orderNumber}
+                      canAssign={isAdmin}
+                    />
+                  ))}
+                </React.Fragment>
               ))
             ) : (
               <div style={{ padding: "20px", textAlign: "center", color: "#7f8c8d" }}>No services assigned yet</div>

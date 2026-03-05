@@ -146,8 +146,46 @@ function buildDirectory(rows: any[]): UserDirectory {
     }
   }
 
+  const dedupeKeyForUser = (entry: UserEntry) => {
+    const emailKey = normalizeIdentity(entry.email);
+    if (emailKey) return `email:${emailKey}`;
+
+    const idKey = normalizeIdentity(entry.id);
+    if (idKey) return `id:${idKey}`;
+
+    const profileOwnerKey = normalizeIdentity(entry.profileOwner);
+    if (profileOwnerKey) return `profileOwner:${profileOwnerKey}`;
+
+    const subKey = normalizeIdentity(entry.sub);
+    if (subKey) return `sub:${subKey}`;
+
+    return "";
+  };
+
+  const mergedUsersMap = new Map<string, UserEntry>();
+  for (const [index, entry] of users.entries()) {
+    const dedupeKey = dedupeKeyForUser(entry) || `raw:${index}`;
+
+    const existing = mergedUsersMap.get(dedupeKey);
+    if (!existing) {
+      mergedUsersMap.set(dedupeKey, { ...entry });
+      continue;
+    }
+
+    const nextName = displayNameQuality(entry.name) > displayNameQuality(existing.name) ? entry.name : existing.name;
+    mergedUsersMap.set(dedupeKey, {
+      name: nextName,
+      email: existing.email || entry.email,
+      id: existing.id || entry.id,
+      profileOwner: existing.profileOwner || entry.profileOwner,
+      sub: existing.sub || entry.sub,
+    });
+  }
+
+  const dedupedUsers = Array.from(mergedUsersMap.values());
+
   return {
-    users,
+    users: dedupedUsers,
     emailToNameMap,
     nameToEmailMap,
     identityToUsernameMap,

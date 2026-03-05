@@ -18,7 +18,9 @@ import {
   cancelJobOrderByOrderNumber,
   createExitPermitForOrderNumber,
   getJobOrderByOrderNumber,
+  upsertJobOrder,
 } from "./jobOrderRepo";
+import { uploadData } from "aws-amplify/storage";
 
 import { getDataClient } from "../lib/amplifyClient";
 import { getUserDirectory } from "../utils/userDirectoryCache";
@@ -68,6 +70,93 @@ function safeJsonParse<T>(raw: any, fallback: T): T {
 function errMsg(e: unknown) {
   const anyE = e as any;
   return String(anyE?.message ?? anyE?.errors?.[0]?.message ?? anyE ?? "Unknown error");
+}
+
+function safeFileName(name: string) {
+  return String(name || "file")
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9._-]/g, "");
+}
+
+function generateExitPermitHTML(input: {
+  permitId: string;
+  orderNumber: string;
+  customerName: string;
+  mobile: string;
+  vehiclePlate: string;
+  workStatus: string;
+  paymentStatus: string;
+  collectedBy: string;
+  collectedMobile: string;
+  nextServiceDate?: string;
+  createdBy: string;
+  createdAtIso: string;
+}) {
+  const createdAt = new Date(input.createdAtIso);
+  const createdAtText = createdAt.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<title>ExitPermit_${input.permitId}.html</title>
+<style>
+  body { font-family: 'Segoe UI', sans-serif; margin:0; padding:20mm; background:#f6f7fb; color:#0f172a; }
+  * { box-sizing:border-box; }
+  .hdr { text-align:center; margin-bottom:18px; padding:18px 10px; border-radius:12px; background:linear-gradient(135deg,#0f172a,#2563eb); color:white; }
+  .hdr h1 { margin:0 0 6px 0; font-size:26px; }
+  .hdr p { margin:0; opacity:.9; font-size:12px; }
+  .card { background:white; border:1px solid #e7e8ee; border-radius:12px; padding:16px; margin-bottom:14px; box-shadow:0 10px 22px rgba(15,23,42,.08); }
+  .ttl { margin:0 0 12px 0; font-size:14px; font-weight:800; border-bottom:1px solid #eef0f5; padding-bottom:10px; }
+  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; font-size:12px; }
+  .lbl { font-weight:800; color:#334155; display:block; margin-bottom:4px; }
+  .val { color:#475569; }
+</style>
+</head>
+<body>
+  <div class="hdr">
+    <h1>Exit Permit</h1>
+    <p>Generated on ${createdAtText}</p>
+  </div>
+
+  <div class="card">
+    <div class="ttl">Permit Information</div>
+    <div class="grid">
+      <div><span class="lbl">Permit ID</span><span class="val">${input.permitId}</span></div>
+      <div><span class="lbl">Job Order ID</span><span class="val">${input.orderNumber}</span></div>
+      <div><span class="lbl">Created By</span><span class="val">${input.createdBy || "—"}</span></div>
+      <div><span class="lbl">Created At</span><span class="val">${createdAtText}</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="ttl">Customer & Vehicle</div>
+    <div class="grid">
+      <div><span class="lbl">Customer Name</span><span class="val">${input.customerName || "—"}</span></div>
+      <div><span class="lbl">Mobile</span><span class="val">${input.mobile || "—"}</span></div>
+      <div><span class="lbl">Vehicle Plate</span><span class="val">${input.vehiclePlate || "—"}</span></div>
+      <div><span class="lbl">Work Status</span><span class="val">${input.workStatus || "—"}</span></div>
+      <div><span class="lbl">Payment Status</span><span class="val">${input.paymentStatus || "—"}</span></div>
+      <div><span class="lbl">Next Service Date</span><span class="val">${input.nextServiceDate || "N/A"}</span></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="ttl">Collection Details</div>
+    <div class="grid">
+      <div><span class="lbl">Collected By</span><span class="val">${input.collectedBy}</span></div>
+      <div><span class="lbl">Collection Mobile</span><span class="val">${input.collectedMobile}</span></div>
+    </div>
+  </div>
+</body>
+</html>`;
 }
 
 function normalizeWorkLabel(statusEnum?: string, label?: string) {
@@ -577,6 +666,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
     try {
       const orderNumber = String(currentOrderForPermit.id);
       const actor = resolveActorName(currentUser);
+      const createdAtIso = new Date().toISOString();
 
       const res = await createExitPermitForOrderNumber({
         orderNumber,
@@ -585,6 +675,57 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
         nextServiceDate: safeLower(currentOrderForPermit.workStatus) === "cancelled" ? undefined : nextServiceDate,
         actor,
       });
+
+      const permitDocHtml = generateExitPermitHTML({
+        permitId: String(res.permitId),
+        orderNumber,
+        customerName: String(currentOrderForPermit.customerName || ""),
+        mobile: String(currentOrderForPermit.mobile || ""),
+        vehiclePlate: String(currentOrderForPermit.vehiclePlate || ""),
+        workStatus: String(currentOrderForPermit.workStatus || ""),
+        paymentStatus: String(currentOrderForPermit.paymentStatus || ""),
+        collectedBy,
+        collectedMobile: mobileNumber,
+        nextServiceDate: safeLower(currentOrderForPermit.workStatus) === "cancelled" ? undefined : nextServiceDate,
+        createdBy: actor,
+        createdAtIso,
+      });
+
+      const permitDocPath = `job-orders/${orderNumber}/exit-permits/ExitPermit_${safeFileName(String(res.permitId))}_${Date.now()}.html`;
+      const permitDocBlob = new Blob([permitDocHtml], { type: "text/html" });
+      await uploadData({ path: permitDocPath, data: permitDocBlob, options: { contentType: "text/html" } }).result;
+
+      const latestOrder = await getJobOrderByOrderNumber(orderNumber);
+      if (latestOrder) {
+        const parsed = safeJsonParse<any>(latestOrder?._parsed ?? latestOrder?.dataJson, {});
+        const existingDocs = Array.isArray(latestOrder?.documents)
+          ? latestOrder.documents
+          : Array.isArray(parsed?.documents)
+            ? parsed.documents
+            : [];
+
+        const newPermitDoc = {
+          id: `DOC-EXIT-${Date.now()}`,
+          name: `ExitPermit_${String(res.permitId)}.html`,
+          type: "Exit Permit",
+          category: "Permit",
+          addedAt: createdAtIso,
+          uploadedBy: actor,
+          storagePath: permitDocPath,
+          permitReference: String(res.permitId),
+          orderReference: orderNumber,
+        };
+
+        const updatedDocs = [...existingDocs, newPermitDoc];
+        await upsertJobOrder({
+          ...latestOrder,
+          documents: updatedDocs,
+          dataJson: JSON.stringify({
+            ...parsed,
+            documents: updatedDocs,
+          }),
+        });
+      }
 
       setSuccessPermitId(res.permitId);
       setSuccessOrderId(res.orderNumber);

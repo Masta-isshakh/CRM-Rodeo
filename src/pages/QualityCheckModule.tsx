@@ -4,7 +4,6 @@ import { createPortal, flushSync } from "react-dom";
 
 import SuccessPopup from "./SuccessPopup";
 import ConfirmationPopup from "./ConfirmationPopup";
-import PermissionGate from "./PermissionGate";
 import UnifiedJobOrderRoadmap from "../components/UnifiedJobOrderRoadmap";
 
 import "./QualityCheckModule.css";
@@ -12,7 +11,6 @@ import "./JobCards.css";
 import "./JobOrderHistory.css";
 
 import { getDataClient } from "../lib/amplifyClient";
-import { usePermissions } from "../lib/userPermissions";
 import { cancelJobOrderByOrderNumber, getJobOrderByOrderNumber, upsertJobOrder } from "./jobOrderRepo";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy, resolveOrderUpdatedBy } from "../utils/actorIdentity";
@@ -25,6 +23,8 @@ import {
 } from "../utils/paymentStatus";
 
 import { getUrl, uploadData } from "aws-amplify/storage";
+
+import PermissionGate from "./PermissionGate";
 
 /* -------------------- helpers -------------------- */
 function safeJsonParse<T>(raw: any, fallback: T): T {
@@ -124,7 +124,6 @@ type DocItem = {
 /* -------------------- component -------------------- */
 export default function QualityCheckModule({ currentUser }: { currentUser: any }) {
   const client = useMemo(() => getDataClient(), []);
-  const { canOption } = usePermissions();
 
   const [loading, setLoading] = useState(false);
 
@@ -154,9 +153,9 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   // cancel modal
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
-  const canFinishQCAction = canOption("qualitycheck", "qualitycheck_finish", true);
-  const canApproveQCAction = canOption("qualitycheck", "qualitycheck_approve", true);
-  const canRejectQCAction = canOption("qualitycheck", "qualitycheck_reject", true);
+  const canFinishQCAction = true;
+  const canApproveQCAction = true;
+  const canRejectQCAction = true;
 
   const displayUser = (value: any) => {
     return resolveActorDisplay(value, {

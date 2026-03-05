@@ -151,8 +151,8 @@ export default function ServiceCreation() {
     if (!Number.isFinite(suv) || suv < 0) return "SUV price must be a non-negative number.";
     if (!Number.isFinite(sedan) || sedan < 0) return "Sedan price must be a non-negative number.";
 
-    if (form.type === "package" && form.includedServiceCodes.length === 0) {
-      return "Please select at least one service for the package.";
+    if (form.type === "package" && form.includedServiceCodes.length < 2) {
+      return "Please select at least two services for the package.";
     }
 
     return "";

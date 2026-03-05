@@ -1,7 +1,7 @@
 // src/pages/JobOrderManagement.tsx
 // ✅ Full updated file - paste as-is
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import "./JobCards.css";
 import { getUrl } from "aws-amplify/storage";
@@ -122,6 +122,127 @@ function resolveCurrentActorDisplay(currentUser: any, actorIdentity: string, ide
   }
 
   return actorIdentity;
+}
+
+function normalizeCatalogKey(value: any) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function dedupeSelectedServices(items: any[]) {
+  const out: any[] = [];
+  const seen = new Set<string>();
+
+  for (const item of items || []) {
+    const code = normalizeCatalogKey(item?.serviceCode || item?.catalogId || item?.name);
+    const packageCode = normalizeCatalogKey(item?.packageCode);
+    const key = packageCode ? `${packageCode}::${code}` : code;
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+
+  return out;
+}
+
+function expandCatalogProductToServices(product: any, products: any[], vehicleType: any) {
+  const isPackage = String(product?.type ?? "").toLowerCase() === "package";
+  const productCode = String(product?.serviceCode || product?.id || product?.name || "").trim();
+  if (!productCode) return [];
+
+  if (!isPackage) {
+    return [
+      {
+        name: product.name,
+        price: resolveServicePriceForVehicleType(product, vehicleType),
+        serviceCode: product.serviceCode || undefined,
+        catalogId: product.id || undefined,
+      },
+    ];
+  }
+
+  const byCode = new Map<string, any>();
+  for (const candidate of products || []) {
+    const code = normalizeCatalogKey(candidate?.serviceCode || candidate?.id || candidate?.name);
+    if (!code) continue;
+    byCode.set(code, candidate);
+  }
+
+  const includedCodes = Array.isArray(product?.includedServiceCodes) ? product.includedServiceCodes : [];
+  const expanded = includedCodes
+    .map((code: any) => byCode.get(normalizeCatalogKey(code)))
+    .filter(Boolean)
+    .map((child: any) => ({
+      name: child.name,
+      price: resolveServicePriceForVehicleType(child, vehicleType),
+      serviceCode: child.serviceCode || undefined,
+      catalogId: child.id || undefined,
+      packageCode: product.serviceCode || product.id || productCode,
+      packageName: product.name,
+    }));
+
+  if (expanded.length) return dedupeSelectedServices(expanded);
+
+  return [
+    {
+      name: product.name,
+      price: resolveServicePriceForVehicleType(product, vehicleType),
+      serviceCode: product.serviceCode || undefined,
+      catalogId: product.id || undefined,
+      packageCode: product.serviceCode || product.id || productCode,
+      packageName: product.name,
+    },
+  ];
+}
+
+function isCatalogProductSelected(product: any, selectedServices: any[]) {
+  const productCode = normalizeCatalogKey(product?.serviceCode || product?.id || product?.name);
+  const isPackage = String(product?.type ?? "").toLowerCase() === "package";
+
+  if (isPackage) {
+    return selectedServices.some((service: any) => normalizeCatalogKey(service?.packageCode) === productCode);
+  }
+
+  return selectedServices.some((service: any) => normalizeCatalogKey(service?.serviceCode || service?.catalogId || service?.name) === productCode);
+}
+
+function groupServicesByPackage(services: any[]) {
+  const groups: Array<{ key: string; packageTitle: string | null; items: any[] }> = [];
+  const packageGroupIndex = new Map<string, number>();
+
+  for (const service of services || []) {
+    const packageCode = normalizeCatalogKey(service?.packageCode);
+    const packageName = String(service?.packageName || "").trim();
+    const packageKey = packageCode || (packageName ? `pkg:${normalizeCatalogKey(packageName)}` : "");
+
+    if (!packageKey) {
+      groups.push({
+        key: `single-${groups.length}-${normalizeCatalogKey(service?.serviceCode || service?.catalogId || service?.name)}`,
+        packageTitle: null,
+        items: [service],
+      });
+      continue;
+    }
+
+    const existingIdx = packageGroupIndex.get(packageKey);
+    if (typeof existingIdx === "number") {
+      groups[existingIdx].items.push(service);
+      continue;
+    }
+
+    packageGroupIndex.set(packageKey, groups.length);
+    groups.push({
+      key: `package-${packageKey}`,
+      packageTitle: `Package: ${packageName || service?.packageCode || "Unnamed Package"}`,
+      items: [service],
+    });
+  }
+
+  return groups;
+}
+
+function getServiceDisplayName(service: any) {
+  const name = String(service?.name || "").trim() || "Unnamed service";
+  return name;
 }
 
 /** ✅ Best creator name for the order (handles different payload shapes) */
@@ -399,7 +520,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
           discount: formatAmount(discount),
           status: "Unpaid",
           paymentMethod: null,
-          services: selectedServices.map((s: any) => s.name),
+          services: selectedServices.map((s: any) => getServiceDisplayName(s)),
         },
       ],
     };
@@ -407,6 +528,10 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
     const newServiceEntries = selectedServices.map((service: any) => ({
       name: service.name,
       price: service.price || 0,
+      serviceCode: service.serviceCode || undefined,
+      catalogId: service.catalogId || undefined,
+      packageCode: service.packageCode || undefined,
+      packageName: service.packageName || undefined,
       status: "New",
       started: "Not started",
       ended: "Not completed",
@@ -1124,7 +1249,7 @@ function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }
 
   const [selectedServices, setSelectedServices] = useState<any[]>([]);
   const [additionalServices, setAdditionalServices] = useState<any[]>([]);
-  const [discountPercent, setDiscountPercent] = useState(0);
+  const [discountAmount, setDiscountAmount] = useState(0);
   const [orderNotes, setOrderNotes] = useState("");
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
   const [expectedDeliveryTime, setExpectedDeliveryTime] = useState("");
@@ -1211,7 +1336,8 @@ function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }
 
     const servicesToBill = orderType === "service" ? additionalServices : selectedServices;
     const subtotal = servicesToBill.reduce((sum: number, s: any) => sum + (s.price || 0), 0);
-    const discount = (subtotal * (discountPercent || 0)) / 100;
+    const discount = Math.min(Math.max(0, discountAmount || 0), Math.max(0, subtotal));
+    const discountPercent = subtotal > 0 ? (discount / subtotal) * 100 : 0;
     const netAmount = subtotal - discount;
 
     const billId = `BILL-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
@@ -1269,6 +1395,10 @@ function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }
           ? additionalServices.map((s: any) => ({
               name: s.name,
               price: s.price || 0,
+              serviceCode: s.serviceCode || undefined,
+              catalogId: s.catalogId || undefined,
+              packageCode: s.packageCode || undefined,
+              packageName: s.packageName || undefined,
               status: "New",
               started: "Not started",
               ended: "Not completed",
@@ -1279,6 +1409,10 @@ function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }
           : selectedServices.map((s: any) => ({
               name: s.name,
               price: s.price || 0,
+              serviceCode: s.serviceCode || undefined,
+              catalogId: s.catalogId || undefined,
+              packageCode: s.packageCode || undefined,
+              packageName: s.packageName || undefined,
               status: "New",
               started: "Not started",
               ended: "Not completed",
@@ -1301,7 +1435,7 @@ function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }
             discount: formatAmount(discount),
             status: "Unpaid",
             paymentMethod: null,
-            services: servicesToBill.map((s: any) => s.name),
+            services: servicesToBill.map((s: any) => getServiceDisplayName(s)),
           },
         ],
       },
@@ -1414,8 +1548,8 @@ return (
           selectedServices={orderType === "service" ? additionalServices : selectedServices}
           setSelectedServices={orderType === "service" ? setAdditionalServices : setSelectedServices}
           vehicleType={vehicleData?.carType || vehicleData?.vehicleType || "SUV"}
-          discountPercent={discountPercent}
-          setDiscountPercent={setDiscountPercent}
+          discountAmount={discountAmount}
+          setDiscountAmount={setDiscountAmount}
           orderNotes={orderNotes}
           setOrderNotes={setOrderNotes}
           expectedDeliveryDate={expectedDeliveryDate}
@@ -1433,7 +1567,7 @@ return (
           customerData={customerData}
           vehicleData={vehicleData}
           selectedServices={orderType === "service" ? additionalServices : selectedServices}
-          discountPercent={discountPercent}
+          discountAmount={discountAmount}
           orderNotes={orderNotes}
           expectedDeliveryDate={expectedDeliveryDate}
           expectedDeliveryTime={expectedDeliveryTime}
@@ -2207,8 +2341,8 @@ function StepThreeServices({
   selectedServices,
   setSelectedServices,
   vehicleType,
-  discountPercent,
-  setDiscountPercent,
+  discountAmount,
+  setDiscountAmount,
   orderNotes,
   setOrderNotes,
   expectedDeliveryDate,
@@ -2219,28 +2353,24 @@ function StepThreeServices({
   onBack,
 }: any) {
   const handleToggleService = (product: any) => {
-    const price = resolveServicePriceForVehicleType(product, vehicleType);
-    const productKey = String(product.serviceCode || product.id || product.name);
-    const isSelected = selectedServices.some((s: any) => String(s.serviceCode || s.catalogId || s.name) === productKey);
+    const productKey = normalizeCatalogKey(product.serviceCode || product.id || product.name);
+    const isSelected = isCatalogProductSelected(product, selectedServices);
     if (isSelected) {
-      setSelectedServices(selectedServices.filter((s: any) => String(s.serviceCode || s.catalogId || s.name) !== productKey));
+      const next = String(product?.type ?? "").toLowerCase() === "package"
+        ? selectedServices.filter((s: any) => normalizeCatalogKey(s.packageCode) !== productKey)
+        : selectedServices.filter((s: any) => normalizeCatalogKey(s.serviceCode || s.catalogId || s.name) !== productKey);
+      setSelectedServices(dedupeSelectedServices(next));
     } else {
-      setSelectedServices([
-        ...selectedServices,
-        {
-          name: product.name,
-          price,
-          serviceCode: product.serviceCode || undefined,
-          catalogId: product.id || undefined,
-        },
-      ]);
+      const expanded = expandCatalogProductToServices(product, products, vehicleType);
+      setSelectedServices(dedupeSelectedServices([...selectedServices, ...expanded]));
     }
   };
 
   const formatPrice = (price: number) => `QAR ${price.toLocaleString()}`;
 
   const subtotal = selectedServices.reduce((sum: number, s: any) => sum + s.price, 0);
-  const discount = (subtotal * discountPercent) / 100;
+  const discount = Math.min(Math.max(0, Number(discountAmount || 0)), Math.max(0, subtotal));
+  const discountPercent = subtotal > 0 ? (discount / subtotal) * 100 : 0;
   const total = subtotal - discount;
 
   return (
@@ -2263,7 +2393,7 @@ function StepThreeServices({
           {products.map((product: any) => (
             <div
               key={String(product.id || product.serviceCode || product.name)}
-              className={`service-checkbox ${selectedServices.some((s: any) => String(s.serviceCode || s.catalogId || s.name) === String(product.serviceCode || product.id || product.name)) ? "selected" : ""}`}
+              className={`service-checkbox ${isCatalogProductSelected(product, selectedServices) ? "selected" : ""}`}
               onClick={() => handleToggleService(product)}
             >
               <div className="service-info">
@@ -2325,8 +2455,37 @@ function StepThreeServices({
             <span>Apply Discount:</span>
             <div>
               <PermissionGate moduleId="joborder" optionId="joborder_discount_percent">
-                <input type="number" min="0" max="100" value={discountPercent} onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)} style={{ width: "80px", color: "#333", backgroundColor: "#fff" }} />
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  value={Number(discountPercent.toFixed(2))}
+                  onChange={(e) => {
+                    const pct = Math.max(0, Math.min(100, parseFloat(e.target.value) || 0));
+                    setDiscountAmount((subtotal * pct) / 100);
+                  }}
+                  style={{ width: "80px", color: "#333", backgroundColor: "#fff" }}
+                />
                 <span> %</span>
+              </PermissionGate>
+            </div>
+          </div>
+          <div className="price-row">
+            <span>Discount Amount (QAR):</span>
+            <div>
+              <PermissionGate moduleId="joborder" optionId="joborder_discount_percent">
+                <input
+                  type="number"
+                  min="0"
+                  max={Math.max(0, subtotal)}
+                  step="0.01"
+                  value={Number(discount.toFixed(2))}
+                  onChange={(e) => {
+                    const amount = Math.max(0, Math.min(subtotal, parseFloat(e.target.value) || 0));
+                    setDiscountAmount(amount);
+                  }}
+                  style={{ width: "120px", color: "#333", backgroundColor: "#fff" }}
+                />
               </PermissionGate>
             </div>
           </div>
@@ -2362,21 +2521,16 @@ function AddServiceScreen({ order, products = [], onClose, onSubmit }: any) {
   const vehicleType = order?.vehicleDetails?.type || "SUV";
 
   const handleToggleService = (product: any) => {
-    const price = resolveServicePriceForVehicleType(product, vehicleType);
-    const productKey = String(product.serviceCode || product.id || product.name);
-    const isSelected = selectedServices.some((s: any) => String(s.serviceCode || s.catalogId || s.name) === productKey);
+    const productKey = normalizeCatalogKey(product.serviceCode || product.id || product.name);
+    const isSelected = isCatalogProductSelected(product, selectedServices);
     if (isSelected) {
-      setSelectedServices(selectedServices.filter((s: any) => String(s.serviceCode || s.catalogId || s.name) !== productKey));
+      const next = String(product?.type ?? "").toLowerCase() === "package"
+        ? selectedServices.filter((s: any) => normalizeCatalogKey(s.packageCode) !== productKey)
+        : selectedServices.filter((s: any) => normalizeCatalogKey(s.serviceCode || s.catalogId || s.name) !== productKey);
+      setSelectedServices(dedupeSelectedServices(next));
     } else {
-      setSelectedServices([
-        ...selectedServices,
-        {
-          name: product.name,
-          price,
-          serviceCode: product.serviceCode || undefined,
-          catalogId: product.id || undefined,
-        },
-      ]);
+      const expanded = expandCatalogProductToServices(product, products, vehicleType);
+      setSelectedServices(dedupeSelectedServices([...selectedServices, ...expanded]));
     }
   };
 
@@ -2415,7 +2569,7 @@ function AddServiceScreen({ order, products = [], onClose, onSubmit }: any) {
             ) : (
             <div className="services-grid">
               {products.map((product: any) => (
-                <div key={String(product.id || product.serviceCode || product.name)} className={`service-checkbox ${selectedServices.some((s: any) => String(s.serviceCode || s.catalogId || s.name) === String(product.serviceCode || product.id || product.name)) ? "selected" : ""}`} onClick={() => handleToggleService(product)}>
+                <div key={String(product.id || product.serviceCode || product.name)} className={`service-checkbox ${isCatalogProductSelected(product, selectedServices) ? "selected" : ""}`} onClick={() => handleToggleService(product)}>
                   <div className="service-info">
                     <div className="service-name">{product.name}</div>
                   </div>
@@ -2510,7 +2664,7 @@ function StepFourConfirm({
   customerData,
   vehicleData,
   selectedServices,
-  discountPercent,
+  discountAmount,
   orderNotes,
   expectedDeliveryDate,
   expectedDeliveryTime,
@@ -2520,7 +2674,8 @@ function StepFourConfirm({
 }: any) {
   const formatPrice = (price: number) => `QAR ${price.toLocaleString()}`;
   const subtotal = selectedServices.reduce((sum: number, s: any) => sum + s.price, 0);
-  const discount = (subtotal * discountPercent) / 100;
+  const discount = Math.min(Math.max(0, Number(discountAmount || 0)), Math.max(0, subtotal));
+  const discountPercent = subtotal > 0 ? (discount / subtotal) * 100 : 0;
   const total = subtotal - discount;
 
   const customerMobile = customerData?.mobile || customerData?.phone || "Not provided";
@@ -2694,11 +2849,25 @@ function StepFourConfirm({
                 </tr>
               </thead>
               <tbody>
-                {selectedServices.map((service: any, idx: number) => (
-                  <tr key={`${service.name}-${idx}`}>
-                    <td>{service.name}</td>
-                    <td style={{ textAlign: "right", fontWeight: 700 }}>{formatPrice(service.price || 0)}</td>
-                  </tr>
+                {groupServicesByPackage(selectedServices).map((group: any) => (
+                  <Fragment key={group.key}>
+                    {group.packageTitle && (
+                      <tr>
+                        <td colSpan={2} className="jo-package-group-header-cell">
+                          <span className="jo-package-group-header-content">
+                            <i className="fas fa-box-open jo-package-group-icon" aria-hidden="true"></i>
+                            {group.packageTitle}
+                          </span>
+                        </td>
+                      </tr>
+                    )}
+                    {group.items.map((service: any, idx: number) => (
+                      <tr key={`${group.key}-${service?.serviceCode || service?.catalogId || service?.name}-${idx}`}>
+                        <td>{getServiceDisplayName(service)}</td>
+                        <td style={{ textAlign: "right", fontWeight: 700 }}>{formatPrice(service.price || 0)}</td>
+                      </tr>
+                    ))}
+                  </Fragment>
                 ))}
                 {selectedServices.length === 0 && (
                   <tr>
@@ -2724,7 +2893,7 @@ function StepFourConfirm({
                 <strong>{formatPrice(subtotal)}</strong>
               </div>
               <div className="jo-price-row">
-                <span>Discount ({discountPercent || 0}%)</span>
+                <span>Discount ({Number(discountPercent.toFixed(2))}%)</span>
                 <strong>- {formatPrice(discount)}</strong>
               </div>
             </div>
@@ -3199,45 +3368,57 @@ function ServicesCard({ order, onAddService }: any) {
 
       <div className="pim-services-list">
         {order.services && order.services.length > 0 ? (
-          order.services.map((service: any, idx: number) => (
-            <div key={idx} className="pim-service-item">
-              <div className="pim-service-header">
-                <span className="pim-service-name">{service.name}</span>
-                <span className="pim-service-price">{service.price ? `QAR ${service.price.toLocaleString()}` : 'N/A'}</span>
-              </div>
-              <div className="pim-service-meta">
-                <div className="pim-service-meta-row">
-                  <span className="pim-service-meta-label">Status:</span>
-                  <span className="pim-service-meta-value">{service.status || 'N/A'}</span>
+          groupServicesByPackage(order.services).map((group: any) => (
+            <Fragment key={group.key}>
+              {group.packageTitle && (
+                <div className="jo-package-group-header-block">
+                  <span className="jo-package-group-header-content">
+                    <i className="fas fa-box-open jo-package-group-icon" aria-hidden="true"></i>
+                    {group.packageTitle}
+                  </span>
                 </div>
-                <div className="pim-service-meta-row">
-                  <span className="pim-service-meta-label">Technician:</span>
-                  <span className="pim-service-meta-value">{resolveCompletedServiceActor(service)}</span>
+              )}
+              {group.items.map((service: any, idx: number) => (
+                <div key={`${group.key}-${idx}`} className="pim-service-item">
+                  <div className="pim-service-header">
+                    <span className="pim-service-name">{getServiceDisplayName(service)}</span>
+                    <span className="pim-service-price">{service.price ? `QAR ${service.price.toLocaleString()}` : 'N/A'}</span>
+                  </div>
+                  <div className="pim-service-meta">
+                    <div className="pim-service-meta-row">
+                      <span className="pim-service-meta-label">Status:</span>
+                      <span className="pim-service-meta-value">{service.status || 'N/A'}</span>
+                    </div>
+                    <div className="pim-service-meta-row">
+                      <span className="pim-service-meta-label">Technician:</span>
+                      <span className="pim-service-meta-value">{resolveCompletedServiceActor(service)}</span>
+                    </div>
+                    {service.started && (
+                      <div className="pim-service-meta-row">
+                        <span className="pim-service-meta-label">Started:</span>
+                        <span className="pim-service-meta-value">{service.started}</span>
+                      </div>
+                    )}
+                    {service.ended && (
+                      <div className="pim-service-meta-row">
+                        <span className="pim-service-meta-label">Ended:</span>
+                        <span className="pim-service-meta-value">{service.ended}</span>
+                      </div>
+                    )}
+                    <div className="pim-service-meta-row">
+                      <span className="pim-service-meta-label">Duration:</span>
+                      <span className="pim-service-meta-value">{formatServiceDuration(service.started, service.ended)}</span>
+                    </div>
+                    {service.notes && (
+                      <div className="pim-service-meta-row" style={{ gridColumn: 'span 2' }}>
+                        <span className="pim-service-meta-label">Notes:</span>
+                        <span className="pim-service-meta-value">{service.notes}</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                {service.started && (
-                  <div className="pim-service-meta-row">
-                    <span className="pim-service-meta-label">Started:</span>
-                    <span className="pim-service-meta-value">{service.started}</span>
-                  </div>
-                )}
-                {service.ended && (
-                  <div className="pim-service-meta-row">
-                    <span className="pim-service-meta-label">Ended:</span>
-                    <span className="pim-service-meta-value">{service.ended}</span>
-                  </div>
-                )}
-                <div className="pim-service-meta-row">
-                  <span className="pim-service-meta-label">Duration:</span>
-                  <span className="pim-service-meta-value">{formatServiceDuration(service.started, service.ended)}</span>
-                </div>
-                {service.notes && (
-                  <div className="pim-service-meta-row" style={{ gridColumn: 'span 2' }}>
-                    <span className="pim-service-meta-label">Notes:</span>
-                    <span className="pim-service-meta-value">{service.notes}</span>
-                  </div>
-                )}
-              </div>
-            </div>
+              ))}
+            </Fragment>
           ))
         ) : (
           <div className="empty-state" style={{ padding: "30px", margin: '0' }}>
