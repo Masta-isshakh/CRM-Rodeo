@@ -26,6 +26,8 @@ import { jobOrderPaymentBackfillActors } from "../functions/job-orders/backfill-
 
 // ✅ MUST MATCH your Cognito group name EXACTLY
 const ADMIN_GROUP = "Admins";
+const ADMIN_DEPT_GROUP = "DEPT_ADMIN";
+const ADMIN_DEPT_GROUP_LOWER = "DEPT_admin";
 
 const schema = a
   .schema({
@@ -65,7 +67,12 @@ const schema = a
         isActive: a.boolean().default(true),
         createdAt: a.datetime(),
       })
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
+      .authorization((allow) => [
+        allow.group(ADMIN_GROUP),
+        allow.group(ADMIN_DEPT_GROUP),
+        allow.group(ADMIN_DEPT_GROUP_LOWER),
+        allow.authenticated().to(["read"]),
+      ]),
 
     RolePolicy: a
       .model({
@@ -80,7 +87,12 @@ const schema = a
 
         createdAt: a.datetime(),
       })
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
+      .authorization((allow) => [
+        allow.group(ADMIN_GROUP),
+        allow.group(ADMIN_DEPT_GROUP),
+        allow.group(ADMIN_DEPT_GROUP_LOWER),
+        allow.authenticated().to(["read"]),
+      ]),
 
     DepartmentRoleLink: a
       .model({
@@ -89,7 +101,12 @@ const schema = a
         roleId: a.id().required(),
         createdAt: a.datetime(),
       })
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
+      .authorization((allow) => [
+        allow.group(ADMIN_GROUP),
+        allow.group(ADMIN_DEPT_GROUP),
+        allow.group(ADMIN_DEPT_GROUP_LOWER),
+        allow.authenticated().to(["read"]),
+      ]),
 
 
     // ✅ OPTION-LEVEL RBAC (CORRECTLY PLACED)
@@ -103,7 +120,12 @@ const schema = a
         updatedBy: a.string(),
       })
       .secondaryIndexes((index) => [index("roleId").queryField("roleOptionTogglesByRole")])
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
+      .authorization((allow) => [
+        allow.group(ADMIN_GROUP),
+        allow.group(ADMIN_DEPT_GROUP),
+        allow.group(ADMIN_DEPT_GROUP_LOWER),
+        allow.authenticated().to(["read"]),
+      ]),
 
     RoleOptionNumber: a
       .model({
@@ -115,7 +137,12 @@ const schema = a
         updatedBy: a.string(),
       })
       .secondaryIndexes((index) => [index("roleId").queryField("roleOptionNumbersByRole")])
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
+      .authorization((allow) => [
+        allow.group(ADMIN_GROUP),
+        allow.group(ADMIN_DEPT_GROUP),
+        allow.group(ADMIN_DEPT_GROUP_LOWER),
+        allow.authenticated().to(["read"]),
+      ]),
 
     // -----------------------------
     // CRM MODELS
