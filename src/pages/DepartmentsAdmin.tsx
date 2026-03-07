@@ -8,6 +8,7 @@ import type { PageProps } from "../lib/PageProps";
 import { getDataClient } from "../lib/amplifyClient";
 import { usePermissions } from "../lib/userPermissions";
 import PermissionGate from "./PermissionGate";
+import ConfirmationPopup from "./ConfirmationPopup";
 
 type Dept = { key: string; name: string };
 
@@ -69,6 +70,8 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
   const [roleModalDept, setRoleModalDept] = useState<Dept | null>(null);
   const [modalRoleName, setModalRoleName] = useState("");
   const [modalRoleDescription, setModalRoleDescription] = useState("");
+  const [showDeletePopup, setShowDeletePopup] = useState(false);
+  const [deleteTargetDept, setDeleteTargetDept] = useState<Dept | null>(null);
 
   const load = async () => {
     setLoading(true);
@@ -183,20 +186,32 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
 
   const deleteDept = async (departmentKey: string) => {
     if (!permissions.canDelete || !canOption("departments", "departments_delete", true)) return;
-    const ok = confirm(`Delete department "${departmentKey}"?\n\nIt must have NO users.`);
-    if (!ok) return;
 
     setStatus("");
     setLoading(true);
     try {
       await client.mutations.adminDeleteDepartment({ departmentKey });
       await load();
+      setShowDeletePopup(false);
+      setDeleteTargetDept(null);
     } catch (e: any) {
       console.error(e);
       setStatus(e?.message ?? "Delete failed");
     } finally {
       setLoading(false);
     }
+  };
+
+  const openDeletePopup = (department: Dept) => {
+    if (!permissions.canDelete || !canOption("departments", "departments_delete", true) || loading) return;
+    setDeleteTargetDept(department);
+    setShowDeletePopup(true);
+  };
+
+  const closeDeletePopup = () => {
+    if (loading) return;
+    setShowDeletePopup(false);
+    setDeleteTargetDept(null);
   };
 
   const createRoleForDepartment = async (department: Dept, roleNameRaw: string, roleDescriptionRaw: string) => {
@@ -390,7 +405,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                     <PermissionGate moduleId="departments" optionId="departments_delete">
                       <Button
                         className="dep-btn dep-btn-danger dep-mini"
-                        onClick={() => deleteDept(d.key)}
+                        onClick={() => openDeletePopup(d)}
                         isDisabled={!permissions.canDelete || loading}
                       >
                         <i className="fas fa-trash"></i> Delete
@@ -504,6 +519,28 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
           </div>
         </div>
       )}
+
+      <ConfirmationPopup
+        open={showDeletePopup && !!deleteTargetDept}
+        title="Delete Department"
+        message={
+          <>
+            Are you sure you want to delete <strong>{deleteTargetDept?.name}</strong>?
+            <br />
+            This department must have no users before deletion.
+          </>
+        }
+        confirmText="Delete Department"
+        cancelText="Keep Department"
+        tone="danger"
+        loading={loading}
+        onCancel={closeDeletePopup}
+        onConfirm={() => {
+          if (!deleteTargetDept) return;
+          void deleteDept(deleteTargetDept.key);
+        }}
+        footerNote="This action cannot be undone."
+      />
     </div>
   );
 }

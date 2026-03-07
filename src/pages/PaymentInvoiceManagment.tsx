@@ -388,23 +388,12 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   // -------------------- filter rules --------------------
   const filteredOrders = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
+    const allowedStatuses = new Set(["Unpaid", "Partially Paid"]);
 
     const list = allOrders.filter((o) => {
-      const isCancelled =
-        String(o.statusEnum).toUpperCase() === "CANCELLED" ||
-        String(o.workStatus).toLowerCase().includes("cancel");
-
       const normalizedPay = normalizePaymentStatusLabel(o.paymentEnum, o.paymentStatus);
-
-      if (isFullyPaidStatus(o.paymentEnum, o.paymentStatus)) {
-        return false;
-      }
-
-      if (isCancelled) {
-        return normalizedPay === "Partially Paid" || normalizedPay === "Unpaid";
-      }
-
-      return normalizedPay === "Unpaid" || normalizedPay === "Partially Paid";
+      if (isFullyPaidStatus(o.paymentEnum, o.paymentStatus)) return false;
+      return allowedStatuses.has(normalizedPay);
     });
 
     if (!q) return list;
@@ -1726,7 +1715,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
             />
           </div>
           <div className="pim-search-stats">
-            Showing payment records (Unpaid / Partially Paid; Cancelled only if Paid/Partial)
+            Showing unpaid/partially paid only • {filteredOrders.length} shown of {allOrders.length} total
           </div>
         </section>
 
