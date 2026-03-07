@@ -2547,6 +2547,134 @@ i {
   overflow: hidden;
 }
 
+/* ========================================
+   JOBCARDS GLOBAL BUTTON THEME OVERRIDE
+   (Requested: all buttons blue with white text)
+======================================== */
+.job-order-management button,
+.job-order-management .btn,
+.job-order-management .btn-primary,
+.job-order-management .btn-secondary,
+.job-order-management .btn-success,
+.job-order-management .btn-danger,
+.job-order-management .btn-link,
+.job-order-management .btn-verify,
+.job-order-management .btn-new-job,
+.job-order-management .btn-add-service,
+.job-order-management .btn-change-customer,
+.job-order-management .btn-action-dropdown,
+.job-order-management .pim-btn-close-details,
+.job-order-management .pagination-btn,
+.job-order-management .inspection-modal-close,
+.job-order-management .option-btn,
+.job-order-management .btn-cancel,
+.job-order-management .btn-confirm-cancel,
+.jo-wizard-screen button,
+.jo-wizard-screen .btn,
+.jo-wizard-screen .btn-primary,
+.jo-wizard-screen .btn-secondary,
+.jo-wizard-screen .btn-success,
+.jo-wizard-screen .btn-danger,
+.jo-wizard-screen .btn-link,
+.jo-wizard-screen .btn-verify,
+.jo-wizard-screen .btn-new-job,
+.jo-wizard-screen .btn-add-service,
+.jo-wizard-screen .btn-change-customer,
+.jo-wizard-screen .btn-action-dropdown,
+.jo-wizard-screen .pim-btn-close-details,
+.jo-wizard-screen .pagination-btn,
+.jo-wizard-screen .inspection-modal-close,
+.jo-wizard-screen .option-btn,
+.jo-wizard-screen .btn-cancel,
+.jo-wizard-screen .btn-confirm-cancel {
+  background: var(--primary) !important;
+  color: #fff !important;
+  border-color: var(--primary) !important;
+}
+
+.job-order-management button:hover:not(:disabled),
+.job-order-management .btn:hover:not(:disabled),
+.job-order-management .btn-primary:hover:not(:disabled),
+.job-order-management .btn-secondary:hover:not(:disabled),
+.job-order-management .btn-success:hover:not(:disabled),
+.job-order-management .btn-danger:hover:not(:disabled),
+.job-order-management .btn-link:hover:not(:disabled),
+.job-order-management .btn-verify:hover:not(:disabled),
+.job-order-management .btn-new-job:hover:not(:disabled),
+.job-order-management .btn-add-service:hover:not(:disabled),
+.job-order-management .btn-change-customer:hover:not(:disabled),
+.job-order-management .btn-action-dropdown:hover:not(:disabled),
+.job-order-management .pim-btn-close-details:hover:not(:disabled),
+.job-order-management .pagination-btn:hover:not(:disabled),
+.job-order-management .inspection-modal-close:hover:not(:disabled),
+.job-order-management .option-btn:hover:not(:disabled),
+.job-order-management .btn-cancel:hover:not(:disabled),
+.job-order-management .btn-confirm-cancel:hover:not(:disabled),
+.jo-wizard-screen button:hover:not(:disabled),
+.jo-wizard-screen .btn:hover:not(:disabled),
+.jo-wizard-screen .btn-primary:hover:not(:disabled),
+.jo-wizard-screen .btn-secondary:hover:not(:disabled),
+.jo-wizard-screen .btn-success:hover:not(:disabled),
+.jo-wizard-screen .btn-danger:hover:not(:disabled),
+.jo-wizard-screen .btn-link:hover:not(:disabled),
+.jo-wizard-screen .btn-verify:hover:not(:disabled),
+.jo-wizard-screen .btn-new-job:hover:not(:disabled),
+.jo-wizard-screen .btn-add-service:hover:not(:disabled),
+.jo-wizard-screen .btn-change-customer:hover:not(:disabled),
+.jo-wizard-screen .btn-action-dropdown:hover:not(:disabled),
+.jo-wizard-screen .pim-btn-close-details:hover:not(:disabled),
+.jo-wizard-screen .pagination-btn:hover:not(:disabled),
+.jo-wizard-screen .inspection-modal-close:hover:not(:disabled),
+.jo-wizard-screen .option-btn:hover:not(:disabled),
+.jo-wizard-screen .btn-cancel:hover:not(:disabled),
+.jo-wizard-screen .btn-confirm-cancel:hover:not(:disabled) {
+  background: var(--primary2) !important;
+  border-color: var(--primary2) !important;
+  color: #fff !important;
+}
+
+.job-order-management button:disabled,
+.job-order-management .btn:disabled,
+.job-order-management .btn-primary:disabled,
+.job-order-management .btn-secondary:disabled,
+.job-order-management .btn-success:disabled,
+.job-order-management .btn-danger:disabled,
+.job-order-management .btn-link:disabled,
+.job-order-management .btn-verify:disabled,
+.job-order-management .btn-new-job:disabled,
+.job-order-management .btn-add-service:disabled,
+.job-order-management .btn-change-customer:disabled,
+.job-order-management .btn-action-dropdown:disabled,
+.job-order-management .pim-btn-close-details:disabled,
+.job-order-management .pagination-btn:disabled,
+.job-order-management .inspection-modal-close:disabled,
+.job-order-management .option-btn:disabled,
+.job-order-management .btn-cancel:disabled,
+.job-order-management .btn-confirm-cancel:disabled,
+.jo-wizard-screen button:disabled,
+.jo-wizard-screen .btn:disabled,
+.jo-wizard-screen .btn-primary:disabled,
+.jo-wizard-screen .btn-secondary:disabled,
+.jo-wizard-screen .btn-success:disabled,
+.jo-wizard-screen .btn-danger:disabled,
+.jo-wizard-screen .btn-link:disabled,
+.jo-wizard-screen .btn-verify:disabled,
+.jo-wizard-screen .btn-new-job:disabled,
+.jo-wizard-screen .btn-add-service:disabled,
+.jo-wizard-screen .btn-change-customer:disabled,
+.jo-wizard-screen .btn-action-dropdown:disabled,
+.jo-wizard-screen .pim-btn-close-details:disabled,
+.jo-wizard-screen .pagination-btn:disabled,
+.jo-wizard-screen .inspection-modal-close:disabled,
+.jo-wizard-screen .option-btn:disabled,
+.jo-wizard-screen .btn-cancel:disabled,
+.jo-wizard-screen .btn-confirm-cancel:disabled {
+  background: var(--primary) !important;
+  color: #fff !important;
+  border-color: var(--primary) !important;
+  opacity: 0.55;
+}
+
 .jo-details-v3 .pim-info-item,
 .jo-details-v3 .epm-info-item {
   border-right: 1px solid #edf2f7;
@@ -3107,4 +3235,63 @@ i {
     justify-content: center;
     align-self: stretch;
   }
+}
+
+/* ========================================
+   FINAL OVERRIDES: PERFORMANCE + 98% WIDTH
+   (Requested by user - visual only)
+======================================== */
+
+/* Remove animation/transition delay in JobCards UI */
+.job-order-management *,
+.jo-wizard-screen *,
+.jo-details-v3 * {
+  animation: none !important;
+  transition: none !important;
+}
+
+.action-dropdown-menu-fixed {
+  will-change: auto !important;
+}
+
+.action-dropdown-menu-fixed.closed,
+.action-dropdown-menu-fixed.open {
+  transform: none !important;
+}
+
+/* 98% width shell across all screen sizes */
+.job-order-management,
+.job-order-management .app-container,
+.job-order-management .main-content,
+.job-order-management .search-section,
+.job-order-management .results-section,
+.job-order-management .table-wrapper,
+.job-order-management .app-header,
+.pim-details-screen,
+.jo-wizard-screen,
+.jo-details-v3,
+.jo-details-v3 .pim-details-header,
+.jo-details-v3 .pim-details-body,
+.jo-details-v3 .pim-details-grid,
+.jo-wizard-screen .pim-details-header,
+.jo-wizard-screen .pim-details-body,
+.jo-wizard-screen .form-card {
+  width: 98% !important;
+  max-width: 98% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+/* 98% width cards inside details/wizard */
+.jo-details-v3 .pim-detail-card,
+.jo-details-v3 .epm-detail-card,
+.jo-details-v3 .form-card,
+.jo-details-v3 .jh-card,
+.jo-wizard-screen .form-card,
+.jo-wizard-screen .pim-detail-card,
+.jo-wizard-screen .epm-detail-card {
+  width: 98% !important;
+  max-width: 98% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
 }

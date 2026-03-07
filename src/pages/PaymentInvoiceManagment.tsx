@@ -220,6 +220,12 @@ type ListOrder = {
   paymentEnum: string;
   paymentStatus: string;
 
+  paymentTotalAmount: number;
+  paymentDiscount: number;
+  paymentAmountPaid: number;
+  paymentNetAmount: number;
+  paymentBalanceDue: number;
+
   _parsed: any;
 };
 
@@ -350,14 +356,19 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
             : "";
 
           const workStatus = normalizeWorkStatus(row.status, row.workStatusLabel ?? parsed.workStatusLabel);
+          const totalAmount = toNum(pickBillingFirstValue("totalAmount", row, parsed));
+          const discount = toNum(pickBillingFirstValue("discount", row, parsed));
+          const amountPaid = toNum(pickBillingFirstValue("amountPaid", row, parsed));
+          const netAmount = toNum(pickBillingFirstValue("netAmount", row, parsed));
+          const balanceDue = toNum(pickBillingFirstValue("balanceDue", row, parsed));
           const paymentStatus = derivePaymentStatusFromFinancials({
             paymentEnum: pickPaymentEnum(row, parsed),
             paymentLabel: pickPaymentLabel(row, parsed),
-            totalAmount: pickBillingFirstValue("totalAmount", row, parsed),
-            discount: pickBillingFirstValue("discount", row, parsed),
-            amountPaid: pickBillingFirstValue("amountPaid", row, parsed),
-            netAmount: pickBillingFirstValue("netAmount", row, parsed),
-            balanceDue: pickBillingFirstValue("balanceDue", row, parsed),
+            totalAmount,
+            discount,
+            amountPaid,
+            netAmount,
+            balanceDue,
           });
 
           return {
@@ -374,6 +385,12 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
             paymentEnum: String(row.paymentStatus ?? pickPaymentEnum(row, parsed) ?? ""),
             paymentStatus,
+
+            paymentTotalAmount: totalAmount,
+            paymentDiscount: discount,
+            paymentAmountPaid: amountPaid,
+            paymentNetAmount: netAmount,
+            paymentBalanceDue: balanceDue,
 
             _parsed: parsed,
           };
@@ -392,6 +409,18 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     const list = allOrders.filter((o) => {
       const normalizedPay = normalizePaymentStatusLabel(o.paymentEnum, o.paymentStatus);
+
+      const snap = computePaymentSnapshot(
+        o.paymentTotalAmount,
+        o.paymentDiscount,
+        o.paymentAmountPaid
+      );
+      const hasBalanceSignal = o.paymentNetAmount > 0 || o.paymentAmountPaid > 0 || o.paymentBalanceDue > 0;
+      const isFullyPaidByAmounts = hasBalanceSignal
+        ? (o.paymentBalanceDue <= 0.00001 || snap.balanceDue <= 0.00001)
+        : false;
+
+      if (isFullyPaidByAmounts) return false;
       if (isFullyPaidStatus(o.paymentEnum, o.paymentStatus)) return false;
       return allowedStatuses.has(normalizedPay);
     });
