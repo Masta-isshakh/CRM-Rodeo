@@ -863,7 +863,7 @@ function InspectionModule({ currentUser }: any) {
     <div className="inspection-module" ref={reportRef}>
       {screenState === "main" && (
         <div className="app-container">
-          <header className="app-header">
+          <header className="app-header crm-unified-header">
             <div className="header-left">
               <h1>
                 <i className="fas fa-car"></i> Inspection Module

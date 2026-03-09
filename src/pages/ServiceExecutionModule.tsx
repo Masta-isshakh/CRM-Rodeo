@@ -24,7 +24,6 @@ import { getUrl } from "aws-amplify/storage";
 import { getUserDirectory, normalizeIdentity } from "../utils/userDirectoryCache";
 import {
   buildAssigneeOptionsFromDirectory,
-  buildTechnicianNamesFromDirectory,
 } from "../utils/userOptionDedupe";
 import { usePermissions } from "../lib/userPermissions";
 import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
@@ -101,6 +100,15 @@ function displayNameQuality(value: any) {
   return 2;
 }
 
+function parseBooleanLike(value: any): boolean | undefined {
+  if (typeof value === "boolean") return value;
+  const normalized = String(value ?? "").trim().toLowerCase();
+  if (!normalized) return undefined;
+  if (["true", "1", "yes", "enabled", "active", "confirmed"].includes(normalized)) return true;
+  if (["false", "0", "no", "disabled", "inactive", "unconfirmed"].includes(normalized)) return false;
+  return undefined;
+}
+
 function dedupeDirectoryUsers(users: any[]) {
   const merged = new Map<string, any>();
 
@@ -130,6 +138,20 @@ function dedupeDirectoryUsers(users: any[]) {
     const incomingName = String(user?.name ?? "").trim();
     const bestName = displayNameQuality(incomingName) > displayNameQuality(currentName) ? incomingName : currentName;
 
+    const existingEnabled = parseBooleanLike(existing?.enabled);
+    const incomingEnabled = parseBooleanLike(user?.enabled);
+    const mergedEnabled =
+      existingEnabled === false || incomingEnabled === false
+        ? false
+        : existingEnabled ?? incomingEnabled;
+
+    const existingIsActive = parseBooleanLike(existing?.isActive);
+    const incomingIsActive = parseBooleanLike(user?.isActive);
+    const mergedIsActive =
+      existingIsActive === false || incomingIsActive === false
+        ? false
+        : existingIsActive ?? incomingIsActive;
+
     merged.set(key, {
       ...existing,
       ...user,
@@ -138,6 +160,8 @@ function dedupeDirectoryUsers(users: any[]) {
       id: existing?.id ?? user?.id,
       profileOwner: existing?.profileOwner ?? user?.profileOwner,
       sub: existing?.sub ?? user?.sub,
+      enabled: mergedEnabled,
+      isActive: mergedIsActive,
     });
   }
 
@@ -281,16 +305,85 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
   // user lists (optional)
   const [systemUsers, setSystemUsers] = useState<any[]>([]);
+  const [activeProfileByEmail, setActiveProfileByEmail] = useState<Record<string, boolean>>({});
   const [actorLabelMap, setActorLabelMap] = useState<Record<string, string>>({});
-  const technicianNames = useMemo(
-    () => buildTechnicianNamesFromDirectory(systemUsers, actorLabelMap, currentUser),
-    [systemUsers, actorLabelMap, currentUser]
-  );
+
+  const activeSystemUsers = useMemo(() => {
+    return (systemUsers ?? []).filter((u) => {
+      const cognitoEnabled =
+        parseBooleanLike(u?.enabled ?? u?.status ?? u?.userStatus) ?? true;
+      if (!cognitoEnabled) return false;
+
+      const userMarkedActive = parseBooleanLike(u?.isActive);
+      if (userMarkedActive === false) return false;
+
+      const emailKey = normalizeIdentity(
+        pickEmailLike(u?.email, u?.attributes?.email, u?.username)
+      );
+      if (!emailKey) return false;
+      return activeProfileByEmail[emailKey] === true;
+    });
+  }, [systemUsers, activeProfileByEmail]);
+
+  const activeDirectoryEmails = useMemo(() => {
+    const set = new Set<string>();
+    for (const user of activeSystemUsers) {
+      const email = pickEmailLike(user?.email, user?.attributes?.email, user?.username);
+      if (email) set.add(email);
+    }
+    return set;
+  }, [activeSystemUsers]);
+
+  const activeActorLabelMap = useMemo(() => {
+    const filtered: Record<string, string> = {};
+    for (const [rawIdentity, label] of Object.entries(actorLabelMap || {})) {
+      const email = pickEmailLike(rawIdentity);
+      if (!email) continue;
+      if (activeDirectoryEmails.has(email) || activeProfileByEmail[email] === true) {
+        filtered[rawIdentity] = label;
+      }
+    }
+    return filtered;
+  }, [actorLabelMap, activeDirectoryEmails, activeProfileByEmail]);
+
+  const cachedRootAdminEmail = useMemo(() => {
+    try {
+      if (typeof window === "undefined") return "";
+      return pickEmailLike(window.localStorage.getItem("crm.rootAdminEmail"));
+    } catch {
+      return "";
+    }
+  }, []);
+
+  const isRootAdminOption = (value: any, label: any) => {
+    const normalizedValue = normalizeIdentity(value);
+    const normalizedLabel = normalizeIdentity(label);
+    const normalizedRootEmail = normalizeIdentity(cachedRootAdminEmail);
+
+    if (normalizedRootEmail && normalizedValue === normalizedRootEmail) return true;
+    if (normalizedValue === "root-admin@system") return true;
+    if (normalizedLabel === "root admin" || normalizedLabel === "root-admin") return true;
+    return false;
+  };
 
   const assigneeOptions = useMemo<AssigneeOption[]>(
-    () => buildAssigneeOptionsFromDirectory(systemUsers, actorLabelMap, currentUser),
-    [systemUsers, actorLabelMap, currentUser]
+    () =>
+      buildAssigneeOptionsFromDirectory(activeSystemUsers, activeActorLabelMap, currentUser).filter(
+        (opt) => !isRootAdminOption(opt.value, opt.label)
+      ),
+    [activeSystemUsers, activeActorLabelMap, currentUser, cachedRootAdminEmail]
   );
+
+  const technicianNames = useMemo(() => {
+    const byKey = new Map<string, string>();
+    for (const opt of assigneeOptions) {
+      const label = String(opt?.label ?? "").trim();
+      const key = normalizeIdentity(label);
+      if (!key || byKey.has(key)) continue;
+      byKey.set(key, label);
+    }
+    return Array.from(byKey.values());
+  }, [assigneeOptions]);
 
   const assigneeLabelByValue = useMemo(() => {
     const map = new Map<string, string>();
@@ -424,6 +517,21 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
         const mergedUsers: any[] = Array.isArray(directory.users) ? [...directory.users] : [];
 
         try {
+          const profileRes = await client.models.UserProfile.list({
+            limit: 20000,
+          } as any);
+          const profileMap: Record<string, boolean> = {};
+          for (const row of profileRes?.data ?? []) {
+            const emailKey = normalizeIdentity((row as any)?.email);
+            if (!emailKey) continue;
+            profileMap[emailKey] = Boolean((row as any)?.isActive ?? true);
+          }
+          setActiveProfileByEmail(profileMap);
+        } catch {
+          setActiveProfileByEmail({});
+        }
+
+        try {
           const systemUsersRes = await (client.queries as any).systemListUsers?.();
           const raw = (systemUsersRes as any)?.data ?? systemUsersRes;
           const parsed = safeJsonParse<any>(raw, raw);
@@ -443,6 +551,8 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
               id: sub || undefined,
               profileOwner,
               sub: sub || undefined,
+              enabled: parseBooleanLike(user?.enabled ?? user?.status ?? user?.userStatus),
+              isActive: parseBooleanLike(user?.isActive),
             });
 
             if (email && fullName) {
@@ -457,6 +567,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
         setActorLabelMap(identityMap);
       } catch {
         setSystemUsers([]);
+        setActiveProfileByEmail({});
         setActorLabelMap({});
       }
     })();
@@ -1086,7 +1197,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   return (
     <div className="service-execution-wrapper">
       <div className="app-container">
-        <header className="app-header">
+        <header className="app-header crm-unified-header">
           <div className="header-left">
             <h1>
               <i className="fas fa-clipboard-check"></i> Services & Work Management

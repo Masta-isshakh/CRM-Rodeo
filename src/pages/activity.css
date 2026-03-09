@@ -52,3 +52,47 @@
   font-size: 12px;
   color: #64748b;
 }
+
+/* ========================================
+   FINAL OVERRIDES: PERFORMANCE + 98% WIDTH
+   (Requested by user - visual only)
+======================================== */
+
+.activity-page *,
+.activity-page button,
+.activity-page .timeline-item {
+  animation: none !important;
+  transition: none !important;
+}
+
+.activity-page,
+.activity-page .timeline,
+.activity-page .timeline-item {
+  width: 98% !important;
+  max-width: 98% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+@media (max-width: 768px) {
+  .activity-page,
+  .activity-page .timeline,
+  .activity-page .timeline-item {
+    width: min(98%, calc(100vw - 12px)) !important;
+    max-width: calc(100vw - 12px) !important;
+  }
+
+  .activity-page .timeline-item {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .activity-page,
+  .activity-page .timeline,
+  .activity-page .timeline-item {
+    width: min(98%, calc(100vw - 10px)) !important;
+    max-width: calc(100vw - 10px) !important;
+  }
+}

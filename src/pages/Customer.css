@@ -1019,3 +1019,84 @@
     flex-wrap: wrap;
   }
 }
+
+/* ========================================
+   FINAL OVERRIDES: PERFORMANCE + 98% WIDTH
+   (Requested by user - visual only)
+======================================== */
+
+.customer-page *,
+.customer-page .action-dropdown-menu-fixed,
+.customer-page .btn-action-dropdown,
+.customer-page .dropdown-item {
+  animation: none !important;
+  transition: none !important;
+}
+
+.customer-page,
+.customer-page .app-header,
+.customer-page .main-content,
+.customer-page .search-section,
+.customer-page .results-section,
+.customer-page .table-wrapper,
+.customer-page .pim-details-screen,
+.customer-page .pim-details-header,
+.customer-page .pim-details-body,
+.customer-page .pim-details-grid {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+.customer-page .pim-detail-card,
+.customer-page .form-card,
+.customer-page .details-card,
+.customer-page .modal {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+@media (max-width: 768px) {
+  .customer-page,
+  .customer-page .app-header,
+  .customer-page .main-content,
+  .customer-page .search-section,
+  .customer-page .results-section,
+  .customer-page .table-wrapper,
+  .customer-page .pim-details-screen,
+  .customer-page .pim-details-header,
+  .customer-page .pim-details-body,
+  .customer-page .pim-details-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .customer-page .pim-detail-card,
+  .customer-page .form-card,
+  .customer-page .details-card,
+  .customer-page .modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .customer-page,
+  .customer-page .app-header,
+  .customer-page .main-content,
+  .customer-page .search-section,
+  .customer-page .results-section,
+  .customer-page .table-wrapper,
+  .customer-page .pim-details-screen,
+  .customer-page .pim-details-header,
+  .customer-page .pim-details-body,
+  .customer-page .pim-details-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}

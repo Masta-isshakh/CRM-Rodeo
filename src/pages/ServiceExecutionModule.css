@@ -1657,3 +1657,89 @@
     padding: 12px;
   }
 }
+
+/* ========================================
+   FINAL OVERRIDES: PERFORMANCE + 98% WIDTH
+   (Requested by user - visual only)
+======================================== */
+
+.service-execution-wrapper *,
+.service-execution-wrapper .action-dropdown-menu-fixed,
+.service-execution-wrapper .btn-action-dropdown,
+.service-execution-wrapper .dropdown-item {
+  animation: none !important;
+  transition: none !important;
+}
+
+.service-execution-wrapper,
+.service-execution-wrapper .app-container,
+.service-execution-wrapper .app-header,
+.service-execution-wrapper .main-content,
+.service-execution-wrapper .search-section,
+.service-execution-wrapper .results-section,
+.service-execution-wrapper .table-wrapper,
+.service-execution-wrapper .service-details-screen,
+.service-execution-wrapper .service-details-header,
+.service-execution-wrapper .service-details-body,
+.service-execution-wrapper .service-details-grid {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+.service-execution-wrapper .epm-detail-card,
+.service-execution-wrapper .pim-detail-card,
+.service-execution-wrapper .jh-card,
+.service-execution-wrapper .service-item,
+.service-execution-wrapper .service-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+@media (max-width: 768px) {
+  .service-execution-wrapper,
+  .service-execution-wrapper .app-container,
+  .service-execution-wrapper .app-header,
+  .service-execution-wrapper .main-content,
+  .service-execution-wrapper .search-section,
+  .service-execution-wrapper .results-section,
+  .service-execution-wrapper .table-wrapper,
+  .service-execution-wrapper .service-details-screen,
+  .service-execution-wrapper .service-details-header,
+  .service-execution-wrapper .service-details-body,
+  .service-execution-wrapper .service-details-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .service-execution-wrapper .epm-detail-card,
+  .service-execution-wrapper .pim-detail-card,
+  .service-execution-wrapper .jh-card,
+  .service-execution-wrapper .service-item,
+  .service-execution-wrapper .service-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .service-execution-wrapper,
+  .service-execution-wrapper .app-container,
+  .service-execution-wrapper .app-header,
+  .service-execution-wrapper .main-content,
+  .service-execution-wrapper .search-section,
+  .service-execution-wrapper .results-section,
+  .service-execution-wrapper .table-wrapper,
+  .service-execution-wrapper .service-details-screen,
+  .service-execution-wrapper .service-details-header,
+  .service-execution-wrapper .service-details-body,
+  .service-execution-wrapper .service-details-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}

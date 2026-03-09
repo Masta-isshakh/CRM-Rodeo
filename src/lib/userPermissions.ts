@@ -92,6 +92,30 @@ async function listAll<T>(
   return out.slice(0, max);
 }
 
+async function findUserProfileByEmailCaseInsensitive(client: any, email: string) {
+  const normalized = String(email ?? "").trim().toLowerCase();
+  if (!normalized) return null;
+
+  try {
+    const exact = await (client.models.UserProfile as any).list({
+      filter: { email: { eq: normalized } },
+      limit: 1,
+    });
+    const row = (exact?.data ?? [])[0] as any;
+    if (row?.id) return row;
+  } catch {
+    // fallback below
+  }
+
+  const all = await (client.models.UserProfile as any).list({
+    limit: 20000,
+  });
+
+  return (
+    (all?.data ?? []).find((row: any) => String(row?.email ?? "").trim().toLowerCase() === normalized) ?? null
+  );
+}
+
 function optKey(moduleId: string, optionId: string) {
   return `${normalizeKey(moduleId)}::${normalizeKey(optionId)}`;
 }
@@ -234,16 +258,14 @@ export function usePermissions() {
         type UserProfileRow = Schema["UserProfile"]["type"];
         let deptFromProfile = "";
         let profileActive = true;
+        let profileDashboardAccessEnabled = true;
 
         if (resolvedEmail) {
           try {
-            const upRes = await (client.models.UserProfile as any).list({
-              filter: { email: { eq: resolvedEmail } },
-              limit: 1,
-            });
-            const row = (upRes?.data ?? [])[0] as UserProfileRow | undefined;
+            const row = (await findUserProfileByEmailCaseInsensitive(client, resolvedEmail)) as UserProfileRow | undefined;
             deptFromProfile = String((row as any)?.departmentKey ?? "").trim();
             profileActive = Boolean((row as any)?.isActive ?? true);
+            profileDashboardAccessEnabled = Boolean((row as any)?.dashboardAccessEnabled ?? true);
           } catch (e) {
             console.warn("[PERMS] UserProfile lookup failed:", e);
           }
@@ -261,7 +283,7 @@ export function usePermissions() {
           return;
         }
 
-        if (!profileActive || !effectiveDept) {
+        if (!profileActive || !profileDashboardAccessEnabled || !effectiveDept) {
           setPermMap({});
           setOptionToggleMap({});
           setOptionNumberMap({});

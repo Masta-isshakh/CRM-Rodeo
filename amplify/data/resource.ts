@@ -36,9 +36,13 @@ const schema = a
     // -----------------------------
     UserProfile: a
       .model({
+        employeeId: a.string(),
         email: a.string().required(),
         fullName: a.string().required(),
         isActive: a.boolean().default(true),
+        dashboardAccessEnabled: a.boolean().default(true),
+        failedLoginAttempts: a.integer().default(0),
+        lastFailedLoginAt: a.datetime(),
         createdAt: a.datetime(),
         mobileNumber: a.string(),
 
@@ -50,6 +54,8 @@ const schema = a
         departmentName: a.string(),
         roleId: a.id(),
         roleName: a.string(),
+        lineManagerEmail: a.string(),
+        lineManagerName: a.string(),
       })
       .authorization((allow) => [
         allow.ownerDefinedIn("profileOwner"),
@@ -758,12 +764,15 @@ const schema = a
     inviteUser: a
       .mutation()
       .arguments({
+        employeeId: a.string(),
         email: a.string().required(),
         fullName: a.string().required(),
         mobileNumber: a.string(),
         departmentKey: a.string().required(),
         departmentName: a.string(),
         roleId: a.id(),
+        lineManagerEmail: a.string(),
+        lineManagerName: a.string(),
       })
       .authorization((allow) => [allow.group(ADMIN_GROUP)])
       .handler(a.handler.function(inviteUser))

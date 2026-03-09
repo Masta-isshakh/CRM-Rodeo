@@ -66,6 +66,9 @@ async function resolveCognitoUsername(userPoolId: string, email: string): Promis
 }
 
 export const handler: Handler = async (event) => {
+  const employeeId = String((event.arguments as any)?.employeeId ?? "").trim();
+  const lineManagerEmail = String((event.arguments as any)?.lineManagerEmail ?? "").trim().toLowerCase();
+  const lineManagerName = String((event.arguments as any)?.lineManagerName ?? "").trim();
   const email = String(event.arguments?.email ?? "").trim().toLowerCase();
   const fullName = String(event.arguments?.fullName ?? "").trim();
   const departmentKey = String(event.arguments?.departmentKey ?? "").trim();
@@ -102,19 +105,20 @@ export const handler: Handler = async (event) => {
 
   // 1) Create user OR re-send invite if exists
   try {
-    const createRes = await cognito.send(
-      new AdminCreateUserCommand({
-        UserPoolId: userPoolId,
-        Username: email,
-        TemporaryPassword: temporaryPassword,
-        UserAttributes: [
-          { Name: "email", Value: email },
-          { Name: "email_verified", Value: "true" },
-          { Name: "name", Value: fullName },
-        ],
-        DesiredDeliveryMediums: ["EMAIL"],
-      })
-    );
+const createRes = await cognito.send(
+  new AdminCreateUserCommand({
+    UserPoolId: userPoolId,
+    Username: email,
+    TemporaryPassword: temporaryPassword,
+    UserAttributes: [
+      { Name: "email", Value: email },
+      { Name: "email_verified", Value: "true" },
+      { Name: "name", Value: fullName },
+    ],
+    DesiredDeliveryMediums: ["EMAIL"],
+    ForceAliasCreation: false
+  })
+);
     sub = getAttr(createRes.User?.Attributes, "sub");
   } catch (e: any) {
     if (e?.name !== "UsernameExistsException") throw e;
@@ -189,13 +193,19 @@ export const handler: Handler = async (event) => {
   }
 
   const payload: any = {
+    employeeId: employeeId || undefined,
     email,
     fullName,
     departmentKey,
     departmentName,
     roleId: roleId || undefined,
     roleName: roleName || undefined,
+    lineManagerEmail: lineManagerEmail || undefined,
+    lineManagerName: lineManagerName || undefined,
     isActive: true,
+    dashboardAccessEnabled: true,
+    failedLoginAttempts: 0,
+    lastFailedLoginAt: null,
     profileOwner,
     mobileNumber: mobileNumber || undefined, // ✅ save only if present
   };
@@ -224,6 +234,9 @@ export const handler: Handler = async (event) => {
     sub,
     inviteAction,
     emailDeliveryMedium: "EMAIL",
+    employeeId: employeeId || null,
+    lineManagerEmail: lineManagerEmail || null,
+    lineManagerName: lineManagerName || null,
     mobileNumber: mobileNumber || null,
   };
 };

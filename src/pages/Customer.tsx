@@ -73,6 +73,16 @@ function socialPlatformLabel(v: unknown) {
   return found?.label ?? key;
 }
 
+function toCustomerDisplayId(rawId: unknown): string {
+  const raw = String(rawId ?? "").trim();
+  if (!raw) return "—";
+
+  const normalized = raw.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
+  if (!normalized) return "—";
+
+  return `CUS-${normalized.slice(-6)}`;
+}
+
 type CountsMap = Record<
   string,
   {
@@ -251,6 +261,7 @@ function CustomersTable(props: {
   onViewDetails: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  formatCustomerId: (id: string) => string;
   searchQuery: string;
   canViewDetails: boolean;
   canUpdate: boolean;
@@ -263,6 +274,7 @@ function CustomersTable(props: {
     onViewDetails,
     onEdit,
     onDelete,
+    formatCustomerId,
     searchQuery,
     canViewDetails,
     canUpdate,
@@ -344,7 +356,7 @@ function CustomersTable(props: {
 
             return (
               <tr key={c.id}>
-                <td>{c.id}</td>
+                <td dangerouslySetInnerHTML={{ __html: highlight(formatCustomerId(c.id), searchQuery) }} />
 
                 <td dangerouslySetInnerHTML={{ __html: highlight(fullName || "—", searchQuery) }} />
                 <td dangerouslySetInnerHTML={{ __html: highlight(c.phone ?? "—", searchQuery) }} />
@@ -463,6 +475,7 @@ function DetailsView(props: {
   loadingRelations: boolean;
   onClose: () => void;
   onEdit: (id: string) => void;
+  formatCustomerId: (id: string) => string;
   canUpdate: boolean;
   canViewInfoCard: boolean;
   canViewRelatedCard: boolean;
@@ -479,6 +492,7 @@ function DetailsView(props: {
     loadingRelations,
     onClose,
     onEdit,
+    formatCustomerId,
     canUpdate,
     canViewInfoCard,
     canViewRelatedCard,
@@ -488,6 +502,7 @@ function DetailsView(props: {
   } = props;
 
   const fullName = `${customer.name ?? ""} ${customer.lastname ?? ""}`.trim();
+  const displayCustomerId = formatCustomerId(customer.id);
   const createdAt = customer.createdAt ? new Date(customer.createdAt).toLocaleString() : "—";
   const ct = counts[customer.id] || { contacts: 0, deals: 0, tickets: 0 };
 
@@ -496,7 +511,7 @@ function DetailsView(props: {
       <div className="pim-details-header">
         <div className="pim-details-title-container">
           <h2>
-            <i className="fas fa-user-circle" /> Customer Details - <span>{customer.id}</span>
+            <i className="fas fa-user-circle" /> Customer Details - <span>{displayCustomerId}</span>
           </h2>
         </div>
         <button className="pim-btn-close-details" onClick={onClose} type="button">
@@ -523,7 +538,7 @@ function DetailsView(props: {
               <div className="pim-card-content">
                 <div className="pim-info-item">
                   <span className="pim-info-label">Customer ID</span>
-                  <span className="pim-info-value">{customer.id}</span>
+                  <span className="pim-info-value">{displayCustomerId}</span>
                 </div>
 
                 <div className="pim-info-item">
@@ -841,6 +856,8 @@ export default function Customers({ permissions }: PageProps) {
   const [deals, setDeals] = useState<DealRow[]>([]);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
 
+  const formatCustomerId = useCallback((id: string) => toCustomerDisplayId(id), []);
+
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [showEditCustomerModal, setShowEditCustomerModal] = useState(false);
   const [deleteCustomerId, setDeleteCustomerId] = useState<string | null>(null);
@@ -946,8 +963,10 @@ export default function Customers({ permissions }: PageProps) {
     for (const term of terms) {
       results = results.filter((c) => {
         const fullName = `${c.name ?? ""} ${c.lastname ?? ""}`.trim().toLowerCase();
+        const displayCustomerId = toCustomerDisplayId(c.id).toLowerCase();
         return (
           String(c.id).toLowerCase().includes(term) ||
+          displayCustomerId.includes(term) ||
           fullName.includes(term) ||
           String(c.phone ?? "").toLowerCase().includes(term) ||
           String(c.email ?? "").toLowerCase().includes(term) ||
@@ -1238,6 +1257,7 @@ export default function Customers({ permissions }: PageProps) {
           loadingRelations={loadingRelations}
           onClose={closeDetailsView}
           onEdit={openEditModal}
+          formatCustomerId={formatCustomerId}
           canUpdate={canCustomersEdit}
           canViewInfoCard={canCustomersDetailsInfo}
           canViewRelatedCard={canCustomersDetailsRelated}
@@ -1423,8 +1443,8 @@ export default function Customers({ permissions }: PageProps) {
   }
 
   return (
-    <div className="app-container" id="mainScreen">
-      <header className="app-header">
+    <div className="app-container customer-page" id="mainScreen">
+      <header className="app-header crm-unified-header">
         <div className="header-left">
           <h1>
             <i className="fas fa-users" /> Customers Management
@@ -1525,6 +1545,7 @@ export default function Customers({ permissions }: PageProps) {
             onViewDetails={openDetailsView}
             onEdit={openEditModal}
             onDelete={openDeleteConfirm}
+            formatCustomerId={formatCustomerId}
             searchQuery={canCustomersSearch ? searchQuery : ""}
             canViewDetails={canCustomersViewDetails}
             canUpdate={canCustomersEdit}

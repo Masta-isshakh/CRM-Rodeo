@@ -70,6 +70,14 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
   const [roleModalDept, setRoleModalDept] = useState<Dept | null>(null);
   const [modalRoleName, setModalRoleName] = useState("");
   const [modalRoleDescription, setModalRoleDescription] = useState("");
+  const [showEditRoleModal, setShowEditRoleModal] = useState(false);
+  const [editRoleDept, setEditRoleDept] = useState<Dept | null>(null);
+  const [editRoleId, setEditRoleId] = useState("");
+  const [editRoleName, setEditRoleName] = useState("");
+  const [editRoleDescription, setEditRoleDescription] = useState("");
+  const [showEditDeptModal, setShowEditDeptModal] = useState(false);
+  const [editDeptTarget, setEditDeptTarget] = useState<Dept | null>(null);
+  const [editDeptName, setEditDeptName] = useState("");
   const [showDeletePopup, setShowDeletePopup] = useState(false);
   const [deleteTargetDept, setDeleteTargetDept] = useState<Dept | null>(null);
 
@@ -292,17 +300,87 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     }
   };
 
+  const openEditRoleModal = (department: Dept, role: Schema["AppRole"]["type"]) => {
+    if (!permissions.canUpdate || !canOption("departments", "departments_assignrole", true) || loading) return;
+    const roleId = String(role?.id ?? "").trim();
+    if (!roleId) return;
+
+    setEditRoleDept(department);
+    setEditRoleId(roleId);
+    setEditRoleName(String(role?.name ?? ""));
+    setEditRoleDescription(String(role?.description ?? ""));
+    setShowEditRoleModal(true);
+  };
+
+  const updateRoleForDepartment = async (roleId: string, nextNameRaw: string, nextDescriptionRaw: string) => {
+    if (!permissions.canUpdate || !canOption("departments", "departments_assignrole", true)) return;
+
+    const id = String(roleId ?? "").trim();
+    const nextName = nextNameRaw.trim();
+    const nextDescription = nextDescriptionRaw.trim();
+    if (!id || !nextName) return;
+
+    setStatus("");
+    setLoading(true);
+    try {
+      const duplicate = roles.find(
+        (r) =>
+          String(r.id ?? "") !== id &&
+          String(r.name ?? "").trim().toLowerCase() === nextName.toLowerCase()
+      );
+      if (duplicate) {
+        throw new Error("Role name already exists.");
+      }
+
+      await client.models.AppRole.update({
+        id,
+        name: nextName,
+        description: nextDescription || undefined,
+      });
+
+      await load();
+      setShowEditRoleModal(false);
+      setEditRoleDept(null);
+      setEditRoleId("");
+      setEditRoleName("");
+      setEditRoleDescription("");
+    } catch (e: any) {
+      console.error(e);
+      setStatus(e?.message ?? "Role update failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const totalRoleAssignments = links.length;
   const avgRolesPerDept = departments.length ? (totalRoleAssignments / departments.length).toFixed(1) : "0.0";
 
-  const onClickEditDepartment = async (dept: Dept) => {
+  const onClickEditDepartment = (dept: Dept) => {
     if (!permissions.canUpdate || !canOption("departments", "departments_rename", true)) return;
-    const suggested = dept.name;
-    const typed = window.prompt("Rename department", suggested);
-    if (!typed) return;
-    const next = typed.trim();
-    if (!next || next === suggested) return;
-    await renameDept(dept.key, next);
+    if (loading) return;
+    setEditDeptTarget(dept);
+    setEditDeptName(String(dept.name ?? ""));
+    setShowEditDeptModal(true);
+  };
+
+  const closeEditDeptModal = () => {
+    if (loading) return;
+    setShowEditDeptModal(false);
+    setEditDeptTarget(null);
+    setEditDeptName("");
+  };
+
+  const submitEditDepartment = async () => {
+    if (!editDeptTarget) return;
+    const next = editDeptName.trim();
+    if (!next || next === editDeptTarget.name) {
+      closeEditDeptModal();
+      return;
+    }
+    await renameDept(editDeptTarget.key, next);
+    setShowEditDeptModal(false);
+    setEditDeptTarget(null);
+    setEditDeptName("");
   };
 
   return (
@@ -434,9 +512,15 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                           </div>
 
                           <div className="dep-role-actions">
-                            <Button className="dep-btn dep-btn-muted dep-mini" isDisabled>
-                              <i className="fas fa-edit"></i> Edit
-                            </Button>
+                            <PermissionGate moduleId="departments" optionId="departments_assignrole">
+                              <Button
+                                className="dep-btn dep-btn-muted dep-mini"
+                                onClick={() => openEditRoleModal(d, role)}
+                                isDisabled={!permissions.canUpdate || loading}
+                              >
+                                <i className="fas fa-edit"></i> Edit
+                              </Button>
+                            </PermissionGate>
                             <PermissionGate moduleId="departments" optionId="departments_assignrole">
                               <Button
                                 className="dep-btn dep-btn-danger dep-mini"
@@ -514,6 +598,113 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                 isDisabled={loading || !modalRoleName.trim()}
               >
                 Create & Add
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditRoleModal && editRoleDept && (
+        <div className="dep-modal-backdrop" role="dialog" aria-modal="true" aria-label="Edit role">
+          <div className="dep-modal-card">
+            <div className="dep-modal-head">
+              <h3>Edit Role</h3>
+              <button
+                type="button"
+                className="dep-modal-close"
+                onClick={() => {
+                  if (loading) return;
+                  setShowEditRoleModal(false);
+                  setEditRoleDept(null);
+                  setEditRoleId("");
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="dep-modal-subtitle">Department: <strong>{editRoleDept.name}</strong></p>
+
+            <div className="dep-modal-body">
+              <TextField
+                label="Role name"
+                value={editRoleName}
+                onChange={(e) => setEditRoleName((e.target as HTMLInputElement).value)}
+              />
+              <TextField
+                label="Role description (optional)"
+                value={editRoleDescription}
+                onChange={(e) => setEditRoleDescription((e.target as HTMLInputElement).value)}
+              />
+            </div>
+
+            <div className="dep-modal-actions">
+              <Button
+                className="dep-btn dep-btn-muted"
+                onClick={() => {
+                  if (loading) return;
+                  setShowEditRoleModal(false);
+                  setEditRoleDept(null);
+                  setEditRoleId("");
+                }}
+                isDisabled={loading}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="dep-btn dep-btn-success"
+                onClick={() => void updateRoleForDepartment(editRoleId, editRoleName, editRoleDescription)}
+                isLoading={loading}
+                isDisabled={loading || !editRoleName.trim()}
+              >
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditDeptModal && editDeptTarget && (
+        <div className="dep-modal-backdrop" role="dialog" aria-modal="true" aria-label="Edit department">
+          <div className="dep-modal-card">
+            <div className="dep-modal-head">
+              <h3>Edit Department</h3>
+              <button
+                type="button"
+                className="dep-modal-close"
+                onClick={closeEditDeptModal}
+              >
+                ×
+              </button>
+            </div>
+
+            <p className="dep-modal-subtitle">
+              Department key: <strong>{editDeptTarget.key}</strong>
+            </p>
+
+            <div className="dep-modal-body">
+              <TextField
+                label="Department name"
+                value={editDeptName}
+                onChange={(e) => setEditDeptName((e.target as HTMLInputElement).value)}
+              />
+            </div>
+
+            <div className="dep-modal-actions">
+              <Button
+                className="dep-btn dep-btn-muted"
+                onClick={closeEditDeptModal}
+                isDisabled={loading}
+              >
+                Cancel
+              </Button>
+              <Button
+                className="dep-btn dep-btn-success"
+                onClick={() => void submitEditDepartment()}
+                isLoading={loading}
+                isDisabled={loading || !editDeptName.trim()}
+              >
+                Save Changes
               </Button>
             </div>
           </div>

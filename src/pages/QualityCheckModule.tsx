@@ -652,7 +652,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
     return (
       <div className="quality-check-module">
         <div className="app-container">
-          <header className="app-header">
+          <header className="app-header crm-unified-header">
             <div className="header-left">
               <h1>
                 <i className="fas fa-check-double"></i> Quality Check Module

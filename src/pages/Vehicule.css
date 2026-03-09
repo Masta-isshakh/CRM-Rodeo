@@ -286,3 +286,84 @@
 .pim-info-item:last-child{border-bottom:0;}
 .pim-info-label{color:var(--muted); font-weight:700; font-size:12px;}
 .pim-info-value{color:#111827; font-weight:600; font-size:13px;}
+
+/* ========================================
+   FINAL OVERRIDES: PERFORMANCE + 98% WIDTH
+   (Requested by user - visual only)
+======================================== */
+
+.vehicle-page *,
+.vehicle-page .action-dropdown-menu-fixed,
+.vehicle-page .btn-action-dropdown,
+.vehicle-page .dropdown-item {
+  animation: none !important;
+  transition: none !important;
+}
+
+.vehicle-page,
+.vehicle-page .app-header,
+.vehicle-page .main-content,
+.vehicle-page .search-section,
+.vehicle-page .results-section,
+.vehicle-page .table-wrapper,
+.vehicle-page .pim-details-screen,
+.vehicle-page .pim-details-header,
+.vehicle-page .pim-details-body,
+.vehicle-page .pim-details-grid {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+.vehicle-page .pim-detail-card,
+.vehicle-page .modal,
+.vehicle-page .alert-popup,
+.vehicle-page .delete-modal {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+@media (max-width: 768px) {
+  .vehicle-page,
+  .vehicle-page .app-header,
+  .vehicle-page .main-content,
+  .vehicle-page .search-section,
+  .vehicle-page .results-section,
+  .vehicle-page .table-wrapper,
+  .vehicle-page .pim-details-screen,
+  .vehicle-page .pim-details-header,
+  .vehicle-page .pim-details-body,
+  .vehicle-page .pim-details-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .vehicle-page .pim-detail-card,
+  .vehicle-page .modal,
+  .vehicle-page .alert-popup,
+  .vehicle-page .delete-modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .vehicle-page,
+  .vehicle-page .app-header,
+  .vehicle-page .main-content,
+  .vehicle-page .search-section,
+  .vehicle-page .results-section,
+  .vehicle-page .table-wrapper,
+  .vehicle-page .pim-details-screen,
+  .vehicle-page .pim-details-header,
+  .vehicle-page .pim-details-body,
+  .vehicle-page .pim-details-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}

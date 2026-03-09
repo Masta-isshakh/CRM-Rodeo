@@ -728,3 +728,119 @@
   .pim-kpis { grid-template-columns: 1fr; }
   .pim-invoice-meta { grid-template-columns: 1fr; }
 }
+
+/* ========================================
+   FINAL OVERRIDES: PERFORMANCE + 98% WIDTH
+   (Requested by user - visual only)
+======================================== */
+
+/* Remove animation/transition delay in Payment + Invoice UI */
+.pim-root *,
+.pim-details-screen *,
+.action-dropdown-menu-fixed,
+.action-dropdown-menu-fixed *,
+.btn-action-dropdown,
+.dropdown-item {
+  animation: none !important;
+  transition: none !important;
+}
+
+.action-dropdown-menu-fixed {
+  will-change: auto !important;
+  transform: none !important;
+}
+
+/* 98% width shell across list + details */
+.pim-root,
+.pim-root .pim-container,
+.pim-root .pim-header,
+.pim-root .pim-search-section,
+.pim-root .pim-search-container,
+.pim-root .pim-results-section,
+.pim-root .pim-table-wrapper,
+.pim-root .pim-footer,
+.pim-details-screen,
+.jo-details-v3 .pim-details-header,
+.jo-details-v3 .pim-details-body,
+.jo-details-v3 .pim-details-grid {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* 98% width cards inside details */
+.jo-details-v3 .pim-card,
+.jo-details-v3 .pim-detail-card,
+.jo-details-v3 .epm-detail-card,
+.jo-details-v3 .jh-card,
+.jo-details-v3 .form-card,
+.jo-details-v3 .pim-services-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* Keep details cards stacked correctly after width enforcement */
+.jo-details-v3 .pim-card,
+.jo-details-v3 .pim-detail-card,
+.jo-details-v3 .epm-detail-card,
+.jo-details-v3 .jh-card,
+.jo-details-v3 .form-card,
+.jo-details-v3 .pim-services-card {
+  grid-column: span 12 !important;
+}
+
+/* Mobile gutter tuning for 98% layout */
+@media (max-width: 768px) {
+  .pim-root,
+  .pim-root .pim-container,
+  .pim-root .pim-header,
+  .pim-root .pim-search-section,
+  .pim-root .pim-search-container,
+  .pim-root .pim-results-section,
+  .pim-root .pim-table-wrapper,
+  .pim-root .pim-footer,
+  .pim-details-screen,
+  .jo-details-v3 .pim-details-header,
+  .jo-details-v3 .pim-details-body,
+  .jo-details-v3 .pim-details-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .jo-details-v3 .pim-card,
+  .jo-details-v3 .pim-detail-card,
+  .jo-details-v3 .epm-detail-card,
+  .jo-details-v3 .jh-card,
+  .jo-details-v3 .form-card,
+  .jo-details-v3 .pim-services-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .pim-root,
+  .pim-root .pim-container,
+  .pim-root .pim-header,
+  .pim-root .pim-search-section,
+  .pim-root .pim-search-container,
+  .pim-root .pim-results-section,
+  .pim-root .pim-table-wrapper,
+  .pim-root .pim-footer,
+  .pim-details-screen,
+  .jo-details-v3 .pim-details-header,
+  .jo-details-v3 .pim-details-body,
+  .jo-details-v3 .pim-details-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}

@@ -645,3 +645,57 @@
 .rac-page ::-webkit-scrollbar-track {
   background: #eef2f6;
 }
+
+/* ========================================
+   FINAL OVERRIDES: PERFORMANCE + 98% WIDTH
+   (Requested by user - visual only)
+======================================== */
+
+.rac-page *,
+.rac-page button,
+.rac-page .rac-menu-item {
+  animation: none !important;
+  transition: none !important;
+}
+
+.rac-page,
+.rac-page .rac-container,
+.rac-page .rac-header,
+.rac-page .rac-role-section,
+.rac-page .rac-role-selector,
+.rac-page .rac-modules,
+.rac-page .rac-module-card,
+.rac-page .rac-modal {
+  width: 98% !important;
+  max-width: 98% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+@media (max-width: 768px) {
+  .rac-page,
+  .rac-page .rac-container,
+  .rac-page .rac-header,
+  .rac-page .rac-role-section,
+  .rac-page .rac-role-selector,
+  .rac-page .rac-modules,
+  .rac-page .rac-module-card,
+  .rac-page .rac-modal {
+    width: min(98%, calc(100vw - 12px)) !important;
+    max-width: calc(100vw - 12px) !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .rac-page,
+  .rac-page .rac-container,
+  .rac-page .rac-header,
+  .rac-page .rac-role-section,
+  .rac-page .rac-role-selector,
+  .rac-page .rac-modules,
+  .rac-page .rac-module-card,
+  .rac-page .rac-modal {
+    width: min(98%, calc(100vw - 10px)) !important;
+    max-width: calc(100vw - 10px) !important;
+  }
+}

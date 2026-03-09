@@ -1102,7 +1102,7 @@ export default function JobOrderHistory({
   // ===================== LIST SCREEN =====================
   return (
     <div className="jh-root">
-      <header className="jh-header">
+      <header className="jh-header crm-unified-header">
         <div className="jh-header-left">
           <h1>
             <i className="fas fa-history" /> Job Order History

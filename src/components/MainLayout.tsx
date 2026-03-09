@@ -72,8 +72,13 @@ function mergePerms(...items: CrudPerm[]): CrudPerm {
 }
 
 export default function MainLayout({ signOut }: { signOut: () => void }) {
+  const DESKTOP_BREAKPOINT = 1100;
+  const detectDesktop = () =>
+    typeof window !== "undefined" ? window.innerWidth >= DESKTOP_BREAKPOINT : true;
+
   const [page, setPage] = useState<Page>("dashboard");
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isDesktop, setIsDesktop] = useState<boolean>(detectDesktop);
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(detectDesktop);
 
   const { loading, email, isAdminGroup, can, canOption, refresh } = usePermissions();
   const canAny = (key: string) => ((can as any)(key) ?? EMPTY) as CrudPerm;
@@ -87,7 +92,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
   const go = (p: Page) => {
     setPage(p);
-    setSidebarOpen(false);
+    if (!isDesktop) setSidebarOpen(false);
   };
 
   // ✅ helper: sidebar “list” toggle gate (defaults to true if key not stored)
@@ -220,23 +225,58 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   }, [page, refresh]);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setSidebarOpen(false);
+    const handleResize = () => {
+      const nextDesktop = detectDesktop();
+      setIsDesktop(nextDesktop);
+      setSidebarOpen(nextDesktop);
     };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isDesktop) setSidebarOpen(false);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [isDesktop]);
+
+  useEffect(() => {
     const prev = document.body.style.overflow;
-    if (sidebarOpen) document.body.style.overflow = "hidden";
+    if (!isDesktop && sidebarOpen) document.body.style.overflow = "hidden";
     else document.body.style.overflow = prev || "";
     return () => {
       document.body.style.overflow = prev || "";
     };
-  }, [sidebarOpen]);
+  }, [isDesktop, sidebarOpen]);
 
   const title = "Rodeo Drive CRM";
+
+  const pageTitleByKey: Record<Page, string> = {
+    dashboard: "Dashboard",
+    customers: "Customers",
+    vehicles: "Vehicles",
+    tickets: "Tickets",
+    employees: "Employees",
+    activitylog: "Activity Log",
+    jobcards: "Job Cards",
+    servicecreation: "Service Creation",
+    jobhistory: "Job History",
+    serviceexecution: "Service Execution",
+    paymentinvoices: "Payment & Invoices",
+    qualitycheck: "Quality Check",
+    exitpermit: "Exit Permit",
+    calltracking: "Call Tracking",
+    inspection: "Inspection",
+    users: "User Management",
+    departments: "Departments",
+    rolespolicies: "Roles & Policies",
+  };
+
+  const activePageTitle = pageTitleByKey[page] ?? "Workspace";
 
   const initials = useMemo(() => {
     const e = (email || "").trim();
@@ -251,10 +291,10 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
   return (
     <ApprovalRequestsProvider>
-      <div className="layout-root">
-        <div className={`drawer-overlay ${sidebarOpen ? "show" : ""}`} onClick={() => setSidebarOpen(false)} />
+      <div className={`layout-root ${isDesktop ? "desktop-sidebar" : "mobile-sidebar"}`}>
+        <div className={`drawer-overlay ${!isDesktop && sidebarOpen ? "show" : ""}`} onClick={() => setSidebarOpen(false)} />
 
-        <aside className={`drawer ${sidebarOpen ? "open" : ""}`} aria-hidden={!sidebarOpen}>
+        <aside className={`drawer ${isDesktop || sidebarOpen ? "open" : ""}`} aria-hidden={!isDesktop && !sidebarOpen}>
           <div className="drawer-head">
             <div className="drawer-brand">
               <img src={logo} alt="Rodeo Drive CRM Logo" className="brand-logo" />
@@ -272,91 +312,91 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
           <nav className="drawer-nav">
             {show.dashboard && (
               <button className={page === "dashboard" ? "active" : ""} onClick={() => go("dashboard")}>
-                Dashboard
+                <i className="fas fa-chart-line" aria-hidden="true" /> Dashboard
               </button>
             )}
 
             {show.customers && (
               <button className={page === "customers" ? "active" : ""} onClick={() => go("customers")}>
-                Customers
+                <i className="fas fa-users" aria-hidden="true" /> Customers
               </button>
             )}
 
             {show.vehicles && (
               <button className={page === "vehicles" ? "active" : ""} onClick={() => go("vehicles")}>
-                Vehicles
+                <i className="fas fa-car" aria-hidden="true" /> Vehicles
               </button>
             )}
 
             {show.jobcards && (
               <button className={page === "jobcards" ? "active" : ""} onClick={() => go("jobcards")}>
-                Job Cards
+                <i className="fas fa-tools" aria-hidden="true" /> Job Cards
               </button>
             )}
 
             {show.servicecreation && (
               <button className={page === "servicecreation" ? "active" : ""} onClick={() => go("servicecreation")}>
-                Service Creation
+                <i className="fas fa-plus-circle" aria-hidden="true" /> Service Creation
               </button>
             )}
 
             {show.jobhistory && (
               <button className={page === "jobhistory" ? "active" : ""} onClick={() => go("jobhistory")}>
-                Job History
+                <i className="fas fa-history" aria-hidden="true" /> Job History
               </button>
             )}
 
             {show.serviceexecution && (
               <button className={page === "serviceexecution" ? "active" : ""} onClick={() => go("serviceexecution")}>
-                Service Execution
+                <i className="fas fa-clipboard-check" aria-hidden="true" /> Service Execution
               </button>
             )}
 
             {show.paymentinvoices && (
               <button className={page === "paymentinvoices" ? "active" : ""} onClick={() => go("paymentinvoices")}>
-                Payment & Invoices
+                <i className="fas fa-file-invoice-dollar" aria-hidden="true" /> Payment & Invoices
               </button>
             )}
 
             {show.qualitycheck && (
               <button className={page === "qualitycheck" ? "active" : ""} onClick={() => go("qualitycheck")}>
-                Quality Check
+                <i className="fas fa-check-double" aria-hidden="true" /> Quality Check
               </button>
             )}
 
             {show.exitpermit && (
               <button className={page === "exitpermit" ? "active" : ""} onClick={() => go("exitpermit")}>
-                Exit Permit
+                <i className="fas fa-id-card" aria-hidden="true" /> Exit Permit
               </button>
             )}
 
             {show.calltracking && (
               <button className={page === "calltracking" ? "active" : ""} onClick={() => go("calltracking")}>
-                Call Tracking
+                <i className="fas fa-phone-alt" aria-hidden="true" /> Call Tracking
               </button>
             )}
 
             {show.inspection && (
               <button className={page === "inspection" ? "active" : ""} onClick={() => go("inspection")}>
-                Inspection
+                <i className="fas fa-search" aria-hidden="true" /> Inspection
               </button>
             )}
 
             {show.tickets && (
               <button className={page === "tickets" ? "active" : ""} onClick={() => go("tickets")}>
-                Tickets
+                <i className="fas fa-ticket-alt" aria-hidden="true" /> Tickets
               </button>
             )}
 
             {show.employees && (
               <button className={page === "employees" ? "active" : ""} onClick={() => go("employees")}>
-                Employees
+                <i className="fas fa-user-tie" aria-hidden="true" /> Employees
               </button>
             )}
 
             {show.activitylog && (
               <button className={page === "activitylog" ? "active" : ""} onClick={() => go("activitylog")}>
-                Activity Log
+                <i className="fas fa-stream" aria-hidden="true" /> Activity Log
               </button>
             )}
 
@@ -366,17 +406,17 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
                 {showAdmin.users && (
                   <button className={page === "users" ? "active" : ""} onClick={() => go("users")}>
-                    Users
+                    <i className="fas fa-user-cog" aria-hidden="true" /> Users
                   </button>
                 )}
                 {showAdmin.departments && (
                   <button className={page === "departments" ? "active" : ""} onClick={() => go("departments")}>
-                    Departments
+                    <i className="fas fa-sitemap" aria-hidden="true" /> Departments
                   </button>
                 )}
                 {showAdmin.rolespolicies && (
                   <button className={page === "rolespolicies" ? "active" : ""} onClick={() => go("rolespolicies")}>
-                    Roles & Policies
+                    <i className="fas fa-shield-alt" aria-hidden="true" /> Roles & Policies
                   </button>
                 )}
 
@@ -386,7 +426,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             <div className="drawer-spacer" />
 
             <button className="danger" onClick={signOut}>
-              Sign out
+              <i className="fas fa-sign-out-alt" aria-hidden="true" /> Sign out
             </button>
           </nav>
         </aside>
@@ -403,13 +443,23 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               </button>
 
               <div className="topbar-center">
+                <div className="topbar-kicker">
+                  <span className="topbar-chip">CRM Console</span>
+                  <span className="topbar-page">{activePageTitle}</span>
+                </div>
                 <div className="topbar-title">{title}</div>
                 <div className="topbar-sub">{loading ? "Loading..." : `Signed in as: ${email || "-"}`}</div>
               </div>
 
               <div className="topbar-right">
-                <div className="avatar" title={email || ""}>
-                  {initials}
+                <div className="topbar-user" title={email || ""}>
+                  <div className="topbar-user-meta">
+                    <div className="topbar-user-name">{(email || "User").split("@")[0]}</div>
+                    <div className="topbar-user-role">Active Session</div>
+                  </div>
+                  <div className="avatar">
+                    {initials}
+                  </div>
                 </div>
               </div>
             </div>

@@ -1241,8 +1241,8 @@ export default function VehicleManagement({
   // List View
   // ----------------------
   return (
-    <div className="app-container" id="mainScreen">
-      <header className="app-header">
+    <div className="app-container vehicle-page" id="mainScreen">
+      <header className="app-header crm-unified-header">
         <div className="header-left">
           <h1>
             <i className="fas fa-car"></i> Vehicle Management

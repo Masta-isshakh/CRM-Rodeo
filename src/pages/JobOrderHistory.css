@@ -840,3 +840,110 @@
     border-right: none;
   }
 }
+
+/* ========================================
+   FINAL OVERRIDES: PERFORMANCE + 98% WIDTH
+   (Requested by user - visual only)
+======================================== */
+
+/* Remove animation/transition delay in Job Order History UI */
+.jh-root *,
+.jh-details * {
+  animation: none !important;
+  transition: none !important;
+}
+
+/* 98% width shell across list + details */
+.jh-root,
+.jh-root .jh-header,
+.jh-root .jh-main,
+.jh-root .jh-search,
+.jh-root .jh-section,
+.jh-root .jh-table-wrap,
+.jh-root .jh-footer,
+.jh-details,
+.jh-details .jh-details-head,
+.jh-details .jh-details-body,
+.jh-details .jh-grid {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* 98% width cards inside details */
+.jh-details .jh-card,
+.jh-details .jh-summary-card,
+.jh-details .jh-services-card,
+.jh-details .pim-detail-card,
+.jh-details .epm-detail-card,
+.jh-details .bi-unified-card,
+.jh-details .ex-unified-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* Keep grid/card alignment intact after width enforcement */
+.jh-details .jh-card,
+.jh-details .jh-summary-card,
+.jh-details .jh-services-card,
+.jh-details .pim-detail-card,
+.jh-details .epm-detail-card,
+.jh-details .bi-unified-card,
+.jh-details .ex-unified-card {
+  grid-column: span 12 !important;
+}
+
+/* Mobile gutter tuning for 98% layout */
+@media (max-width: 768px) {
+  .jh-root,
+  .jh-root .jh-header,
+  .jh-root .jh-main,
+  .jh-root .jh-search,
+  .jh-root .jh-section,
+  .jh-root .jh-table-wrap,
+  .jh-root .jh-footer,
+  .jh-details,
+  .jh-details .jh-details-head,
+  .jh-details .jh-details-body,
+  .jh-details .jh-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .jh-details .jh-card,
+  .jh-details .jh-summary-card,
+  .jh-details .jh-services-card,
+  .jh-details .pim-detail-card,
+  .jh-details .epm-detail-card,
+  .jh-details .bi-unified-card,
+  .jh-details .ex-unified-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .jh-root,
+  .jh-root .jh-header,
+  .jh-root .jh-main,
+  .jh-root .jh-search,
+  .jh-root .jh-section,
+  .jh-root .jh-table-wrap,
+  .jh-root .jh-footer,
+  .jh-details,
+  .jh-details .jh-details-head,
+  .jh-details .jh-details-body,
+  .jh-details .jh-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}

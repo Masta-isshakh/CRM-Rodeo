@@ -1726,7 +1726,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   return (
     <div className="pim-root">
       <div className="pim-container">
-        <header className="pim-header">
+        <header className="pim-header crm-unified-header">
           <div className="pim-header-left">
             <h1><i className="fas fa-file-invoice-dollar"></i> Payment & Invoice Management</h1>
           </div>

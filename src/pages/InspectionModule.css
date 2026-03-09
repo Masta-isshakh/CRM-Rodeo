@@ -1401,3 +1401,89 @@ body{
     justify-content: center;
   }
 }
+
+/* ========================================
+   FINAL OVERRIDES: PERFORMANCE + 98% WIDTH
+   (Requested by user - visual only)
+======================================== */
+
+.inspection-module *,
+.inspection-module .action-dropdown-menu-fixed,
+.inspection-module .btn-action-dropdown,
+.inspection-module .dropdown-item {
+  animation: none !important;
+  transition: none !important;
+}
+
+.inspection-module,
+.inspection-module .app-container,
+.inspection-module .app-header,
+.inspection-module .main-content,
+.inspection-module .search-section,
+.inspection-module .results-section,
+.inspection-module .table-wrapper,
+.inspection-module .pim-details-screen,
+.inspection-module .pim-details-header,
+.inspection-module .pim-details-body,
+.inspection-module .pim-details-grid {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+.inspection-module .pim-detail-card,
+.inspection-module .epm-detail-card,
+.inspection-module .form-card,
+.inspection-module .inspection-card,
+.inspection-module .inspection-service-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+@media (max-width: 768px) {
+  .inspection-module,
+  .inspection-module .app-container,
+  .inspection-module .app-header,
+  .inspection-module .main-content,
+  .inspection-module .search-section,
+  .inspection-module .results-section,
+  .inspection-module .table-wrapper,
+  .inspection-module .pim-details-screen,
+  .inspection-module .pim-details-header,
+  .inspection-module .pim-details-body,
+  .inspection-module .pim-details-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .inspection-module .pim-detail-card,
+  .inspection-module .epm-detail-card,
+  .inspection-module .form-card,
+  .inspection-module .inspection-card,
+  .inspection-module .inspection-service-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .inspection-module,
+  .inspection-module .app-container,
+  .inspection-module .app-header,
+  .inspection-module .main-content,
+  .inspection-module .search-section,
+  .inspection-module .results-section,
+  .inspection-module .table-wrapper,
+  .inspection-module .pim-details-screen,
+  .inspection-module .pim-details-header,
+  .inspection-module .pim-details-body,
+  .inspection-module .pim-details-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}

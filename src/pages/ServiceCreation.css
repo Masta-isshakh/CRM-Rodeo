@@ -296,3 +296,73 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ========================================
+   FINAL OVERRIDES: PERFORMANCE + 98% WIDTH
+   (Requested by user - visual only)
+======================================== */
+
+.sc-page *,
+.sc-page button,
+.sc-page .sc-table-wrap {
+  animation: none !important;
+  transition: none !important;
+}
+
+.sc-page,
+.sc-page .sc-shell,
+.sc-page .sc-header,
+.sc-page .sc-toolbar,
+.sc-page .sc-content,
+.sc-page .sc-table-wrap,
+.sc-page .sc-modal,
+.sc-page .sc-details-grid {
+  width: 98% !important;
+  max-width: 98% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+.sc-page .sc-card,
+.sc-page .sc-service-item {
+  width: 98% !important;
+  max-width: 98% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+@media (max-width: 768px) {
+  .sc-page,
+  .sc-page .sc-shell,
+  .sc-page .sc-header,
+  .sc-page .sc-toolbar,
+  .sc-page .sc-content,
+  .sc-page .sc-table-wrap,
+  .sc-page .sc-modal,
+  .sc-page .sc-details-grid {
+    width: min(98%, calc(100vw - 12px)) !important;
+    max-width: calc(100vw - 12px) !important;
+  }
+
+  .sc-page .sc-card,
+  .sc-page .sc-service-item {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .sc-page,
+  .sc-page .sc-shell,
+  .sc-page .sc-header,
+  .sc-page .sc-toolbar,
+  .sc-page .sc-content,
+  .sc-page .sc-table-wrap,
+  .sc-page .sc-modal,
+  .sc-page .sc-details-grid {
+    width: min(98%, calc(100vw - 10px)) !important;
+    max-width: calc(100vw - 10px) !important;
+  }
+}

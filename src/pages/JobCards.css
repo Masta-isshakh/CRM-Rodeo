@@ -3276,10 +3276,10 @@ i {
 .jo-wizard-screen .pim-details-header,
 .jo-wizard-screen .pim-details-body,
 .jo-wizard-screen .form-card {
-  width: 98% !important;
-  max-width: 98% !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
 }
 
 /* 98% width cards inside details/wizard */
@@ -3290,8 +3290,86 @@ i {
 .jo-wizard-screen .form-card,
 .jo-wizard-screen .pim-detail-card,
 .jo-wizard-screen .epm-detail-card {
-  width: 98% !important;
-  max-width: 98% !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+/* Mobile gutter tuning for 98% layout */
+@media (max-width: 768px) {
+  .job-order-management {
+    padding: 8px !important;
+  }
+
+  .job-order-management,
+  .job-order-management .app-container,
+  .job-order-management .main-content,
+  .job-order-management .search-section,
+  .job-order-management .results-section,
+  .job-order-management .table-wrapper,
+  .job-order-management .app-header,
+  .pim-details-screen,
+  .jo-wizard-screen,
+  .jo-details-v3,
+  .jo-details-v3 .pim-details-header,
+  .jo-details-v3 .pim-details-body,
+  .jo-details-v3 .pim-details-grid,
+  .jo-wizard-screen .pim-details-header,
+  .jo-wizard-screen .pim-details-body,
+  .jo-wizard-screen .form-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .jo-details-v3 .pim-details-grid {
+    gap: 10px !important;
+  }
+
+  .jo-details-v3 .pim-detail-card,
+  .jo-details-v3 .epm-detail-card,
+  .jo-details-v3 .form-card,
+  .jo-details-v3 .jh-card,
+  .jo-wizard-screen .form-card,
+  .jo-wizard-screen .pim-detail-card,
+  .jo-wizard-screen .epm-detail-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .job-order-management {
+    padding: 6px !important;
+  }
+
+  .job-order-management,
+  .job-order-management .app-container,
+  .job-order-management .main-content,
+  .job-order-management .search-section,
+  .job-order-management .results-section,
+  .job-order-management .table-wrapper,
+  .job-order-management .app-header,
+  .pim-details-screen,
+  .jo-wizard-screen,
+  .jo-details-v3,
+  .jo-details-v3 .pim-details-header,
+  .jo-details-v3 .pim-details-body,
+  .jo-details-v3 .pim-details-grid,
+  .jo-wizard-screen .pim-details-header,
+  .jo-wizard-screen .pim-details-body,
+  .jo-wizard-screen .form-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .jo-details-v3 .pim-details-grid {
+    gap: 8px !important;
+  }
 }

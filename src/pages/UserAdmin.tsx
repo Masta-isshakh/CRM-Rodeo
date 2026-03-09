@@ -10,10 +10,13 @@ import type { PageProps } from "../lib/PageProps";
 import { getDataClient } from "../lib/amplifyClient";
 import { usePermissions } from "../lib/userPermissions";
 import PermissionGate from "./PermissionGate";
+import ConfirmationPopup from "./ConfirmationPopup";
 
 import "./UserAdmin.css";
 
 type Dept = { key: string; name: string };
+type FailedLoginTracker = Record<string, { count: number; lockedUntil: number }>;
+const FAILED_LOGIN_TRACKER_KEY = "crm.failedLoginTracker";
 
 function safeJsonParse<T>(raw: unknown): T | null {
   try {
@@ -109,6 +112,13 @@ function empIdFromIndex(idx: number) {
   return `EMP${n}`;
 }
 
+function normalizeEmployeeId(value: string) {
+  return String(value ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "");
+}
+
 function pickEmailLike(...values: any[]): string {
   for (const value of values) {
     const s = String(value ?? "").trim().toLowerCase();
@@ -172,13 +182,20 @@ export default function Users({ permissions }: PageProps) {
 
   // Invite modal state
   const [inviteOpen, setInviteOpen] = useState(false);
+  const [employeeId, setEmployeeId] = useState("");
   const [email, setEmail] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [mobileNumber, setMobileNumber] = useState("");
   const [departmentKey, setDepartmentKey] = useState("");
   const [roleKey, setRoleKey] = useState("");
+  const [lineManagerEmail, setLineManagerEmail] = useState("");
   const [inviteStatus, setInviteStatus] = useState("");
+
+  // Delete confirmation popup state
+  const [deletePopupOpen, setDeletePopupOpen] = useState(false);
+  const [deleteTargetUser, setDeleteTargetUser] = useState<UserRow | null>(null);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   // List state
   const [loading, setLoading] = useState(false);
@@ -202,12 +219,17 @@ export default function Users({ permissions }: PageProps) {
   // View details modal state
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsUser, setDetailsUser] = useState<UserRow | null>(null);
-  const [editMode, setEditMode] = useState(false);
+  const [detailsEditing, setDetailsEditing] = useState(false);
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
   const [editDepartmentKey, setEditDepartmentKey] = useState("");
   const [editRoleKey, setEditRoleKey] = useState("");
   const [editMobileNumber, setEditMobileNumber] = useState("");
+  const [editEmployeeId, setEditEmployeeId] = useState("");
+  const [editLineManagerEmail, setEditLineManagerEmail] = useState("");
+  const [editIsActive, setEditIsActive] = useState(true);
+  const [editDashboardAccessEnabled, setEditDashboardAccessEnabled] = useState(true);
+  const [lockoutNow, setLockoutNow] = useState(() => Date.now());
   const [detailsStatus, setDetailsStatus] = useState("");
 
   // RBAC display helpers
@@ -221,6 +243,11 @@ export default function Users({ permissions }: PageProps) {
     if (!e) return "";
     return `${window.location.origin}/set-password?email=${encodeURIComponent(e)}`;
   }, [email]);
+
+  const crmLoginUrl = useMemo(() => {
+    if (typeof window === "undefined") return "https://crm.rodeodrive.work";
+    return "https://crm.rodeodrive.work";
+  }, []);
 
   const availableRolesForDept = useMemo(() => {
     if (!departmentKey) return [];
@@ -237,6 +264,55 @@ export default function Users({ permissions }: PageProps) {
       .map((link) => String(link.roleId ?? ""));
     return roles.filter((r) => roleIds.includes(String(r.id ?? "")));
   }, [editDepartmentKey, deptRoleLinks, roles]);
+
+  const lineManagerOptions = useMemo(() => {
+    return (users ?? [])
+      .filter((u) => !isRootAdminSyntheticUser(u))
+      .map((u) => {
+        const userEmail = String(u.email ?? "").trim().toLowerCase();
+        const userName = String(u.fullName ?? "").trim() || userEmail;
+        return {
+          email: userEmail,
+          label: `${userName} (${userEmail})`,
+        };
+      })
+      .filter((x) => !!x.email)
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [users]);
+
+  const editUserLockoutInfo = useMemo(() => {
+    const targetEmail = String(detailsUser?.email ?? "").trim().toLowerCase();
+    if (!targetEmail) return { active: false, remainingMinutes: 0 };
+
+    try {
+      const raw = window.localStorage.getItem(FAILED_LOGIN_TRACKER_KEY) ?? "{}";
+      const tracker = safeJsonParse<FailedLoginTracker>(raw) ?? {};
+      const entry = tracker[targetEmail];
+      const lockedUntil = Number(entry?.lockedUntil ?? 0);
+      if (!lockedUntil) return { active: false, remainingMinutes: 0 };
+
+      const remainingMs = lockedUntil - lockoutNow;
+      if (remainingMs <= 0) return { active: false, remainingMinutes: 0 };
+
+      return {
+        active: true,
+        remainingMinutes: Math.max(1, Math.ceil(remainingMs / 60000)),
+      };
+    } catch {
+      return { active: false, remainingMinutes: 0 };
+    }
+  }, [detailsUser?.email, detailsOpen, lockoutNow]);
+
+  useEffect(() => {
+    if (!detailsOpen) return;
+    setLockoutNow(Date.now());
+    const intervalId = window.setInterval(() => {
+      setLockoutNow(Date.now());
+    }, 60_000);
+    return () => {
+      window.clearInterval(intervalId);
+    };
+  }, [detailsOpen]);
 
   const load = async () => {
     setLoading(true);
@@ -513,23 +589,39 @@ export default function Users({ permissions }: PageProps) {
     }
 
     return (users ?? []).map((u, idx) => {
-      const empId = empIdFromIndex(idx);
+      const persistedEmpId = String((u as any).employeeId ?? "").trim();
+      const empId = persistedEmpId || empIdFromIndex(idx);
       const deptName =
         departments.find((d) => d.key === u.departmentKey)?.name ?? (u.departmentName ?? "—");
+      const lineManagerDisplay =
+        String((u as any).lineManagerName ?? "").trim() ||
+        String((u as any).lineManagerEmail ?? "").trim() ||
+        "—";
 
       const userRoleId = String((u as any).roleId ?? "").trim();
       const userRoleName = String((u as any).roleName ?? "").trim();
       const roleName = userRoleName || roleNameById.get(userRoleId) || (u.departmentKey ? (firstRoleByDept[u.departmentKey] ?? "—") : "—");
+      const dashboardAccessEnabled = Boolean((u as any).dashboardAccessEnabled ?? true);
 
       const dashboardAllowed = isRootAdminSyntheticUser(u)
         ? true
-        : userRoleId
-        ? Boolean(dashboardAllowedByRoleId[userRoleId])
-        : (u.departmentKey ? Boolean(dashboardAllowedByDept[u.departmentKey]) : false);
+        : Boolean(u.isActive) &&
+          dashboardAccessEnabled &&
+          (userRoleId
+            ? Boolean(dashboardAllowedByRoleId[userRoleId])
+            : (u.departmentKey ? Boolean(dashboardAllowedByDept[u.departmentKey]) : false));
 
       const mobile = String((u as any).mobileNumber ?? (u as any).mobile ?? (u as any).phone ?? "").trim();
 
-      return { u, empId, deptName: String(deptName || "—"), roleName: String(roleName || "—"), dashboardAllowed, mobile };
+      return {
+        u,
+        empId,
+        deptName: String(deptName || "—"),
+        roleName: String(roleName || "—"),
+        lineManagerDisplay,
+        dashboardAllowed,
+        mobile,
+      };
     });
   }, [users, departments, roles, deptRoleLinks, dashboardAllowedByDept, dashboardAllowedByRoleId]);
 
@@ -542,8 +634,9 @@ export default function Users({ permissions }: PageProps) {
       const email = String(row.u.email ?? "");
       const dept = String(row.deptName ?? "");
       const role = String(row.roleName ?? "");
+      const lineManager = String(row.lineManagerDisplay ?? "");
       const mobile = String(row.mobile ?? "");
-      const hay = `${row.empId} ${fullName} ${email} ${mobile} ${dept} ${role}`.toLowerCase();
+      const hay = `${row.empId} ${fullName} ${email} ${mobile} ${dept} ${role} ${lineManager}`.toLowerCase();
       return hay.includes(q);
     });
   }, [enriched, search]);
@@ -565,14 +658,25 @@ export default function Users({ permissions }: PageProps) {
     setInviteStatus("Inviting...");
     try {
       const e = email.trim().toLowerCase();
+      const eid = normalizeEmployeeId(employeeId);
       const fn = firstName.trim();
       const ln = lastName.trim();
       const mob = mobileNumber.trim();
+      const lmEmail = String(lineManagerEmail ?? "").trim().toLowerCase();
+      const lmName =
+        lineManagerOptions.find((x) => x.email === lmEmail)?.label.split(" (")[0]?.trim() ?? "";
 
+      if (!eid) throw new Error("Employee ID is required.");
       if (!e || !fn || !ln) throw new Error("Email, first name, and last name are required.");
       if (!departmentKey) throw new Error("Select a department.");
       if (!roleKey) throw new Error("Select a role for the department.");
       if (!mob) throw new Error("Mobile number is required.");
+      const duplicateEmployeeId = users.some(
+        (u) => normalizeEmployeeId(String((u as any).employeeId ?? "")) === eid
+      );
+      if (duplicateEmployeeId) {
+        throw new Error("Employee ID already exists.");
+      }
       if (!availableRolesForDept.some((r) => String(r.id ?? "") === roleKey)) {
         throw new Error("Selected role is not valid for the chosen department.");
       }
@@ -581,12 +685,15 @@ export default function Users({ permissions }: PageProps) {
       const fullName = `${fn} ${ln}`.trim();
 
       const res = await client.mutations.inviteUser({
+        employeeId: eid,
         email: e,
         fullName,
         departmentKey,
         departmentName: dept?.name ?? "",
         mobileNumber: mob,
         roleId: roleKey,
+        lineManagerEmail: lmEmail || undefined,
+        lineManagerName: lmName || undefined,
       } as any);
 
       const errs = (res as any)?.errors;
@@ -608,12 +715,14 @@ export default function Users({ permissions }: PageProps) {
           ? `Password reset email sent to ${deliveredTo}.`
           : `Invitation email sent to ${deliveredTo}.`
       );
+      setEmployeeId("");
       setEmail("");
       setFirstName("");
       setLastName("");
       setMobileNumber("");
       setDepartmentKey("");
       setRoleKey("");
+      setLineManagerEmail("");
       await load();
     } catch (e: any) {
       console.error(e);
@@ -627,79 +736,63 @@ export default function Users({ permissions }: PageProps) {
     setInviteStatus("Set-password link copied.");
   };
 
-  const toggleActive = async (u: UserRow) => {
-    if (!permissions.canUpdate || !canOption("users", "users_edit", true)) return;
-    if (!u.email) return;
-    if (isRootAdminSyntheticUser(u)) return;
-
-    setStatus("");
-    setLoading(true);
-    try {
-      const next = !Boolean(u.isActive);
-
-      const res = await client.mutations.adminSetUserActive({
-        email: u.email,
-        isActive: next,
-      });
-
-      const errs = (res as any)?.errors;
-      if (Array.isArray(errs) && errs.length) {
-        throw new Error(errs.map((x: any) => x.message).join(" | "));
-      }
-
-      window.dispatchEvent(new Event("rbac:refresh"));
-      await load();
-    } catch (e: any) {
-      console.error(e);
-      setStatus(e?.message ?? "Failed to change status.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const deleteUser = async (u: UserRow) => {
+  const askDeleteUser = (u: UserRow) => {
     if (!permissions.canDelete || !canOption("users", "users_delete", true)) return;
     if (!u.email) return;
     if (isRootAdminSyntheticUser(u)) return;
 
-    const ok = confirm(`Delete user ${u.email}? This cannot be undone.`);
-    if (!ok) return;
+    setDeleteTargetUser(u);
+    setDeletePopupOpen(true);
+  };
+
+  const closeDeletePopup = () => {
+    if (deleteLoading) return;
+    setDeletePopupOpen(false);
+    setDeleteTargetUser(null);
+  };
+
+  const confirmDeleteUser = async () => {
+    if (!deleteTargetUser?.email) return;
 
     setStatus("");
+    setDeleteLoading(true);
     setLoading(true);
     try {
-      const res = await client.mutations.adminDeleteUser({ email: u.email });
+      const res = await client.mutations.adminDeleteUser({ email: deleteTargetUser.email });
 
       const errs = (res as any)?.errors;
       if (Array.isArray(errs) && errs.length) {
         throw new Error(errs.map((x: any) => x.message).join(" | "));
       }
 
+      closeDeletePopup();
       window.dispatchEvent(new Event("rbac:refresh"));
       await load();
     } catch (e: any) {
       console.error(e);
       setStatus(e?.message ?? "Failed to delete user.");
     } finally {
+      setDeleteLoading(false);
       setLoading(false);
     }
   };
 
   const openDetailsModal = (u: UserRow) => {
     setDetailsUser(u);
-    setEditMode(false);
+    setDetailsEditing(false);
     setEditFirstName(u.fullName ? u.fullName.split(" ")[0] : "");
     setEditLastName(u.fullName ? u.fullName.split(" ").slice(1).join(" ") : "");
     setEditDepartmentKey(String(u.departmentKey ?? ""));
     setEditRoleKey(String((u as any).roleId ?? ""));
     setEditMobileNumber(u.mobileNumber ?? "");
+    setEditEmployeeId(normalizeEmployeeId(String((u as any).employeeId ?? "")));
+    setEditLineManagerEmail(String((u as any).lineManagerEmail ?? "").trim().toLowerCase());
+    const nextIsActive = Boolean((u as any).isActive ?? true);
+    const nextDashboardEnabled = Boolean((u as any).dashboardAccessEnabled ?? true);
+    setEditIsActive(nextIsActive);
+    setEditDashboardAccessEnabled(nextIsActive ? nextDashboardEnabled : false);
     setDetailsStatus("");
     setDetailsOpen(true);
-  };
-
-  const enterEditMode = () => {
-    setEditMode(true);
-    setDetailsStatus("");
   };
 
   const saveUserChanges = async () => {
@@ -720,8 +813,23 @@ export default function Users({ permissions }: PageProps) {
       setDetailsStatus("Role is required.");
       return;
     }
+    if (!normalizeEmployeeId(editEmployeeId)) {
+      setDetailsStatus("Employee ID is required.");
+      return;
+    }
     if (!availableRolesForEditDept.some((r) => String(r.id ?? "") === editRoleKey)) {
       setDetailsStatus("Selected role is not valid for the chosen department.");
+      return;
+    }
+
+    const normalizedEditEmployeeId = normalizeEmployeeId(editEmployeeId);
+    const duplicateEmployeeId = users.some(
+      (u) =>
+        String(u.id ?? "") !== String(detailsUser.id ?? "") &&
+        normalizeEmployeeId(String((u as any).employeeId ?? "")) === normalizedEditEmployeeId
+    );
+    if (duplicateEmployeeId) {
+      setDetailsStatus("Employee ID already exists.");
       return;
     }
 
@@ -757,16 +865,43 @@ export default function Users({ permissions }: PageProps) {
 
       const selectedRole = availableRolesForEditDept.find((r) => String(r.id ?? "") === editRoleKey);
       const selectedRoleName = String(selectedRole?.name ?? "").trim();
+      const selectedLineManager = lineManagerOptions.find((o) => o.email === editLineManagerEmail);
+      const selectedLineManagerName = selectedLineManager?.label.split(" (")[0]?.trim() ?? "";
+      const effectiveDashboardAccess = editIsActive ? Boolean(editDashboardAccessEnabled) : false;
 
       const roleChanged = editRoleKey !== String((detailsUser as any).roleId ?? "");
       const mobileChanged = editMobileNumber !== (detailsUser.mobileNumber ?? "");
+      const employeeIdChanged = normalizedEditEmployeeId !== normalizeEmployeeId(String((detailsUser as any).employeeId ?? ""));
+      const lineManagerChanged =
+        String(editLineManagerEmail ?? "").trim().toLowerCase() !==
+        String((detailsUser as any).lineManagerEmail ?? "").trim().toLowerCase();
+      const statusChanged = editIsActive !== Boolean((detailsUser as any).isActive ?? true);
+      const dashboardAccessChanged =
+        effectiveDashboardAccess !== Boolean((detailsUser as any).dashboardAccessEnabled ?? true);
 
-      if (roleChanged || mobileChanged) {
+      if (statusChanged) {
+        const resActive = await client.mutations.adminSetUserActive({
+          email: String(detailsUser.email ?? "").trim().toLowerCase(),
+          isActive: editIsActive,
+        });
+
+        const errsActive = (resActive as any)?.errors;
+        if (Array.isArray(errsActive) && errsActive.length) {
+          throw new Error(errsActive.map((x: any) => x.message).join(" | "));
+        }
+      }
+
+      if (roleChanged || mobileChanged || employeeIdChanged || lineManagerChanged || statusChanged || dashboardAccessChanged) {
         const resProfile = await client.models.UserProfile.update({
           id: detailsUser.id,
+          isActive: editIsActive,
+          dashboardAccessEnabled: effectiveDashboardAccess,
+          employeeId: normalizedEditEmployeeId,
           roleId: editRoleKey,
           roleName: selectedRoleName || undefined,
           mobileNumber: editMobileNumber || null,
+          lineManagerEmail: editLineManagerEmail || null,
+          lineManagerName: editLineManagerEmail ? (selectedLineManagerName || undefined) : null,
         } as any);
 
         const errsProfile = (resProfile as any)?.errors;
@@ -775,9 +910,30 @@ export default function Users({ permissions }: PageProps) {
         }
       }
 
+      const selectedDept = departments.find((d) => d.key === editDepartmentKey);
+      setDetailsUser((prev) =>
+        prev
+          ? ({
+              ...prev,
+              fullName: newFullName,
+              departmentKey: editDepartmentKey,
+              departmentName: selectedDept?.name ?? prev.departmentName,
+              roleId: editRoleKey,
+              roleName: selectedRoleName || (prev as any).roleName,
+              mobileNumber: editMobileNumber || null,
+              employeeId: normalizedEditEmployeeId,
+              lineManagerEmail: editLineManagerEmail || null,
+              lineManagerName: editLineManagerEmail ? (selectedLineManagerName || null) : null,
+              isActive: editIsActive,
+              dashboardAccessEnabled: effectiveDashboardAccess,
+            } as any)
+          : prev
+      );
+
       setDetailsStatus("User updated successfully!");
-      setEditMode(false);
+      setDetailsEditing(false);
       await load();
+      setDetailsOpen(false);
     } catch (e: any) {
       console.error(e);
       setDetailsStatus(e?.message ?? "Failed to update user.");
@@ -786,9 +942,72 @@ export default function Users({ permissions }: PageProps) {
     }
   };
 
+  const sendResetPassword = async (u: UserRow) => {
+    if (!permissions.canUpdate || !canOption("users", "users_edit", true)) return;
+    if (isRootAdminSyntheticUser(u)) return;
+
+    const targetEmail = String(u.email ?? "").trim().toLowerCase();
+    if (!targetEmail) {
+      setDetailsStatus("User email is missing.");
+      return;
+    }
+
+    const fullName = String(u.fullName ?? "").trim();
+    const deptKey = String(u.departmentKey ?? "").trim();
+    const roleId = String((u as any).roleId ?? "").trim();
+    const roleName = String((u as any).roleName ?? "").trim();
+    const employeeIdValue = normalizeEmployeeId(String((u as any).employeeId ?? ""));
+
+    if (!deptKey) {
+      setDetailsStatus("Department is required to send reset password.");
+      return;
+    }
+
+    setLoading(true);
+    setDetailsStatus("Sending reset password email...");
+    try {
+      const deptName =
+        departments.find((d) => d.key === deptKey)?.name ??
+        String(u.departmentName ?? "").trim() ??
+        "";
+
+      const res = await client.mutations.inviteUser({
+        employeeId: employeeIdValue || undefined,
+        email: targetEmail,
+        fullName: fullName || targetEmail,
+        mobileNumber: String((u as any).mobileNumber ?? "").trim() || undefined,
+        departmentKey: deptKey,
+        departmentName: deptName,
+        roleId: roleId || undefined,
+      } as any);
+
+      const errs = (res as any)?.errors;
+      if (Array.isArray(errs) && errs.length) {
+        throw new Error(errs.map((x: any) => x.message).join(" | "));
+      }
+
+      const payload = (res as any)?.data ?? {};
+      const ok = payload?.ok !== false;
+      if (!ok) {
+        throw new Error("Password reset email was not dispatched.");
+      }
+
+      setDetailsStatus(`Reset password email sent to ${targetEmail}.`);
+
+      if (!roleName && !roleId) {
+        console.warn("sendResetPassword: user has no role assigned");
+      }
+    } catch (e: any) {
+      console.error(e);
+      setDetailsStatus(e?.message ?? "Failed to send reset password email.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const openActionsMenu = (userId: string, btnEl: HTMLElement) => {
     const rect = btnEl.getBoundingClientRect();
-    const menuWidth = 180;
+    const menuWidth = 168;
     const menuHeight = 110;
 
     let left = rect.right - menuWidth;
@@ -810,12 +1029,11 @@ export default function Users({ permissions }: PageProps) {
       <div
         className="ums-portal-menu"
         ref={portalMenuRef}
-        style={{ top: menu.top, left: menu.left, width: 180 }}
+        style={{ top: menu.top, left: menu.left, width: 168 }}
         data-ums-menu={menu.userId}
       >
         {(() => {
           const row = users.find((x) => x.id === menu.userId);
-          const active = Boolean(row?.isActive);
           return (
             <>
               <button
@@ -830,21 +1048,10 @@ export default function Users({ permissions }: PageProps) {
               </button>
 
               <button
-                className="ums-menu-item"
-                onClick={() => {
-                  setMenu({ open: false });
-                  if (row) toggleActive(row);
-                }}
-                disabled={!permissions.canUpdate || !canOption("users", "users_edit", true) || loading}
-              >
-                {active ? "Disable" : "Enable"}
-              </button>
-
-              <button
                 className="ums-menu-item danger"
                 onClick={() => {
                   setMenu({ open: false });
-                  if (row) deleteUser(row);
+                    if (row) askDeleteUser(row);
                 }}
                 disabled={!permissions.canDelete || !canOption("users", "users_delete", true) || loading}
               >
@@ -859,23 +1066,304 @@ export default function Users({ permissions }: PageProps) {
 
   return (
     <div className="ums-page">
-      {portalDropdown}
+      {!detailsOpen && portalDropdown}
+
+      <ConfirmationPopup
+        open={deletePopupOpen}
+        title="Delete user account"
+        message={
+          <>
+            You are about to delete
+            <strong>{` ${deleteTargetUser?.fullName || deleteTargetUser?.email || "this user"}`}</strong>
+            {deleteTargetUser?.email ? <span>{` (${deleteTargetUser.email})`}</span> : null}.
+            <br />
+            This action is permanent and cannot be undone.
+          </>
+        }
+        confirmText="Delete User"
+        cancelText="Keep User"
+        tone="danger"
+        loading={deleteLoading}
+        disableConfirm={!deleteTargetUser?.email}
+        onConfirm={() => void confirmDeleteUser()}
+        onCancel={closeDeletePopup}
+        closeOnOverlay={!deleteLoading}
+        closeOnEsc={!deleteLoading}
+        icon={<span className="cp-iconMark" aria-hidden="true">🗑</span>}
+        footerNote="Tip: If the user still needs access later, prefer setting them as inactive from User Details instead of deleting."
+      />
 
       <div className="ums-shell">
         {/* Top bar */}
-        <div className="ums-topbar">
-          <div className="ums-topbar-left">
-            <span className="ums-topbar-icon" aria-hidden>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
-                <path d="M16 11c1.66 0 3-1.34 3-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3Z" fill="currentColor" opacity="0.9" />
-                <path d="M8 11c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3Z" fill="currentColor" opacity="0.9" />
-                <path d="M8 13c-2.67 0-8 1.34-8 4v2h10v-2c0-1.12.45-2.13 1.2-2.93C10.33 13.42 9.2 13 8 13Z" fill="currentColor" opacity="0.9" />
-                <path d="M16 13c-1.54 0-4.2.78-5.6 2.07A3.97 3.97 0 0 1 12 17v2h12v-2c0-2.66-5.33-4-8-4Z" fill="currentColor" opacity="0.9" />
-              </svg>
-            </span>
-            <h1>User Management System</h1>
+        {!detailsOpen && (
+          <div className="ums-topbar">
+            <div className="ums-topbar-left">
+              <span className="ums-topbar-icon" aria-hidden>
+                <svg width="28" height="28" viewBox="0 0 24 24" fill="none">
+                  <path d="M16 11c1.66 0 3-1.34 3-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3Z" fill="currentColor" opacity="0.9" />
+                  <path d="M8 11c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3Z" fill="currentColor" opacity="0.9" />
+                  <path d="M8 13c-2.67 0-8 1.34-8 4v2h10v-2c0-1.12.45-2.13 1.2-2.93C10.33 13.42 9.2 13 8 13Z" fill="currentColor" opacity="0.9" />
+                  <path d="M16 13c-1.54 0-4.2.78-5.6 2.07A3.97 3.97 0 0 1 12 17v2h12v-2c0-2.66-5.33-4-8-4Z" fill="currentColor" opacity="0.9" />
+                </svg>
+              </span>
+              <h1>User Management System</h1>
+            </div>
           </div>
-        </div>
+        )}
+
+        {detailsOpen && detailsUser ? (
+          <div className="ums-card ums-details-page" role="region" aria-label="Edit user details">
+            <div className="ums-details-page-head">
+              <div className="ums-details-page-title-wrap">
+                <h3><span className="ums-section-icon" aria-hidden>●</span>User Details</h3>
+                <div className="ums-details-page-sub">View and manage user account settings</div>
+              </div>
+              <button className="ums-back-btn" onClick={() => setDetailsOpen(false)} aria-label="Back to users list">
+                Back to Users
+              </button>
+            </div>
+
+            <div className="ums-details-page-body">
+              <div className={`ums-edit-page ${detailsEditing ? "is-editing" : "is-readonly"}`}>
+                <div className="ums-edit-card">
+                  <div className="ums-edit-card-head-wrap">
+                    <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden>●</span>User Information</div>
+                    <PermissionGate moduleId="users" optionId="users_edit">
+                      <button
+                        type="button"
+                        className="ums-card-edit-btn"
+                        onClick={() => setDetailsEditing((v) => !v)}
+                        disabled={isRootAdminSyntheticUser(detailsUser) || !permissions.canUpdate || !canOption("users", "users_edit", true)}
+                      >
+                        {detailsEditing ? "Cancel Edit" : "Edit User"}
+                      </button>
+                    </PermissionGate>
+                  </div>
+                  <div className={`ums-form-grid ${detailsEditing ? "" : "ums-form-grid-readonly"}`}>
+                    <div>
+                      <label className="ums-label">Employee ID</label>
+                      {detailsEditing ? (
+                        <input
+                          className="ums-input"
+                          value={editEmployeeId}
+                          onChange={(e) => setEditEmployeeId(normalizeEmployeeId(e.target.value))}
+                          placeholder="EMP001"
+                        />
+                      ) : (
+                        <div className="ums-static-value">{String((detailsUser as any).employeeId ?? "").trim() || "—"}</div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="ums-label">Email</label>
+                      <div className="ums-static-value">{detailsUser.email ?? "—"}</div>
+                    </div>
+
+                    <div>
+                      <label className="ums-label">First name</label>
+                      {detailsEditing ? (
+                        <input
+                          className="ums-input"
+                          value={editFirstName}
+                          onChange={(e) => setEditFirstName(e.target.value)}
+                          placeholder="First name"
+                        />
+                      ) : (
+                        <div className="ums-static-value">{editFirstName || "—"}</div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="ums-label">Last name</label>
+                      {detailsEditing ? (
+                        <input
+                          className="ums-input"
+                          value={editLastName}
+                          onChange={(e) => setEditLastName(e.target.value)}
+                          placeholder="Last name"
+                        />
+                      ) : (
+                        <div className="ums-static-value">{editLastName || "—"}</div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="ums-label">Mobile number</label>
+                      {detailsEditing ? (
+                        <input
+                          className="ums-input"
+                          value={editMobileNumber}
+                          onChange={(e) => setEditMobileNumber(e.target.value)}
+                          placeholder="+974 1234 5678"
+                        />
+                      ) : (
+                        <div className="ums-static-value">{editMobileNumber || "—"}</div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="ums-label">Department</label>
+                      {detailsEditing ? (
+                        <select
+                          className="ums-input"
+                          value={editDepartmentKey}
+                          onChange={(e) => {
+                            const nextDept = e.target.value;
+                            setEditDepartmentKey(nextDept);
+                            setEditRoleKey("");
+                          }}
+                          disabled={loading}
+                        >
+                          <option value="">Select…</option>
+                          {departments.map((d) => (
+                            <option key={d.key} value={d.key}>
+                              {d.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="ums-static-value">
+                          {departments.find((d) => d.key === editDepartmentKey)?.name ?? detailsUser.departmentName ?? "—"}
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="ums-label">Role</label>
+                      {detailsEditing ? (
+                        <>
+                          <select
+                            className="ums-input"
+                            value={editRoleKey}
+                            onChange={(e) => setEditRoleKey(e.target.value)}
+                            disabled={loading || !editDepartmentKey}
+                          >
+                            <option value="">Select…</option>
+                            {availableRolesForEditDept.map((r) => (
+                              <option key={String(r.id ?? "")} value={String(r.id ?? "")}>
+                                {r.name ?? "—"}
+                              </option>
+                            ))}
+                          </select>
+                          {!editDepartmentKey && (
+                            <div className="ums-field-hint">Select a department first.</div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="ums-static-value">{String((detailsUser as any).roleName ?? "").trim() || "—"}</div>
+                      )}
+                    </div>
+
+                    <div className="ums-span-2">
+                      <label className="ums-label">Line Manager</label>
+                      {detailsEditing ? (
+                        <select
+                          className="ums-input"
+                          value={editLineManagerEmail}
+                          onChange={(e) => setEditLineManagerEmail(e.target.value)}
+                          disabled={loading}
+                        >
+                          <option value="">Select…</option>
+                          {lineManagerOptions
+                            .filter((o) => o.email !== String(detailsUser.email ?? "").trim().toLowerCase())
+                            .map((opt) => (
+                              <option key={opt.email} value={opt.email}>
+                                {opt.label}
+                              </option>
+                            ))}
+                        </select>
+                      ) : (
+                        <div className="ums-static-value">
+                          {String((detailsUser as any).lineManagerName ?? "").trim() || String((detailsUser as any).lineManagerEmail ?? "").trim() || "—"}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="ums-edit-card">
+                  <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden>●</span>Account Settings</div>
+                  <div className="ums-toggle-grid">
+                    <div className="ums-toggle-row">
+                      <div>
+                        <div className="ums-toggle-title">User Status</div>
+                        <div className="ums-toggle-sub">Inactive users are blocked from access.</div>
+                      </div>
+                      <label className="ums-switch" aria-label="Toggle user active status">
+                        <input
+                          type="checkbox"
+                          checked={editIsActive}
+                          onChange={(e) => {
+                            const next = e.target.checked;
+                            setEditIsActive(next);
+                            if (!next) setEditDashboardAccessEnabled(false);
+                          }}
+                          disabled={loading || !detailsEditing}
+                        />
+                        <span className="ums-switch-slider" />
+                      </label>
+                    </div>
+
+                    <div className="ums-toggle-row">
+                      <div>
+                        <div className="ums-toggle-title">Dashboard Access</div>
+                        <div className="ums-toggle-sub">Disabled users cannot access the CRM dashboard.</div>
+                      </div>
+                      <label className="ums-switch" aria-label="Toggle dashboard access">
+                        <input
+                          type="checkbox"
+                          checked={editDashboardAccessEnabled}
+                          onChange={(e) => setEditDashboardAccessEnabled(e.target.checked)}
+                          disabled={loading || !editIsActive || !detailsEditing}
+                        />
+                        <span className="ums-switch-slider" />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="ums-edit-card">
+                  <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden>●</span>Password Management</div>
+                  {editUserLockoutInfo.active && (
+                    <div className="ums-lockout-label" role="status" aria-live="polite">
+                      Locked due to failed attempts ({editUserLockoutInfo.remainingMinutes} min left)
+                    </div>
+                  )}
+                  <div className="ums-password-row">
+                    <div>
+                      <div className="ums-toggle-title">Reset User Password</div>
+                      <div className="ums-toggle-sub">Send a password reset email to this user.</div>
+                    </div>
+                    <Button
+                      onClick={() => void sendResetPassword(detailsUser)}
+                      isDisabled={loading || isRootAdminSyntheticUser(detailsUser)}
+                      isLoading={loading}
+                    >
+                      Reset Password
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {detailsStatus && <div className={`ums-toast ${detailsStatus.includes("successfully") ? "" : "error"}`}>{detailsStatus}</div>}
+            </div>
+
+            <div className="ums-details-page-foot">
+              <Button onClick={() => setDetailsOpen(false)}>Close</Button>
+              {detailsEditing && (
+                <Button
+                  variation="primary"
+                  onClick={saveUserChanges}
+                  isDisabled={loading}
+                  isLoading={loading}
+                >
+                  Save Changes
+                </Button>
+              )}
+            </div>
+          </div>
+        ) : (
+        <div className="ums-list-page">
 
         {/* Search */}
         <div className="ums-card ums-search-card">
@@ -950,6 +1438,7 @@ export default function Users({ permissions }: PageProps) {
                   <th>Mobile Number</th>
                   <th>Department</th>
                   <th>Role</th>
+                  <th>Line Manager</th>
                   <th>User Status</th>
                   <th>Dashboard Access</th>
                   <th className="ums-th-actions">Actions</th>
@@ -960,37 +1449,44 @@ export default function Users({ permissions }: PageProps) {
                 {pageRows.map((row) => {
                   const u = row.u;
                   const isRootAdminRow = isRootAdminSyntheticUser(u);
-                  const active = Boolean(u.isActive);
-                  const dashAllowed = row.dashboardAllowed && active;
+                  const active = Boolean(u.isActive);  
+                  const dashboardAccessEnabled = Boolean((u as any).dashboardAccessEnabled ?? true);
+                  const dashAllowed = active && dashboardAccessEnabled;
 
                   return (
                     <tr key={u.id}>
-                      <td className="ums-mono">{row.empId}</td>
-                      <td className="ums-name">{u.fullName ?? "—"}</td>
-                      <td className="ums-email">{u.email ?? "—"}</td>
-                      <td className="ums-muted">{row.mobile || "—"}</td>
+                      <td data-label="Employee ID" className="ums-mono">{row.empId}</td>
+                      <td data-label="Employee Name" className="ums-name">{u.fullName ?? "—"}</td>
+                      <td data-label="Email Address" className="ums-email">{u.email ?? "—"}</td>
+                      <td data-label="Mobile Number" className="ums-muted">{row.mobile || "—"}</td>
 
-                      <td>
+                      <td data-label="Department">
                         <span className="pill pill-dept">{row.deptName}</span>
                       </td>
 
-                      <td>
+                      <td data-label="Role">
                         <span className="pill pill-role">{row.roleName}</span>
                       </td>
 
-                      <td>
+                      <td data-label="Line Manager" className="ums-muted">
+                        <span className="ums-line-manager-cell" title={row.lineManagerDisplay}>
+                          {row.lineManagerDisplay}
+                        </span>
+                      </td>
+
+                      <td data-label="User Status">
                         <span className={`pill ${active ? "pill-active" : "pill-inactive"}`}>
                           {active ? "Active" : "Inactive"}
                         </span>
                       </td>
 
-                      <td>
+                      <td data-label="Dashboard Access">
                         <span className={`pill ${dashAllowed ? "pill-allowed" : "pill-blocked"}`}>
                           {dashAllowed ? "Allowed" : "Blocked"}
                         </span>
                       </td>
 
-                      <td className="ums-actions-cell">
+                      <td data-label="Actions" className="ums-actions-cell">
                         {!isRootAdminRow && (permissions.canUpdate || permissions.canDelete) && (
                           <PermissionGate moduleId="users" optionId="users_edit">
                             <button
@@ -1015,7 +1511,7 @@ export default function Users({ permissions }: PageProps) {
 
                 {!pageRows.length && (
                   <tr>
-                    <td colSpan={9} className="ums-empty">
+                    <td colSpan={10} className="ums-empty">
                       No users found.
                     </td>
                   </tr>
@@ -1038,6 +1534,16 @@ export default function Users({ permissions }: PageProps) {
 
               <div className="ums-modal-body">
                 <div className="ums-form-grid">
+                  <div>
+                    <label className="ums-label">Employee ID</label>
+                    <input
+                      className="ums-input"
+                      value={employeeId}
+                      onChange={(e) => setEmployeeId(normalizeEmployeeId(e.target.value))}
+                      placeholder="EMP001"
+                    />
+                  </div>
+
                   <div>
                     <label className="ums-label">First name</label>
                     <input
@@ -1120,6 +1626,32 @@ export default function Users({ permissions }: PageProps) {
                       <div className="ums-field-hint">Select a department first.</div>
                     )}
                   </div>
+
+                  <div className="ums-span-2">
+                    <label className="ums-label">Line Manager</label>
+                    <select
+                      className="ums-input"
+                      value={lineManagerEmail}
+                      onChange={(e) => setLineManagerEmail(e.target.value)}
+                      disabled={loading}
+                    >
+                      <option value="">Select…</option>
+                      {lineManagerOptions
+                        .filter((o) => o.email !== String(email ?? "").trim().toLowerCase())
+                        .map((opt) => (
+                          <option key={opt.email} value={opt.email}>
+                            {opt.label}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="ums-invite-link">
+                  <div className="ums-invite-link-title">Login Page</div>
+                  <div className="ums-invite-link-value">
+                    {crmLoginUrl}
+                  </div>
                 </div>
 
                 <div className="ums-invite-link">
@@ -1153,181 +1685,7 @@ export default function Users({ permissions }: PageProps) {
             </div>
           </div>
         )}
-
-        {/* View Details Modal */}
-        {detailsOpen && detailsUser && (
-          <div className="ums-modal-overlay" role="dialog" aria-modal="true">
-            <div className="ums-modal">
-              <div className="ums-modal-head">
-                <h3>{editMode ? "Edit User" : "User Details"}</h3>
-                <button className="ums-modal-close" onClick={() => setDetailsOpen(false)} aria-label="Close">
-                  ✕
-                </button>
-              </div>
-
-              <div className="ums-modal-body">
-                {editMode ? (
-                  <div className="ums-form-grid">
-                    <div>
-                      <label className="ums-label">First name</label>
-                      <input
-                        className="ums-input"
-                        value={editFirstName}
-                        onChange={(e) => setEditFirstName(e.target.value)}
-                        placeholder="First name"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="ums-label">Last name</label>
-                      <input
-                        className="ums-input"
-                        value={editLastName}
-                        onChange={(e) => setEditLastName(e.target.value)}
-                        placeholder="Last name"
-                      />
-                    </div>
-
-                    <div className="ums-span-2">
-                      <label className="ums-label">Email</label>
-                      <input
-                        className="ums-input"
-                        value={detailsUser.email ?? ""}
-                        disabled
-                        title="Email cannot be changed"
-                      />
-                      <div className="ums-field-hint">Email cannot be changed.</div>
-                    </div>
-
-                    <div className="ums-span-2">
-                      <label className="ums-label">Mobile number</label>
-                      <input
-                        className="ums-input"
-                        value={editMobileNumber}
-                        onChange={(e) => setEditMobileNumber(e.target.value)}
-                        placeholder="+974 1234 5678"
-                      />
-                    </div>
-
-                    <div className="ums-span-2">
-                      <label className="ums-label">Department</label>
-                      <select
-                        className="ums-input"
-                        value={editDepartmentKey}
-                        onChange={(e) => {
-                          const nextDept = e.target.value;
-                          setEditDepartmentKey(nextDept);
-                          setEditRoleKey("");
-                        }}
-                        disabled={loading}
-                      >
-                        <option value="">Select…</option>
-                        {departments.map((d) => (
-                          <option key={d.key} value={d.key}>
-                            {d.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="ums-span-2">
-                      <label className="ums-label">Role</label>
-                      <select
-                        className="ums-input"
-                        value={editRoleKey}
-                        onChange={(e) => setEditRoleKey(e.target.value)}
-                        disabled={loading || !editDepartmentKey}
-                      >
-                        <option value="">Select…</option>
-                        {availableRolesForEditDept.map((r) => (
-                          <option key={String(r.id ?? "")} value={String(r.id ?? "")}>
-                            {r.name ?? "—"}
-                          </option>
-                        ))}
-                      </select>
-                      {!editDepartmentKey && (
-                        <div className="ums-field-hint">Select a department first.</div>
-                      )}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="ums-details-view">
-                    <div className="ums-detail-row">
-                      <span className="ums-detail-label">Name:</span>
-                      <span className="ums-detail-value">{detailsUser.fullName ?? "—"}</span>
-                    </div>
-                    <div className="ums-detail-row">
-                      <span className="ums-detail-label">Email:</span>
-                      <span className="ums-detail-value">{detailsUser.email ?? "—"}</span>
-                    </div>
-                    <div className="ums-detail-row">
-                      <span className="ums-detail-label">Mobile:</span>
-                      <span className="ums-detail-value">{detailsUser.mobileNumber ?? "—"}</span>
-                    </div>
-                    <div className="ums-detail-row">
-                      <span className="ums-detail-label">Department:</span>
-                      <span className="ums-detail-value">
-                        {departments.find((d) => d.key === detailsUser.departmentKey)?.name ?? "—"}
-                      </span>
-                    </div>
-                    <div className="ums-detail-row">
-                      <span className="ums-detail-label">Role:</span>
-                      <span className="ums-detail-value">{String((detailsUser as any).roleName ?? "").trim() || "—"}</span>
-                    </div>
-                    <div className="ums-detail-row">
-                      <span className="ums-detail-label">Status:</span>
-                      <span className={`pill ${detailsUser.isActive ? "pill-active" : "pill-inactive"}`}>
-                        {detailsUser.isActive ? "Active" : "Inactive"}
-                      </span>
-                    </div>
-                    <div className="ums-detail-row">
-                      <span className="ums-detail-label">Created:</span>
-                      <span className="ums-detail-value">
-                        {detailsUser.createdAt ? new Date(detailsUser.createdAt).toLocaleDateString() : "—"}
-                      </span>
-                    </div>
-                    {isRootAdminSyntheticUser(detailsUser) && (
-                      <div className="ums-detail-row">
-                        <span className="ums-detail-label">Note:</span>
-                        <span className="ums-detail-value">Root admin is read-only in Users Admin.</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                {detailsStatus && <div className={`ums-toast ${detailsStatus.includes("successfully") ? "" : "error"}`}>{detailsStatus}</div>}
-              </div>
-
-              <div className="ums-modal-foot">
-                {editMode ? (
-                  <>
-                    <Button onClick={() => setEditMode(false)}>Cancel</Button>
-                    <Button
-                      variation="primary"
-                      onClick={saveUserChanges}
-                      isDisabled={loading}
-                      isLoading={loading}
-                    >
-                      Save Changes
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button onClick={() => setDetailsOpen(false)}>Close</Button>
-                    <PermissionGate moduleId="users" optionId="users_edit">
-                      <Button
-                        variation="primary"
-                        onClick={enterEditMode}
-                        isDisabled={isRootAdminSyntheticUser(detailsUser) || !permissions.canUpdate || !canOption("users", "users_edit", true)}
-                      >
-                        Edit
-                      </Button>
-                    </PermissionGate>
-                  </>
-                )}
-              </div>
-            </div>
-          </div>
+        </div>
         )}
       </div>
     </div>

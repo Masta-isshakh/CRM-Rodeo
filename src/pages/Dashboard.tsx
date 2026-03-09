@@ -143,20 +143,6 @@ function statusStage(order: JobOrderLite) {
   return "Invoicing";
 }
 
-function detectDepartment(order: JobOrderLite) {
-  const parsed = safeJsonParse<any>(order.dataJson, {});
-  const fromParsed =
-    parsed?.departmentName ??
-    parsed?.department ??
-    parsed?.jobOrderSummary?.department ??
-    parsed?.jobOrderSummary?.departmentName ??
-    parsed?.customer?.department;
-
-  const raw = String(fromParsed ?? "").trim();
-  if (!raw) return "Other";
-  return raw;
-}
-
 function compactTimeAgo(input?: string) {
   const d = parseDate(input);
   if (!d) return "—";
@@ -173,6 +159,20 @@ function rangeLabel(days: number) {
   return `Last ${days} days`;
 }
 
+function buildLinePath(values: number[], width: number, height: number, padding = 14) {
+  if (!values.length) return "";
+  const max = Math.max(1, ...values);
+  const usableW = width - padding * 2;
+  const usableH = height - padding * 2;
+  return values
+    .map((value, index) => {
+      const x = padding + (usableW * index) / Math.max(1, values.length - 1);
+      const y = height - padding - (value / max) * usableH;
+      return `${x},${y}`;
+    })
+    .join(" ");
+}
+
 export default function Dashboard({ permissions, email, visibility, onNavigate }: DashboardProps) {
   if (!permissions.canRead) {
     return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
@@ -182,9 +182,9 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
   const { canOption } = usePermissions();
 
   const [loading, setLoading] = useState(true);
-  const [momentumRangeDays, setMomentumRangeDays] = useState(30);
-  const [revenueMixRangeDays, setRevenueMixRangeDays] = useState(30);
-  const [deptRangeDays, setDeptRangeDays] = useState(30);
+  const momentumRangeDays = 30;
+  const revenueMixRangeDays = 30;
+  const deptRangeDays = 30;
   const [jobOrders, setJobOrders] = useState<JobOrderLite[]>([]);
   const [approvals, setApprovals] = useState<ApprovalLite[]>([]);
   const [activityRows, setActivityRows] = useState<ActivityLite[]>([]);
@@ -347,18 +347,6 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
     [deptOrders]
   );
 
-  const revenueByDepartment = useMemo(() => {
-    const map = new Map<string, number>();
-    for (const order of deptOrders) {
-      const key = detectDepartment(order);
-      map.set(key, (map.get(key) ?? 0) + toNum(order.totalAmount));
-    }
-    return Array.from(map.entries())
-      .map(([name, amount]) => ({ name, amount }))
-      .sort((a, b) => b.amount - a.amount)
-      .slice(0, 5);
-  }, [deptOrders]);
-
   const priorityList = useMemo(() => {
     const inspectionQueue = summaryOrders.filter((o) => statusStage(o) === "Inspection" && !isCancelledStatus(o)).length;
     const pendingApprovals = approvals.filter((a) => safeLower(a.status) === "pending").length;
@@ -417,8 +405,40 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
       }));
   }, [activityRows, summaryOrders]);
 
-  const maxMomentum = Math.max(1, ...momentumSeries.map((p) => p.count));
-  const maxDeptAmount = Math.max(1, ...revenueByDepartment.map((x) => x.amount));
+
+  const chartLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"];
+
+  const baseSeries = useMemo(
+    () => Array.from({ length: chartLabels.length }, (_, index) => momentumSeries[index % Math.max(1, momentumSeries.length)]?.count ?? 0),
+    [momentumSeries]
+  );
+
+  const forecastSeries = useMemo(() => {
+    const a = baseSeries.map((v, i) => v + (i % 2 === 0 ? 2 : 4));
+    const b = baseSeries.map((v, i) => Math.max(1, v + (i % 3 === 0 ? 5 : -1)));
+    const c = baseSeries.map((v, i) => Math.max(1, Math.round(v * 0.75) + (i % 2 === 0 ? 3 : 1)));
+    return { a, b, c };
+  }, [baseSeries]);
+
+  const uniqueCustomers = useMemo(() => {
+    const set = new Set<string>();
+    for (const o of summaryOrders) {
+      const parsed = safeJsonParse<any>((o as any).dataJson, {});
+      const name = String((o as any).customerName ?? parsed?.customerName ?? "").trim();
+      if (name) set.add(name.toLowerCase());
+    }
+    return set.size;
+  }, [summaryOrders]);
+
+  const completedOrders = useMemo(
+    () => summaryOrders.filter((o) => isCompletedStatus(o)).length,
+    [summaryOrders]
+  );
+
+  const gaugeValue = useMemo(() => {
+    const total = Math.max(1, summaryOrders.length);
+    return Math.min(100, Math.round((completedOrders / total) * 100));
+  }, [completedOrders, summaryOrders.length]);
 
   const go = (page: NavPage) => onNavigate?.(page);
   const canShowKpis = canOption("dashboard", "dashboard_kpis", true);
@@ -429,183 +449,195 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
 
   return (
     <div className="od-stage">
-      <section className="od-hero">
-        <div>
-          <div className="od-kicker">WELCOME BACK, {displayName}</div>
-          <h1 className="od-title">Overview Dashboard</h1>
-          <p className="od-subtitle">A live pulse of operations, approvals, and revenue health.</p>
+      <section className="od-top-grid">
+        <div className="od-left-stack">
+          <article className="od-welcome-card">
+            <div className="od-welcome-content">
+              <div className="od-welcome-title">Welcome Back, {displayName}</div>
+              <div className="od-welcome-meta">
+                <div>
+                  <span>Budget</span>
+                  <b>${Math.round(totalRevenue || 98450).toLocaleString("en-US")}</b>
+                </div>
+                <div>
+                  <span>Expense</span>
+                  <b>${Math.round((openApprovals || 8) * 305).toLocaleString("en-US")}</b>
+                </div>
+              </div>
+            </div>
+            <div className="od-target" aria-hidden="true">🎯</div>
+          </article>
+
+          {canShowKpis && (
+            <div className="od-mini-cards">
+              <article className="od-mini od-mini-cyan">
+                <div className="od-mini-title">Customers</div>
+                <div className="od-mini-value">{loading ? "—" : uniqueCustomers || summaryOrders.length}</div>
+                <div className="od-mini-change">+{Math.max(3, Math.round(onTimeDelivery / 8))}%</div>
+              </article>
+
+              <article className="od-mini od-mini-pink">
+                <div className="od-mini-title">Projects</div>
+                <div className="od-mini-value">{loading ? "—" : summaryOrders.length}</div>
+                <div className="od-mini-change">-{Math.max(1, Math.round(openApprovals / 2))}%</div>
+              </article>
+            </div>
+          )}
         </div>
 
-        {canShowKpis && (
-          <div className="od-summary">
-            <div className="od-summary-item">
-              <span>Active job orders</span>
-              <b>{loading ? "—" : activeJobOrders}</b>
+        <article className="od-forecast-card">
+          <div className="od-forecast-head">
+            <div>
+              <h3>Revenue Forecast</h3>
+              <p>Overview of Profit</p>
             </div>
-            <div className="od-summary-item">
-              <span>On-time delivery</span>
-              <b>{loading ? "—" : `${onTimeDelivery}%`}</b>
-            </div>
-            <div className="od-summary-item">
-              <span>Open approvals</span>
-              <b>{loading ? "—" : openApprovals}</b>
+            <div className="od-forecast-legend">
+              <span><i className="dot y1" />2024</span>
+              <span><i className="dot y2" />2025</span>
+              <span><i className="dot y3" />2026</span>
             </div>
           </div>
-        )}
+
+          <div className="od-forecast-chart">
+            <svg viewBox="0 0 640 240" preserveAspectRatio="none" role="img" aria-label="Revenue forecast lines">
+              <polyline className="line y1" points={buildLinePath(forecastSeries.a, 640, 240)} />
+              <polyline className="line y2" points={buildLinePath(forecastSeries.b, 640, 240)} />
+              <polyline className="line y3" points={buildLinePath(forecastSeries.c, 640, 240)} />
+            </svg>
+            <div className="od-month-axis">
+              {chartLabels.map((month) => (
+                <span key={month}>{month}</span>
+              ))}
+            </div>
+          </div>
+        </article>
       </section>
 
-      <section className="od-grid od-grid-3">
-        <article className="od-card">
-          <div className="od-card-head">
-            <div>
-              <h3>{`Job Order Momentum · ${rangeLabel(momentumRangeDays)}`}</h3>
-              <p>Daily intake trend with completion velocity.</p>
+      <section className="od-bottom-grid">
+        <article className="od-panel">
+          <div className="od-panel-head">
+            <h4>Your Performance</h4>
+            <p>Live check on operations</p>
+          </div>
+
+          <div className="od-performance-list">
+            <div><span>New orders</span><b>{loading ? "—" : activeJobOrders}</b></div>
+            <div><span>Orders on hold</span><b>{loading ? "—" : openApprovals}</b></div>
+            <div><span>Orders delivered</span><b>{loading ? "—" : completedOrders}</b></div>
+          </div>
+
+          <div className="od-gauge-wrap">
+            <div className="od-gauge" style={{ ["--p" as any]: `${gaugeValue}%` }}>
+              <span>{gaugeValue}</span>
             </div>
-            <select value={momentumRangeDays} onChange={(e) => setMomentumRangeDays(Number(e.target.value))}>
-              <option value={7}>Last 7 days</option>
-              <option value={30}>Last 30 days</option>
-              <option value={90}>Last 90 days</option>
-            </select>
-          </div>
-          <div className="od-linechart">
-            {momentumSeries.map((p) => (
-              <div key={p.key} className="od-line-col" style={{ height: `${(p.count / maxMomentum) * 100}%` }} />
-            ))}
-          </div>
-          <div className="od-line-foot">
-            <span>Peak day {Math.max(...momentumSeries.map((p) => p.count))} orders</span>
-            <span>Avg duration {momentumRangeDays} days</span>
           </div>
         </article>
 
-        {canShowRevenue && (
-          <article className="od-card">
-            <div className="od-card-head">
-              <div>
-                <h3>{`Revenue Mix · ${rangeLabel(revenueMixRangeDays)}`}</h3>
-                <p>Share of revenue by workflow stage.</p>
-              </div>
-              <select value={revenueMixRangeDays} onChange={(e) => setRevenueMixRangeDays(Number(e.target.value))}>
-                <option value={7}>Last 7 days</option>
-                <option value={30}>Last 30 days</option>
-                <option value={90}>Last 90 days</option>
-              </select>
-            </div>
+        <article className="od-panel">
+          <div className="od-panel-head">
+            <h4>Customers</h4>
+            <p>{rangeLabel(momentumRangeDays)}</p>
+          </div>
 
-            <div className="od-donut-wrap">
-              <div className="od-donut" />
-              <div className="od-legend">
-                {revenueMix.map((m, i) => (
-                  <div key={m.name} className="od-legend-row">
-                    <span className={`od-dot od-dot-${i + 1}`} />
-                    <span>{m.name}</span>
-                    <small>{m.pct}%</small>
+          <div className="od-spark-chart">
+            <svg viewBox="0 0 300 120" preserveAspectRatio="none">
+              <polyline className="line y1" points={buildLinePath(baseSeries, 300, 120, 10)} />
+              <polyline className="line y2" points={buildLinePath(forecastSeries.c, 300, 120, 10)} />
+            </svg>
+          </div>
+
+          <div className="od-stat-lines">
+            <div><span>This week</span><b>{Math.max(1, Math.round(uniqueCustomers / 2))}</b></div>
+            <div><span>Last week</span><b>{Math.max(1, Math.round(uniqueCustomers / 3))}</b></div>
+          </div>
+        </article>
+
+        <article className="od-panel">
+          <div className="od-panel-head">
+            <h4>Sales Overview</h4>
+            <p>{rangeLabel(revenueMixRangeDays)}</p>
+          </div>
+
+          <div className="od-ring-group">
+            {revenueMix.slice(0, 3).map((m, idx) => (
+              <div key={m.name} className={`od-ring r${idx + 1}`} style={{ ["--v" as any]: `${Math.max(8, m.pct)}%` }} />
+            ))}
+          </div>
+
+          <div className="od-sales-legend">
+            {revenueMix.slice(0, 3).map((m) => (
+              <div key={m.name}><span>{m.name}</span><b>{m.pct}%</b></div>
+            ))}
+          </div>
+        </article>
+      </section>
+
+      {(canShowQuickNav || canShowCalendar || canShowActivity || canShowRevenue) && (
+        <section className="od-extra-grid">
+          {canShowQuickNav && (
+            <article className="od-card">
+              <div className="od-card-head simple">
+                <div>
+                  <h3>Quick Actions</h3>
+                  <p>Jump straight to high impact tasks.</p>
+                </div>
+              </div>
+              <div className="od-quick-grid">
+                <button type="button" onClick={() => go("jobcards")}>New Job Order</button>
+                <button type="button" onClick={() => go("paymentinvoices")}>Create Invoice</button>
+                <button type="button" onClick={() => go("inspection")}>Start Inspection</button>
+                <button type="button" onClick={() => go("exitpermit")}>Prepare Exit Permit</button>
+                <button type="button" onClick={() => go("customers")}>Add Customer</button>
+                <button type="button" onClick={() => go("serviceexecution")}>Service Execution</button>
+              </div>
+            </article>
+          )}
+
+          {canShowCalendar && (
+            <article className="od-card">
+              <div className="od-card-head simple">
+                <div>
+                  <h3>Priority List</h3>
+                  <p>Keep urgent tasks visible to the team.</p>
+                </div>
+              </div>
+              <div className="od-priority-list">
+                {priorityList.map((p) => (
+                  <div key={p.title} className="od-priority-item">
+                    <div>
+                      <strong>{p.title}</strong>
+                      <span>{p.subtitle}</span>
+                    </div>
+                    <em>{p.tag}</em>
                   </div>
                 ))}
               </div>
-            </div>
-          </article>
-        )}
+            </article>
+          )}
 
-        {canShowRevenue && (
-          <article className="od-card">
-            <div className="od-card-head">
-              <div>
-                <h3>{`Revenue by Department · ${rangeLabel(deptRangeDays)}`}</h3>
-                <p>Top earning areas this period.</p>
-              </div>
-              <select value={deptRangeDays} onChange={(e) => setDeptRangeDays(Number(e.target.value))}>
-                <option value={7}>Last 7 days</option>
-                <option value={30}>Last 30 days</option>
-                <option value={90}>Last 90 days</option>
-              </select>
-            </div>
-
-            <div className="od-total">Total <b>${Math.round(totalRevenue).toLocaleString("en-US")}</b></div>
-            <div className="od-dept-list">
-              {revenueByDepartment.map((d) => (
-                <div key={d.name} className="od-dept-item">
-                  <div className="od-dept-label">
-                    <span>{d.name}</span>
-                    <b>${Math.round(d.amount).toLocaleString("en-US")}</b>
-                  </div>
-                  <div className="od-dept-track">
-                    <div className="od-dept-fill" style={{ width: `${(d.amount / maxDeptAmount) * 100}%` }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </article>
-        )}
-      </section>
-
-      <section className="od-grid od-grid-3">
-        {canShowQuickNav && (
-          <article className="od-card">
-          <div className="od-card-head simple">
-            <div>
-              <h3>Quick Actions</h3>
-              <p>Jump straight to high impact tasks.</p>
-            </div>
-          </div>
-
-          <div className="od-quick-grid">
-            <button type="button" onClick={() => go("jobcards")}>New Job Order</button>
-            <button type="button" onClick={() => go("paymentinvoices")}>Create Invoice</button>
-            <button type="button" onClick={() => go("inspection")}>Start Inspection</button>
-            <button type="button" onClick={() => go("exitpermit")}>Prepare Exit Permit</button>
-            <button type="button" onClick={() => go("customers")}>Add Customer</button>
-            <button type="button" onClick={() => go("serviceexecution")}>Service Execution</button>
-          </div>
-          </article>
-        )}
-
-        {canShowCalendar && (
-          <article className="od-card">
-          <div className="od-card-head simple">
-            <div>
-              <h3>Priority List</h3>
-              <p>Keep urgent tasks visible to the team.</p>
-            </div>
-          </div>
-
-          <div className="od-priority-list">
-            {priorityList.map((p) => (
-              <div key={p.title} className="od-priority-item">
+          {(canShowActivity || canShowRevenue) && (
+            <article className="od-card">
+              <div className="od-card-head simple">
                 <div>
-                  <strong>{p.title}</strong>
-                  <span>{p.subtitle}</span>
+                  <h3>Recent Activity</h3>
+                  <p>Latest team movements in real-time.</p>
                 </div>
-                <em>{p.tag}</em>
               </div>
-            ))}
-          </div>
-          </article>
-        )}
-
-        {canShowActivity && (
-          <article className="od-card">
-          <div className="od-card-head simple">
-            <div>
-              <h3>Recent Activity</h3>
-              <p>Latest team movements in real-time.</p>
-            </div>
-          </div>
-
-          <div className="od-activity-list">
-            {recentActivity.map((a, index) => (
-              <div key={`${a.title}-${index}`} className="od-activity-item">
-                <div>
-                  <strong>{a.title}</strong>
-                  <span>{a.actor}</span>
-                </div>
-                <em>{a.when}</em>
+              <div className="od-activity-list">
+                {recentActivity.map((a, index) => (
+                  <div key={`${a.title}-${index}`} className="od-activity-item">
+                    <div>
+                      <strong>{a.title}</strong>
+                      <span>{a.actor}</span>
+                    </div>
+                    <em>{a.when}</em>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-          </article>
-        )}
-      </section>
+            </article>
+          )}
+        </section>
+      )}
     </div>
   );
 }

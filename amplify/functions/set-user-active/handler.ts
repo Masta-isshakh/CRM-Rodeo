@@ -35,6 +35,30 @@ async function resolveCognitoUsername(userPoolId: string, email: string): Promis
   }
 }
 
+async function findUserProfileByEmailCaseInsensitive(dataClient: ReturnType<typeof generateClient<Schema>>, email: string) {
+  const normalized = String(email ?? "").trim().toLowerCase();
+  if (!normalized) return null;
+
+  try {
+    const exact = await dataClient.models.UserProfile.list({
+      filter: { email: { eq: normalized } },
+      limit: 1,
+    });
+    const exactRow = (exact?.data ?? [])[0] as any;
+    if (exactRow?.id) return exactRow;
+  } catch {
+    // fallback below
+  }
+
+  const all = await dataClient.models.UserProfile.list({
+    limit: 20000,
+  } as any);
+
+  return (
+    (all?.data ?? []).find((row: any) => String(row?.email ?? "").trim().toLowerCase() === normalized) ?? null
+  );
+}
+
 export const handler: Handler = async (event) => {
   const { email, isActive } = event.arguments;
 
@@ -58,30 +82,29 @@ export const handler: Handler = async (event) => {
   Amplify.configure(resourceConfig, libraryOptions);
   const dataClient = generateClient<Schema>();
 
-  const existing = await dataClient.models.UserProfile.list({
-    filter: { email: { eq: e } },
-    limit: 1,
-  });
+  const profile = await findUserProfileByEmailCaseInsensitive(dataClient, e);
 
-  if (!existing.data.length) {
-    throw new Error(`UserProfile not found for ${e}.`);
+  if (profile?.id) {
+    await dataClient.models.UserProfile.update({
+      id: profile.id,
+      email: profile.email,
+      fullName: profile.fullName,
+      profileOwner: profile.profileOwner,
+      createdAt: profile.createdAt ?? new Date().toISOString(),
+      isActive: !!isActive,
+      dashboardAccessEnabled: isActive ? Boolean((profile as any).dashboardAccessEnabled ?? true) : false,
+      departmentKey: profile.departmentKey ?? undefined,
+      departmentName: profile.departmentName ?? undefined,
+      roleId: (profile as any).roleId ?? undefined,
+      roleName: (profile as any).roleName ?? undefined,
+      employeeId: (profile as any).employeeId ?? undefined,
+      lineManagerEmail: (profile as any).lineManagerEmail ?? undefined,
+      lineManagerName: (profile as any).lineManagerName ?? undefined,
+      failedLoginAttempts: Number((profile as any).failedLoginAttempts ?? 0),
+      lastFailedLoginAt: (profile as any).lastFailedLoginAt ?? undefined,
+      mobileNumber: profile.mobileNumber ?? undefined,
+    });
   }
-
-  const profile = existing.data[0];
-
-  await dataClient.models.UserProfile.update({
-    id: profile.id,
-    email: profile.email,
-    fullName: profile.fullName,
-    profileOwner: profile.profileOwner,
-    createdAt: profile.createdAt ?? new Date().toISOString(),
-    isActive: !!isActive,
-    departmentKey: profile.departmentKey ?? undefined,
-    departmentName: profile.departmentName ?? undefined,
-    roleId: (profile as any).roleId ?? undefined,
-    roleName: (profile as any).roleName ?? undefined,
-    mobileNumber: profile.mobileNumber ?? undefined,
-  });
 
   return {
     ok: true,

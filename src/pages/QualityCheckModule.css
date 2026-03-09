@@ -1183,3 +1183,99 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ========================================
+   FINAL OVERRIDES: PERFORMANCE + 98% WIDTH
+   (Requested by user - visual only)
+======================================== */
+
+.quality-check-module *,
+.quality-check-module .action-dropdown-menu-fixed,
+.quality-check-module .btn-action-dropdown,
+.quality-check-module .dropdown-item {
+  animation: none !important;
+  transition: none !important;
+}
+
+.quality-check-module,
+.quality-check-module .app-container,
+.quality-check-module .app-header,
+.quality-check-module .main-content,
+.quality-check-module .search-section,
+.quality-check-module .results-section,
+.quality-check-module .table-wrapper,
+.quality-check-module .detail-container,
+.quality-check-module .detail-header,
+.quality-check-module .detail-body,
+.quality-check-module .detail-grid,
+.quality-check-module .pim-details-screen,
+.quality-check-module .pim-details-header,
+.quality-check-module .pim-details-body,
+.quality-check-module .pim-details-grid {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+.quality-check-module .qc-detail-card,
+.quality-check-module .pim-detail-card,
+.quality-check-module .epm-detail-card,
+.quality-check-module .jh-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+@media (max-width: 768px) {
+  .quality-check-module,
+  .quality-check-module .app-container,
+  .quality-check-module .app-header,
+  .quality-check-module .main-content,
+  .quality-check-module .search-section,
+  .quality-check-module .results-section,
+  .quality-check-module .table-wrapper,
+  .quality-check-module .detail-container,
+  .quality-check-module .detail-header,
+  .quality-check-module .detail-body,
+  .quality-check-module .detail-grid,
+  .quality-check-module .pim-details-screen,
+  .quality-check-module .pim-details-header,
+  .quality-check-module .pim-details-body,
+  .quality-check-module .pim-details-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .quality-check-module .qc-detail-card,
+  .quality-check-module .pim-detail-card,
+  .quality-check-module .epm-detail-card,
+  .quality-check-module .jh-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .quality-check-module,
+  .quality-check-module .app-container,
+  .quality-check-module .app-header,
+  .quality-check-module .main-content,
+  .quality-check-module .search-section,
+  .quality-check-module .results-section,
+  .quality-check-module .table-wrapper,
+  .quality-check-module .detail-container,
+  .quality-check-module .detail-header,
+  .quality-check-module .detail-body,
+  .quality-check-module .detail-grid,
+  .quality-check-module .pim-details-screen,
+  .quality-check-module .pim-details-header,
+  .quality-check-module .pim-details-body,
+  .quality-check-module .pim-details-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}

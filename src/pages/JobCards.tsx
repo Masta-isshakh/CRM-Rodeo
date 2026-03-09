@@ -1055,7 +1055,7 @@ function MainScreen({
 
   return (
     <div className="app-container">
-      <header className="app-header">
+      <header className="app-header crm-unified-header">
         <div className="header-left">
           <h1>
             <i className="fas fa-tools"></i> Job Order Management

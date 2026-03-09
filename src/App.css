@@ -6,3 +6,357 @@
   padding: 0;
   text-align: initial;
 }
+
+.crm-auth-block-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #fee2e2;
+  color: #7f1d1d;
+  border-bottom: 1px solid #fecaca;
+  font-weight: 600;
+}
+
+.crm-auth-block-banner button {
+  border: 1px solid #fecaca;
+  background: #fff;
+  color: #7f1d1d;
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.crm-authenticator {
+  min-height: 100vh;
+  width: 100%;
+  display: grid;
+  place-items: center;
+  background: url("/background.jpg") center center / cover no-repeat fixed;
+  padding: 12px;
+  background-color: #06070e !important;
+    border-radius: 20px;
+
+}
+
+html,
+body,
+#root {
+  background: url("/background.jpg") center center / cover no-repeat fixed;
+  background-color: #06070e;
+    border-radius: 20px;
+
+}
+
+.amplify-tabs__panel {
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 20px;
+  }
+.amplify-tabs {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+
+.crm-authenticator .amplify-authenticator {
+  --amplify-components-tabs-item-active-color: #ffffff;
+  --amplify-components-button-primary-background-color: #ffffff;
+  --amplify-components-button-primary-color: #111827;
+  --amplify-components-button-primary-hover-background-color: #f3f4f6;
+  --amplify-components-fieldcontrol-background-color: transparent;
+  --amplify-components-fieldcontrol-color: #ffffff;
+  --amplify-components-fieldcontrol-border-color: transparent;
+  --amplify-components-fieldcontrol-focus-border-color: transparent;
+  --amplify-components-field-label-color: #ffffff;
+  --amplify-components-text-color: #ffffff;
+  background: transparent;
+}
+
+.crm-authenticator .amplify-tabs,
+.crm-authenticator .amplify-tabs__panel {
+  background: transparent !important;
+  box-shadow: none !important;
+  border: 0 !important;
+}
+
+.crm-authenticator .amplify-authenticator,
+.crm-authenticator .amplify-authenticator__router,
+.crm-authenticator .amplify-authenticator__container {
+  border-radius: var(--amplify-components-authenticator-router-border-radius, 15px) !important;
+  overflow: var(--amplify-components-authenticator-router-overflow, hidden) !important;
+}
+
+.crm-authenticator .amplify-authenticator__router {
+  background: var(--amplify-components-authenticator-router-background-color, rgba(4, 7, 20, 0.26)) !important;
+  border: var(--amplify-components-authenticator-router-border-width, 1px)
+    var(--amplify-components-authenticator-router-border-style, solid)
+    var(--amplify-components-authenticator-router-border-color, rgba(255, 255, 255, 0.28)) !important;
+  backdrop-filter: var(--amplify-components-authenticator-router-backdrop-filter, blur(16px));
+  -webkit-backdrop-filter: var(--amplify-components-authenticator-router-webkit-backdrop-filter, blur(16px));
+  box-shadow: var(--amplify-components-authenticator-router-box-shadow, none) !important;
+}
+
+.crm-authenticator .amplify-tabs {
+  display: none;
+}
+
+.crm-authenticator .amplify-container {
+  max-width: 560px;
+}
+
+.crm-authenticator .amplify-card {
+  width: min(94vw, 430px);
+  border-radius: 28px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  background: rgba(6, 10, 24, 0.56);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  padding: 22px 26px 24px;
+}
+
+.crm-authenticator .amplify-card,
+.crm-authenticator [data-amplify-authenticator] .amplify-card {
+  background: rgba(6, 10, 24, 0.56) !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  border-radius: 28px !important;
+}
+
+.crm-auth-signin-head {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  border-top: 1px solid rgba(255, 255, 255, 0.45);
+  padding-top: 8px;
+}
+
+.crm-auth-logo {
+  width: 66px;
+  height: 66px;
+  object-fit: cover;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.7);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.45);
+  margin-bottom: 10px;
+}
+
+.crm-auth-signin-head h1 {
+  margin: 0 0 14px;
+  text-align: center;
+  color: #ffffff;
+  font-size: 46px;
+  line-height: 1;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
+.crm-authenticator .amplify-field {
+  margin-bottom: 18px;
+}
+
+.crm-authenticator .amplify-field__show-password {
+  display: none;
+}
+
+.crm-authenticator .amplify-label {
+  color: rgba(255, 255, 255, 0.95);
+  font-weight: 700;
+  margin-bottom: 8px;
+  font-size: 18px;
+}
+
+.crm-authenticator .amplify-input {
+  border: 1px solid rgba(255, 255, 255, 0.58);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+  padding: 10px 36px 10px 12px;
+  min-height: 46px;
+  font-size: 19px;
+  font-weight: 500;
+  line-height: 1.1;
+}
+
+.crm-authenticator .amplify-input::placeholder {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.crm-authenticator .amplify-input:focus {
+  box-shadow: none;
+  border-color: rgba(255, 255, 255, 0.9);
+  border-bottom-color: #ffffff;
+  background: rgba(255, 255, 255, 0.14);
+}
+
+.crm-authenticator .amplify-field-group {
+  position: relative;
+}
+
+.crm-authenticator .amplify-field-group::after {
+  position: absolute;
+  right: 10px;
+  top: 11px;
+  color: #ffffff;
+  font-size: 15px;
+}
+
+.crm-authenticator .amplify-field:nth-of-type(1) .amplify-field-group::after {
+  content: "✉";
+}
+
+.crm-authenticator .amplify-field:nth-of-type(2) .amplify-field-group::after {
+  content: "🔒";
+}
+
+.crm-authenticator .amplify-button--primary {
+  width: 100%;
+  border-radius: 999px;
+  font-size: 18px;
+  font-weight: 600;
+  line-height: 1;
+  min-height: 42px;
+  margin-top: 2px;
+  background: #ffffff !important;
+  color: #111827 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.crm-authenticator .amplify-button--primary:hover,
+.crm-authenticator .amplify-button--primary:focus {
+  background: #f3f4f6 !important;
+  color: #111827 !important;
+}
+
+.crm-authenticator .amplify-button--link,
+.crm-authenticator [data-amplify-authenticator-forgotpassword] {
+  display: none !important;
+}
+
+.crm-auth-meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 2px 0 14px;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.crm-auth-remember {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.crm-auth-remember input {
+  margin: 0;
+  width: 13px;
+  height: 13px;
+}
+
+.crm-auth-forgot-text {
+  white-space: nowrap;
+}
+
+.crm-auth-register-text {
+  text-align: center;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 600;
+  margin-top: 16px;
+}
+
+.crm-auth-password-rules {
+  display: block;
+  margin: -6px 0 12px;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.crm-auth-password-rules-title {
+  color: rgba(255, 255, 255, 0.95);
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 7px;
+}
+
+.crm-auth-password-rules ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 5px;
+}
+
+.crm-auth-password-rules li {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.crm-auth-password-rules li.met {
+  color: #bbf7d0;
+}
+
+.crm-auth-password-rules li.unmet {
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.crm-auth-password-rules .rule-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+@media (max-width: 640px) {
+  .crm-authenticator {
+    padding: 12px;
+  }
+
+  .crm-authenticator .amplify-card {
+    width: 100%;
+    padding: 20px 18px 20px;
+    border-radius: 16px;
+  }
+
+  .crm-authenticator .amplify-button--primary {
+    min-height: 40px;
+    font-size: 17px;
+  }
+
+  .crm-authenticator .amplify-field {
+    margin-bottom: 14px;
+  }
+
+  .crm-auth-signin-head h1 {
+    margin-bottom: 16px;
+    font-size: 34px;
+  }
+
+  .crm-auth-logo {
+    width: 56px;
+    height: 56px;
+    margin-bottom: 8px;
+  }
+
+  .crm-authenticator .amplify-input {
+    font-size: 16px;
+    min-height: 34px;
+  }
+
+  .crm-auth-meta-row,
+  .crm-auth-register-text {
+    font-size: 14px;
+  }
+}

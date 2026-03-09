@@ -10,6 +10,7 @@ export const customMessage = defineFunction({
   resourceGroupName: "auth",
 
   environment: {
-    APP_ORIGIN: "https://main.d2plnbwjgshmb2.amplifyapp.com",
+    APP_ORIGIN: "https://crm.rodeodrive.work",
+    APP_LOGO_URL: "https://crm.rodeodrive.work/logo.jpeg",
   },
 });

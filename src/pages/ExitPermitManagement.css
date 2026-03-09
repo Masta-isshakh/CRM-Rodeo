@@ -1344,3 +1344,84 @@
     scroll-behavior: auto !important;
   }
 }
+
+/* ========================================
+   FINAL OVERRIDES: PERFORMANCE + 98% WIDTH
+   (Requested by user - visual only)
+======================================== */
+
+.epm-container *,
+.epm-container .action-dropdown-menu-fixed,
+.epm-container .btn-action-dropdown,
+.epm-container .dropdown-item {
+  animation: none !important;
+  transition: none !important;
+}
+
+.epm-container,
+.epm-container .epm-header,
+.epm-container .epm-main-content,
+.epm-container .epm-search-section,
+.epm-container .epm-results-section,
+.epm-container .epm-table-wrap,
+.epm-container .epm-details-screen,
+.epm-container .epm-details-header,
+.epm-container .epm-details-body,
+.epm-container .epm-details-grid {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+.epm-container .epm-detail-card,
+.epm-container .pim-detail-card,
+.epm-container .jh-card,
+.epm-container .epm-additional-services {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+}
+
+@media (max-width: 768px) {
+  .epm-container,
+  .epm-container .epm-header,
+  .epm-container .epm-main-content,
+  .epm-container .epm-search-section,
+  .epm-container .epm-results-section,
+  .epm-container .epm-table-wrap,
+  .epm-container .epm-details-screen,
+  .epm-container .epm-details-header,
+  .epm-container .epm-details-body,
+  .epm-container .epm-details-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+
+  .epm-container .epm-detail-card,
+  .epm-container .pim-detail-card,
+  .epm-container .jh-card,
+  .epm-container .epm-additional-services {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .epm-container,
+  .epm-container .epm-header,
+  .epm-container .epm-main-content,
+  .epm-container .epm-search-section,
+  .epm-container .epm-results-section,
+  .epm-container .epm-table-wrap,
+  .epm-container .epm-details-screen,
+  .epm-container .epm-details-header,
+  .epm-container .epm-details-body,
+  .epm-container .epm-details-grid {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}

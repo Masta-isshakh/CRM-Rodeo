@@ -69,3 +69,47 @@
   gap: 8px;
   margin-top: 20px;
 }
+
+/* ========================================
+   FINAL OVERRIDES: PERFORMANCE + 98% WIDTH
+   (Requested by user - visual only)
+======================================== */
+
+.employees-page *,
+.employees-page button,
+.employees-page .employee-card {
+  animation: none !important;
+  transition: none !important;
+}
+
+.employees-page,
+.employees-page .employees-grid,
+.employees-page .employee-card {
+  width: 98% !important;
+  max-width: 98% !important;
+  margin-left: auto !important;
+  margin-right: auto !important;
+}
+
+@media (max-width: 768px) {
+  .employees-page,
+  .employees-page .employees-grid,
+  .employees-page .employee-card {
+    width: min(98%, calc(100vw - 12px)) !important;
+    max-width: calc(100vw - 12px) !important;
+  }
+
+  .employees-page .employee-card {
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .employees-page,
+  .employees-page .employees-grid,
+  .employees-page .employee-card {
+    width: min(98%, calc(100vw - 10px)) !important;
+    max-width: calc(100vw - 10px) !important;
+  }
+}

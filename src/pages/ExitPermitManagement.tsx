@@ -762,7 +762,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
     <div className="epm-container">
       {!showDetailsScreen ? (
         <>
-          <div className="epm-header">
+          <div className="epm-header crm-unified-header">
             <div className="epm-header-left">
               <h1>
                 <i className="fas fa-id-card"></i> Exit Permit Management
