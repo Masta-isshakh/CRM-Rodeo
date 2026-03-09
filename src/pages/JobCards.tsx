@@ -33,6 +33,7 @@ import {
   computePaymentSnapshot,
   normalizePaymentStatusLabel as normalizePaymentStatusLabelShared,
 } from "../utils/paymentStatus";
+import { formatCustomerDisplayId } from "../utils/customerId";
 import { usePermissions } from "../lib/userPermissions";
 import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
 import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
@@ -1923,7 +1924,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
                         </div>
                         <div className="customer-result-details">
                           <span className="customer-detail-chip">
-                            <i className="fas fa-id-card"></i> {customer.id}
+                            <i className="fas fa-id-card"></i> {formatCustomerDisplayId(customer.id)}
                           </span>
                           <span className="customer-detail-chip">
                             <i className="fas fa-phone"></i> {customer.mobile}
@@ -1964,7 +1965,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
                   </div>
                   <div className="verified-row">
                     <span className="verified-label">Customer ID:</span>
-                    <span className="verified-value">{verifiedCustomer.id}</span>
+                    <span className="verified-value">{formatCustomerDisplayId(verifiedCustomer.id)}</span>
                   </div>
                   <div className="verified-row">
                     <span className="verified-label">Email:</span>
@@ -2045,7 +2046,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
               </div>
               <div className="verified-row">
                 <span className="verified-label">Customer ID:</span>
-                <span className="verified-value">{verifiedCustomer.id}</span>
+                <span className="verified-value">{formatCustomerDisplayId(verifiedCustomer.id)}</span>
               </div>
               <div className="verified-row">
                 <span className="verified-label">Mobile:</span>
@@ -2799,7 +2800,7 @@ function StepFourConfirm({
           <div className="jo-confirm-grid">
             <div className="jo-confirm-item">
               <span>Customer ID</span>
-              <strong>{customerData?.id || "N/A"}</strong>
+              <strong>{formatCustomerDisplayId(customerData?.id)}</strong>
             </div>
             <div className="jo-confirm-item">
               <span>Customer Name</span>

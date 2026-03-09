@@ -319,6 +319,43 @@ body,
   background: currentColor;
 }
 
+/* Shared module header style (match Exit Permit header) */
+.crm-unified-header {
+  margin: 10px 0 14px !important;
+  padding: 16px 18px !important;
+  border-radius: 16px !important;
+  border: 1px solid transparent !important;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.90), rgba(255, 255, 255, 0.70)) padding-box,
+    linear-gradient(135deg, rgba(37, 99, 235, 0.34), rgba(14, 165, 233, 0.18) 45%, rgba(168, 85, 247, 0.18)) border-box !important;
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.12) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+
+.crm-unified-header h1 {
+  margin: 0 !important;
+  font-size: 18px !important;
+  font-weight: 950 !important;
+  letter-spacing: 0.2px !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.crm-unified-header h1 i {
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 14px !important;
+  border: 1px solid rgba(37, 99, 235, 0.22) !important;
+  background: rgba(255, 255, 255, 0.85) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: #2563eb !important;
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.10) !important;
+}
+
 @media (max-width: 640px) {
   .crm-authenticator {
     padding: 12px;

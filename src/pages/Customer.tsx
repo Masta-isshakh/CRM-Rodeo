@@ -4,6 +4,7 @@ import { createPortal, flushSync } from "react-dom";
 import { generateClient } from "aws-amplify/data";
 import { getCurrentUser } from "aws-amplify/auth";
 import { resolveActorUsername } from "../utils/actorIdentity";
+import { formatCustomerDisplayId } from "../utils/customerId";
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
 import { logActivity } from "../utils/activityLogger";
@@ -71,16 +72,6 @@ function socialPlatformLabel(v: unknown) {
   if (!key) return "Not provided";
   const found = SOCIAL_PLATFORM_OPTIONS.find((o) => o.value === key);
   return found?.label ?? key;
-}
-
-function toCustomerDisplayId(rawId: unknown): string {
-  const raw = String(rawId ?? "").trim();
-  if (!raw) return "—";
-
-  const normalized = raw.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-  if (!normalized) return "—";
-
-  return `CUS-${normalized.slice(-6)}`;
 }
 
 type CountsMap = Record<
@@ -856,7 +847,7 @@ export default function Customers({ permissions }: PageProps) {
   const [deals, setDeals] = useState<DealRow[]>([]);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
 
-  const formatCustomerId = useCallback((id: string) => toCustomerDisplayId(id), []);
+  const formatCustomerId = useCallback((id: string) => formatCustomerDisplayId(id), []);
 
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
   const [showEditCustomerModal, setShowEditCustomerModal] = useState(false);
@@ -963,7 +954,7 @@ export default function Customers({ permissions }: PageProps) {
     for (const term of terms) {
       results = results.filter((c) => {
         const fullName = `${c.name ?? ""} ${c.lastname ?? ""}`.trim().toLowerCase();
-        const displayCustomerId = toCustomerDisplayId(c.id).toLowerCase();
+        const displayCustomerId = formatCustomerDisplayId(c.id).toLowerCase();
         return (
           String(c.id).toLowerCase().includes(term) ||
           displayCustomerId.includes(term) ||

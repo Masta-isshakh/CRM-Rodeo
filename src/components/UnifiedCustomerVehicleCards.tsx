@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { getDataClient } from "../lib/amplifyClient";
+import { formatCustomerDisplayId } from "../utils/customerId";
 
 function nonEmpty(...values: any[]) {
   for (const value of values) {
@@ -141,7 +142,7 @@ export function UnifiedCustomerInfoCard({ order, className = "" }: { order: any;
     ? `${String(backendCustomerMeta?.name ?? "").trim()} ${String(backendCustomerMeta?.lastname ?? "").trim()}`.trim()
     : "";
 
-  const customerId = valueOrDefault(nonEmpty(customerDetails?.customerId, order?.customerId, backendCustomerMeta?.id), "—");
+  const customerId = formatCustomerDisplayId(nonEmpty(customerDetails?.customerId, order?.customerId, backendCustomerMeta?.id));
   const customerName = valueOrDefault(nonEmpty(order?.customerName, customerDetails?.name, backendCustomerFullName), "—");
   const customerMobile = valueOrDefault(nonEmpty(order?.mobile, customerDetails?.mobile, backendCustomerMeta?.phone));
   const customerEmail = valueOrDefault(nonEmpty(customerDetails?.email, order?.customerEmail, backendCustomerMeta?.email));

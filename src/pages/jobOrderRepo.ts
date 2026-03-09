@@ -5,6 +5,7 @@ import { getDataClient } from "../lib/amplifyClient";
 import { resolveActorDisplay } from "../utils/actorIdentity";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { computePaymentSnapshot, derivePaymentStatusFromFinancials } from "../utils/paymentStatus";
+import { formatCustomerDisplayId } from "../utils/customerId";
 
 type CustomerRow = Schema["Customer"]["type"];
 type JobOrderRow = Schema["JobOrder"]["type"];
@@ -640,6 +641,7 @@ export async function searchCustomers(term: string): Promise<any[]> {
       if (!id || seen.has(id)) continue;
 
       const hay = [id, (r as any).name, (r as any).lastname, (r as any).email, (r as any).phone, makeFullName(r)]
+        .concat(formatCustomerDisplayId(id))
         .map((x) => safeLower(x))
         .join(" ");
 

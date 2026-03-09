@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Authenticator, ThemeProvider, useAuthenticator, PasswordField, TextField } from "@aws-amplify/ui-react";
+import { Authenticator, ThemeProvider, useAuthenticator, TextField } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
 import { getCurrentUser, signIn } from "aws-amplify/auth";
 import MainLayout from "./components/MainLayout";
@@ -97,13 +97,6 @@ const authComponents = {
     FormFields() {
       const [password, setPassword] = useState("");
 
-      const handleInputCapture = (event: React.FormEvent<HTMLDivElement>) => {
-        const target = event.target as HTMLInputElement | null;
-        if (!target) return;
-        if (target.name !== "password") return;
-        setPassword(String(target.value ?? ""));
-      };
-
       const rules = [
         {
           label: "At least 8 characters",
@@ -129,7 +122,7 @@ const authComponents = {
       const allRulesMet = rules.every((rule) => rule.valid);
 
       return (
-        <div onInputCapture={handleInputCapture}>
+        <div>
           <TextField
             name="username"
             type="email"
@@ -139,8 +132,9 @@ const authComponents = {
             required
           />
 
-          <PasswordField
+          <TextField
             name="password"
+            type="password"
             autoComplete="current-password"
             label="Password"
             placeholder="Enter your password"
