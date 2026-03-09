@@ -12,6 +12,6 @@ export const customMessage = defineFunction({
   environment: {
     APP_ORIGIN: "https://crm.rodeodrive.work",
     APP_LOGO_URL: "https://crm.rodeodrive.work/logo.jpeg",
-    CUSTOM_EMAIL_OVERRIDE: "false",
+    CUSTOM_EMAIL_OVERRIDE: "true",
   },
 });
