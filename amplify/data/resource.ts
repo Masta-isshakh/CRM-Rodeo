@@ -774,7 +774,7 @@ const schema = a
         lineManagerEmail: a.string(),
         lineManagerName: a.string(),
       })
-      .authorization((allow) => [allow.group(ADMIN_GROUP)])
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated()])
       .handler(a.handler.function(inviteUser))
       .returns(a.json()),
 

@@ -22,6 +22,160 @@ import { DEPT_PREFIX, keyToLabel } from "../departments/_shared/departmentKey";
 
 type Handler = (event: any) => Promise<any>;
 const cognito = new CognitoIdentityProviderClient();
+const ADMIN_GROUP = "Admins";
+
+function normalizeKey(x: unknown) {
+  return String(x ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, "_");
+}
+
+function optKey(moduleId: string, optionId: string) {
+  return `${normalizeKey(moduleId)}::${normalizeKey(optionId)}`;
+}
+
+function pickGroupsFromClaims(claims: any): string[] {
+  const g = claims?.["cognito:groups"] ?? claims?.groups;
+  if (Array.isArray(g)) return g.map(String).filter(Boolean);
+  if (typeof g === "string" && g.trim()) return [g.trim()];
+  return [];
+}
+
+function extractGroups(event: any): string[] {
+  const claims = event?.identity?.claims ?? event?.identity ?? {};
+  return pickGroupsFromClaims(claims);
+}
+
+function actorEmailFromEvent(event: any): string {
+  const claims = event?.identity?.claims ?? {};
+  const email = String(claims?.email ?? "").trim().toLowerCase();
+  if (email) return email;
+  return String(event?.identity?.username ?? "").trim().toLowerCase();
+}
+
+async function listAll<T>(
+  listFn: (args: any) => Promise<any>,
+  pageSize = 1000,
+  max = 20000
+): Promise<T[]> {
+  const out: T[] = [];
+  let nextToken: string | null | undefined = undefined;
+
+  while (out.length < max) {
+    const res = await listFn({ limit: pageSize, nextToken });
+    out.push(...((res?.data ?? []) as T[]));
+    nextToken = res?.nextToken;
+    if (!nextToken) break;
+  }
+
+  return out.slice(0, max);
+}
+
+async function findUserProfileByEmailCaseInsensitive(dataClient: ReturnType<typeof generateClient<Schema>>, email: string) {
+  const normalized = String(email ?? "").trim().toLowerCase();
+  if (!normalized) return null;
+
+  try {
+    const exact = await dataClient.models.UserProfile.list({
+      filter: { email: { eq: normalized } },
+      limit: 1,
+    });
+    const exactRow = (exact?.data ?? [])[0] as any;
+    if (exactRow?.id) return exactRow;
+  } catch {
+    // fallback below
+  }
+
+  const all = await dataClient.models.UserProfile.list({
+    limit: 20000,
+  } as any);
+
+  return (
+    (all?.data ?? []).find((row: any) => String(row?.email ?? "").trim().toLowerCase() === normalized) ?? null
+  );
+}
+
+function aggregateToggleMap(rows: Array<{ key?: string | null; enabled?: boolean | null }>) {
+  const out: Record<string, boolean> = {};
+  for (const row of rows ?? []) {
+    const k = normalizeKey(row?.key ?? "");
+    if (!k) continue;
+    out[k] = Boolean(out[k]) || Boolean(row?.enabled);
+  }
+  return out;
+}
+
+async function canInviteUsers(dataClient: ReturnType<typeof generateClient<Schema>>, event: any): Promise<boolean> {
+  const groups = extractGroups(event);
+  if (groups.includes(ADMIN_GROUP)) return true;
+
+  const actorEmail = actorEmailFromEvent(event);
+  if (!actorEmail) return false;
+
+  const profile = await findUserProfileByEmailCaseInsensitive(dataClient, actorEmail);
+  const departmentKey = String(profile?.departmentKey ?? "").trim();
+  if (!departmentKey) return false;
+
+  const fetchLinksForDept = async (dk: string) =>
+    await listAll<Schema["DepartmentRoleLink"]["type"]>((args) =>
+      dataClient.models.DepartmentRoleLink.list({
+        ...args,
+        filter: { departmentKey: { eq: dk } },
+      } as any)
+    );
+
+  let links = await fetchLinksForDept(departmentKey);
+  if ((!links || !links.length) && departmentKey && !departmentKey.startsWith(DEPT_PREFIX)) {
+    const alt = `${DEPT_PREFIX}${departmentKey}`;
+    links = await fetchLinksForDept(alt);
+  }
+
+  const roleIds = Array.from(
+    new Set((links ?? []).map((l: any) => String(l?.roleId ?? "").trim()).filter(Boolean))
+  );
+  if (!roleIds.length) return false;
+
+  const roleIdSet = new Set(roleIds);
+
+  const allToggles = await listAll<Schema["RoleOptionToggle"]["type"]>((args) =>
+    dataClient.models.RoleOptionToggle.list(args)
+  );
+
+  const toggleMap = aggregateToggleMap(
+    (allToggles ?? []).filter((r: any) => roleIdSet.has(String(r?.roleId ?? "").trim())) as any
+  );
+
+  const moduleEnabledKey = optKey("users", "__enabled");
+  const inviteKey = optKey("users", "users_invite");
+
+  const moduleEnabled = moduleEnabledKey in toggleMap ? Boolean(toggleMap[moduleEnabledKey]) : true;
+  if (!moduleEnabled) return false;
+
+  const inviteAllowedByOption = inviteKey in toggleMap ? Boolean(toggleMap[inviteKey]) : true;
+  if (!inviteAllowedByOption) return false;
+
+  const inviteToggleExplicit = Object.prototype.hasOwnProperty.call(toggleMap, inviteKey);
+  if (inviteToggleExplicit) return true;
+
+  const allPolicies = await listAll<Schema["RolePolicy"]["type"]>((args) =>
+    dataClient.models.RolePolicy.list(args)
+  );
+
+  let canCreate = false;
+  let canUpdate = false;
+  for (const policy of allPolicies ?? []) {
+    const rid = String((policy as any)?.roleId ?? "").trim();
+    if (!roleIdSet.has(rid)) continue;
+    const key = normalizeKey((policy as any)?.policyKey ?? "");
+    if (key !== "USERS_ADMIN") continue;
+    canCreate = canCreate || Boolean((policy as any)?.canCreate);
+    canUpdate = canUpdate || Boolean((policy as any)?.canUpdate);
+    if (canCreate || canUpdate) break;
+  }
+
+  return canCreate || canUpdate;
+}
 
 function getAttr(attrs: { Name?: string; Value?: string }[] | undefined, name: string) {
   return (attrs ?? []).find((a) => a.Name === name)?.Value;
@@ -94,6 +248,15 @@ export const handler: Handler = async (event) => {
 
   const userPoolId = process.env.AMPLIFY_AUTH_USERPOOL_ID;
   if (!userPoolId) throw new Error("Missing AMPLIFY_AUTH_USERPOOL_ID env var.");
+
+  const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
+  Amplify.configure(resourceConfig, libraryOptions);
+  const dataClient = generateClient<Schema>();
+
+  const allowed = await canInviteUsers(dataClient, event);
+  if (!allowed) {
+    throw new Error("Not authorized to invite users.");
+  }
 
   const departmentName = departmentNameFromArgs || keyToLabel(departmentKey);
   await ensureGroup(userPoolId, departmentKey, departmentName);
@@ -172,9 +335,6 @@ const createRes = await cognito.send(
   if (!sub) throw new Error("Could not resolve user sub.");
 
   // 4) Write UserProfile (Data)
-  const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
-  Amplify.configure(resourceConfig, libraryOptions);
-  const dataClient = generateClient<Schema>();
 
   const profileOwner = `${sub}::${email}`;
 
