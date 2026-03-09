@@ -135,8 +135,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
   const showAdmin = useMemo(() => {
     const usersListAllowed = canOption("users", "users_list", true);
-    const usersViewAllowed = canOption("users", "users_view", true);
-    const usersRead = isAdminGroup || canAny("USERS_ADMIN").canRead || usersListAllowed || usersViewAllowed;
+    const usersRead = isAdminGroup || usersListAllowed;
     const departmentsListAllowed = canOption("departments", "departments_list", true);
     const departmentsRead = isAdminGroup || canAny("DEPARTMENTS_ADMIN").canRead || departmentsListAllowed;
     const rolesRead = isAdminGroup || canAny("ROLES_POLICIES_ADMIN").canRead;
@@ -567,15 +566,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             )}
 
             {page === "users" && showAdmin.users && (
-              <Users
-                permissions={{
-                  ...canAny("USERS_ADMIN"),
-                  canRead:
-                    canAny("USERS_ADMIN").canRead ||
-                    canOption("users", "users_list", true) ||
-                    canOption("users", "users_view", true),
-                }}
-              />
+              <Users permissions={canAny("USERS_ADMIN")} />
             )}
             {page === "departments" && showAdmin.departments && (
               <DepartmentsAdmin

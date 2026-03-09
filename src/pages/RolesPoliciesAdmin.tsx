@@ -309,6 +309,7 @@ const MODULE_DEFINITIONS = [
       { id: "qualitycheck_vehicle", label: "Vehicle Information", prefix: "-" },
       { id: "qualitycheck_services", label: "Services", prefix: "-" },
       { id: "qualitycheck_quality", label: "Quality Checklist", prefix: "-" },
+      { id: "qualitycheck_billing", label: "Billing", prefix: "-" },
       { id: "qualitycheck_paymentlog", label: "Payment Log", prefix: "-" },
       { id: "qualitycheck_documents", label: "Documents", prefix: "-" },
       { id: "qualitycheck_download", label: "Download", prefix: "-" },

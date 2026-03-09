@@ -170,15 +170,30 @@ type MenuState =
 
 //const EMPTY = { canRead: false, canCreate: false, canUpdate: false, canDelete: false, canApprove: false };
 
-export default function Users({ permissions }: PageProps) {
-  if (!permissions.canRead) {
-    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
-  }
-
+export default function Users(_: PageProps) {
   const client = getDataClient();
   const { canOption, isAdminGroup, email: currentUserEmail } = usePermissions();
-  const canViewUsersList = permissions.canRead || canOption("users", "users_view", true);
-  const canShowRootAdminUser = canOption("users", "users_show_root_admin", true);
+  const isDev = import.meta.env.DEV;
+  const canOpenUsersPage = isAdminGroup || canOption("users", "users_list", true);
+  const canViewUsersList = isAdminGroup || canOption("users", "users_view", true);
+  const canShowRootAdminUser = isAdminGroup || canOption("users", "users_show_root_admin", true);
+  const canInviteUsers = isAdminGroup || canOption("users", "users_invite", true);
+  const canEditUsers = isAdminGroup || canOption("users", "users_edit", true);
+  const canDeleteUsers = isAdminGroup || canOption("users", "users_delete", true);
+  const canAccessUsersAdmin = canOpenUsersPage && (canViewUsersList || canInviteUsers || canEditUsers || canDeleteUsers);
+  const rbacSelfCheckRows = [
+    { key: "users_list", value: canOpenUsersPage },
+    { key: "users_view", value: canViewUsersList },
+    { key: "users_invite", value: canInviteUsers },
+    { key: "users_edit", value: canEditUsers },
+    { key: "users_delete", value: canDeleteUsers },
+    { key: "users_show_root_admin", value: canShowRootAdminUser },
+    { key: "users_access", value: canAccessUsersAdmin },
+  ] as const;
+
+  if (!canAccessUsersAdmin) {
+    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+  }
 
   // Invite modal state
   const [inviteOpen, setInviteOpen] = useState(false);
@@ -654,7 +669,7 @@ export default function Users({ permissions }: PageProps) {
 
   // Backend actions
   const invite = async () => {
-    if (!permissions.canCreate || !canOption("users", "users_invite", true)) return;
+    if (!canInviteUsers) return;
     setInviteStatus("Inviting...");
     try {
       const e = email.trim().toLowerCase();
@@ -737,7 +752,7 @@ export default function Users({ permissions }: PageProps) {
   };
 
   const askDeleteUser = (u: UserRow) => {
-    if (!permissions.canDelete || !canOption("users", "users_delete", true)) return;
+    if (!canDeleteUsers) return;
     if (!u.email) return;
     if (isRootAdminSyntheticUser(u)) return;
 
@@ -943,7 +958,7 @@ export default function Users({ permissions }: PageProps) {
   };
 
   const sendResetPassword = async (u: UserRow) => {
-    if (!permissions.canUpdate || !canOption("users", "users_edit", true)) return;
+    if (!canEditUsers) return;
     if (isRootAdminSyntheticUser(u)) return;
 
     const targetEmail = String(u.email ?? "").trim().toLowerCase();
@@ -1053,7 +1068,7 @@ export default function Users({ permissions }: PageProps) {
                   setMenu({ open: false });
                     if (row) askDeleteUser(row);
                 }}
-                disabled={!permissions.canDelete || !canOption("users", "users_delete", true) || loading}
+                disabled={!canDeleteUsers || loading}
               >
                 Delete
               </button>
@@ -1133,9 +1148,9 @@ export default function Users({ permissions }: PageProps) {
                         type="button"
                         className="ums-card-edit-btn"
                         onClick={() => setDetailsEditing((v) => !v)}
-                        disabled={isRootAdminSyntheticUser(detailsUser) || !permissions.canUpdate || !canOption("users", "users_edit", true)}
+                        disabled={isRootAdminSyntheticUser(detailsUser) || !canEditUsers}
                       >
-                        {detailsEditing ? "Cancel Edit" : "Edit User"}
+                        {detailsEditing ? "Cancel Edit" : "Edit"}
                       </button>
                     </PermissionGate>
                   </div>
@@ -1337,7 +1352,7 @@ export default function Users({ permissions }: PageProps) {
                     <Button
                       onClick={() => void sendResetPassword(detailsUser)}
                       isDisabled={loading || isRootAdminSyntheticUser(detailsUser)}
-                      isLoading={loading}
+                            disabled={!canDeleteUsers || loading}
                     >
                       Reset Password
                     </Button>
@@ -1354,7 +1369,7 @@ export default function Users({ permissions }: PageProps) {
                 <Button
                   variation="primary"
                   onClick={saveUserChanges}
-                  isDisabled={loading}
+                          disabled={isRootAdminSyntheticUser(detailsUser) || !canEditUsers}
                   isLoading={loading}
                 >
                   Save Changes
@@ -1391,6 +1406,35 @@ export default function Users({ permissions }: PageProps) {
           </div>
         </div>
 
+        {isDev && (
+          <div
+            className="ums-card"
+            style={{
+              marginTop: 10,
+              marginBottom: 10,
+              padding: "10px 12px",
+            }}
+          >
+            <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
+              RBAC self-check (dev only)
+            </div>
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 8, fontSize: 12 }}>
+              {rbacSelfCheckRows.map((item) => (
+                <span
+                  key={item.key}
+                  style={{
+                    padding: "3px 8px",
+                    borderRadius: 999,
+                    border: "1px solid currentColor",
+                  }}
+                >
+                  {item.key}: {item.value ? "ON" : "OFF"}
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* Users list */}
         <div className="ums-card ums-table-card">
           <div className="ums-table-header">
@@ -1416,7 +1460,7 @@ export default function Users({ permissions }: PageProps) {
                     setInviteStatus("");
                     setInviteOpen(true);
                   }}
-                  disabled={!permissions.canCreate}
+                  disabled={!canInviteUsers}
                 >
                   <span className="ums-add-icon" aria-hidden>+</span>
                   Add New User
@@ -1487,7 +1531,7 @@ export default function Users({ permissions }: PageProps) {
                       </td>
 
                       <td data-label="Actions" className="ums-actions-cell">
-                        {!isRootAdminRow && (permissions.canUpdate || permissions.canDelete) && (
+                        {!isRootAdminRow && (canEditUsers || canDeleteUsers) && (
                           <PermissionGate moduleId="users" optionId="users_edit">
                             <button
                               className="ums-actions-btn"
@@ -1671,7 +1715,7 @@ export default function Users({ permissions }: PageProps) {
                   <Button
                     variation="primary"
                     onClick={invite}
-                    isDisabled={!permissions.canCreate || loading}
+                    isDisabled={!canInviteUsers || loading}
                     isLoading={loading}
                   >
                     Invite
