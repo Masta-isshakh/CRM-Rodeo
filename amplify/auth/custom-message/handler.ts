@@ -214,6 +214,15 @@ function buildUrls(username: string, email: string, mode?: "first" | "reset") {
   return { signInUrl, setPasswordUrl, base };
 }
 
+function shouldOverrideEmailTemplate() {
+  const explicit = String(process.env.CUSTOM_EMAIL_OVERRIDE ?? "").trim().toLowerCase();
+  if (explicit === "true" || explicit === "1" || explicit === "yes") return true;
+  if (explicit === "false" || explicit === "0" || explicit === "no") return false;
+
+  const mode = String(process.env.COGNITO_EMAIL_SENDING_ACCOUNT ?? "").trim().toUpperCase();
+  return mode === "DEVELOPER";
+}
+
 export const handler: CustomMessageTriggerHandler = async (event: CustomMessageTriggerEvent & { triggerSource: string }) => {
   const email = String(event.request.userAttributes?.email ?? "").trim();
   const name =
@@ -235,20 +244,22 @@ export const handler: CustomMessageTriggerHandler = async (event: CustomMessageT
     event.triggerSource === "CustomMessage_AdminCreateUser" ? "first" : "reset"
   );
   const logoUrl = resolveLogoUrl(normalizeOrigin(process.env.APP_ORIGIN || ""));
+  const allowEmailOverride = shouldOverrideEmailTemplate();
 
   const employeeName = String(name || realUsername || email || "Employee").trim();
 
   // AdminCreateUser => temp password flow
   if (event.triggerSource === "CustomMessage_AdminCreateUser") {
-    event.response.emailSubject = "Welcome to Rodeo Drive CRM";
-
-    event.response.emailMessage = buildInviteEmailHtml({
-      employeeName,
-      loginPageUrl: signInUrl,
-      username: email || realUsername,
-      temporaryPasswordPlaceholder: codePlaceholder,
-      logoUrl,
-    });
+    if (allowEmailOverride) {
+      event.response.emailSubject = "Welcome to Rodeo Drive CRM";
+      event.response.emailMessage = buildInviteEmailHtml({
+        employeeName,
+        loginPageUrl: signInUrl,
+        username: email || realUsername,
+        temporaryPasswordPlaceholder: codePlaceholder,
+        logoUrl,
+      });
+    }
 
     event.response.smsMessage = buildInviteMessageText({
       employeeName,
@@ -262,13 +273,15 @@ export const handler: CustomMessageTriggerHandler = async (event: CustomMessageT
 
   // ForgotPassword => reset code flow
   if (event.triggerSource === "CustomMessage_ForgotPassword") {
-    event.response.emailSubject = "Reset your password";
-    event.response.emailMessage = buildResetEmailHtml({
-      employeeName,
-      setPasswordUrl,
-      temporaryPasswordPlaceholder: codePlaceholder,
-      logoUrl,
-    });
+    if (allowEmailOverride) {
+      event.response.emailSubject = "Reset your password";
+      event.response.emailMessage = buildResetEmailHtml({
+        employeeName,
+        setPasswordUrl,
+        temporaryPasswordPlaceholder: codePlaceholder,
+        logoUrl,
+      });
+    }
 
     event.response.smsMessage = buildResetMessageText({
       employeeName,
@@ -281,13 +294,15 @@ export const handler: CustomMessageTriggerHandler = async (event: CustomMessageT
 
   // AdminResetUserPassword => reset code flow (admin-triggered)
   if ((event.triggerSource as string) === "CustomMessage_AdminResetUserPassword") {
-    event.response.emailSubject = "Reset your password";
-    event.response.emailMessage = buildResetEmailHtml({
-      employeeName,
-      setPasswordUrl,
-      temporaryPasswordPlaceholder: codePlaceholder,
-      logoUrl,
-    });
+    if (allowEmailOverride) {
+      event.response.emailSubject = "Reset your password";
+      event.response.emailMessage = buildResetEmailHtml({
+        employeeName,
+        setPasswordUrl,
+        temporaryPasswordPlaceholder: codePlaceholder,
+        logoUrl,
+      });
+    }
 
     event.response.smsMessage = buildResetMessageText({
       employeeName,

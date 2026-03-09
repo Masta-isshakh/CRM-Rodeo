@@ -392,8 +392,23 @@ a:hover {
 }
 .service-checkbox:hover{background:#fafafa}
 .service-checkbox.selected{border-color:rgba(37,99,235,.6);background:rgba(37,99,235,.06)}
+.service-name-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .service-name{font-weight:900;color:#111827}
 .service-price{font-weight:900;color:#0f172a}
+.jo-package-price-badge{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:3px 8px;
+  border-radius:999px;
+  font-size:11px;
+  font-weight:800;
+  letter-spacing:.01em;
+  color:#1e3a8a;
+  background:rgba(59,130,246,.14);
+  border:1px solid rgba(59,130,246,.35);
+}
+.jo-package-price-badge i{font-size:10px;line-height:1}
 
 /* Price summary */
 .price-summary-box{

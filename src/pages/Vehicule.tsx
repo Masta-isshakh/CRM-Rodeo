@@ -9,6 +9,7 @@ import type { PageProps } from "../lib/PageProps";
 import { getCurrentUser } from "aws-amplify/auth";
 import { resolveActorUsername } from "../utils/actorIdentity";
 import { normalizePaymentStatusLabel as normalizePaymentStatusLabelShared } from "../utils/paymentStatus";
+import { formatCustomerDisplayId } from "../utils/customerId";
 import { logActivity } from "../utils/activityLogger";
 import type { ReactNode } from "react";
 import { usePermissions } from "../lib/userPermissions";
@@ -641,17 +642,33 @@ export default function VehicleManagement({
   // ✅ Verify helper (used by button + autosave)
   const ensureVerifiedCustomer = useCallback(
     async (customerId: string): Promise<CustomerRow | null> => {
-      const id = customerId.trim();
-      if (!id) return null;
+      const rawInput = customerId.trim();
+      if (!rawInput) return null;
+      const normalizedInput = rawInput.toLowerCase();
 
       // if already verified and matches -> return it
-      if (verifiedCustomer?.id === id) return verifiedCustomer;
+      if (
+        verifiedCustomer?.id &&
+        (String(verifiedCustomer.id).trim() === rawInput ||
+          formatCustomerDisplayId(verifiedCustomer.id).toLowerCase() === normalizedInput)
+      ) {
+        return verifiedCustomer;
+      }
 
       try {
-        const res = await client.models.Customer.get({ id });
-        if (!res.data) return null;
-        setVerifiedCustomer(res.data);
-        return res.data;
+        const byRawId = await client.models.Customer.get({ id: rawInput });
+        if (byRawId.data) {
+          setVerifiedCustomer(byRawId.data);
+          return byRawId.data;
+        }
+
+        const listed = await client.models.Customer.list({ limit: 2000 } as any);
+        const byDisplayId = (listed.data ?? []).find(
+          (row: any) => formatCustomerDisplayId(row?.id).toLowerCase() === normalizedInput
+        ) as CustomerRow | undefined;
+        if (!byDisplayId?.id) return null;
+        setVerifiedCustomer(byDisplayId);
+        return byDisplayId;
       } catch (e) {
         console.error(e);
         return null;
@@ -673,6 +690,7 @@ export default function VehicleManagement({
       await showAlert("Not Found", "Customer not found. Please use a valid Customer ID.", "error");
       return;
     }
+    setForm((prev) => ({ ...prev, customerId: String(c.id ?? "").trim() }));
     await showAlert("Verified", `Customer verified: ${c.name} ${c.lastname}`, "success");
   };
 
@@ -739,6 +757,11 @@ export default function VehicleManagement({
       await showAlert("Customer missing", "Customer ID is invalid. Please verify a valid customer.", "error");
       return;
     }
+    const resolvedCustomerId = String(customer.id ?? "").trim();
+    if (!resolvedCustomerId) {
+      await showAlert("Customer missing", "Customer ID is invalid. Please verify a valid customer.", "error");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -748,7 +771,7 @@ export default function VehicleManagement({
       const ownerName = `${customer.name} ${customer.lastname}`.trim();
 
       const created = await client.models.Vehicle.create({
-        customerId: form.customerId.trim(),
+        customerId: resolvedCustomerId,
         vehicleId: form.vehicleId.trim(),
         ownedBy: ownerName,
         make: form.make.trim(),
@@ -799,6 +822,11 @@ export default function VehicleManagement({
       await showAlert("Customer missing", "Customer ID is invalid. Please verify a valid customer.", "error");
       return;
     }
+    const resolvedCustomerId = String(customer.id ?? "").trim();
+    if (!resolvedCustomerId) {
+      await showAlert("Customer missing", "Customer ID is invalid. Please verify a valid customer.", "error");
+      return;
+    }
 
     setSaving(true);
     try {
@@ -806,7 +834,7 @@ export default function VehicleManagement({
 
       await client.models.Vehicle.update({
         id: selectedVehicleId,
-        customerId: form.customerId.trim(),
+        customerId: resolvedCustomerId,
         ownedBy: ownerName,
         make: form.make.trim(),
         model: form.model.trim(),
@@ -962,7 +990,7 @@ export default function VehicleManagement({
                 <div className="pim-card-content cv-unified-grid">
                   <div className="pim-info-item">
                     <span className="pim-info-label">Customer ID</span>
-                    <span className="pim-info-value">{selectedVehicle.customerId ?? "—"}</span>
+                    <span className="pim-info-value">{formatCustomerDisplayId(selectedVehicle.customerId)}</span>
                   </div>
 
                   <div className="pim-info-item">

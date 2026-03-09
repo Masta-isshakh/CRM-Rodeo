@@ -255,6 +255,105 @@ function computePaymentSnapshot(totalAmountRaw: number, discountRaw: number, amo
   };
 }
 
+function normalizeCatalogKey(value: any) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function getPackageGroupKeyFromService(service: any) {
+  const packageCode = normalizeCatalogKey(service?.packageCode);
+  const packageName = String(service?.packageName || "").trim();
+  return packageCode || (packageName ? `pkg:${normalizeCatalogKey(packageName)}` : "");
+}
+
+function summarizeServicesSubtotalPackageAware(services: any[]): number {
+  let standaloneSubtotal = 0;
+  const packageSummary = new Map<string, { packagePrice: number | null; fallbackServicesTotal: number }>();
+
+  for (const service of services || []) {
+    const price = Math.max(0, toNum(service?.price));
+    const packageKey = getPackageGroupKeyFromService(service);
+
+    if (!packageKey) {
+      standaloneSubtotal += price;
+      continue;
+    }
+
+    const existing = packageSummary.get(packageKey) || { packagePrice: null, fallbackServicesTotal: 0 };
+    const packagePriceRaw = toNum(service?.packagePrice);
+    const packagePrice = packagePriceRaw > 0 ? packagePriceRaw : null;
+
+    packageSummary.set(packageKey, {
+      packagePrice: existing.packagePrice ?? packagePrice,
+      fallbackServicesTotal: existing.fallbackServicesTotal + price,
+    });
+  }
+
+  let packageSubtotal = 0;
+  packageSummary.forEach((entry) => {
+    packageSubtotal += entry.packagePrice ?? entry.fallbackServicesTotal;
+  });
+
+  return roundMoney(Math.max(0, standaloneSubtotal + packageSubtotal));
+}
+
+function resolvePackageAwareTotalAmountFromSources(...sources: any[]): number | null {
+  for (const source of sources) {
+    if (!source) continue;
+    const services = Array.isArray(source?.services) ? source.services : null;
+    if (!services || services.length === 0) continue;
+    return summarizeServicesSubtotalPackageAware(services);
+  }
+  return null;
+}
+
+function buildPackageAuditBreakdown(services: any[]) {
+  const packageMap = new Map<string, { title: string; packagePrice: number | null; fallbackServicesTotal: number; itemCount: number }>();
+  let standaloneTotal = 0;
+  let standaloneCount = 0;
+
+  for (const service of services || []) {
+    const servicePrice = Math.max(0, toNum(service?.price));
+    const packageKey = getPackageGroupKeyFromService(service);
+
+    if (!packageKey) {
+      standaloneTotal += servicePrice;
+      standaloneCount += 1;
+      continue;
+    }
+
+    const packageName = String(service?.packageName || service?.packageCode || "Unnamed Package").trim();
+    const existing = packageMap.get(packageKey) || {
+      title: packageName,
+      packagePrice: null,
+      fallbackServicesTotal: 0,
+      itemCount: 0,
+    };
+
+    const packagePriceRaw = toNum(service?.packagePrice);
+    const packagePrice = packagePriceRaw > 0 ? packagePriceRaw : null;
+
+    packageMap.set(packageKey, {
+      title: existing.title || packageName,
+      packagePrice: existing.packagePrice ?? packagePrice,
+      fallbackServicesTotal: existing.fallbackServicesTotal + servicePrice,
+      itemCount: existing.itemCount + 1,
+    });
+  }
+
+  const packageLines = Array.from(packageMap.entries()).map(([key, entry]) => ({
+    key,
+    title: entry.title,
+    itemCount: entry.itemCount,
+    total: roundMoney(entry.packagePrice ?? entry.fallbackServicesTotal),
+  }));
+
+  return {
+    packageLines,
+    standaloneCount,
+    standaloneTotal: roundMoney(standaloneTotal),
+  };
+}
+
 export default function PaymentInvoiceManagement({ currentUser }: { currentUser: any; permissions?: any }) {
   const client = useMemo(() => getDataClient(), []);
   const [userLabelMap, setUserLabelMap] = useState<Record<string, string>>({});
@@ -356,19 +455,19 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
             : "";
 
           const workStatus = normalizeWorkStatus(row.status, row.workStatusLabel ?? parsed.workStatusLabel);
-          const totalAmount = toNum(pickBillingFirstValue("totalAmount", row, parsed));
-          const discount = toNum(pickBillingFirstValue("discount", row, parsed));
-          const amountPaid = toNum(pickBillingFirstValue("amountPaid", row, parsed));
-          const netAmount = toNum(pickBillingFirstValue("netAmount", row, parsed));
-          const balanceDue = toNum(pickBillingFirstValue("balanceDue", row, parsed));
+          const packageAwareTotal = resolvePackageAwareTotalAmountFromSources(parsed, row);
+          const totalAmount = packageAwareTotal ?? toNum(pickBillingFirstValue("totalAmount", parsed, row));
+          const discount = toNum(pickBillingFirstValue("discount", parsed, row));
+          const amountPaid = toNum(pickBillingFirstValue("amountPaid", parsed, row));
+          const paymentSnap = computePaymentSnapshot(totalAmount, discount, amountPaid);
           const paymentStatus = derivePaymentStatusFromFinancials({
             paymentEnum: pickPaymentEnum(row, parsed),
             paymentLabel: pickPaymentLabel(row, parsed),
-            totalAmount,
-            discount,
-            amountPaid,
-            netAmount,
-            balanceDue,
+            totalAmount: paymentSnap.totalAmount,
+            discount: paymentSnap.discount,
+            amountPaid: paymentSnap.amountPaid,
+            netAmount: paymentSnap.netAmount,
+            balanceDue: paymentSnap.balanceDue,
           });
 
           return {
@@ -386,11 +485,11 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
             paymentEnum: String(row.paymentStatus ?? pickPaymentEnum(row, parsed) ?? ""),
             paymentStatus,
 
-            paymentTotalAmount: totalAmount,
-            paymentDiscount: discount,
-            paymentAmountPaid: amountPaid,
-            paymentNetAmount: netAmount,
-            paymentBalanceDue: balanceDue,
+            paymentTotalAmount: paymentSnap.totalAmount,
+            paymentDiscount: paymentSnap.discount,
+            paymentAmountPaid: paymentSnap.amountPaid,
+            paymentNetAmount: paymentSnap.netAmount,
+            paymentBalanceDue: paymentSnap.balanceDue,
 
             _parsed: parsed,
           };
@@ -609,9 +708,10 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       const invoices = await loadNormalizedInvoices(String(detailed._backendId));
       setNormalizedInvoices(invoices);
 
-      const totalAmountRaw = toNum(row?.totalAmount ?? parsed?.billing?.totalAmount ?? detailed?.billing?.totalAmount);
-      const discountRaw = toNum(row?.discount ?? parsed?.billing?.discount ?? detailed?.billing?.discount);
-      const amountPaidRaw = toNum(row?.amountPaid ?? parsed?.billing?.amountPaid ?? detailed?.billing?.amountPaid);
+      const packageAwareTotal = resolvePackageAwareTotalAmountFromSources(detailed, parsed, row);
+      const totalAmountRaw = packageAwareTotal ?? toNum(parsed?.billing?.totalAmount ?? row?.totalAmount ?? detailed?.billing?.totalAmount);
+      const discountRaw = toNum(parsed?.billing?.discount ?? row?.discount ?? detailed?.billing?.discount);
+      const amountPaidRaw = toNum(parsed?.billing?.amountPaid ?? row?.amountPaid ?? detailed?.billing?.amountPaid);
       const paymentSnap = computePaymentSnapshot(totalAmountRaw, discountRaw, amountPaidRaw);
 
       const billing = {
@@ -1117,6 +1217,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const now = new Date();
 
     const services: any[] = Array.isArray(order?.services) ? order.services : [];
+    const serviceAudit = buildPackageAuditBreakdown(services);
     const serviceRows = services
       .map((s: any) => {
         const name = String(s?.name ?? s ?? "");
@@ -1124,6 +1225,24 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         return `<tr><td>${name}</td><td style="text-align:right">${price > 0 ? fmtQar(price) : "-"}</td></tr>`;
       })
       .join("");
+    const packageAuditRows = [
+      ...serviceAudit.packageLines.map(
+        (line) => `<tr>
+          <td>${line.title}</td>
+          <td style="text-align:center">${line.itemCount}</td>
+          <td style="text-align:right">${fmtQar(line.total)}</td>
+        </tr>`
+      ),
+      ...(serviceAudit.standaloneCount > 0
+        ? [
+            `<tr>
+              <td>Individual Services (Non-package)</td>
+              <td style="text-align:center">${serviceAudit.standaloneCount}</td>
+              <td style="text-align:right">${fmtQar(serviceAudit.standaloneTotal)}</td>
+            </tr>`,
+          ]
+        : []),
+    ].join("");
 
     return `<!DOCTYPE html>
 <html>
@@ -1183,6 +1302,15 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     <table>
       <thead><tr><th>Service</th><th style="text-align:right">Amount</th></tr></thead>
       <tbody>${serviceRows}</tbody>
+    </table>
+  </div>` : ""}
+
+  ${(serviceAudit.packageLines.length > 0 || serviceAudit.standaloneCount > 0) ? `
+  <div class="card">
+    <div class="ttl">Package Pricing Audit</div>
+    <table>
+      <thead><tr><th>Package / Group</th><th style="text-align:center">Included Services</th><th style="text-align:right">Total</th></tr></thead>
+      <tbody>${packageAuditRows}</tbody>
     </table>
   </div>` : ""}
 
@@ -1336,6 +1464,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       toNum(selectedOrder?.billing?.discount),
       toNum(selectedOrder?.billing?.amountPaid)
     );
+    const serviceAudit = buildPackageAuditBreakdown(Array.isArray(selectedOrder?.services) ? selectedOrder.services : []);
     const canRecordPayment = summaryPaymentSnap.balanceDue > 0.00001;
 
     return (
@@ -1428,6 +1557,46 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                   <div className="pim-billing-item bi-row"><span className="bi-label">Paid</span><strong className="pim-green bi-value">{selectedOrder.billing?.amountPaid || "—"}</strong></div>
                   <div className="pim-billing-item bi-row"><span className="bi-label">Balance Due</span><strong className="pim-red bi-value">{selectedOrder.billing?.balanceDue || "—"}</strong></div>
                 </div>
+
+                {(serviceAudit.packageLines.length > 0 || serviceAudit.standaloneCount > 0) && (
+                  <div className="pim-subcard bi-package-audit-wrap">
+                    <div className="pim-subtitle bi-package-audit-title">
+                      <i className="fas fa-boxes"></i> Package Pricing Audit
+                    </div>
+
+                    <div className="bi-package-audit-table-wrap">
+                      <table className="bi-package-audit-table">
+                        <thead>
+                          <tr>
+                            <th>Package / Group</th>
+                            <th style={{ textAlign: "center" }}>Included Services</th>
+                            <th style={{ textAlign: "right" }}>Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {serviceAudit.packageLines.map((line) => (
+                            <tr key={line.key}>
+                              <td>
+                                <span className="bi-package-name"><i className="fas fa-box-open"></i> {line.title}</span>
+                              </td>
+                              <td style={{ textAlign: "center" }}>{line.itemCount}</td>
+                              <td style={{ textAlign: "right", fontWeight: 900 }}>{fmtQar(line.total)}</td>
+                            </tr>
+                          ))}
+                          {serviceAudit.standaloneCount > 0 && (
+                            <tr>
+                              <td>
+                                <span className="bi-package-name"><i className="fas fa-tools"></i> Individual Services (Non-package)</span>
+                              </td>
+                              <td style={{ textAlign: "center" }}>{serviceAudit.standaloneCount}</td>
+                              <td style={{ textAlign: "right", fontWeight: 900 }}>{fmtQar(serviceAudit.standaloneTotal)}</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
 
                 <PermissionGate moduleId="payment" optionId="payment_invoices">
                   <div className="pim-subcard bi-invoices-wrap">

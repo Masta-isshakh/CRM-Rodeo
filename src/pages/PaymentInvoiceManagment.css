@@ -548,6 +548,52 @@
 }
 .pim-invoice-services-list li i { color: #16a34a; }
 
+.bi-package-audit-wrap {
+  border-top: 1px solid var(--border);
+}
+
+.bi-package-audit-title {
+  margin-bottom: 10px;
+}
+
+.bi-package-audit-table-wrap {
+  overflow-x: auto;
+}
+
+.bi-package-audit-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 560px;
+}
+
+.bi-package-audit-table thead th {
+  text-align: left;
+  font-size: 12px;
+  font-weight: 950;
+  color: #64748b;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: #fafafa;
+}
+
+.bi-package-audit-table tbody td {
+  padding: 11px 12px;
+  border-bottom: 1px solid #eef0f5;
+  font-size: 12px;
+}
+
+.bi-package-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 900;
+  color: #243b53;
+}
+
+.bi-package-name i {
+  color: #1d4ed8;
+}
+
 /* popups text */
 .pim-pop-title {
   display: block;
