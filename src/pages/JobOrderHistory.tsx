@@ -17,6 +17,7 @@ import {
 import UnifiedJobOrderRoadmap from "../components/UnifiedJobOrderRoadmap";
 import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
 import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
+import UnifiedBillingInvoicesSection from "../components/UnifiedBillingInvoicesSection";
 
 import { getJobOrderByOrderNumber } from "./jobOrderRepo";
 import { getUrl } from "aws-amplify/storage";
@@ -1349,12 +1350,6 @@ function JobHistoryDetails({
   displayUser: (value: any) => string;
   actorMap: Record<string, string>;
 }) {
-  const invoices: InvoiceUi[] = Array.isArray(order?.billing?.invoices) ? order.billing.invoices : [];
-  const billingSnap = computePaymentSnapshot(
-    toNum(order?.billing?.totalAmount),
-    toNum(order?.billing?.discount),
-    toNum(order?.billing?.amountPaid)
-  );
   const roadmap: RoadmapStepUi[] = Array.isArray(order?.roadmap) ? order.roadmap : [];
   const docs: DocUi[] = Array.isArray(order?.documents) ? order.documents : [];
   const services: any[] = Array.isArray(order?.services) ? order.services : [];
@@ -1493,97 +1488,7 @@ function JobHistoryDetails({
           </PermissionGate>
 
           <PermissionGate moduleId="jobhistory" optionId="jobhistory_billing">
-            <div className="jh-card jh-span-2 bi-unified-card">
-              <h3><i className="fas fa-receipt" /> Billing & Invoices</h3>
-
-              <div className="jh-billing bi-summary">
-                <div className="bi-row"><span className="bi-label">Bill ID</span><strong className="bi-value">{order.billing?.billId || "—"}</strong></div>
-                <div className="bi-row"><span className="bi-label">Total</span><strong className="bi-value">{fmtQar(billingSnap.totalAmount)}</strong></div>
-                <div className="bi-row"><span className="bi-label">Discount</span><strong className="jh-green bi-value">{fmtQar(billingSnap.discount)}</strong></div>
-                <div className="bi-row"><span className="bi-label">Net</span><strong className="bi-value">{fmtQar(billingSnap.netAmount)}</strong></div>
-                <div className="bi-row"><span className="bi-label">Paid</span><strong className="jh-green bi-value">{fmtQar(billingSnap.amountPaid)}</strong></div>
-                <div className="bi-row"><span className="bi-label">Balance</span><strong className="jh-red bi-value">{fmtQar(billingSnap.balanceDue)}</strong></div>
-                <div className="bi-row"><span className="bi-label">Method</span><strong className="bi-value">{order.billing?.paymentMethod || "—"}</strong></div>
-              </div>
-
-              <div className="jh-subhead bi-invoices-title">
-                <i className="fas fa-file-invoice" /> Invoices ({invoices.length})
-              </div>
-
-              {invoices.length === 0 ? (
-                <div className="jh-empty-inline">No invoices found in normalized tables.</div>
-              ) : (
-                <div className="jh-invoices bi-invoices-wrap">
-                  {invoices.map((inv) => (
-                    <div className="jh-invoice bi-invoice-card" key={inv.id}>
-                      <div className="jh-invoice-top">
-                        <div>
-                          <div className="jh-invoice-no">Invoice #{inv.number}</div>
-                          {inv.createdAt ? <div className="jh-muted">{new Date(String(inv.createdAt)).toLocaleString("en-GB")}</div> : null}
-                        </div>
-                        <div className="jh-invoice-right">
-                          <div className="jh-invoice-amt">{fmtQar(inv.amount)}</div>
-                          <span className="jh-pill jh-pill-slate">{inv.status}</span>
-                        </div>
-                      </div>
-
-                      <div className="jh-invoice-meta">
-                        <div><span>Discount</span><strong>{fmtQar(inv.discount)}</strong></div>
-                        <div><span>Method</span><strong>{inv.paymentMethod || "—"}</strong></div>
-                      </div>
-
-                      <div className="jh-invoice-services">
-                        <div className="jh-muted">Services Included</div>
-                        {inv.services.length ? (
-                          <ul>
-                            {inv.services.map((s, i) => (
-                              <li key={i}><i className="fas fa-check-circle" /> {s}</li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <div className="jh-empty-inline">No linked services.</div>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </PermissionGate>
-
-          <PermissionGate moduleId="jobhistory" optionId="jobhistory_paymentlog">
-            <div className="jh-card jh-span-2">
-              <h3><i className="fas fa-history" /> Payment Activity Log</h3>
-
-              {Array.isArray(order.paymentActivityLog) && order.paymentActivityLog.length ? (
-                <div className="jh-table-wrap">
-                  <table className="jh-table">
-                    <thead>
-                      <tr>
-                        <th>Serial</th>
-                        <th>Amount</th>
-                        <th>Method</th>
-                        <th>Cashier</th>
-                        <th>Timestamp</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {[...order.paymentActivityLog].reverse().map((p: any, idx: number) => (
-                        <tr key={idx}>
-                          <td>{p.serial}</td>
-                          <td>{p.amount}</td>
-                          <td>{p.paymentMethod}</td>
-                          <td>{displayUser(p.cashierName)}</td>
-                          <td>{p.timestamp}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <div className="jh-empty-inline">No payment activity.</div>
-              )}
-            </div>
+            <UnifiedBillingInvoicesSection order={order} className="jh-card jh-span-2" />
           </PermissionGate>
 
           <PermissionGate moduleId="jobhistory" optionId="jobhistory_exitpermit">

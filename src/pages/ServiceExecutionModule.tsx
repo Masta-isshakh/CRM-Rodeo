@@ -11,6 +11,7 @@ import PermissionGate from "./PermissionGate";
 import UnifiedJobOrderRoadmap from "../components/UnifiedJobOrderRoadmap";
 import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
 import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
+import UnifiedBillingInvoicesSection from "../components/UnifiedBillingInvoicesSection";
 
 import { getDataClient } from "../lib/amplifyClient";
 
@@ -26,7 +27,7 @@ import {
   buildAssigneeOptionsFromDirectory,
 } from "../utils/userOptionDedupe";
 import { usePermissions } from "../lib/userPermissions";
-import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
+import { resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
 import {
   computePaymentSnapshot,
   derivePaymentStatusFromFinancials,
@@ -1170,10 +1171,6 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                 <BillingCard order={currentDetailsJob} />
               </PermissionGate>
 
-              <PermissionGate moduleId="serviceexec" optionId="serviceexec_paymentlog">
-                <PaymentActivityLogCard order={currentDetailsJob} identityToUsernameMap={actorLabelMap} />
-              </PermissionGate>
-
               <PermissionGate moduleId="serviceexec" optionId="serviceexec_exitpermit">
                 <ExitPermitDetailsCard order={currentDetailsJob} />
               </PermissionGate>
@@ -1551,129 +1548,7 @@ function QualityCheckListCard({ order }: any) {
 }
 
 function BillingCard({ order }: any) {
-  type InvoiceUi = {
-    id: string;
-    number: string;
-    amount: number;
-    discount: number;
-    status: string;
-    paymentMethod?: string | null;
-    services: string[];
-    createdAt?: string | null;
-  };
-
-  const toNum = (v: any): number => {
-    if (typeof v === "number" && Number.isFinite(v)) return v;
-    const s = String(v ?? "");
-    const n = Number(s.replace(/[^0-9.-]/g, ""));
-    return Number.isFinite(n) ? n : 0;
-  };
-  const fmtQar = (n: number) => `QAR ${Number.isFinite(n) ? n.toFixed(2) : "0.00"}`;
-  const snap = computePaymentSnapshot(
-    toNum(order?.billing?.totalAmount),
-    toNum(order?.billing?.discount),
-    toNum(order?.billing?.amountPaid)
-  );
-  const invoices: InvoiceUi[] = Array.isArray(order?.billing?.invoices)
-    ? order.billing.invoices.map((inv: any) => ({
-        ...inv,
-        id: String(inv?.id ?? ""),
-        number: String(inv?.number ?? "—"),
-        amount: toNum(inv?.amount),
-        discount: toNum(inv?.discount),
-        status: String(inv?.status ?? "Unpaid"),
-        paymentMethod: inv?.paymentMethod ?? null,
-        createdAt: inv?.createdAt ?? null,
-        services: Array.isArray(inv?.services) ? inv.services : [],
-      }))
-    : [];
-
-  return (
-    <div className="jh-card jh-span-2 bi-unified-card">
-      <h3><i className="fas fa-receipt" /> Billing & Invoices</h3>
-
-      <div className="jh-billing bi-summary">
-        <div className="bi-row"><span className="bi-label">Bill ID</span><strong className="bi-value">{order.billing?.billId || "—"}</strong></div>
-        <div className="bi-row"><span className="bi-label">Total</span><strong className="bi-value">{fmtQar(snap.totalAmount)}</strong></div>
-        <div className="bi-row"><span className="bi-label">Discount</span><strong className="jh-green bi-value">{fmtQar(snap.discount)}</strong></div>
-        <div className="bi-row"><span className="bi-label">Net</span><strong className="bi-value">{fmtQar(snap.netAmount)}</strong></div>
-        <div className="bi-row"><span className="bi-label">Paid</span><strong className="jh-green bi-value">{fmtQar(snap.amountPaid)}</strong></div>
-        <div className="bi-row"><span className="bi-label">Balance</span><strong className="jh-red bi-value">{fmtQar(snap.balanceDue)}</strong></div>
-        <div className="bi-row"><span className="bi-label">Method</span><strong className="bi-value">{order.billing?.paymentMethod || "—"}</strong></div>
-      </div>
-
-      <div className="jh-subhead bi-invoices-title">
-        <i className="fas fa-file-invoice" /> Invoices ({invoices.length})
-      </div>
-
-      {invoices.length === 0 ? (
-        <div className="jh-empty-inline">No invoices found in normalized tables.</div>
-      ) : (
-        <div className="jh-invoices bi-invoices-wrap">
-          {invoices.map((inv) => (
-            <div className="jh-invoice bi-invoice-card" key={inv.id}>
-              <div className="jh-invoice-top">
-                <div>
-                  <div className="jh-invoice-no">Invoice #{inv.number}</div>
-                  {inv.createdAt ? <div className="jh-muted">{new Date(String(inv.createdAt)).toLocaleString("en-GB")}</div> : null}
-                </div>
-                <div className="jh-invoice-right">
-                  <div className="jh-invoice-amt">{fmtQar(inv.amount)}</div>
-                  <span className="jh-pill jh-pill-slate">{inv.status}</span>
-                </div>
-              </div>
-
-              <div className="jh-invoice-meta">
-                <div><span>Discount</span><strong>{fmtQar(inv.discount)}</strong></div>
-                <div><span>Method</span><strong>{inv.paymentMethod || "—"}</strong></div>
-              </div>
-
-              <div className="jh-invoice-services">
-                <div className="jh-muted">Services Included</div>
-                {inv.services.length ? (
-                  <ul>
-                    {inv.services.map((s, i) => (
-                      <li key={i}><i className="fas fa-check-circle" /> {s}</li>
-                    ))}
-                  </ul>
-                ) : (
-                  <div className="jh-empty-inline">No linked services.</div>
-                )}
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function PaymentActivityLogCard({ order, identityToUsernameMap }: any) {
-  if (!order.paymentActivityLog || order.paymentActivityLog.length === 0) return null;
-  return (
-    <div className="pim-detail-card">
-      <h3><i className="fas fa-history"></i> Payment Activity Log</h3>
-      <table className="pim-payment-log-table">
-        <thead>
-          <tr>
-            <th>Serial</th><th>Amount</th><th>Discount</th><th>Payment Method</th><th>Cashier</th><th>Timestamp</th>
-          </tr>
-        </thead>
-        <tbody>
-          {[...order.paymentActivityLog].reverse().map((p: any, idx: number) => (
-            <tr key={idx}>
-              <td>{p.serial}</td>
-              <td>{p.amount}</td>
-              <td>{p.discount}</td>
-              <td>{p.paymentMethod}</td>
-              <td>{resolveActorDisplay(p.cashierName, { identityToUsernameMap, fallback: "—" })}</td>
-              <td>{p.timestamp}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
+  return <UnifiedBillingInvoicesSection order={order} className="jh-card jh-span-2" />;
 }
 
 function ExitPermitDetailsCard({ order }: any) {

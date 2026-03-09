@@ -30,13 +30,13 @@ import {
   type ServiceCatalogItem,
 } from "./serviceCatalogRepo";
 import {
-  computePaymentSnapshot,
   normalizePaymentStatusLabel as normalizePaymentStatusLabelShared,
 } from "../utils/paymentStatus";
 import { formatCustomerDisplayId } from "../utils/customerId";
 import { usePermissions } from "../lib/userPermissions";
 import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
 import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
+import UnifiedBillingInvoicesSection from "../components/UnifiedBillingInvoicesSection";
 
 function errMsg(e: unknown) {
   const anyE = e as any;
@@ -372,26 +372,6 @@ function resolveRoadmapActor(step: any, order: any, identityMap?: Record<string,
   );
 
   return joIsPlaceholderName(actor) ? "" : toUsernameDisplay(actor, identityMap);
-}
-
-/** ✅ Cashier name resolver (never use paymentMethod as fallback) */
-function resolveCashierName(payment: any, identityMap?: Record<string, string>) {
-  const cashier = joFirstPreferredActor(
-    payment?.cashierName,
-    payment?.cashier,
-    payment?.cashierUserName,
-    payment?.cashierUsername,
-    payment?.createdByName,
-    payment?.createdBy,
-    payment?.performedBy,
-    payment?.doneBy,
-    payment?.userName,
-    payment?.user,
-    payment?.staffName,
-    payment?.employeeName
-  );
-
-  return toUsernameDisplay(cashier || "—", identityMap);
 }
 
 // ============================================
@@ -1293,9 +1273,6 @@ function DetailsScreen({ order, onClose, onAddService, currentUser, actorMap }: 
             </PermissionGate>
           )}
           
-          <PermissionGate moduleId="joborder" optionId="joborder_paymentlog">
-            <PaymentActivityLogCard order={order} actorMap={actorMap} />
-          </PermissionGate>
         </div>
 
         {/* Roadmap Timeline - Full Width */}
@@ -3299,211 +3276,8 @@ function ServicesCard({ order, onAddService }: any) {
 }
 
 function BillingCard({ order }: any) {
-  const billing = order.billing || {};
-  const money = (value: any) => {
-    const n = Number(String(value ?? "").replace(/[^0-9.-]/g, ""));
-    return Number.isFinite(n) ? n : 0;
-  };
-  const fmtQar = (value: number) => `QAR ${Number.isFinite(value) ? value.toFixed(2) : "0.00"}`;
-
-  const paymentSnap = computePaymentSnapshot(
-    money(billing.totalAmount),
-    money(billing.discount),
-    money(billing.amountPaid)
-  );
-  const invoices = Array.isArray(billing.invoices) ? billing.invoices : [];
-  const invoiceStatusClass = (status: string) => {
-    const s = String(status || "").toLowerCase();
-    if (s.includes("paid")) return "pim-payment-full";
-    if (s.includes("partial")) return "pim-payment-partial";
-    return "pim-payment-unpaid";
-  };
-  
-  return (
-    <div className="epm-detail-card bi-unified-card" style={{ gridColumn: 'span 12' }}>
-      <h3>
-        <i className="fas fa-receipt"></i> Billing & Invoices
-      </h3>
-
-      {/* Billing Summary */}
-      <div className="pim-billing-summary bi-summary">
-        <h4>
-          <i className="fas fa-calculator"></i> Billing Summary
-        </h4>
-        <div className="pim-billing-row bi-row">
-          <span className="pim-billing-label bi-label">Bill ID:</span>
-          <span className="pim-billing-value bi-value">{billing.billId || "N/A"}</span>
-        </div>
-        <div className="pim-billing-row bi-row">
-          <span className="pim-billing-label bi-label">Total Amount:</span>
-          <span className="pim-billing-value bi-value">{fmtQar(paymentSnap.totalAmount)}</span>
-        </div>
-        {(paymentSnap.discount > 0 || money(billing.discount) > 0) && (
-          <div className="pim-billing-row bi-row">
-            <span className="pim-billing-label bi-label">Discount:</span>
-            <span className="pim-billing-value bi-value">-{fmtQar(paymentSnap.discount)}</span>
-          </div>
-        )}
-        <div className="pim-billing-row bi-row">
-          <span className="pim-billing-label bi-label">Net Amount:</span>
-          <span className="pim-billing-value bi-value">{fmtQar(paymentSnap.netAmount)}</span>
-        </div>
-        <div className="pim-billing-row bi-row">
-          <span className="pim-billing-label bi-label">Amount Paid:</span>
-          <span className="pim-billing-value bi-value">{fmtQar(paymentSnap.amountPaid)}</span>
-        </div>
-        <div className="pim-billing-row bi-row">
-          <span className="pim-billing-label bi-label">Balance Due:</span>
-          <span className="pim-billing-value bi-value">{fmtQar(paymentSnap.balanceDue)}</span>
-        </div>
-      </div>
-
-      <div className="pim-subcard bi-invoices-wrap">
-        <div className="pim-subtitle bi-invoices-title">
-          <i className="fas fa-file-invoice"></i> Invoices ({invoices.length})
-        </div>
-
-        {invoices.length === 0 ? (
-          <div className="pim-empty-inline">No invoices found in normalized tables.</div>
-        ) : (
-          <div className="pim-invoices">
-            {invoices.map((inv: any, idx: number) => (
-              <div key={String(inv?.id ?? idx)} className="pim-invoice bi-invoice-card">
-                <div className="pim-invoice-head">
-                  <div className="pim-invoice-left">
-                    <div className="pim-invoice-number">Invoice #{String(inv?.number ?? "—")}</div>
-                    {inv?.createdAt ? (
-                      <div className="pim-invoice-date">
-                        {new Date(String(inv.createdAt)).toLocaleString("en-GB", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="pim-invoice-right">
-                    <div className="pim-invoice-amount">{fmtQar(money(inv?.amount))}</div>
-                    <span className={`pim-badge ${invoiceStatusClass(String(inv?.status ?? ""))}`}>{String(inv?.status ?? "Unpaid")}</span>
-                  </div>
-                </div>
-
-                <div className="pim-invoice-meta">
-                  <div><span>Discount</span><strong>{fmtQar(money(inv?.discount))}</strong></div>
-                  <div><span>Payment Method</span><strong>{String(inv?.paymentMethod ?? "—")}</strong></div>
-                </div>
-
-                <div className="pim-invoice-services">
-                  <div className="pim-invoice-services-title">
-                    <i className="fas fa-list-ul"></i> Services Included
-                  </div>
-                  {Array.isArray(inv?.services) && inv.services.length ? (
-                    <ul className="pim-invoice-services-list">
-                      {inv.services.map((s: any, sidx: number) => (
-                        <li key={sidx}><i className="fas fa-check-circle"></i> {String(s)}</li>
-                      ))}
-                    </ul>
-                  ) : (
-                    <div className="pim-empty-inline">No services linked to this invoice.</div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  );
+  return <UnifiedBillingInvoicesSection order={order} className="epm-detail-card" style={{ gridColumn: "span 12" }} />;
 }
-
-function PaymentActivityLogCard({ order, actorMap }: any) {
-  if (!order.paymentActivityLog || order.paymentActivityLog.length === 0) return null;
-
-  return (
-    <div className="pim-detail-card">
-      <h3>
-        <i className="fas fa-history"></i> Payment Activity Log
-      </h3>
-      <table className="pim-payment-log-table">
-        <thead>
-          <tr>
-            <th>Serial</th>
-            <th>Amount</th>
-            <th>Method</th>
-            <th>Timestamps</th>
-            {/* ✅ NEW: Show receipt/transaction fields if available */}
-            {order.paymentActivityLog.some((p: any) => p.receiptNumber || p.transactionId) && (
-              <>
-                <th>Receipt #</th>
-                <th>Transaction ID</th>
-              </>
-            )}
-            {order.paymentActivityLog.some((p: any) => p.paymentStatus) && (
-              <th>Status</th>
-            )}
-            {order.paymentActivityLog.some((p: any) => p.approvedBy) && (
-              <th>Approved By</th>
-            )}
-            <th>Cashier</th>
-          </tr>
-        </thead>
-        <tbody>
-          {[...order.paymentActivityLog].reverse().map((payment: any, idx: number) => (
-            <tr key={idx}>
-              <td className="pim-serial-column">{payment.serial}</td>
-              <td className="pim-amount-column">{payment.amount}</td>
-              <td className="pim-cashier-column">{payment.paymentMethod}</td>
-              <td className="pim-timestamp-column">{payment.timestamp}</td>
-              {/* ✅ NEW: Receipt and Transaction Info */}
-              {order.paymentActivityLog.some((p: any) => p.receiptNumber || p.transactionId) && (
-                <>
-                  <td className="pim-receipt-column">
-                    {payment.receiptNumber ? (
-                      <span className="pim-payment-detail">
-                        <i className="fas fa-receipt"></i> {payment.receiptNumber}
-                      </span>
-                    ) : '-'}
-                  </td>
-                  <td className="pim-transaction-column">
-                    {payment.transactionId ? (
-                      <span className="pim-payment-detail">
-                        <i className="fas fa-exchange-alt"></i> {payment.transactionId}
-                      </span>
-                    ) : '-'}
-                  </td>
-                </>
-              )}
-              {/* ✅ NEW: Payment Status */}
-              {order.paymentActivityLog.some((p: any) => p.paymentStatus) && (
-                <td className="pim-status-column">
-                  <span className={`pim-payment-status ${normalizePaymentStatusLabel(payment.paymentStatus).toLowerCase().replace(/\s+/g, '-')}`}>
-                    {normalizePaymentStatusLabel(payment.paymentStatus)}
-                  </span>
-                </td>
-              )}
-              {/* ✅ NEW: Approval Info */}
-              {order.paymentActivityLog.some((p: any) => p.approvedBy) && (
-                <td className="pim-approver-column">
-                  {payment.approvedBy ? (
-                    <span>
-                      {payment.approvedBy}
-                      {payment.approvalDate && <br />}
-                      {payment.approvalDate && <small style={{ color: '#666' }}>{payment.approvalDate}</small>}
-                    </span>
-                  ) : '-'}
-                </td>
-              )}
-<td className="pim-cashier-column">{resolveCashierName(payment, actorMap)}</td>            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-
 
 type DocUi = {
   id?: string;

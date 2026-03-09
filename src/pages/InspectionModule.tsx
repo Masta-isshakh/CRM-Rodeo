@@ -9,6 +9,7 @@ import PermissionGate from "./PermissionGate";
 import inspectionListConfig from "./inspectionConfig";
 import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
 import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
+import UnifiedBillingInvoicesSection from "../components/UnifiedBillingInvoicesSection";
 
 import {
   listJobOrdersForMain,
@@ -1085,6 +1086,10 @@ function InspectionModule({ currentUser }: any) {
                     )}
                   </div>
                 </div>
+              </PermissionGate>
+
+              <PermissionGate moduleId="inspection" optionId="inspection_billing">
+                <UnifiedBillingInvoicesSection order={activeOrder} />
               </PermissionGate>
             </div>
 

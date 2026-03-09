@@ -14,8 +14,9 @@ import { getDataClient } from "../lib/amplifyClient";
 import { cancelJobOrderByOrderNumber, getJobOrderByOrderNumber, upsertJobOrder } from "./jobOrderRepo";
 import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
 import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
+import UnifiedBillingInvoicesSection from "../components/UnifiedBillingInvoicesSection";
 import { getUserDirectory } from "../utils/userDirectoryCache";
-import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
+import { resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
 import {
   derivePaymentStatusFromFinancials,
   normalizePaymentStatusLabel,
@@ -158,13 +159,6 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   const canFinishQCAction = true;
   const canApproveQCAction = true;
   const canRejectQCAction = true;
-
-  const displayUser = (value: any) => {
-    return resolveActorDisplay(value, {
-      identityToUsernameMap: userLabelMap,
-      fallback: "Not assigned",
-    });
-  };
 
   useEffect(() => {
     let cancelled = false;
@@ -909,7 +903,6 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
     const roadmap = Array.isArray(parsed?.roadmap) ? parsed.roadmap : Array.isArray(selectedOrder?.roadmap) ? selectedOrder.roadmap : [];
     const docs: DocItem[] = Array.isArray(parsed?.documents) ? parsed.documents : Array.isArray(selectedOrder?.documents) ? selectedOrder.documents : [];
     const createdByDisplay = resolveOrderCreatedBy(selectedOrder, { identityToUsernameMap: userLabelMap, fallback: "—" });
-    const paymentLog = Array.isArray(selectedOrder?.paymentActivityLog) ? selectedOrder.paymentActivityLog : [];
 
     return (
       <div className="quality-check-module">
@@ -1038,40 +1031,9 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                 </div>
               </PermissionGate>
 
-              {/* Payment log (read only from repo result) */}
-              {paymentLog.length > 0 && (
-                <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_paymentlog">
-                  <div className="qc-detail-card pim-detail-card">
-                    <h3>
-                      <i className="fas fa-history"></i> Payment Activity Log
-                    </h3>
-                    <div className="pim-table-wrap">
-                      <table className="pim-table pim-payment-log-table">
-                        <thead>
-                          <tr>
-                            <th>Serial</th>
-                            <th>Amount</th>
-                            <th>Method</th>
-                            <th>Cashier</th>
-                            <th>Timestamp</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {[...paymentLog].reverse().map((p: any, idx: number) => (
-                            <tr key={idx}>
-                              <td>{p.serial}</td>
-                              <td>{p.amount}</td>
-                              <td>{p.paymentMethod}</td>
-                              <td>{displayUser(p.cashierName)}</td>
-                              <td>{p.timestamp}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                </PermissionGate>
-              )}
+              <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_billing">
+                <UnifiedBillingInvoicesSection order={selectedOrder} />
+              </PermissionGate>
 
               {/* Documents */}
               {docs.length > 0 && (

@@ -306,6 +306,14 @@ function resolvePackageAwareTotalAmountFromSources(...sources: any[]): number | 
   return null;
 }
 
+function resolveAuthoritativeTotalAmount(...sources: any[]): number {
+  const fromBilling = toNum(pickBillingFirstValue("totalAmount", ...sources));
+  if (fromBilling > 0) return fromBilling;
+
+  const packageAware = resolvePackageAwareTotalAmountFromSources(...sources);
+  return packageAware ?? 0;
+}
+
 function buildPackageAuditBreakdown(services: any[]) {
   const packageMap = new Map<string, { title: string; packagePrice: number | null; fallbackServicesTotal: number; itemCount: number }>();
   let standaloneTotal = 0;
@@ -455,8 +463,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
             : "";
 
           const workStatus = normalizeWorkStatus(row.status, row.workStatusLabel ?? parsed.workStatusLabel);
-          const packageAwareTotal = resolvePackageAwareTotalAmountFromSources(parsed, row);
-          const totalAmount = packageAwareTotal ?? toNum(pickBillingFirstValue("totalAmount", parsed, row));
+          const totalAmount = resolveAuthoritativeTotalAmount(parsed, row);
           const discount = toNum(pickBillingFirstValue("discount", parsed, row));
           const amountPaid = toNum(pickBillingFirstValue("amountPaid", parsed, row));
           const paymentSnap = computePaymentSnapshot(totalAmount, discount, amountPaid);
@@ -708,8 +715,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       const invoices = await loadNormalizedInvoices(String(detailed._backendId));
       setNormalizedInvoices(invoices);
 
-      const packageAwareTotal = resolvePackageAwareTotalAmountFromSources(detailed, parsed, row);
-      const totalAmountRaw = packageAwareTotal ?? toNum(parsed?.billing?.totalAmount ?? row?.totalAmount ?? detailed?.billing?.totalAmount);
+      const totalAmountRaw = resolveAuthoritativeTotalAmount(parsed, detailed, row);
       const discountRaw = toNum(parsed?.billing?.discount ?? row?.discount ?? detailed?.billing?.discount);
       const amountPaidRaw = toNum(parsed?.billing?.amountPaid ?? row?.amountPaid ?? detailed?.billing?.amountPaid);
       const paymentSnap = computePaymentSnapshot(totalAmountRaw, discountRaw, amountPaidRaw);

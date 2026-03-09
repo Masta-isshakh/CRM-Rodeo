@@ -11,6 +11,7 @@ import ErrorPopup from "./ErrorPopup";
 import UnifiedJobOrderRoadmap from "../components/UnifiedJobOrderRoadmap";
 import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
 import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
+import UnifiedBillingInvoicesSection from "../components/UnifiedBillingInvoicesSection";
 
 // ✅ Correct path (your PermissionGate lives here)
 import PermissionGate from "./PermissionGate";
@@ -26,9 +27,8 @@ import { uploadData } from "aws-amplify/storage";
 
 import { getDataClient } from "../lib/amplifyClient";
 import { getUserDirectory } from "../utils/userDirectoryCache";
-import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
+import { resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
 import {
-  computePaymentSnapshot,
   derivePaymentStatusFromFinancials,
   pickBillingFirstValue,
   pickPaymentEnum,
@@ -361,21 +361,6 @@ const getAdditionalServiceStatusClass = (status: string) => {
       return "epm-declined";
     default:
       return "epm-pending";
-  }
-};
-
-const getPaymentMethodClass = (method: string) => {
-  switch (method) {
-    case "Cash":
-      return "epm-payment-method-cash";
-    case "Card":
-      return "epm-payment-method-card";
-    case "Transfer":
-      return "epm-payment-method-transfer";
-    case "Cheque":
-      return "epm-payment-method-cheque";
-    default:
-      return "";
   }
 };
 
@@ -1004,12 +989,6 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
                     </PermissionGate>
                   )}
 
-                  {selectedOrder.paymentActivityLog && selectedOrder.paymentActivityLog.length > 0 && (
-                    <PermissionGate moduleId="exitpermit" optionId="exitpermit_paymentlog">
-                      <PaymentActivityLogCard order={selectedOrder} identityToUsernameMap={actorLabelMap} />
-                    </PermissionGate>
-                  )}
-
                   <PermissionGate moduleId="exitpermit" optionId="exitpermit_exitpermit">
                     <ExitPermitCard order={selectedOrder} />
                   </PermissionGate>
@@ -1368,123 +1347,7 @@ const CustomerNotesCard = ({ order }: any) => (
 );
 
 const BillingCard = ({ order }: any) => {
-  const money = (value: any) => {
-    const n = Number(String(value ?? "").replace(/[^0-9.-]/g, ""));
-    return Number.isFinite(n) ? n : 0;
-  };
-  const fmtQar = (value: number) => `QAR ${Number.isFinite(value) ? value.toFixed(2) : "0.00"}`;
-  const snap = computePaymentSnapshot(
-    money(order?.billing?.totalAmount),
-    money(order?.billing?.discount),
-    money(order?.billing?.amountPaid)
-  );
-
-  return (
-    <div className="epm-detail-card pim-detail-card bi-unified-card">
-      <h3>
-        <i className="fas fa-receipt"></i> Billing & Invoices
-      </h3>
-
-      <div className="epm-billing-master-section bi-summary">
-        <div className="epm-card-content pim-card-content">
-          <div className="epm-info-item pim-info-item bi-row">
-            <span className="epm-info-label pim-info-label bi-label">Bill ID</span>
-            <span className="epm-info-value pim-info-value bi-value">{order.billing?.billId || "N/A"}</span>
-          </div>
-          <div className="epm-info-item pim-info-item bi-row">
-            <span className="epm-info-label pim-info-label bi-label">Total Amount</span>
-            <span className="epm-info-value pim-info-value bi-value">{fmtQar(snap.totalAmount)}</span>
-          </div>
-          <div className="epm-info-item pim-info-item bi-row">
-            <span className="epm-info-label pim-info-label bi-label">Discount</span>
-            <span className="epm-info-value pim-info-value bi-value">{fmtQar(snap.discount)}</span>
-          </div>
-          <div className="epm-info-item pim-info-item bi-row">
-            <span className="epm-info-label pim-info-label bi-label">Net Amount</span>
-            <span className="epm-info-value pim-info-value bi-value">{fmtQar(snap.netAmount)}</span>
-          </div>
-          <div className="epm-info-item pim-info-item bi-row">
-            <span className="epm-info-label pim-info-label bi-label">Amount Paid</span>
-            <span className="epm-info-value pim-info-value bi-value">{fmtQar(snap.amountPaid)}</span>
-          </div>
-          <div className="epm-info-item pim-info-item bi-row">
-            <span className="epm-info-label pim-info-label bi-label">Balance Due</span>
-            <span className="epm-info-value pim-info-value bi-value">{fmtQar(snap.balanceDue)}</span>
-          </div>
-        </div>
-
-        {order.billing?.paymentMethod && (
-          <div className="epm-billing-method">
-            <span className={`epm-payment-method-badge ${getPaymentMethodClass(order.billing.paymentMethod)}`}>
-              {order.billing.paymentMethod}
-            </span>
-          </div>
-        )}
-      </div>
-
-      {order.billing?.invoices && order.billing.invoices.length > 0 && (
-        <div className="epm-invoices-wrap bi-invoices-wrap">
-          <div className="epm-invoices-title bi-invoices-title">
-            <i className="fas fa-file-invoice"></i> Invoices ({order.billing.invoices.length})
-          </div>
-          {order.billing.invoices.map((invoice: any, idx: number) => (
-            <div key={idx} className="epm-invoice-item bi-invoice-card">
-              <div className="epm-invoice-header">
-                <span className="epm-invoice-number">
-                  <i className="fas fa-hashtag"></i> {invoice.number}
-                </span>
-                <span className="epm-invoice-amount">
-                  <i className="fas fa-coins"></i> Amount: {invoice.amount}
-                </span>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-const PaymentActivityLogCard = ({ order, identityToUsernameMap }: any) => {
-  if (!order.paymentActivityLog || order.paymentActivityLog.length === 0) return null;
-
-  return (
-    <div className="epm-detail-card pim-detail-card">
-      <h3>
-        <i className="fas fa-history"></i> Payment Activity Log
-      </h3>
-      <div className="epm-payment-log-table-wrapper">
-        <table className="epm-payment-log-table">
-          <thead>
-            <tr>
-              <th>Serial</th>
-              <th>Amount</th>
-              <th>Discount</th>
-              <th>Payment Method</th>
-              <th>Cashier</th>
-              <th>Timestamp</th>
-            </tr>
-          </thead>
-          <tbody>
-            {[...order.paymentActivityLog].reverse().map((payment: any, idx: number) => (
-              <tr key={idx}>
-                <td className="epm-serial-column">{payment.serial}</td>
-                <td className="epm-amount-column">{payment.amount}</td>
-                <td className="epm-discount-column">{payment.discount}</td>
-                <td className="epm-payment-method-column">
-                  <span className={`epm-payment-method-badge ${getPaymentMethodClass(payment.paymentMethod)}`}>
-                    {payment.paymentMethod}
-                  </span>
-                </td>
-                <td className="epm-cashier-column">{resolveActorDisplay(payment.cashierName, { identityToUsernameMap, fallback: "—" })}</td>
-                <td className="epm-timestamp-column">{payment.timestamp}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  );
+  return <UnifiedBillingInvoicesSection order={order} className="epm-detail-card" />;
 };
 
 const ExitPermitCard = ({ order }: any) => {
