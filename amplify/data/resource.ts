@@ -784,14 +784,14 @@ const schema = a
         email: a.string().required(),
         isActive: a.boolean().required(),
       })
-      .authorization((allow) => [allow.group(ADMIN_GROUP)])
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated()])
       .handler(a.handler.function(setUserActive))
       .returns(a.json()),
 
     adminDeleteUser: a
       .mutation()
       .arguments({ email: a.string().required() })
-      .authorization((allow) => [allow.group(ADMIN_GROUP)])
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated()])
       .handler(a.handler.function(deleteUser))
       .returns(a.json()),
 

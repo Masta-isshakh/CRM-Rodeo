@@ -179,9 +179,11 @@ async function canInviteUsers(
   userPoolId: string
 ): Promise<boolean> {
   const groups = await resolveGroups(event, userPoolId);
+  console.log("[invite-user RBAC] resolved groups:", groups);
   if (groups.includes(ADMIN_GROUP)) return true;
 
   const profile = await findUserProfileForActor(dataClient, event);
+  console.log("[invite-user RBAC] actor profile:", profile?.email ?? "NOT FOUND", "dept:", profile?.departmentKey ?? "NONE");
   const departmentKey = String(profile?.departmentKey ?? "").trim();
   if (!departmentKey) return false;
 
@@ -202,6 +204,7 @@ async function canInviteUsers(
   const roleIds = Array.from(
     new Set((links ?? []).map((l: any) => String(l?.roleId ?? "").trim()).filter(Boolean))
   );
+  console.log("[invite-user RBAC] roleIds:", roleIds);
   if (!roleIds.length) return false;
 
   const roleIdSet = new Set(roleIds);
@@ -221,6 +224,7 @@ async function canInviteUsers(
   if (!moduleEnabled) return false;
 
   const inviteAllowedByOption = inviteKey in toggleMap ? Boolean(toggleMap[inviteKey]) : true;
+  console.log("[invite-user RBAC] module enabled:", moduleEnabled, "invite option:", inviteAllowedByOption);
   if (!inviteAllowedByOption) return false;
 
   const inviteToggleExplicit = Object.prototype.hasOwnProperty.call(toggleMap, inviteKey);
@@ -241,6 +245,7 @@ async function canInviteUsers(
     canUpdate = canUpdate || Boolean((policy as any)?.canUpdate);
     if (canCreate || canUpdate) break;
   }
+  console.log("[invite-user RBAC] USERS_ADMIN policy canCreate:", canCreate, "canUpdate:", canUpdate);
 
   return canCreate || canUpdate;
 }
