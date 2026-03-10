@@ -49,8 +49,10 @@ function extractGroups(event: any): string[] {
 }
 
 function actorEmailFromEvent(event: any): string {
-  const claims = event?.identity?.claims ?? {};
-  const email = String(claims?.email ?? event?.identity?.claims?.email ?? "").trim().toLowerCase();
+  const claims = event?.identity?.claims ?? event?.request?.userAttributes ?? {};
+  const email = String(claims?.email ?? event?.identity?.claims?.email ?? event?.identity?.username ?? "")
+    .trim()
+    .toLowerCase();
   if (email) return email;
   return "";
 }
@@ -59,6 +61,8 @@ function actorUsernameFromEvent(event: any): string {
   return String(
     event?.identity?.username ??
       event?.identity?.claims?.["cognito:username"] ??
+      event?.request?.userAttributes?.["cognito:username"] ??
+      event?.request?.userAttributes?.username ??
       event?.identity?.claims?.email ??
       ""
   )
@@ -68,6 +72,10 @@ function actorUsernameFromEvent(event: any): string {
 
 function actorSubFromEvent(event: any): string {
   return String(event?.identity?.claims?.sub ?? "").trim();
+}
+
+function findDeptFromGroups(groups: string[]): string {
+  return String((groups ?? []).find((g) => String(g).startsWith(DEPT_PREFIX)) ?? "").trim();
 }
 
 async function resolveGroups(event: any, userPoolId: string): Promise<string[]> {
@@ -155,7 +163,10 @@ async function findUserProfileForActor(
     } as any);
     const match = (all?.data ?? []).find((row: any) => {
       const owner = String(row?.profileOwner ?? "").trim();
-      return owner.startsWith(`${actorSub}::`);
+      if (!owner) return false;
+      if (owner === actorSub) return true;
+      const ownerSub = owner.split("::")[0]?.trim();
+      return ownerSub === actorSub;
     });
     if (match?.id) return match as any;
   }
@@ -182,9 +193,12 @@ async function canInviteUsers(
   console.log("[invite-user RBAC] resolved groups:", groups);
   if (groups.includes(ADMIN_GROUP)) return true;
 
+  const deptFromGroups = findDeptFromGroups(groups);
+
   const profile = await findUserProfileForActor(dataClient, event);
   console.log("[invite-user RBAC] actor profile:", profile?.email ?? "NOT FOUND", "dept:", profile?.departmentKey ?? "NONE");
-  const departmentKey = String(profile?.departmentKey ?? "").trim();
+  const departmentKey = String(profile?.departmentKey ?? deptFromGroups ?? "").trim();
+  console.log("[invite-user RBAC] effective department:", departmentKey || "NONE", "(from", profile?.departmentKey ? "profile" : deptFromGroups ? "group" : "none", ")");
   if (!departmentKey) return false;
 
   const fetchLinksForDept = async (dk: string) =>
