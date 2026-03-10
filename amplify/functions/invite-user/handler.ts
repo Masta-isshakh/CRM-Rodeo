@@ -9,6 +9,7 @@ import {
   AdminResetUserPasswordCommand,
   AdminSetUserPasswordCommand,
   AdminUpdateUserAttributesCommand,
+  AdminListGroupsForUserCommand,
   GetGroupCommand,
   CreateGroupCommand,
   ListUsersCommand,
@@ -49,9 +50,44 @@ function extractGroups(event: any): string[] {
 
 function actorEmailFromEvent(event: any): string {
   const claims = event?.identity?.claims ?? {};
-  const email = String(claims?.email ?? "").trim().toLowerCase();
+  const email = String(claims?.email ?? event?.identity?.claims?.email ?? "").trim().toLowerCase();
   if (email) return email;
-  return String(event?.identity?.username ?? "").trim().toLowerCase();
+  return "";
+}
+
+function actorUsernameFromEvent(event: any): string {
+  return String(
+    event?.identity?.username ??
+      event?.identity?.claims?.["cognito:username"] ??
+      event?.identity?.claims?.email ??
+      ""
+  )
+    .trim()
+    .toLowerCase();
+}
+
+function actorSubFromEvent(event: any): string {
+  return String(event?.identity?.claims?.sub ?? "").trim();
+}
+
+async function resolveGroups(event: any, userPoolId: string): Promise<string[]> {
+  const groupsFromClaims = extractGroups(event);
+  if (groupsFromClaims.length) return groupsFromClaims;
+
+  const username = actorUsernameFromEvent(event);
+  if (!username) return [];
+
+  try {
+    const res = await cognito.send(
+      new AdminListGroupsForUserCommand({
+        UserPoolId: userPoolId,
+        Username: username,
+      })
+    );
+    return (res.Groups ?? []).map((g) => String(g.GroupName ?? "")).filter(Boolean);
+  } catch {
+    return [];
+  }
 }
 
 async function listAll<T>(
@@ -96,6 +132,37 @@ async function findUserProfileByEmailCaseInsensitive(dataClient: ReturnType<type
   );
 }
 
+async function findUserProfileForActor(
+  dataClient: ReturnType<typeof generateClient<Schema>>,
+  event: any
+) {
+  const actorEmail = actorEmailFromEvent(event);
+  if (actorEmail) {
+    const byEmail = await findUserProfileByEmailCaseInsensitive(dataClient, actorEmail);
+    if (byEmail?.id) return byEmail;
+  }
+
+  const actorUsername = actorUsernameFromEvent(event);
+  if (actorUsername) {
+    const byUsername = await findUserProfileByEmailCaseInsensitive(dataClient, actorUsername);
+    if (byUsername?.id) return byUsername;
+  }
+
+  const actorSub = actorSubFromEvent(event);
+  if (actorSub) {
+    const all = await dataClient.models.UserProfile.list({
+      limit: 20000,
+    } as any);
+    const match = (all?.data ?? []).find((row: any) => {
+      const owner = String(row?.profileOwner ?? "").trim();
+      return owner.startsWith(`${actorSub}::`);
+    });
+    if (match?.id) return match as any;
+  }
+
+  return null;
+}
+
 function aggregateToggleMap(rows: Array<{ key?: string | null; enabled?: boolean | null }>) {
   const out: Record<string, boolean> = {};
   for (const row of rows ?? []) {
@@ -106,14 +173,15 @@ function aggregateToggleMap(rows: Array<{ key?: string | null; enabled?: boolean
   return out;
 }
 
-async function canInviteUsers(dataClient: ReturnType<typeof generateClient<Schema>>, event: any): Promise<boolean> {
-  const groups = extractGroups(event);
+async function canInviteUsers(
+  dataClient: ReturnType<typeof generateClient<Schema>>,
+  event: any,
+  userPoolId: string
+): Promise<boolean> {
+  const groups = await resolveGroups(event, userPoolId);
   if (groups.includes(ADMIN_GROUP)) return true;
 
-  const actorEmail = actorEmailFromEvent(event);
-  if (!actorEmail) return false;
-
-  const profile = await findUserProfileByEmailCaseInsensitive(dataClient, actorEmail);
+  const profile = await findUserProfileForActor(dataClient, event);
   const departmentKey = String(profile?.departmentKey ?? "").trim();
   if (!departmentKey) return false;
 
@@ -253,7 +321,7 @@ export const handler: Handler = async (event) => {
   Amplify.configure(resourceConfig, libraryOptions);
   const dataClient = generateClient<Schema>();
 
-  const allowed = await canInviteUsers(dataClient, event);
+  const allowed = await canInviteUsers(dataClient, event, userPoolId);
   if (!allowed) {
     throw new Error("Not authorized to invite users.");
   }
