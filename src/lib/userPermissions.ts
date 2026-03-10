@@ -257,6 +257,7 @@ export function usePermissions() {
 
         type UserProfileRow = Schema["UserProfile"]["type"];
         let deptFromProfile = "";
+        let profileRoleId = "";
         let profileActive = true;
         let profileDashboardAccessEnabled = true;
 
@@ -264,6 +265,7 @@ export function usePermissions() {
           try {
             const row = (await findUserProfileByEmailCaseInsensitive(client, resolvedEmail)) as UserProfileRow | undefined;
             deptFromProfile = String((row as any)?.departmentKey ?? "").trim();
+            profileRoleId = String((row as any)?.roleId ?? "").trim();
             profileActive = Boolean((row as any)?.isActive ?? true);
             profileDashboardAccessEnabled = Boolean((row as any)?.dashboardAccessEnabled ?? true);
           } catch (e) {
@@ -315,9 +317,11 @@ export function usePermissions() {
           }
         }
 
-        const roleIds = Array.from(
-          new Set((links ?? []).map((l) => String((l as any).roleId ?? "")).filter(Boolean))
-        );
+        const roleIds = profileRoleId
+          ? [profileRoleId]
+          : Array.from(
+              new Set((links ?? []).map((l) => String((l as any).roleId ?? "")).filter(Boolean))
+            );
         const roleIdSet = new Set(roleIds);
 
         if (!roleIds.length) {

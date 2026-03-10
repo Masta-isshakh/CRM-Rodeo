@@ -137,7 +137,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     const usersListAllowed = canOption("users", "users_list", true);
     const usersRead = isAdminGroup || usersListAllowed;
     const departmentsListAllowed = canOption("departments", "departments_list", true);
-    const departmentsRead = isAdminGroup || canAny("DEPARTMENTS_ADMIN").canRead || departmentsListAllowed;
+    const departmentsRead = isAdminGroup || departmentsListAllowed;
     const rolesRead = isAdminGroup || canAny("ROLES_POLICIES_ADMIN").canRead;
 
     return {
@@ -572,7 +572,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               <DepartmentsAdmin
                 permissions={{
                   ...canAny("DEPARTMENTS_ADMIN"),
-                  canRead: canAny("DEPARTMENTS_ADMIN").canRead || canOption("departments", "departments_list", true),
+                  canRead: canOption("departments", "departments_list", true),
                 }}
               />
             )}
