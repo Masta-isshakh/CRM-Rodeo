@@ -838,7 +838,7 @@ const schema = a
         departmentKey: a.string().required(),
         departmentName: a.string(),
       })
-      .authorization((allow) => [allow.group(ADMIN_GROUP)])
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated()])
       .handler(a.handler.function(setUserDepartment))
       .returns(a.json()),
 
