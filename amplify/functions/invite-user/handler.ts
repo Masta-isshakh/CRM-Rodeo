@@ -198,8 +198,9 @@ async function canInviteUsers(
   const profile = await findUserProfileForActor(dataClient, event);
   console.log("[invite-user RBAC] actor profile:", profile?.email ?? "NOT FOUND", "dept:", profile?.departmentKey ?? "NONE");
   const departmentKey = String(profile?.departmentKey ?? deptFromGroups ?? "").trim();
+  const actorRoleId = String(profile?.roleId ?? "").trim();
   console.log("[invite-user RBAC] effective department:", departmentKey || "NONE", "(from", profile?.departmentKey ? "profile" : deptFromGroups ? "group" : "none", ")");
-  if (!departmentKey) return false;
+  if (!departmentKey && !actorRoleId) return false;
 
   const fetchLinksForDept = async (dk: string) =>
     await listAll<Schema["DepartmentRoleLink"]["type"]>((args) =>
@@ -209,15 +210,20 @@ async function canInviteUsers(
       } as any)
     );
 
-  let links = await fetchLinksForDept(departmentKey);
-  if ((!links || !links.length) && departmentKey && !departmentKey.startsWith(DEPT_PREFIX)) {
-    const alt = `${DEPT_PREFIX}${departmentKey}`;
-    links = await fetchLinksForDept(alt);
+  let links: any[] = [];
+  if (!actorRoleId) {
+    links = await fetchLinksForDept(departmentKey);
+    if ((!links || !links.length) && departmentKey && !departmentKey.startsWith(DEPT_PREFIX)) {
+      const alt = `${DEPT_PREFIX}${departmentKey}`;
+      links = await fetchLinksForDept(alt);
+    }
   }
 
-  const roleIds = Array.from(
-    new Set((links ?? []).map((l: any) => String(l?.roleId ?? "").trim()).filter(Boolean))
-  );
+  const roleIds = actorRoleId
+    ? [actorRoleId]
+    : Array.from(
+        new Set((links ?? []).map((l: any) => String(l?.roleId ?? "").trim()).filter(Boolean))
+      );
   console.log("[invite-user RBAC] roleIds:", roleIds);
   if (!roleIds.length) return false;
 

@@ -162,18 +162,24 @@ async function canEditUsers(
 
   if (!profile?.id) return false;
 
+  const actorRoleId = String(profile?.roleId ?? "").trim();
   const dept = profile.departmentKey ?? deptKey;
-  if (!dept) return false;
+  if (!actorRoleId && !dept) return false;
 
   try {
-    const deptLinks = await dataClient.models.DepartmentRoleLink.list({
-      filter: { departmentKey: { eq: dept } },
-      limit: 100,
-    });
+    let roleIds: string[] = [];
+    if (actorRoleId) {
+      roleIds = [actorRoleId];
+    } else {
+      const deptLinks = await dataClient.models.DepartmentRoleLink.list({
+        filter: { departmentKey: { eq: dept } },
+        limit: 100,
+      });
 
-    const roleIds = (deptLinks?.data ?? [])
-      .map((link: any) => link?.roleId)
-      .filter((rid: any) => !!rid);
+      roleIds = (deptLinks?.data ?? [])
+        .map((link: any) => String(link?.roleId ?? "").trim())
+        .filter((rid: any) => !!rid);
+    }
 
     if (!roleIds.length) return false;
     console.log(`[set-user-active RBAC] roleIds: ${roleIds.join(", ")}`);
