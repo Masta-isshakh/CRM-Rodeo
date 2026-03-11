@@ -243,7 +243,10 @@ export const handler: Handler = async (event) => {
   const email = String(event.arguments?.email ?? "").trim().toLowerCase();
   if (!email) throw new Error("Email is required.");
 
-  const userPoolId = process.env.AMPLIFY_AUTH_USERPOOL_ID;
+  const userPoolId =
+    process.env.AMPLIFY_AUTH_USERPOOL_ID ||
+    process.env.USERPOOL_ID ||
+    process.env.USER_POOL_ID;
   if (!userPoolId) throw new Error("Missing AMPLIFY_AUTH_USERPOOL_ID env var.");
 
   const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
