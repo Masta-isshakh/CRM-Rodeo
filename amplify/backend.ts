@@ -9,6 +9,7 @@ import { storage } from "./storage/resource";
 import { inviteUser } from "./functions/invite-user/resource";
 import { setUserActive } from "./functions/set-user-active/resource";
 import { deleteUser } from "./functions/delete-user/resource";
+import { updateUserProfile } from "./functions/update-user-profile/resource";
 
 import { listDepartments } from "./functions/departments/list-departments/resource";
 import { createDepartment } from "./functions/departments/create-department/resource";
@@ -28,6 +29,7 @@ const backend = defineBackend({
   inviteUser,
   setUserActive,
   deleteUser,
+  updateUserProfile,
 
   listDepartments,
   createDepartment,

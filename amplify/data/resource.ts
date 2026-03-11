@@ -7,6 +7,7 @@ import { adminCognito } from "../functions/adminCognito/resource";
 import { inviteUser } from "../functions/invite-user/resource";
 import { setUserActive } from "../functions/set-user-active/resource";
 import { deleteUser } from "../functions/delete-user/resource";
+import { updateUserProfile } from "../functions/update-user-profile/resource";
 
 import { listDepartments } from "../functions/departments/list-departments/resource";
 import { createDepartment } from "../functions/departments/create-department/resource";
@@ -842,6 +843,23 @@ const schema = a
       .handler(a.handler.function(setUserDepartment))
       .returns(a.json()),
 
+    adminUpdateUserProfile: a
+      .mutation()
+      .arguments({
+        email: a.string().required(),
+        fullName: a.string(),
+        employeeId: a.string(),
+        roleId: a.id(),
+        roleName: a.string(),
+        mobileNumber: a.string(),
+        lineManagerEmail: a.string(),
+        lineManagerName: a.string(),
+        dashboardAccessEnabled: a.boolean(),
+      })
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated()])
+      .handler(a.handler.function(updateUserProfile))
+      .returns(a.json()),
+
     myGroups: a
       .query()
       .authorization((allow) => [allow.authenticated()])
@@ -918,6 +936,7 @@ const schema = a
     allow.resource(inviteUser),
     allow.resource(setUserActive),
     allow.resource(deleteUser),
+    allow.resource(updateUserProfile),
     allow.resource(listDepartments),
     allow.resource(createDepartment),
     allow.resource(deleteDepartment),

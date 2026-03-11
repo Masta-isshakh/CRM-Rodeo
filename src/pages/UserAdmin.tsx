@@ -852,19 +852,6 @@ export default function Users(_: PageProps) {
     try {
       const newFullName = `${editFirstName.trim()} ${editLastName.trim()}`.trim();
 
-      // Update fullName if changed
-      if (newFullName !== detailsUser.fullName) {
-        const res1 = await client.models.UserProfile.update({
-          id: detailsUser.id,
-          fullName: newFullName,
-        });
-
-        const errs1 = (res1 as any)?.errors;
-        if (Array.isArray(errs1) && errs1.length) {
-          throw new Error(errs1.map((x: any) => x.message).join(" | "));
-        }
-      }
-
       // Update department if changed
       if (editDepartmentKey !== String(detailsUser.departmentKey ?? "")) {
         const resDepth = await client.mutations.adminSetUserDepartment({
@@ -893,6 +880,7 @@ export default function Users(_: PageProps) {
       const statusChanged = editIsActive !== Boolean((detailsUser as any).isActive ?? true);
       const dashboardAccessChanged =
         effectiveDashboardAccess !== Boolean((detailsUser as any).dashboardAccessEnabled ?? true);
+      const fullNameChanged = newFullName !== String(detailsUser.fullName ?? "");
 
       if (statusChanged) {
         const resActive = await client.mutations.adminSetUserActive({
@@ -906,17 +894,25 @@ export default function Users(_: PageProps) {
         }
       }
 
-      if (roleChanged || mobileChanged || employeeIdChanged || lineManagerChanged || statusChanged || dashboardAccessChanged) {
-        const resProfile = await client.models.UserProfile.update({
-          id: detailsUser.id,
-          isActive: editIsActive,
+      if (
+        fullNameChanged ||
+        roleChanged ||
+        mobileChanged ||
+        employeeIdChanged ||
+        lineManagerChanged ||
+        statusChanged ||
+        dashboardAccessChanged
+      ) {
+        const resProfile = await client.mutations.adminUpdateUserProfile({
+          email: String(detailsUser.email ?? "").trim().toLowerCase(),
+          fullName: newFullName,
           dashboardAccessEnabled: effectiveDashboardAccess,
           employeeId: normalizedEditEmployeeId,
           roleId: editRoleKey,
           roleName: selectedRoleName || undefined,
-          mobileNumber: editMobileNumber || null,
-          lineManagerEmail: editLineManagerEmail || null,
-          lineManagerName: editLineManagerEmail ? (selectedLineManagerName || undefined) : null,
+          mobileNumber: editMobileNumber || undefined,
+          lineManagerEmail: editLineManagerEmail || undefined,
+          lineManagerName: editLineManagerEmail ? (selectedLineManagerName || undefined) : undefined,
         } as any);
 
         const errsProfile = (resProfile as any)?.errors;
