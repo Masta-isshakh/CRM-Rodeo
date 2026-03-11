@@ -43,7 +43,7 @@ function extractGroups(groups: string[]): { adminGroup: boolean; deptKey: string
 
 function actorEmailFromEvent(event: any): string {
   const claims = event?.identity?.claims ?? event?.request?.userAttributes ?? {};
-  return normalizeKey(claims?.email ?? claims?.["cognito:username"] ?? "");
+  return normalizeKey(claims?.email ?? claims?.["cognito:username"] ?? event?.identity?.username ?? "");
 }
 
 function actorUsernameFromEvent(event: any): string {
@@ -56,6 +56,20 @@ function actorUsernameFromEvent(event: any): string {
 function actorSubFromEvent(event: any): string {
   const claims = event?.identity?.claims ?? event?.request?.userAttributes ?? {};
   return String(claims?.sub ?? "").trim();
+}
+
+function findDeptFromGroups(groups: string[]): string {
+  return String((groups ?? []).find((g) => String(g).startsWith(DEPT_PREFIX)) ?? "").trim();
+}
+
+function expandDepartmentCandidates(dept: string): string[] {
+  const d = String(dept ?? "").trim();
+  if (!d) return [];
+  if (d.startsWith(DEPT_PREFIX)) {
+    const bare = d.slice(DEPT_PREFIX.length);
+    return bare ? [d, bare] : [d];
+  }
+  return [d, `${DEPT_PREFIX}${d}`];
 }
 
 async function resolveGroups(
@@ -121,11 +135,16 @@ async function findUserProfileForActor(
   // Tier 3: lookup by sub (profileOwner match)
   if (sub) {
     try {
-      const bySub = await dataClient.models.UserProfile.list({
-        filter: { profileOwner: { eq: sub } },
-        limit: 1,
-      });
-      const row = (bySub?.data ?? [])[0] as any;
+      const all = await dataClient.models.UserProfile.list({
+        limit: 20000,
+      } as any);
+      const row = (all?.data ?? []).find((r: any) => {
+        const owner = String(r?.profileOwner ?? "").trim();
+        if (!owner) return false;
+        if (owner === sub) return true;
+        const ownerSub = owner.split("::")[0]?.trim();
+        return ownerSub === sub;
+      }) as any;
       if (row?.id) return { profile: row, email, username, sub };
     } catch {
       // continue
@@ -158,10 +177,9 @@ async function canDeleteUsers(
   const { profile, email, username, sub } = await findUserProfileForActor(dataClient, event);
   console.log(`[delete-user RBAC] actor profile: email=${email} username=${username} sub=${sub} dept=${profile?.departmentKey ?? "none"}`);
 
-  if (!profile?.id) return false;
-
   const actorRoleId = String(profile?.roleId ?? "").trim();
-  const dept = profile.departmentKey ?? deptKey;
+  const deptFromGroups = findDeptFromGroups([deptKey].filter(Boolean));
+  const dept = String(profile?.departmentKey ?? deptKey ?? deptFromGroups ?? "").trim();
   if (!actorRoleId && !dept) return false;
 
   try {
@@ -169,14 +187,19 @@ async function canDeleteUsers(
     if (actorRoleId) {
       roleIds = [actorRoleId];
     } else {
-      const deptLinks = await dataClient.models.DepartmentRoleLink.list({
-        filter: { departmentKey: { eq: dept } },
-        limit: 100,
-      });
-
-      roleIds = (deptLinks?.data ?? [])
-        .map((link: any) => String(link?.roleId ?? "").trim())
-        .filter((rid: any) => !!rid);
+      const candidates = expandDepartmentCandidates(dept);
+      const collected = new Set<string>();
+      for (const candidate of candidates) {
+        const deptLinks = await dataClient.models.DepartmentRoleLink.list({
+          filter: { departmentKey: { eq: candidate } },
+          limit: 100,
+        });
+        for (const link of deptLinks?.data ?? []) {
+          const rid = String((link as any)?.roleId ?? "").trim();
+          if (rid) collected.add(rid);
+        }
+      }
+      roleIds = Array.from(collected);
     }
 
     if (!roleIds.length) return false;
