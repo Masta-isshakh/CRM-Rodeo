@@ -138,10 +138,9 @@ async function findUserProfileForActor(
 function aggregateToggleMap(toggleRecords: any[]): Record<string, boolean | number> {
   const map: Record<string, boolean | number> = {};
   for (const t of toggleRecords) {
-    const k = normalizeKey(t?.toggleKey ?? "");
+    const k = normalizeKey(t?.key ?? "");
     if (!k) continue;
-    if (t.valueType === "boolean") map[k] = !!t.boolValue;
-    else if (t.valueType === "number") map[k] = Number(t.numValue ?? 0);
+    map[k] = !!t?.enabled;
   }
   return map;
 }
@@ -196,16 +195,18 @@ async function canDeleteUsers(
 
     if (moduleEnabled && deleteAllowedByOption) return true;
 
-    const policies = await dataClient.models.RolePolicy.list({
-      filter: { roleId: { eq: roleIds[0] } },
-      limit: 1000,
-    });
+    const roleIdSet = new Set(roleIds);
+    const policies = await dataClient.models.RolePolicy.list({ limit: 30000 } as any);
 
-    const usersPolicy = (policies?.data ?? []).find(
-      (p: any) => normalizeKey(p?.module ?? "") === "users_admin"
-    );
-
-    const canDelete = usersPolicy?.canDelete ?? false;
+    let canDelete = false;
+    for (const p of policies?.data ?? []) {
+      const rid = String((p as any)?.roleId ?? "").trim();
+      if (!roleIdSet.has(rid)) continue;
+      const key = normalizeKey((p as any)?.policyKey ?? "");
+      if (key !== "users_admin") continue;
+      canDelete = canDelete || Boolean((p as any)?.canDelete);
+      if (canDelete) break;
+    }
     console.log(`[delete-user RBAC] USERS_ADMIN policy canDelete: ${canDelete}`);
 
     return canDelete;
