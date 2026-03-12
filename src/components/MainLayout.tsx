@@ -80,7 +80,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   const [isDesktop, setIsDesktop] = useState<boolean>(detectDesktop);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(detectDesktop);
 
-  const { loading, email, isAdminGroup, can, canOption, refresh } = usePermissions();
+  const { loading, email, isAdminGroup, can, canOption, isModuleEnabled, refresh } = usePermissions();
   const canAny = (key: string) => ((can as any)(key) ?? EMPTY) as CrudPerm;
 
   // ✅ Customer permission resolver (supports both CUSTOMER and CUSTOMERS keys safely)
@@ -134,10 +134,14 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   }, [isAdminGroup, can, canOption, customerPerms]);
 
   const showAdmin = useMemo(() => {
+    const usersModuleEnabled = isModuleEnabled("users", true);
     const usersListAllowed = canOption("users", "users_list", true);
-    const usersRead = isAdminGroup || usersListAllowed;
+    const usersRead = isAdminGroup || (usersModuleEnabled && usersListAllowed);
+
+    const departmentsModuleEnabled = isModuleEnabled("departments", true);
     const departmentsListAllowed = canOption("departments", "departments_list", true);
-    const departmentsRead = isAdminGroup || departmentsListAllowed;
+    const departmentsRead = isAdminGroup || (departmentsModuleEnabled && departmentsListAllowed);
+
     const rolesRead = isAdminGroup || canAny("ROLES_POLICIES_ADMIN").canRead;
 
     return {
@@ -145,7 +149,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       departments: departmentsRead,
       rolespolicies: rolesRead && listOn("rolespolicies", "rolespolicies_list"),
     };
-  }, [isAdminGroup, can, canOption]);
+  }, [isAdminGroup, can, canOption, isModuleEnabled]);
 
   const nothingVisible =
     !loading &&
