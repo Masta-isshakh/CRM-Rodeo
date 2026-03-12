@@ -292,8 +292,11 @@ export const handler: Handler = async (event) => {
   const e = email.trim().toLowerCase();
   if (!e) throw new Error("Email is required.");
 
-  const userPoolId = process.env.AMPLIFY_AUTH_USERPOOL_ID;
-  if (!userPoolId) throw new Error("Missing AMPLIFY_AUTH_USERPOOL_ID env var.");
+  const userPoolId =
+    process.env.AMPLIFY_AUTH_USERPOOL_ID ||
+    process.env.USERPOOL_ID ||
+    process.env.USER_POOL_ID;
+  if (!userPoolId) throw new Error("Missing Cognito User Pool env var (AMPLIFY_AUTH_USERPOOL_ID/USERPOOL_ID/USER_POOL_ID).");
 
   // RBAC check: Verify actor is authorized to edit users
   const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);

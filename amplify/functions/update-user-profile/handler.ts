@@ -78,7 +78,7 @@ async function resolveGroups(
   const claims = event?.identity?.claims ?? event?.request?.userAttributes ?? {};
   let groups = pickGroupsFromClaims(claims);
 
-  if (!groups.length) {
+  if (!groups.length && userPoolId) {
     const username = actorUsernameFromEvent(event);
     if (username) {
       try {
@@ -247,13 +247,12 @@ export const handler: Handler = async (event) => {
     process.env.AMPLIFY_AUTH_USERPOOL_ID ||
     process.env.USERPOOL_ID ||
     process.env.USER_POOL_ID;
-  if (!userPoolId) throw new Error("Missing AMPLIFY_AUTH_USERPOOL_ID env var.");
 
   const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
   Amplify.configure(resourceConfig, libraryOptions);
   const dataClient = generateClient<Schema>();
 
-  const allowed = await canEditUsers(dataClient, event, userPoolId);
+  const allowed = await canEditUsers(dataClient, event, String(userPoolId ?? ""));
   if (!allowed) {
     throw new Error("Not authorized to edit users. Check roles and policies configuration.");
   }

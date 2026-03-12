@@ -269,8 +269,11 @@ export const handler = async (event: {
   identity?: any;
   request?: any;
 }) => {
-  const userPoolId = process.env.AMPLIFY_AUTH_USERPOOL_ID;
-  if (!userPoolId) throw new Error("Missing AMPLIFY_AUTH_USERPOOL_ID");
+  const userPoolId =
+    process.env.AMPLIFY_AUTH_USERPOOL_ID ||
+    process.env.USERPOOL_ID ||
+    process.env.USER_POOL_ID;
+  if (!userPoolId) throw new Error("Missing Cognito User Pool env var (AMPLIFY_AUTH_USERPOOL_ID/USERPOOL_ID/USER_POOL_ID)");
 
   const email = event.arguments.email.trim().toLowerCase();
   const departmentKey = event.arguments.departmentKey.trim();
