@@ -319,6 +319,17 @@ body,
   background: currentColor;
 }
 
+.crm-auth-loading {
+  width: 100%;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  color: #ffffff;
+  font-size: 18px;
+  font-weight: 600;
+  background: url("/background.jpg") center center / cover no-repeat fixed;
+}
+
 /* Shared module header style (match Exit Permit header) */
 .crm-unified-header {
   margin: 10px 0 14px !important;

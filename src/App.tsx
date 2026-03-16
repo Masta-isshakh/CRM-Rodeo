@@ -12,8 +12,32 @@ const ACCOUNT_BLOCK_MESSAGE_KEY = "crm.accountBlockMessage";
 const FAILED_LOGIN_TRACKER_KEY = "crm.failedLoginTracker";
 const FAILED_LOGIN_THRESHOLD = 5;
 const FAILED_LOGIN_LOCK_MINUTES = 15;
+const SESSION_CHECK_TIMEOUT_DEFAULT_MS = 15000;
+const SESSION_CHECK_TIMEOUT_MS = (() => {
+  const raw = Number(import.meta.env.VITE_SESSION_CHECK_TIMEOUT_MS ?? SESSION_CHECK_TIMEOUT_DEFAULT_MS);
+  return Number.isFinite(raw) && raw >= 1000 ? raw : SESSION_CHECK_TIMEOUT_DEFAULT_MS;
+})();
+const SESSION_DEBUG_LOCAL_STORAGE_KEY = "crm.debugSessionCheck";
 
 type FailedLoginTracker = Record<string, { count: number; lockedUntil: number }>;
+
+function withTimeout<T>(label: string, operation: () => Promise<T>, timeoutMs: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timeoutId = window.setTimeout(() => {
+      reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+    }, timeoutMs);
+
+    operation()
+      .then((value) => {
+        window.clearTimeout(timeoutId);
+        resolve(value);
+      })
+      .catch((error) => {
+        window.clearTimeout(timeoutId);
+        reject(error);
+      });
+  });
+}
 
 const crmAuthTheme = {
   name: "crm-auth-theme",
@@ -276,19 +300,42 @@ function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
   const { signOut } = useAuthenticator((context) => [context.user]);
   const [sessionChecked, setSessionChecked] = useState(false);
 
+  const safeSignOut = () => {
+    try {
+      signOut?.();
+    } catch {
+      // ignore sign-out failures and continue rendering
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
+    const debugEnabled =
+      import.meta.env.DEV ||
+      import.meta.env.VITE_DEBUG_SESSION_CHECK === "true" ||
+      window.localStorage.getItem(SESSION_DEBUG_LOCAL_STORAGE_KEY) === "true";
+    const debugLog = (...args: unknown[]) => {
+      if (debugEnabled) console.info("[session-check]", ...args);
+    };
 
     (async () => {
       try {
-        const user = await getCurrentUser();
+        debugLog("Starting session verification", { timeoutMs: SESSION_CHECK_TIMEOUT_MS });
+
+        const user = await withTimeout("getCurrentUser", () => getCurrentUser(), SESSION_CHECK_TIMEOUT_MS);
         const email = String(user?.signInDetails?.loginId ?? user?.username ?? "").trim().toLowerCase();
+        debugLog("User resolved", { hasEmail: Boolean(email) });
         if (!email) return;
 
-        const res = await client.models.UserProfile.list({
-          filter: { email: { eq: email } },
-          limit: 1,
-        } as any);
+        const res = await withTimeout(
+          "UserProfile.list",
+          () =>
+            client.models.UserProfile.list({
+            filter: { email: { eq: email } },
+            limit: 1,
+            } as any),
+          SESSION_CHECK_TIMEOUT_MS
+        );
         const row = (res?.data ?? [])[0] as any;
         if (!row) return;
 
@@ -301,14 +348,17 @@ function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
               ? "Your account is inactive. Please contact your administrator."
               : "Your dashboard access is disabled. Please contact your administrator."
           );
-          await signOut?.();
+          safeSignOut();
           return;
         }
 
         onBlocked("");
-      } catch {
-        // ignore; keep existing auth behavior
+      } catch (error) {
+        debugLog("Session verification failed", error);
+        onBlocked("We could not verify your session. Please sign in again.");
+        safeSignOut();
       } finally {
+        debugLog("Session verification completed");
         if (!cancelled) setSessionChecked(true);
       }
     })();
@@ -318,6 +368,13 @@ function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
     };
   }, [client, onBlocked, signOut]);
 
-  if (!sessionChecked) return null;
+  if (!sessionChecked) {
+    return (
+      <div className="crm-auth-loading" role="status" aria-live="polite">
+        Checking your session...
+      </div>
+    );
+  }
+
   return <MainLayout signOut={signOut || (() => {})} />;
 }

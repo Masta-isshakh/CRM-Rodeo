@@ -30,6 +30,7 @@ import "./mainLayout.css";
 
 import { usePermissions } from "../lib/userPermissions";
 import { ApprovalRequestsProvider } from "../pages/ApprovalRequestsContext";
+import { useLanguage } from "../i18n/LanguageContext";
 
 type Page =
   | "dashboard"
@@ -81,6 +82,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(detectDesktop);
 
   const { loading, email, isAdminGroup, can, canOption, isModuleEnabled, refresh } = usePermissions();
+  const { language, toggleLanguage, t } = useLanguage();
   const canAny = (key: string) => ((can as any)(key) ?? EMPTY) as CrudPerm;
 
   // ✅ Customer permission resolver (supports both CUSTOMER and CUSTOMERS keys safely)
@@ -256,30 +258,30 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     };
   }, [isDesktop, sidebarOpen]);
 
-  const title = "Rodeo Drive CRM";
+  const title = t("Rodeo Drive CRM");
 
   const pageTitleByKey: Record<Page, string> = {
-    dashboard: "Dashboard",
-    customers: "Customers",
-    vehicles: "Vehicles",
-    tickets: "Tickets",
-    employees: "Employees",
-    activitylog: "Activity Log",
-    jobcards: "Job Cards",
-    servicecreation: "Service Creation",
-    jobhistory: "Job History",
-    serviceexecution: "Service Execution",
-    paymentinvoices: "Payment & Invoices",
-    qualitycheck: "Quality Check",
-    exitpermit: "Exit Permit",
-    calltracking: "Call Tracking",
-    inspection: "Inspection",
-    users: "User Management",
-    departments: "Departments",
-    rolespolicies: "Roles & Policies",
+    dashboard: t("Dashboard"),
+    customers: t("Customers"),
+    vehicles: t("Vehicles"),
+    tickets: t("Tickets"),
+    employees: t("Employees"),
+    activitylog: t("Activity Log"),
+    jobcards: t("Job Cards"),
+    servicecreation: t("Service Creation"),
+    jobhistory: t("Job History"),
+    serviceexecution: t("Service Execution"),
+    paymentinvoices: t("Payment & Invoices"),
+    qualitycheck: t("Quality Check"),
+    exitpermit: t("Exit Permit"),
+    calltracking: t("Call Tracking"),
+    inspection: t("Inspection"),
+    users: t("User Management"),
+    departments: t("Departments"),
+    rolespolicies: t("Roles & Policies"),
   };
 
-  const activePageTitle = pageTitleByKey[page] ?? "Workspace";
+  const activePageTitle = pageTitleByKey[page] ?? t("Workspace");
 
   const initials = useMemo(() => {
     const e = (email || "").trim();
@@ -302,12 +304,12 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             <div className="drawer-brand">
               <img src={logo} alt="Rodeo Drive CRM Logo" className="brand-logo" />
               <div className="brand-text">
-                <div className="brand-title">Rodeo Drive</div>
-                <div className="brand-sub">CRM Console</div>
+                <div className="brand-title">{t("Rodeo Drive")}</div>
+                <div className="brand-sub">{t("CRM Console")}</div>
               </div>
             </div>
 
-            <button className="drawer-close" onClick={() => setSidebarOpen(false)} aria-label="Close menu">
+            <button className="drawer-close" onClick={() => setSidebarOpen(false)} aria-label={t("Close menu")}>
               ✕
             </button>
           </div>
@@ -315,111 +317,111 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
           <nav className="drawer-nav">
             {show.dashboard && (
               <button className={page === "dashboard" ? "active" : ""} onClick={() => go("dashboard")}>
-                <i className="fas fa-chart-line" aria-hidden="true" /> Dashboard
+                <i className="fas fa-chart-line" aria-hidden="true" /> {t("Dashboard")}
               </button>
             )}
 
             {show.customers && (
               <button className={page === "customers" ? "active" : ""} onClick={() => go("customers")}>
-                <i className="fas fa-users" aria-hidden="true" /> Customers
+                <i className="fas fa-users" aria-hidden="true" /> {t("Customers")}
               </button>
             )}
 
             {show.vehicles && (
               <button className={page === "vehicles" ? "active" : ""} onClick={() => go("vehicles")}>
-                <i className="fas fa-car" aria-hidden="true" /> Vehicles
+                <i className="fas fa-car" aria-hidden="true" /> {t("Vehicles")}
               </button>
             )}
 
             {show.jobcards && (
               <button className={page === "jobcards" ? "active" : ""} onClick={() => go("jobcards")}>
-                <i className="fas fa-tools" aria-hidden="true" /> Job Cards
+                <i className="fas fa-tools" aria-hidden="true" /> {t("Job Cards")}
               </button>
             )}
 
             {show.servicecreation && (
               <button className={page === "servicecreation" ? "active" : ""} onClick={() => go("servicecreation")}>
-                <i className="fas fa-plus-circle" aria-hidden="true" /> Service Creation
+                <i className="fas fa-plus-circle" aria-hidden="true" /> {t("Service Creation")}
               </button>
             )}
 
             {show.jobhistory && (
               <button className={page === "jobhistory" ? "active" : ""} onClick={() => go("jobhistory")}>
-                <i className="fas fa-history" aria-hidden="true" /> Job History
+                <i className="fas fa-history" aria-hidden="true" /> {t("Job History")}
               </button>
             )}
 
             {show.serviceexecution && (
               <button className={page === "serviceexecution" ? "active" : ""} onClick={() => go("serviceexecution")}>
-                <i className="fas fa-clipboard-check" aria-hidden="true" /> Service Execution
+                <i className="fas fa-clipboard-check" aria-hidden="true" /> {t("Service Execution")}
               </button>
             )}
 
             {show.paymentinvoices && (
               <button className={page === "paymentinvoices" ? "active" : ""} onClick={() => go("paymentinvoices")}>
-                <i className="fas fa-file-invoice-dollar" aria-hidden="true" /> Payment & Invoices
+                <i className="fas fa-file-invoice-dollar" aria-hidden="true" /> {t("Payment & Invoices")}
               </button>
             )}
 
             {show.qualitycheck && (
               <button className={page === "qualitycheck" ? "active" : ""} onClick={() => go("qualitycheck")}>
-                <i className="fas fa-check-double" aria-hidden="true" /> Quality Check
+                <i className="fas fa-check-double" aria-hidden="true" /> {t("Quality Check")}
               </button>
             )}
 
             {show.exitpermit && (
               <button className={page === "exitpermit" ? "active" : ""} onClick={() => go("exitpermit")}>
-                <i className="fas fa-id-card" aria-hidden="true" /> Exit Permit
+                <i className="fas fa-id-card" aria-hidden="true" /> {t("Exit Permit")}
               </button>
             )}
 
             {show.calltracking && (
               <button className={page === "calltracking" ? "active" : ""} onClick={() => go("calltracking")}>
-                <i className="fas fa-phone-alt" aria-hidden="true" /> Call Tracking
+                <i className="fas fa-phone-alt" aria-hidden="true" /> {t("Call Tracking")}
               </button>
             )}
 
             {show.inspection && (
               <button className={page === "inspection" ? "active" : ""} onClick={() => go("inspection")}>
-                <i className="fas fa-search" aria-hidden="true" /> Inspection
+                <i className="fas fa-search" aria-hidden="true" /> {t("Inspection")}
               </button>
             )}
 
             {show.tickets && (
               <button className={page === "tickets" ? "active" : ""} onClick={() => go("tickets")}>
-                <i className="fas fa-ticket-alt" aria-hidden="true" /> Tickets
+                <i className="fas fa-ticket-alt" aria-hidden="true" /> {t("Tickets")}
               </button>
             )}
 
             {show.employees && (
               <button className={page === "employees" ? "active" : ""} onClick={() => go("employees")}>
-                <i className="fas fa-user-tie" aria-hidden="true" /> Employees
+                <i className="fas fa-user-tie" aria-hidden="true" /> {t("Employees")}
               </button>
             )}
 
             {show.activitylog && (
               <button className={page === "activitylog" ? "active" : ""} onClick={() => go("activitylog")}>
-                <i className="fas fa-stream" aria-hidden="true" /> Activity Log
+                <i className="fas fa-stream" aria-hidden="true" /> {t("Activity Log")}
               </button>
             )}
 
             {(showAdmin.users || showAdmin.departments || showAdmin.rolespolicies) && (
               <div className="drawer-section">
-                <div className="drawer-section-label">Admin</div>
+                <div className="drawer-section-label">{t("Admin")}</div>
 
                 {showAdmin.users && (
                   <button className={page === "users" ? "active" : ""} onClick={() => go("users")}>
-                    <i className="fas fa-user-cog" aria-hidden="true" /> Users
+                    <i className="fas fa-user-cog" aria-hidden="true" /> {t("Users")}
                   </button>
                 )}
                 {showAdmin.departments && (
                   <button className={page === "departments" ? "active" : ""} onClick={() => go("departments")}>
-                    <i className="fas fa-sitemap" aria-hidden="true" /> Departments
+                    <i className="fas fa-sitemap" aria-hidden="true" /> {t("Departments")}
                   </button>
                 )}
                 {showAdmin.rolespolicies && (
                   <button className={page === "rolespolicies" ? "active" : ""} onClick={() => go("rolespolicies")}>
-                    <i className="fas fa-shield-alt" aria-hidden="true" /> Roles & Policies
+                    <i className="fas fa-shield-alt" aria-hidden="true" /> {t("Roles & Policies")}
                   </button>
                 )}
 
@@ -429,7 +431,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             <div className="drawer-spacer" />
 
             <button className="danger" onClick={signOut}>
-              <i className="fas fa-sign-out-alt" aria-hidden="true" /> Sign out
+              <i className="fas fa-sign-out-alt" aria-hidden="true" /> {t("Sign out")}
             </button>
           </nav>
         </aside>
@@ -437,7 +439,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
         <div className="layout-main">
           <header className="topbar">
             <div className="topbar-inner">
-              <button className="menu-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open menu" type="button">
+              <button className="menu-toggle" onClick={() => setSidebarOpen(true)} aria-label={t("Open menu")} type="button">
                 <span className="menu-toggle-icon" aria-hidden>
                   <span />
                   <span />
@@ -447,18 +449,21 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
               <div className="topbar-center">
                 <div className="topbar-kicker">
-                  <span className="topbar-chip">CRM Console</span>
+                  <span className="topbar-chip">{t("CRM Console")}</span>
                   <span className="topbar-page">{activePageTitle}</span>
                 </div>
                 <div className="topbar-title">{title}</div>
-                <div className="topbar-sub">{loading ? "Loading..." : `Signed in as: ${email || "-"}`}</div>
+                <div className="topbar-sub">{loading ? t("Loading...") : `${t("Signed in as:")} ${email || "-"}`}</div>
               </div>
 
               <div className="topbar-right">
+                <button className="lang-toggle" onClick={toggleLanguage} type="button" aria-label={t("Toggle language")}>
+                  {language === "en" ? "AR" : "EN"}
+                </button>
                 <div className="topbar-user" title={email || ""}>
                   <div className="topbar-user-meta">
-                    <div className="topbar-user-name">{(email || "User").split("@")[0]}</div>
-                    <div className="topbar-user-role">Active Session</div>
+                    <div className="topbar-user-name">{(email || t("User")).split("@")[0]}</div>
+                    <div className="topbar-user-role">{t("Active Session")}</div>
                   </div>
                   <div className="avatar">
                     {initials}
@@ -471,10 +476,11 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
           <main className="content">
             {nothingVisible && (
               <div className="no-access">
-                <h3>No access configured</h3>
+                <h3>{t("No access configured")}</h3>
                 <p>
-                  You are signed in, but no department → role → policy permissions were resolved for your account. Ask an Admin to
-                  assign a Department role + Role policies.
+                  {t(
+                    "You are signed in, but no department -> role -> policy permissions were resolved for your account. Ask an Admin to assign a Department role + Role policies."
+                  )}
                 </p>
               </div>
             )}

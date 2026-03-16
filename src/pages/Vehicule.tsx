@@ -11,6 +11,8 @@ import { resolveActorUsername } from "../utils/actorIdentity";
 import { normalizePaymentStatusLabel as normalizePaymentStatusLabelShared } from "../utils/paymentStatus";
 import { formatCustomerDisplayId } from "../utils/customerId";
 import { logActivity } from "../utils/activityLogger";
+import { QATAR_MANUFACTURERS, getModelsByManufacturer } from "../utils/vehicleCatalog";
+import { VEHICLE_COLORS } from "../utils/vehicleColors";
 import type { ReactNode } from "react";
 import { usePermissions } from "../lib/userPermissions";
 import PermissionGate from "./PermissionGate";
@@ -507,6 +509,49 @@ export default function VehicleManagement({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const manufacturerOptions = useMemo<Array<string | { value: string; label: string }>>(() => {
+    const options: Array<string | { value: string; label: string }> = [{ value: "", label: "Select manufacturer" }];
+    const make = form.make.trim();
+    if (make && !QATAR_MANUFACTURERS.includes(make)) {
+      options.push({ value: make, label: `${make} (current)` });
+    }
+    options.push(...QATAR_MANUFACTURERS);
+    return options;
+  }, [form.make]);
+
+  const catalogModelsForMake = useMemo(() => getModelsByManufacturer(form.make), [form.make]);
+  const selectedMakeHasCatalog = catalogModelsForMake.length > 0;
+
+  const modelOptions = useMemo<Array<string | { value: string; label: string }>>(() => {
+    const options: Array<string | { value: string; label: string }> = [{ value: "", label: "Select model" }];
+
+    if (!selectedMakeHasCatalog) {
+      const model = form.model.trim();
+      if (model) options.push({ value: model, label: `${model} (current)` });
+      return options;
+    }
+
+    options.push(...catalogModelsForMake);
+    return options;
+  }, [catalogModelsForMake, form.model, selectedMakeHasCatalog]);
+
+  const colorOptions = useMemo<Array<string | { value: string; label: string }>>(() => {
+    const options: Array<string | { value: string; label: string }> = [{ value: "", label: "Select color" }];
+    const color = form.color.trim();
+    if (color && !VEHICLE_COLORS.includes(color)) {
+      options.push({ value: color, label: `${color} (current)` });
+    }
+    options.push(...VEHICLE_COLORS);
+    return options;
+  }, [form.color]);
+
+  useEffect(() => {
+    if (!selectedMakeHasCatalog) return;
+    if (!form.model.trim()) return;
+    if (catalogModelsForMake.includes(form.model)) return;
+    setForm((prev) => ({ ...prev, model: "" }));
+  }, [catalogModelsForMake, form.model, selectedMakeHasCatalog]);
 
   // alert
   const [alert, setAlert] = useState<AlertState>({
@@ -1187,20 +1232,23 @@ export default function VehicleManagement({
               <FormField
                 label="Make"
                 id="editMake"
-                placeholder="e.g. Toyota"
+                type="select"
                 value={form.make}
                 onChange={(e) => setForm((p) => ({ ...p, make: e.target.value }))}
                 error={errors.make}
                 required
+                options={manufacturerOptions}
               />
               <FormField
                 label="Model"
                 id="editModel"
-                placeholder="e.g. Land Cruiser"
+                type="select"
                 value={form.model}
                 onChange={(e) => setForm((p) => ({ ...p, model: e.target.value }))}
                 error={errors.model}
                 required
+                options={modelOptions}
+                disabled={!form.make.trim()}
               />
               <FormField
                 label="Year"
@@ -1234,11 +1282,12 @@ export default function VehicleManagement({
               <FormField
                 label="Color"
                 id="editColor"
-                placeholder="e.g. Black"
+                type="select"
                 value={form.color}
                 onChange={(e) => setForm((p) => ({ ...p, color: e.target.value }))}
                 error={errors.color}
                 required
+                options={colorOptions}
               />
               <FormField
                 label="VIN"
@@ -1457,20 +1506,23 @@ export default function VehicleManagement({
             <FormField
               label="Make"
               id="newMake"
-              placeholder="e.g. Toyota"
+              type="select"
               value={form.make}
               onChange={(e) => setForm((p) => ({ ...p, make: e.target.value }))}
               error={errors.make}
               required
+              options={manufacturerOptions}
             />
             <FormField
               label="Model"
               id="newModel"
-              placeholder="e.g. Land Cruiser"
+              type="select"
               value={form.model}
               onChange={(e) => setForm((p) => ({ ...p, model: e.target.value }))}
               error={errors.model}
               required
+              options={modelOptions}
+              disabled={!form.make.trim()}
             />
 
             <FormField
@@ -1507,11 +1559,12 @@ export default function VehicleManagement({
             <FormField
               label="Color"
               id="newColor"
-              placeholder="e.g. Black"
+              type="select"
               value={form.color}
               onChange={(e) => setForm((p) => ({ ...p, color: e.target.value }))}
               error={errors.color}
               required
+              options={colorOptions}
             />
 
             <FormField

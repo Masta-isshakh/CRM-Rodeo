@@ -8,6 +8,8 @@ import { getUrl } from "aws-amplify/storage";
 import { normalizeActorIdentity, resolveActorDisplay, resolveActorUsername } from "../utils/actorIdentity";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { getDataClient } from "../lib/amplifyClient";
+import { QATAR_MANUFACTURERS, getModelsByManufacturer } from "../utils/vehicleCatalog";
+import { VEHICLE_COLORS } from "../utils/vehicleColors";
 
 import SuccessPopup from "./SuccessPopup";
 import ErrorPopup from "./ErrorPopup";
@@ -2163,13 +2165,16 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
 // ============================================
 function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomerData, onVehicleSelected, onNext, onBack, actorUsername }: any) {
   const [showNewVehicleForm, setShowNewVehicleForm] = useState(false);
-  const [factory, setFactory] = useState("Toyota");
+  const [factory, setFactory] = useState(QATAR_MANUFACTURERS[0] ?? "Toyota");
   const [model, setModel] = useState("");
   const [year, setYear] = useState<any>(new Date().getFullYear());
   const [license, setLicense] = useState("");
   const [carType, setCarType] = useState("SUV");
   const [color, setColor] = useState("");
   const [vinNumber, setVinNumber] = useState(""); // ✅ NEW manual VIN
+  const manufacturerOptions = QATAR_MANUFACTURERS;
+  const modelOptions = useMemo(() => getModelsByManufacturer(factory), [factory]);
+  const colorOptions = VEHICLE_COLORS;
 
   const hasVehicles = customerData?.vehicles && customerData.vehicles.length > 0;
 
@@ -2177,14 +2182,18 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
     if (!hasVehicles) setShowNewVehicleForm(true);
   }, [hasVehicles]);
 
+  useEffect(() => {
+    setModel((current) => (modelOptions.includes(current) ? current : ""));
+  }, [modelOptions]);
+
   const handleSaveNewVehicle = async () => {
     if (!(factory && model && year && license && carType && color)) return;
 
     const created = await createVehicleForCustomer({
       customerId: customerData.id,
       ownedBy: customerData.name,
-      make: factory,
-      model,
+      make: factory.trim(),
+      model: model.trim(),
       year: String(year),
       color,
       plateNumber: license,
@@ -2275,22 +2284,23 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
               <div className="form-group">
                 <label>Manufacturer *</label>
                 <select value={factory} onChange={(e) => setFactory(e.target.value)}>
-                  <option>Toyota</option>
-                  <option>Honda</option>
-                  <option>Nissan</option>
-                  <option>Ford</option>
-                  <option>BMW</option>
-                  <option>Mercedes</option>
-                  <option>Hyundai</option>
-                  <option>Kia</option>
-                  <option>Chevrolet</option>
-                  <option>Volkswagen</option>
-                  <option>Audi</option>
+                  {manufacturerOptions.map((manufacturer) => (
+                    <option key={manufacturer} value={manufacturer}>
+                      {manufacturer}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div className="form-group">
                 <label>Model *</label>
-                <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="e.g., Camry" />
+                <select value={model} onChange={(e) => setModel(e.target.value)} disabled={!modelOptions.length}>
+                  <option value="">Select model</option>
+                  {modelOptions.map((modelName) => (
+                    <option key={modelName} value={modelName}>
+                      {modelName}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 
@@ -2337,7 +2347,14 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
             <div className="form-row">
               <div className="form-group">
                 <label>Color *</label>
-                <input value={color} onChange={(e) => setColor(e.target.value)} placeholder="e.g., Silver Metallic" />
+                <select value={color} onChange={(e) => setColor(e.target.value)}>
+                  <option value="">Select color</option>
+                  {colorOptions.map((colorName) => (
+                    <option key={colorName} value={colorName}>
+                      {colorName}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 

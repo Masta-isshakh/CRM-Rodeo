@@ -273,8 +273,35 @@ body {
   display: flex;
   justify-content: flex-end;
   align-items: center;
+  gap: 8px;
   position: relative;
   z-index: 1;
+}
+
+.lang-toggle {
+  border: 1px solid #c9d9ec;
+  background: linear-gradient(180deg, #ffffff, #eff6ff);
+  color: #123559;
+  border-radius: 10px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  min-width: 48px;
+  cursor: pointer;
+}
+
+.lang-toggle:hover {
+  border-color: #95bcf0;
+  box-shadow: 0 8px 14px rgba(45, 110, 181, 0.18);
+}
+
+body.lang-ar .topbar-sub,
+body.lang-ar .topbar-page,
+body.lang-ar .drawer-section-label,
+body.lang-ar .drawer-nav button,
+body.lang-ar .brand-text {
+  direction: rtl;
 }
 
 .topbar-user {
@@ -418,6 +445,17 @@ body {
 
 .drawer.open { transform: translateX(0); }
 
+body.lang-ar .drawer {
+  inset: 0 0 0 auto;
+  border-right: none;
+  border-left: 1px solid rgba(255,255,255,0.10);
+  transform: translateX(106%);
+}
+
+body.lang-ar .drawer.open {
+  transform: translateX(0);
+}
+
 /* drawer header */
 .drawer-head {
   flex: 0 0 auto;
@@ -554,6 +592,10 @@ body {
   line-height: 1.2;
   white-space: normal;
   word-break: break-word;
+}
+
+body.lang-ar .drawer-nav button {
+  text-align: right;
 }
 
 /* subtle left indicator */
@@ -722,6 +764,12 @@ body {
   color: #0f172a;
 }
 
+body.lang-ar .layout-root.desktop-sidebar .drawer {
+  inset: 0 0 0 auto;
+  border-right: none;
+  border-left: 1px solid #e6ebf3;
+}
+
 .layout-root.desktop-sidebar .drawer-head {
   min-height: 60px;
   padding: 8px 12px;
@@ -837,6 +885,11 @@ body {
   padding-top: 0;
 }
 
+body.lang-ar .layout-root.desktop-sidebar .layout-main {
+  margin-left: 0;
+  margin-right: 280px;
+}
+
 .layout-root.desktop-sidebar .content > * {
   width: 100%;
   max-width: 100%;
@@ -867,6 +920,15 @@ body {
   align-items: center;
   text-align: left;
   min-width: 0;
+}
+
+body.lang-ar .layout-root.desktop-sidebar .topbar-center {
+  text-align: right;
+}
+
+body.lang-ar .topbar-inner::after,
+body.lang-ar .layout-root.desktop-sidebar .topbar-inner::after {
+  inset: 0 0 0 auto;
 }
 
 .layout-root.desktop-sidebar .topbar-kicker,
@@ -922,6 +984,11 @@ body {
     background: #ffffff;
     color: #0f172a;
     border-right: 1px solid #e4eaf4;
+  }
+
+  body.lang-ar .layout-root.mobile-sidebar .drawer {
+    border-right: none;
+    border-left: 1px solid #e4eaf4;
   }
 
   .layout-root.mobile-sidebar .drawer-head {

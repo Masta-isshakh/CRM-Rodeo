@@ -7,6 +7,16 @@ body {
   margin: 0;
 }
 
+html[dir="rtl"] body {
+  direction: rtl;
+}
+
+html[dir="rtl"] input,
+html[dir="rtl"] textarea,
+html[dir="rtl"] select {
+  text-align: right;
+}
+
 /* Unified Customer/Vehicle details style (screenshot parity) */
 .cv-unified-card {
   grid-column: 1 / -1 !important;
