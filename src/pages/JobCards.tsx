@@ -3312,33 +3312,20 @@ type DocUi = {
 function JobOrderDocumentsCard({ order }: any) {
   const docs: DocUi[] = Array.isArray(order?.documents) ? order.documents : [];
 
-  const downloadDocument = async (raw: string, name: string) => {
+  const docGeneratedAt = (doc: DocUi) =>
+    String(
+      doc?.addedAt ??
+        (doc as any)?.generatedAt ??
+        (doc as any)?.createdAt ??
+        (doc as any)?.uploadedAt ??
+        (doc as any)?.timestamp ??
+        ""
+    ).trim();
+
+  const downloadDocument = async (raw: string) => {
     const linkUrl = await resolveMaybeStorageUrl(raw);
     if (!linkUrl) return;
-
-    try {
-      const resp = await fetch(linkUrl);
-      if (!resp.ok) throw new Error(`Failed download: ${resp.status}`);
-      const blob = await resp.blob();
-      const objectUrl = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = objectUrl;
-      a.download = name || "document";
-      a.style.display = "none";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(objectUrl);
-    } catch {
-      const a = document.createElement("a");
-      a.href = linkUrl;
-      a.download = name || "document";
-      a.rel = "noopener noreferrer";
-      a.style.display = "none";
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-    }
+    window.open(linkUrl, "_blank", "noopener,noreferrer");
   };
 
   return (
@@ -3355,7 +3342,10 @@ function JobOrderDocumentsCard({ order }: any) {
             {docs.map((d, idx) => {
               const name = String(d?.name ?? "").trim() || `Document ${idx + 1}`;
               const raw = String(d?.storagePath || d?.url || "").trim();
-              const meta = [d?.type, d?.category, d?.paymentReference].filter(Boolean).join(" • ");
+              const generatedAt = docGeneratedAt(d);
+              const meta = [d?.type, d?.category, d?.paymentReference, generatedAt ? `Generated: ${generatedAt}` : ""]
+                .filter(Boolean)
+                .join(" • ");
 
               return (
                 <div key={d?.id ?? `${name}-${idx}`} className="jo-doc-row">
@@ -3371,7 +3361,7 @@ function JobOrderDocumentsCard({ order }: any) {
                         className="btn btn-primary jo-doc-btn"
                         disabled={!raw}
                         onClick={async () => {
-                          await downloadDocument(raw, name);
+                          await downloadDocument(raw);
                         }}
                         title={!raw ? "No file path/url available" : "Download"}
                       >

@@ -1358,6 +1358,18 @@
   transition: none !important;
 }
 
+.epm-container .btn-action-dropdown,
+.epm-container .btn-action-dropdown:hover,
+.epm-container .btn-action-dropdown:active,
+.epm-container .btn-action-dropdown.active,
+.epm-container button,
+.epm-container .epm-pagination-btn {
+  background: #fff !important;
+  color: var(--epm-primary) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
 .epm-container,
 .epm-container .epm-header,
 .epm-container .epm-main-content,

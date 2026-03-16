@@ -791,6 +791,23 @@
   transition: none !important;
 }
 
+.btn-action-dropdown,
+.btn-action-dropdown:hover,
+.btn-action-dropdown:active,
+.btn-action-dropdown.active,
+.pim-btn-close-details,
+.pim-btn,
+.pim-btn-primary,
+.pim-btn-success,
+.pim-btn-warn,
+.pim-btn-dark,
+.pim-btn-ghost {
+  background: #fff !important;
+  color: var(--primary) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
 .action-dropdown-menu-fixed {
   will-change: auto !important;
   transform: none !important;

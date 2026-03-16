@@ -218,6 +218,15 @@ html[dir="rtl"] select {
   overflow-wrap: anywhere;
 }
 
+/* Global performance override: remove animation/transition delays app-wide. */
+*,
+*::before,
+*::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+
 .bi-unified-card .bi-summary .jh-green,
 .bi-unified-card .bi-summary .jh-red,
 .bi-unified-card .bi-summary .pim-green,

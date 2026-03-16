@@ -1415,6 +1415,18 @@ body{
   transition: none !important;
 }
 
+.inspection-module .btn-action-dropdown,
+.inspection-module .btn-action-dropdown:hover,
+.inspection-module .btn-action-dropdown:active,
+.inspection-module .btn-action-dropdown.active,
+.inspection-module button,
+.inspection-module .pagination-btn {
+  background: #fff !important;
+  color: var(--blue) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
 .inspection-module,
 .inspection-module .app-container,
 .inspection-module .app-header,

@@ -705,14 +705,14 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         ? parsed.documents
         : (Array.isArray(detailed?.documents) ? detailed.documents : []);
 
-      const payRows = await loadPaymentsRaw(String(detailed._backendId));
+      const [payRows, approvals, invoices] = await Promise.all([
+        loadPaymentsRaw(String(detailed._backendId)),
+        loadApprovalRequests(String(orderNumber)),
+        loadNormalizedInvoices(String(detailed._backendId)),
+      ]);
       setPaymentRowsRaw(payRows);
       const paymentActivityLog = mapPaymentLog(payRows);
-
-      const approvals = await loadApprovalRequests(String(orderNumber));
       setApprovalRequests(approvals);
-
-      const invoices = await loadNormalizedInvoices(String(detailed._backendId));
       setNormalizedInvoices(invoices);
 
       const totalAmountRaw = resolveAuthoritativeTotalAmount(parsed, detailed, row);
@@ -1706,6 +1706,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                           <div className="pim-doc-name">{doc.name}</div>
                           <div className="pim-doc-meta">
                             {doc.type}{doc.category ? ` • ${doc.category}` : ""}{doc.paymentReference ? ` • ${doc.paymentReference}` : ""}
+                            {String(doc?.addedAt ?? (doc as any)?.generatedAt ?? (doc as any)?.createdAt ?? (doc as any)?.uploadedAt ?? (doc as any)?.timestamp ?? "").trim()
+                              ? ` • Generated: ${String(doc?.addedAt ?? (doc as any)?.generatedAt ?? (doc as any)?.createdAt ?? (doc as any)?.uploadedAt ?? (doc as any)?.timestamp ?? "").trim()}`
+                              : ""}
                           </div>
                         </div>
 
@@ -1717,10 +1720,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                               const raw = String(doc.storagePath || doc.url || "");
                               const linkUrl = await resolveMaybeStorageUrl(raw);
                               if (!linkUrl) return;
-                              const a = document.createElement("a");
-                              a.href = linkUrl;
-                              a.download = doc.name || "document";
-                              a.click();
+                              window.open(linkUrl, "_blank", "noopener,noreferrer");
                             }}
                           >
                             <i className="fas fa-download"></i> Download

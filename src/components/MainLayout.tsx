@@ -302,7 +302,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
         <aside className={`drawer ${isDesktop || sidebarOpen ? "open" : ""}`} aria-hidden={!isDesktop && !sidebarOpen}>
           <div className="drawer-head">
             <div className="drawer-brand">
-              <img src={logo} alt="Rodeo Drive CRM Logo" className="brand-logo" />
+              <img src={logo} alt={t("Rodeo Drive CRM Logo")} className="brand-logo" />
               <div className="brand-text">
                 <div className="brand-title">{t("Rodeo Drive")}</div>
                 <div className="brand-sub">{t("CRM Console")}</div>

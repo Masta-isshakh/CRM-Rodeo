@@ -363,13 +363,14 @@ function InspectionModule({ currentUser }: any) {
       setActiveOrder(order);
       setDetailData(deriveDetailData(order, row));
 
-      const state = await getInspectionState(order._backendId);
+      const [state, rep] = await Promise.all([
+        getInspectionState(order._backendId),
+        getInspectionReport(order._backendId),
+      ]);
       if (state) {
         setInspectionState(state);
         setResumeAvailable({ exterior: true, interior: true });
       }
-
-      const rep = await getInspectionReport(order._backendId);
       setReportHtml(rep);
 
       hydratedRef.current = true;
@@ -840,11 +841,8 @@ function InspectionModule({ currentUser }: any) {
     if (!reportHtml || !activeRow?.id) return;
     const blob = new Blob([reportHtml], { type: "text/html" });
     const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `Inspection_Result_${activeRow.id}.html`;
-    a.click();
-    URL.revokeObjectURL(url);
+    window.open(url, "_blank", "noopener,noreferrer");
+    window.setTimeout(() => URL.revokeObjectURL(url), 3000);
   };
 
   const [currentAddServiceOrder, setCurrentAddServiceOrder] = useState<any>(null);
@@ -1048,6 +1046,23 @@ function InspectionModule({ currentUser }: any) {
                       <button className="btn btn-primary" onClick={downloadReport}>
                         <i className="fas fa-download"></i> Download Inspection Report
                       </button>
+                      <div style={{ marginTop: 8, fontSize: 12, opacity: 0.85 }}>
+                        Generated: {
+                          String(
+                            Array.isArray(activeOrder?.documents)
+                              ? (
+                                  activeOrder.documents.find(
+                                    (d: any) => String(d?.type ?? "").trim().toLowerCase() === "inspection report"
+                                  )?.addedAt ??
+                                  activeOrder.documents.find(
+                                    (d: any) => String(d?.type ?? "").trim().toLowerCase() === "inspection report"
+                                  )?.createdAt ??
+                                  "—"
+                                )
+                              : "—"
+                          )
+                        }
+                      </div>
                     </div>
                   )}
                 </>

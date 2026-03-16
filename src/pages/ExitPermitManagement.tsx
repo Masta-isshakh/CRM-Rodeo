@@ -1261,6 +1261,9 @@ const DocumentsCard = ({ order }: any) => {
               <div className="epm-doc-name">{doc.name || doc.title || `Document ${idx + 1}`}</div>
               <div className="epm-doc-meta">
                 {doc.type || ""} {doc.category ? `• ${doc.category}` : ""}
+                {String(doc?.addedAt ?? doc?.generatedAt ?? doc?.createdAt ?? doc?.uploadedAt ?? doc?.timestamp ?? "").trim()
+                  ? ` • Generated: ${String(doc?.addedAt ?? doc?.generatedAt ?? doc?.createdAt ?? doc?.uploadedAt ?? doc?.timestamp ?? "").trim()}`
+                  : ""}
               </div>
             </div>
 
@@ -1272,10 +1275,7 @@ const DocumentsCard = ({ order }: any) => {
                   const raw = String(doc.storagePath || doc.url || doc.fileData || "");
                   const url = await resolveDocUrlLocal(raw);
                   if (!url) return;
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = doc.name || doc.title || "document";
-                  a.click();
+                  window.open(url, "_blank", "noopener,noreferrer");
                 }}
               >
                 <i className="fas fa-download"></i> Download

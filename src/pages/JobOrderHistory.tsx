@@ -797,12 +797,9 @@ export default function JobOrderHistory({
     }
 
     const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(blob);
-    link.download = `job_history_${exportDates.startDate}_to_${exportDates.endDate}.csv`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const blobUrl = URL.createObjectURL(blob);
+    window.open(blobUrl, "_blank", "noopener,noreferrer");
+    window.setTimeout(() => URL.revokeObjectURL(blobUrl), 3000);
 
     setShowExportModal(false);
   };
@@ -820,13 +817,16 @@ export default function JobOrderHistory({
 
       const parsed = safeJsonParse<any>(row?.dataJson, {});
 
-      // customer details
-      const customerDetails =
-        row?.customerId ? await loadCustomerDetails(client, String(row.customerId)) : null;
-
-      // vehicle details from JobOrder row (+ try vehicleId by plate)
+      // vehicle plate (sync from row)
       const vehiclePlate = String(row?.plateNumber ?? detailed?.vehiclePlate ?? parsed?.plateNumber ?? "");
-      const vehicleId = await loadVehicleIdByPlate(client, vehiclePlate);
+
+      // parallel: customer details, vehicle id, roadmap steps, invoices — all independent from each other
+      const [customerDetails, vehicleId, normalizedRoadmap, normalizedInvoices] = await Promise.all([
+        row?.customerId ? loadCustomerDetails(client, String(row.customerId)) : Promise.resolve(null),
+        loadVehicleIdByPlate(client, vehiclePlate),
+        loadNormalizedRoadmap(client, String(detailed._backendId)),
+        loadNormalizedInvoices(client, String(detailed._backendId)),
+      ]);
 
       const vehicleDetails = {
         vehicleId: vehicleId ?? "N/A",
@@ -841,8 +841,6 @@ export default function JobOrderHistory({
         registrationDate: null,
       };
 
-      // roadmap: prefer normalized steps if exist
-      const normalizedRoadmap = await loadNormalizedRoadmap(client, String(detailed._backendId));
       const detailedRoadmap = Array.isArray(detailed?.roadmap) ? detailed.roadmap : [];
       const parsedRoadmap = Array.isArray(parsed?.roadmap) ? parsed.roadmap : [];
       const roadmap: RoadmapStepUi[] = mergeRoadmapSources(
@@ -851,9 +849,6 @@ export default function JobOrderHistory({
         parsedRoadmap,
         String(row?.createdAt ?? "")
       );
-
-      // invoices: normalized tables
-      const normalizedInvoices = await loadNormalizedInvoices(client, String(detailed._backendId));
 
       // documents: prefer parsed/documents, but accept detailed.documents as well
       const documents: DocUi[] =
@@ -961,7 +956,6 @@ export default function JobOrderHistory({
 
   const summarySourceOrder = {
     ...detailed,
-    ...parsed,
     roadmap,
     customerDetails,
     vehicleDetails,
@@ -1523,7 +1517,16 @@ function JobHistoryDetails({
                       <div className="jh-doc-left">
                         <div className="jh-doc-name">{d.name}</div>
                         <div className="jh-doc-meta">
-                          {[d.type, d.category, d.paymentReference].filter(Boolean).join(" • ")}
+                          {[
+                            d.type,
+                            d.category,
+                            d.paymentReference,
+                            String((d as any)?.addedAt ?? (d as any)?.generatedAt ?? (d as any)?.createdAt ?? (d as any)?.uploadedAt ?? (d as any)?.timestamp ?? "").trim()
+                              ? `Generated: ${String((d as any)?.addedAt ?? (d as any)?.generatedAt ?? (d as any)?.createdAt ?? (d as any)?.uploadedAt ?? (d as any)?.timestamp ?? "").trim()}`
+                              : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" • ")}
                         </div>
                       </div>
 
@@ -1535,10 +1538,7 @@ function JobHistoryDetails({
                             const raw = String(d.storagePath || d.url || "");
                             const linkUrl = await resolveMaybeStorageUrl(raw);
                             if (!linkUrl) return;
-                            const a = document.createElement("a");
-                            a.href = linkUrl;
-                            a.download = d.name || "document";
-                            a.click();
+                            window.open(linkUrl, "_blank", "noopener,noreferrer");
                           }}
                         >
                           <i className="fas fa-download" /> Download

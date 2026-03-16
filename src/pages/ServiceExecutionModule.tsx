@@ -714,22 +714,95 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
       const rowRes = await client.models.JobOrder.get({ id: detailed._backendId } as any);
       const row = (rowRes as any)?.data ?? null;
+      const parsed = safeJsonParse<any>(row?.dataJson, {});
 
-      const customerDetails: any = {};
-      if (row?.customerId) {
-        try {
-          const cRes = await client.models.Customer.get({ id: row.customerId } as any);
-          const c = (cRes as any)?.data;
-          if (c?.id) {
-            customerDetails.customerId = c.id;
-            customerDetails.email = c.email ?? row.customerEmail ?? null;
-            customerDetails.address = c.notes ?? row.customerNotes ?? null;
-            customerDetails.customerSince = c.createdAt
-              ? new Date(String(c.createdAt)).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
-              : "";
+      const [paymentRows, normalizedInvoices, customerDetails] = await Promise.all([
+        (async () => {
+          try {
+            const byIdx = await (client.models.JobOrderPayment as any).listPaymentsByJobOrder?.({
+              jobOrderId: String(detailed._backendId),
+              limit: 500,
+            });
+            return byIdx?.data ?? [];
+          } catch {
+            const pRes = await client.models.JobOrderPayment.list({
+              limit: 500,
+              filter: { jobOrderId: { eq: String(detailed._backendId) } } as any,
+            });
+            return pRes?.data ?? [];
           }
-        } catch {}
-      }
+        })(),
+        (async () => {
+          try {
+            let invRows: any[] = [];
+            try {
+              const byIdxInv = await (client.models.JobOrderInvoice as any).listInvoicesByJobOrder?.({
+                jobOrderId: String(detailed._backendId),
+                limit: 500,
+              });
+              invRows = byIdxInv?.data ?? [];
+            } catch {
+              const invRes = await client.models.JobOrderInvoice.list({
+                limit: 500,
+                filter: { jobOrderId: { eq: String(detailed._backendId) } } as any,
+              });
+              invRows = invRes?.data ?? [];
+            }
+
+            invRows.sort((a, b) => String(a?.createdAt ?? "").localeCompare(String(b?.createdAt ?? "")));
+
+            return await Promise.all(
+              invRows.map(async (inv) => {
+                const invoiceId = String(inv?.id ?? "");
+                let svcRows: any[] = [];
+                try {
+                  const byIdxSvc = await (client.models.JobOrderInvoiceService as any).listInvoiceServicesByInvoice?.({
+                    invoiceId,
+                    limit: 500,
+                  });
+                  svcRows = byIdxSvc?.data ?? [];
+                } catch {
+                  const svcRes = await client.models.JobOrderInvoiceService.list({
+                    limit: 500,
+                    filter: { invoiceId: { eq: invoiceId } } as any,
+                  });
+                  svcRows = svcRes?.data ?? [];
+                }
+
+                return {
+                  id: invoiceId,
+                  number: String(inv?.number ?? "—"),
+                  amount: toNum(inv?.amount),
+                  discount: toNum(inv?.discount),
+                  status: String(inv?.status ?? "Unpaid"),
+                  paymentMethod: inv?.paymentMethod ?? null,
+                  createdAt: inv?.createdAt ?? null,
+                  services: svcRows.map((s) => String(s?.serviceName ?? "").trim()).filter(Boolean),
+                };
+              })
+            );
+          } catch {
+            return [];
+          }
+        })(),
+        (async () => {
+          const out: any = {};
+          if (!row?.customerId) return out;
+          try {
+            const cRes = await client.models.Customer.get({ id: row.customerId } as any);
+            const c = (cRes as any)?.data;
+            if (c?.id) {
+              out.customerId = c.id;
+              out.email = c.email ?? row.customerEmail ?? null;
+              out.address = c.notes ?? row.customerNotes ?? null;
+              out.customerSince = c.createdAt
+                ? new Date(String(c.createdAt)).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+                : "";
+            }
+          } catch {}
+          return out;
+        })(),
+      ]);
 
       const vehicleDetails: any = {
         make: row?.vehicleMake ?? null,
@@ -740,23 +813,6 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
         plateNumber: row?.plateNumber ?? detailed.vehiclePlate ?? null,
         vin: row?.vin ?? null,
       };
-
-      const parsed = safeJsonParse<any>(row?.dataJson, {});
-
-      let paymentRows: any[] = [];
-      try {
-        const byIdx = await (client.models.JobOrderPayment as any).listPaymentsByJobOrder?.({
-          jobOrderId: String(detailed._backendId),
-          limit: 500,
-        });
-        paymentRows = byIdx?.data ?? [];
-      } catch {
-        const pRes = await client.models.JobOrderPayment.list({
-          limit: 500,
-          filter: { jobOrderId: { eq: String(detailed._backendId) } } as any,
-        });
-        paymentRows = pRes?.data ?? [];
-      }
 
       const paymentActivityLog = [...paymentRows]
         .sort((a, b) => String(a?.paidAt ?? a?.createdAt ?? "").localeCompare(String(b?.paidAt ?? b?.createdAt ?? "")))
@@ -772,59 +828,6 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                 ? new Date(String(p.createdAt)).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
                 : "—"),
         }));
-
-      let normalizedInvoices: any[] = [];
-      try {
-        let invRows: any[] = [];
-        try {
-          const byIdxInv = await (client.models.JobOrderInvoice as any).listInvoicesByJobOrder?.({
-            jobOrderId: String(detailed._backendId),
-            limit: 500,
-          });
-          invRows = byIdxInv?.data ?? [];
-        } catch {
-          const invRes = await client.models.JobOrderInvoice.list({
-            limit: 500,
-            filter: { jobOrderId: { eq: String(detailed._backendId) } } as any,
-          });
-          invRows = invRes?.data ?? [];
-        }
-
-        invRows.sort((a, b) => String(a?.createdAt ?? "").localeCompare(String(b?.createdAt ?? "")));
-
-        const out: any[] = [];
-        for (const inv of invRows) {
-          const invoiceId = String(inv?.id ?? "");
-          let svcRows: any[] = [];
-          try {
-            const byIdxSvc = await (client.models.JobOrderInvoiceService as any).listInvoiceServicesByInvoice?.({
-              invoiceId,
-              limit: 500,
-            });
-            svcRows = byIdxSvc?.data ?? [];
-          } catch {
-            const svcRes = await client.models.JobOrderInvoiceService.list({
-              limit: 500,
-              filter: { invoiceId: { eq: invoiceId } } as any,
-            });
-            svcRows = svcRes?.data ?? [];
-          }
-
-          out.push({
-            id: invoiceId,
-            number: String(inv?.number ?? "—"),
-            amount: toNum(inv?.amount),
-            discount: toNum(inv?.discount),
-            status: String(inv?.status ?? "Unpaid"),
-            paymentMethod: inv?.paymentMethod ?? null,
-            createdAt: inv?.createdAt ?? null,
-            services: svcRows.map((s) => String(s?.serviceName ?? "").trim()).filter(Boolean),
-          });
-        }
-        normalizedInvoices = out;
-      } catch {
-        normalizedInvoices = [];
-      }
 
       const totalAmountRaw = toNum(pickBillingFirstValue("totalAmount", detailed, row, parsed));
       const discountRaw = toNum(pickBillingFirstValue("discount", detailed, row, parsed));
@@ -1494,6 +1497,9 @@ function DocumentsCard({ order, resolveUrl }: any) {
                   <div className="sem-doc-meta">
                     {doc.type} {doc.category ? `• ${doc.category}` : ""}
                     {doc.paymentReference ? ` • ${doc.paymentReference}` : ""}
+                    {String(doc?.addedAt ?? doc?.generatedAt ?? doc?.createdAt ?? doc?.uploadedAt ?? doc?.timestamp ?? "").trim()
+                      ? ` • Generated: ${String(doc?.addedAt ?? doc?.generatedAt ?? doc?.createdAt ?? doc?.uploadedAt ?? doc?.timestamp ?? "").trim()}`
+                      : ""}
                   </div>
                 </div>
               </div>
@@ -1504,10 +1510,7 @@ function DocumentsCard({ order, resolveUrl }: any) {
                 const raw = doc.storagePath || doc.url || "";
                 const linkUrl = await resolveUrl(raw);
                 if (!linkUrl) return;
-                const a = document.createElement("a");
-                a.href = linkUrl;
-                a.download = doc.name || "document";
-                a.click();
+                window.open(linkUrl, "_blank", "noopener,noreferrer");
               }}
               className="sem-doc-download-btn"
             >

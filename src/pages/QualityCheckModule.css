@@ -1197,6 +1197,18 @@
   transition: none !important;
 }
 
+.quality-check-module .btn-action-dropdown,
+.quality-check-module .btn-action-dropdown:hover,
+.quality-check-module .btn-action-dropdown:active,
+.quality-check-module .btn-action-dropdown.active,
+.quality-check-module button,
+.quality-check-module .pagination-btn {
+  background: #fff !important;
+  color: var(--qc-primary) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+
 .quality-check-module,
 .quality-check-module .app-container,
 .quality-check-module .app-header,

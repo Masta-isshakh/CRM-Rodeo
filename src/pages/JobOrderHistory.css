@@ -165,9 +165,9 @@
 }
 
 .jh-btn-primary{
-  background: var(--jh-blue);
+  background: #fff;
   border-color: rgba(37,99,235,.35);
-  color: #fff;
+  color: var(--jh-blue);
 }
 
 .jh-btn-secondary{
@@ -851,6 +851,19 @@
 .jh-details * {
   animation: none !important;
   transition: none !important;
+}
+
+.jh-root button,
+.jh-details button,
+.jh-btn,
+.jh-btn-primary,
+.jh-btn-secondary,
+.jh-btn-ghost,
+.jh-pagebtn {
+  background: #fff !important;
+  color: var(--jh-text) !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
 
 /* 98% width shell across list + details */

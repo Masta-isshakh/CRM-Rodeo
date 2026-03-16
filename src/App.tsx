@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Component, type ErrorInfo, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Authenticator, ThemeProvider, useAuthenticator, TextField } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
 import { getCurrentUser, signIn } from "aws-amplify/auth";
@@ -6,6 +6,7 @@ import MainLayout from "./components/MainLayout";
 import SetPasswordPage from "./pages/SetPassword";
 import { getDataClient } from "./lib/amplifyClient";
 import appLogo from "./assets/logo.jpeg";
+import { LANGUAGE_STORAGE_KEY, translateTextValue, type LanguageCode } from "./i18n/translations";
 import "./App.css";
 
 const ACCOUNT_BLOCK_MESSAGE_KEY = "crm.accountBlockMessage";
@@ -37,6 +38,54 @@ function withTimeout<T>(label: string, operation: () => Promise<T>, timeoutMs: n
         reject(error);
       });
   });
+}
+
+function resolveUiLanguage(): LanguageCode {
+  try {
+    const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    if (stored === "ar" || stored === "en") return stored;
+  } catch {
+    // ignore storage access issues
+  }
+  return "en";
+}
+
+function tr(englishText: string): string {
+  return translateTextValue(englishText, resolveUiLanguage());
+}
+
+type AppErrorBoundaryProps = { children: ReactNode };
+type AppErrorBoundaryState = { hasError: boolean; message: string };
+
+class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorBoundaryState> {
+  state: AppErrorBoundaryState = { hasError: false, message: "" };
+
+  static getDerivedStateFromError(error: unknown): AppErrorBoundaryState {
+    return {
+      hasError: true,
+      message: error instanceof Error ? error.message : "Unknown runtime error",
+    };
+  }
+
+  componentDidCatch(error: unknown, info: ErrorInfo) {
+    // Keep diagnostics in console for local troubleshooting.
+    console.error("[app-error-boundary]", error, info);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="crm-app-error-fallback" role="alert">
+          <h2>{tr("Application failed to load")}</h2>
+          <p>{this.state.message || tr("Unexpected error while rendering.")}</p>
+          <button type="button" onClick={() => window.location.reload()}>
+            {tr("Reload application")}
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
 }
 
 const crmAuthTheme = {
@@ -113,8 +162,8 @@ const authComponents = {
     Header() {
       return (
         <div className="crm-auth-signin-head">
-          <img src={appLogo} alt="CRM Logo" className="crm-auth-logo" />
-          <h1>Login</h1>
+          <img src={appLogo} alt={tr("CRM Logo")} className="crm-auth-logo" />
+          <h1>{tr("Login")}</h1>
         </div>
       );
     },
@@ -123,23 +172,23 @@ const authComponents = {
 
       const rules = [
         {
-          label: "At least 8 characters",
+            label: tr("At least 8 characters"),
           valid: password.length >= 8,
         },
         {
-          label: "At least 1 uppercase letter",
+            label: tr("At least 1 uppercase letter"),
           valid: /[A-Z]/.test(password),
         },
         {
-          label: "At least 1 lowercase letter",
+            label: tr("At least 1 lowercase letter"),
           valid: /[a-z]/.test(password),
         },
         {
-          label: "At least 1 number",
+            label: tr("At least 1 number"),
           valid: /\d/.test(password),
         },
         {
-          label: "At least 1 special character",
+            label: tr("At least 1 special character"),
           valid: /[^A-Za-z0-9]/.test(password),
         },
       ];
@@ -151,8 +200,8 @@ const authComponents = {
             name="username"
             type="email"
             autoComplete="username"
-            label="Email"
-            placeholder="Enter your email"
+              label={tr("Email")}
+            placeholder={tr("Enter your email")}
             required
           />
 
@@ -160,15 +209,15 @@ const authComponents = {
             name="password"
             type="password"
             autoComplete="current-password"
-            label="Password"
-            placeholder="Enter your password"
+              label={tr("Password")}
+            placeholder={tr("Enter your password")}
             onChange={(e) => setPassword((e.target as HTMLInputElement).value)}
             required
           />
 
           {!allRulesMet && (
             <div className="crm-auth-password-rules" aria-live="polite">
-              <div className="crm-auth-password-rules-title">Password requirements</div>
+                <div className="crm-auth-password-rules-title">{tr("Password requirements")}</div>
               <ul>
                 {rules.map((rule) => (
                   <li key={rule.label} className={rule.valid ? "met" : "unmet"}>
@@ -183,9 +232,9 @@ const authComponents = {
           <div className="crm-auth-meta-row" aria-hidden="true">
             <label className="crm-auth-remember">
               <input type="checkbox" />
-              <span>Remember me</span>
+              <span>{tr("Remember me")}</span>
             </label>
-            <span className="crm-auth-forgot-text">Forgot Password?</span>
+            <span className="crm-auth-forgot-text">{tr("Forgot Password?")}</span>
           </div>
         </div>
       );
@@ -275,15 +324,19 @@ export default function App() {
 
   // ✅ allow public set-password route
   if (path.startsWith("/set-password")) {
-    return <SetPasswordPage />;
+    return (
+      <AppErrorBoundary>
+        <SetPasswordPage />
+      </AppErrorBoundary>
+    );
   }
 
   return (
-    <>
+    <AppErrorBoundary>
       {blockedMessage && (
         <div className="crm-auth-block-banner" role="alert">
           <span>{blockedMessage}</span>
-          <button type="button" onClick={() => setBlocked("")}>Dismiss</button>
+          <button type="button" onClick={() => setBlocked("")}>{tr("Dismiss")}</button>
         </div>
       )}
       <ThemeProvider theme={crmAuthTheme as any}>
@@ -291,7 +344,7 @@ export default function App() {
           {() => <AppContent onBlocked={setBlocked} />}
         </Authenticator>
       </ThemeProvider>
-    </>
+    </AppErrorBoundary>
   );
 }
 
@@ -371,7 +424,7 @@ function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
   if (!sessionChecked) {
     return (
       <div className="crm-auth-loading" role="status" aria-live="polite">
-        Checking your session...
+        {tr("Checking your session...")}
       </div>
     );
   }

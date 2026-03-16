@@ -295,6 +295,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
 
   /* -------------------- details loader -------------------- */
   const viewDetails = async (job: QCListRow) => {
+    setScreenState("details");
     setLoading(true);
     try {
       const detailed = await getJobOrderByOrderNumber(job.id);
@@ -338,10 +339,10 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
       };
 
       setSelectedOrder(merged);
-      setScreenState("details");
     } catch (e) {
       setPopupMessage(`Load failed: ${errMsg(e)}`);
       setShowPopup(true);
+      setScreenState("main");
     } finally {
       setLoading(false);
     }
@@ -1045,12 +1046,18 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
 
                     <div className="pim-docs">
                       {docs.map((doc: any, idx: number) => (
+                        (() => {
+                          const generatedAt = String(
+                            doc?.addedAt ?? doc?.generatedAt ?? doc?.createdAt ?? doc?.uploadedAt ?? doc?.timestamp ?? ""
+                          ).trim();
+                          return (
                         <div key={doc.id || idx} className="pim-doc">
                           <div className="pim-doc-left">
                             <div className="pim-doc-name">{doc.name}</div>
                             <div className="pim-doc-meta">
                               {doc.type}
                               {doc.category ? ` • ${doc.category}` : ""}
+                              {generatedAt ? ` • Generated: ${generatedAt}` : ""}
                             </div>
                           </div>
 
@@ -1062,16 +1069,15 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                                 const raw = String(doc.storagePath || doc.url || "");
                                 const linkUrl = await resolveMaybeStorageUrl(raw);
                                 if (!linkUrl) return;
-                                const a = document.createElement("a");
-                                a.href = linkUrl;
-                                a.download = doc.name || "document";
-                                a.click();
+                                window.open(linkUrl, "_blank", "noopener,noreferrer");
                               }}
                             >
                               <i className="fas fa-download"></i> Download
                             </button>
                           </PermissionGate>
                         </div>
+                          );
+                        })()
                       ))}
                     </div>
                   </div>

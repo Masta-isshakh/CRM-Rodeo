@@ -1,6 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { LANGUAGE_STORAGE_KEY, type LanguageCode, t as tHelper, translateTextValue } from "./translations";
 
+// Enabled by default for full-app translation coverage. Set to "false" to disable.
+const ENABLE_DOM_AUTO_TRANSLATION = import.meta.env.VITE_I18N_DOM_TRANSLATE !== "false";
+
 type LanguageContextValue = {
   language: LanguageCode;
   setLanguage: (next: LanguageCode) => void;
@@ -12,64 +15,27 @@ const LanguageContext = createContext<LanguageContextValue | null>(null);
 
 function getInitialLanguage(): LanguageCode {
   if (typeof window === "undefined") return "en";
-  const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
-  if (stored === "en" || stored === "ar") return stored;
+  try {
+    const stored = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+    if (stored === "en" || stored === "ar") return stored;
+  } catch {
+    // ignore storage access issues and default to English
+  }
   return "en";
-}
-
-function translateElementTree(root: ParentNode, language: LanguageCode) {
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-
-  let node = walker.nextNode();
-  while (node) {
-    const textNode = node as Text;
-    const parentTag = textNode.parentElement?.tagName;
-    const shouldSkip = parentTag === "SCRIPT" || parentTag === "STYLE" || parentTag === "CODE" || parentTag === "PRE";
-    if (!shouldSkip && textNode.nodeValue && textNode.nodeValue.trim()) {
-      textNode.nodeValue = translateTextValue(textNode.nodeValue, language);
-    }
-    node = walker.nextNode();
-  }
-
-  const elements = (root as Element).querySelectorAll?.("[placeholder], [title], [aria-label], input[type='button'], input[type='submit']") ?? [];
-  elements.forEach((el) => {
-    const element = el as HTMLElement;
-    const placeholder = element.getAttribute("placeholder");
-    if (placeholder) element.setAttribute("placeholder", translateTextValue(placeholder, language));
-
-    const title = element.getAttribute("title");
-    if (title) element.setAttribute("title", translateTextValue(title, language));
-
-    const aria = element.getAttribute("aria-label");
-    if (aria) element.setAttribute("aria-label", translateTextValue(aria, language));
-
-    if (element instanceof HTMLInputElement && (element.type === "button" || element.type === "submit") && element.value) {
-      element.value = translateTextValue(element.value, language);
-    }
-  });
-}
-
-function translateElementAttributes(element: Element, language: LanguageCode) {
-  const attrNames = ["placeholder", "title", "aria-label", "value"];
-  for (const attrName of attrNames) {
-    const attrValue = element.getAttribute(attrName);
-    if (!attrValue) continue;
-
-    if (attrName === "value" && !(element instanceof HTMLInputElement)) continue;
-    if (attrName === "value" && element instanceof HTMLInputElement) {
-      if (element.type !== "button" && element.type !== "submit") continue;
-    }
-
-    element.setAttribute(attrName, translateTextValue(attrValue, language));
-  }
 }
 
 export function LanguageProvider({ children }: { children: ReactNode }) {
   const [language, setLanguage] = useState<LanguageCode>(getInitialLanguage);
   const applyingRef = useRef(false);
+  const originalTextRef = useRef(new WeakMap<Text, string>());
+  const originalAttrRef = useRef(new WeakMap<Element, Map<string, string>>());
 
   useEffect(() => {
-    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    try {
+      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+    } catch {
+      // ignore storage access issues
+    }
     document.documentElement.lang = language;
     document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
     document.body.classList.toggle("lang-ar", language === "ar");
@@ -77,48 +43,146 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   }, [language]);
 
   useEffect(() => {
-    const root = document.body;
+    if (!ENABLE_DOM_AUTO_TRANSLATION) return;
+
+    const root = document.getElementById("root");
     if (!root) return;
 
+    const shouldSkipTextNode = (textNode: Text) => {
+      const parent = textNode.parentElement;
+      if (!parent) return true;
+      const tag = parent.tagName;
+      return (
+        tag === "SCRIPT" ||
+        tag === "STYLE" ||
+        tag === "CODE" ||
+        tag === "PRE" ||
+        parent.closest("[data-no-translate='true']") !== null
+      );
+    };
+
+    const translateTextNode = (textNode: Text) => {
+      if (shouldSkipTextNode(textNode)) return;
+
+      const raw = textNode.nodeValue ?? "";
+      if (!raw.trim()) return;
+
+      let original = originalTextRef.current.get(textNode);
+      if (!original) {
+        original = raw;
+        originalTextRef.current.set(textNode, original);
+      } else {
+        const currentlyExpected = translateTextValue(original, language);
+        if (raw !== currentlyExpected) {
+          // React or another source updated this node; reset baseline.
+          original = raw;
+          originalTextRef.current.set(textNode, original);
+        }
+      }
+
+      const translated = translateTextValue(original, language);
+      if (translated !== raw) {
+        textNode.nodeValue = translated;
+      }
+    };
+
+    const translateElementAttrs = (element: Element) => {
+      const attrNames = ["placeholder", "title", "aria-label", "value"];
+      let originalMap = originalAttrRef.current.get(element);
+      if (!originalMap) {
+        originalMap = new Map<string, string>();
+        originalAttrRef.current.set(element, originalMap);
+      }
+
+      for (const attrName of attrNames) {
+        const current = element.getAttribute(attrName);
+        if (!current) continue;
+
+        if (attrName === "value" && !(element instanceof HTMLInputElement)) continue;
+        if (
+          attrName === "value" &&
+          element instanceof HTMLInputElement &&
+          element.type !== "button" &&
+          element.type !== "submit"
+        ) {
+          continue;
+        }
+
+        let original = originalMap.get(attrName);
+        if (!original) {
+          original = current;
+          originalMap.set(attrName, original);
+        } else {
+          const currentlyExpected = translateTextValue(original, language);
+          if (current !== currentlyExpected) {
+            // Attribute value changed externally; reset baseline.
+            original = current;
+            originalMap.set(attrName, original);
+          }
+        }
+
+        const translated = translateTextValue(original, language);
+        if (translated !== current) {
+          element.setAttribute(attrName, translated);
+        }
+      }
+    };
+
+    const translateSubtree = (subtreeRoot: ParentNode) => {
+      const walker = document.createTreeWalker(subtreeRoot, NodeFilter.SHOW_TEXT);
+      let node = walker.nextNode();
+      while (node) {
+        translateTextNode(node as Text);
+        node = walker.nextNode();
+      }
+
+      const rootEl = subtreeRoot as Element;
+      if (typeof rootEl.querySelectorAll === "function") {
+        const elements = rootEl.querySelectorAll(
+          "[placeholder], [title], [aria-label], input[type='button'], input[type='submit']"
+        );
+        elements.forEach((el) => translateElementAttrs(el));
+      }
+    };
+
     applyingRef.current = true;
-    translateElementTree(root, language);
-    applyingRef.current = false;
+    try {
+      translateSubtree(root);
+    } finally {
+      applyingRef.current = false;
+    }
 
     const observer = new MutationObserver((mutations) => {
       if (applyingRef.current) return;
       applyingRef.current = true;
 
-      for (const mutation of mutations) {
-        if (mutation.type === "characterData") {
-          const textNode = mutation.target as Text;
-          if (textNode.nodeValue?.trim()) {
-            textNode.nodeValue = translateTextValue(textNode.nodeValue, language);
+      try {
+        for (const mutation of mutations) {
+          if (mutation.type === "characterData") {
+            translateTextNode(mutation.target as Text);
+            continue;
           }
-          continue;
-        }
 
-        if (mutation.type === "attributes") {
-          const target = mutation.target as Element;
-          translateElementAttributes(target, language);
-          continue;
-        }
+          if (mutation.type === "attributes") {
+            const target = mutation.target as Element;
+            translateElementAttrs(target);
+            continue;
+          }
 
-        mutation.addedNodes.forEach((added) => {
-          if (added.nodeType === Node.TEXT_NODE) {
-            const textNode = added as Text;
-            if (textNode.nodeValue?.trim()) {
-              textNode.nodeValue = translateTextValue(textNode.nodeValue, language);
+          mutation.addedNodes.forEach((added) => {
+            if (added.nodeType === Node.TEXT_NODE) {
+              translateTextNode(added as Text);
+              return;
             }
-            return;
-          }
 
-          if (added.nodeType === Node.ELEMENT_NODE) {
-            translateElementTree(added as Element, language);
-          }
-        });
+            if (added.nodeType === Node.ELEMENT_NODE) {
+              translateSubtree(added as Element);
+            }
+          });
+        }
+      } finally {
+        applyingRef.current = false;
       }
-
-      applyingRef.current = false;
     });
 
     observer.observe(root, {

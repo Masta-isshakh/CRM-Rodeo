@@ -98,10 +98,6 @@ body,
   box-shadow: var(--amplify-components-authenticator-router-box-shadow, none) !important;
 }
 
-.crm-authenticator .amplify-tabs {
-  display: none;
-}
-
 .crm-authenticator .amplify-container {
   max-width: 560px;
 }
@@ -328,6 +324,40 @@ body,
   font-size: 18px;
   font-weight: 600;
   background: url("/background.jpg") center center / cover no-repeat fixed;
+}
+
+.crm-app-error-fallback {
+  width: 100%;
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  color: #ffffff;
+  background: linear-gradient(160deg, #111827 0%, #1f2937 100%);
+}
+
+.crm-app-error-fallback h2 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.crm-app-error-fallback p {
+  margin: 0;
+  max-width: 760px;
+  font-size: 14px;
+  opacity: 0.9;
+}
+
+.crm-app-error-fallback button {
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: #ffffff;
+  color: #111827;
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  font-weight: 700;
 }
 
 /* Shared module header style (match Exit Permit header) */

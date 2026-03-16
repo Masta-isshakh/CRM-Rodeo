@@ -26,12 +26,14 @@
   --danger: #dc2626;
   --warning: #f59e0b;
 
+  width: 100%;
+  max-width: 100%;
   --shadow: 0 14px 40px rgba(15, 23, 42, 0.10);
   --shadow2: 0 8px 22px rgba(15, 23, 42, 0.08);
 
   --r: 16px;
-  --r2: 12px;
-
+  background: #ffffff;
+  color: var(--primary);
   color: var(--text);
 }
 
@@ -40,17 +42,19 @@
 }
 
 .service-execution-wrapper .app-container {
-  min-height: calc(100vh - 90px);
+  box-shadow: none;
+  transition: none !important;
   padding: 18px;
   background: var(--bg);
   border-radius: 16px;
-}
-
+  filter: none;
+  box-shadow: none;
 /* -----------------------------
    Header
 ------------------------------*/
-.service-execution-wrapper .app-header {
+  background: #ffffff;
   display: flex;
+  color: var(--primary);
   align-items: center;
   justify-content: space-between;
   padding: 16px 16px;
@@ -58,6 +62,12 @@
   border: 1px solid var(--border);
   border-radius: var(--r);
   box-shadow: var(--shadow2);
+.service-execution-wrapper .service-main,
+.service-execution-wrapper .service-details,
+.service-execution-wrapper .service-table-wrap {
+  width: 100%;
+  max-width: 100%;
+}
   margin-bottom: 14px;
 }
 
@@ -1669,6 +1679,18 @@
 .service-execution-wrapper .dropdown-item {
   animation: none !important;
   transition: none !important;
+}
+
+.service-execution-wrapper button,
+.service-execution-wrapper .btn-action-dropdown,
+.service-execution-wrapper .service-btn-close-details,
+.service-execution-wrapper .btn-cancel,
+.service-execution-wrapper .btn-confirm-cancel,
+.service-execution-wrapper .pim-pagination-btn {
+  background: #fff !important;
+  color: var(--text) !important;
+  box-shadow: none !important;
+  transform: none !important;
 }
 
 .service-execution-wrapper,
