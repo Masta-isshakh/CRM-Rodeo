@@ -839,8 +839,22 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     setApprovalRequests([]);
   };
 
+  const invalidateDetailsCaches = (orderNumber?: string | null, backendId?: string | null) => {
+    const orderKey = String(orderNumber ?? "").trim();
+    const backendKey = String(backendId ?? "").trim();
+    if (orderKey) {
+      detailsViewCacheRef.current.delete(orderKey);
+      approvalRequestsCacheRef.current.delete(orderKey);
+    }
+    if (backendKey) {
+      paymentRowsCacheRef.current.delete(backendKey);
+      invoicesCacheRef.current.delete(backendKey);
+    }
+  };
+
   const refreshDetails = async () => {
     if (!selectedOrder?.id) return;
+    invalidateDetailsCaches(String(selectedOrder?.id), String(selectedOrder?._backendId ?? ""));
     await openDetailsView(String(selectedOrder.id));
   };
 
@@ -1156,6 +1170,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       setShowSuccessPopup(true);
       closePaymentPopup();
 
+      invalidateDetailsCaches(String(paymentForm.orderNumber), String(paymentForm.jobOrderId));
       await refreshDetails();
     } catch (e) {
       setErrorMessage(`Payment failed: ${errMsg(e)}`);
@@ -1282,6 +1297,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       setShowSuccessPopup(true);
       closeRefundPopup();
 
+      invalidateDetailsCaches(String(refundForm.orderNumber), String(refundForm.jobOrderId));
       await refreshDetails();
     } catch (e) {
       setErrorMessage(`Refund failed: ${errMsg(e)}`);
@@ -1474,6 +1490,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       setBillGeneratedMessage("Bill generated successfully and added to Documents.");
       setShowBillGeneratedPopup(true);
 
+      invalidateDetailsCaches(String(selectedOrder?.id), String(selectedOrder?._backendId ?? ""));
       await refreshDetails();
     } catch (e) {
       setErrorMessage(`Bill generation failed: ${errMsg(e)}`);
