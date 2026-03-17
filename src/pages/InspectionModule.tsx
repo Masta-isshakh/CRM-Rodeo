@@ -1,5 +1,5 @@
 // src/pages/inspection/InspectionModule.tsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import "./InspectionModule.css";
 import "./JobCards.css";
@@ -229,6 +229,7 @@ function InspectionModule({ currentUser }: any) {
 
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const activeDropdownRef = useRef<string | null>(null);
 
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
@@ -325,7 +326,10 @@ function InspectionModule({ currentUser }: any) {
     const handleClickOutside = (event: any) => {
       const isDropdownButton = event.target.closest(".btn-action-dropdown");
       const isDropdownMenu = event.target.closest(".action-dropdown-menu");
-      if (!isDropdownButton && !isDropdownMenu) setActiveDropdown(null);
+      if (!isDropdownButton && !isDropdownMenu) {
+        activeDropdownRef.current = null;
+        setActiveDropdown(null);
+      }
     };
 
     if (activeDropdown) {
@@ -334,23 +338,25 @@ function InspectionModule({ currentUser }: any) {
     }
   }, [activeDropdown]);
 
-  const handleOpenDropdown = (e: any, jobId: string) => {
-    const isActive = activeDropdown === jobId;
+  const handleOpenDropdown = useCallback((anchorEl: HTMLElement, jobId: string) => {
+    const isActive = activeDropdownRef.current === jobId;
     if (isActive) {
+      activeDropdownRef.current = null;
       setActiveDropdown(null);
       return;
     }
-    const rect = e.currentTarget.getBoundingClientRect();
+    const rect = anchorEl.getBoundingClientRect();
     const menuHeight = 140;
     const menuWidth = 200;
     const spaceBelow = window.innerHeight - rect.bottom;
     const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
     const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
     flushSync(() => {
+      activeDropdownRef.current = jobId;
       setDropdownPosition({ top, left });
       setActiveDropdown(jobId);
     });
-  };
+  }, []);
 
   const resetInspectionState = () => {
     setInspectionState(buildInitialInspectionState(sectionConfig));
@@ -966,7 +972,7 @@ function InspectionModule({ currentUser }: any) {
                           <td>
                             <PermissionGate moduleId="inspection" optionId="inspection_actions">
                               <div className="action-dropdown-container">
-                                <button className={`btn-action-dropdown ${activeDropdown === job.id ? "active" : ""}`} onClick={(e) => handleOpenDropdown(e, job.id)}>
+                                <button className={`btn-action-dropdown ${activeDropdown === job.id ? "active" : ""}`} onClick={(e) => handleOpenDropdown(e.currentTarget as HTMLElement, job.id)}>
                                   <i className="fas fa-cogs"></i> Actions <i className="fas fa-chevron-down"></i>
                                 </button>
                               </div>
@@ -1359,19 +1365,40 @@ function InspectionModule({ currentUser }: any) {
         </div>
       </div>
 
-      {activeDropdown &&
-        typeof document !== "undefined" &&
+      {typeof document !== "undefined" &&
         createPortal(
-          <div className="action-dropdown-menu show action-dropdown-menu-fixed" style={{ top: `${dropdownPosition.top}px`, left: `${dropdownPosition.left}px` }}>
+          <div
+            className={`action-dropdown-menu show action-dropdown-menu-fixed ${activeDropdown ? "open" : "closed"}`}
+            style={activeDropdown ? { top: `${dropdownPosition.top}px`, left: `${dropdownPosition.left}px` } : { top: "-9999px", left: "-9999px" }}
+          >
             <PermissionGate moduleId="inspection" optionId="inspection_viewdetails">
-              <button className="dropdown-item view" onClick={() => { const r = filteredRows.find((x) => x.id === activeDropdown); if (r) void viewDetails(r); setActiveDropdown(null); }}>
+              <button
+                className="dropdown-item view"
+                onClick={() => {
+                  if (!activeDropdown) return;
+                  const target = activeDropdown;
+                  const r = filteredRows.find((x) => x.id === target);
+                  activeDropdownRef.current = null;
+                  setActiveDropdown(null);
+                  if (r) void viewDetails(r);
+                }}
+              >
                 <i className="fas fa-eye"></i> View Details
               </button>
             </PermissionGate>
             <PermissionGate moduleId="inspection" optionId="inspection_cancel">
               <>
                 <div className="dropdown-divider"></div>
-                <button className="dropdown-item delete" onClick={() => handleShowCancelConfirmation(activeDropdown)}>
+                <button
+                  className="dropdown-item delete"
+                  onClick={() => {
+                    if (!activeDropdown) return;
+                    const target = activeDropdown;
+                    activeDropdownRef.current = null;
+                    setActiveDropdown(null);
+                    handleShowCancelConfirmation(target);
+                  }}
+                >
                   <i className="fas fa-times-circle"></i> Cancel Order
                 </button>
               </>

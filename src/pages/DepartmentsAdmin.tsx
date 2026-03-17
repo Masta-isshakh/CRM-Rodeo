@@ -54,7 +54,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
   }
 
   const client = getDataClient();
-  const { canOption, isAdminGroup } = usePermissions();
+  const { canOption } = usePermissions();
 
   const [status, setStatus] = useState("");
   const [loading, setLoading] = useState(false);
@@ -86,13 +86,13 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     setStatus("Loading...");
     try {
       const [deptRes, rolesRes, linksRes] = await Promise.all([
-        isAdminGroup ? client.queries.adminListDepartments().catch(() => null) : Promise.resolve(null),
+        client.queries.adminListDepartments().catch(() => null),
         client.models.AppRole.list({ limit: 1000 }),
         client.models.DepartmentRoleLink.list({ limit: 5000 }),
       ]);
 
       const anyErrors = (deptRes as any)?.errors;
-      if (isAdminGroup && deptRes && Array.isArray(anyErrors) && anyErrors.length) {
+      if (deptRes && Array.isArray(anyErrors) && anyErrors.length) {
         throw new Error(anyErrors.map((e: any) => e.message).join(" | "));
       }
 

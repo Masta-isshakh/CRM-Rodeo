@@ -8,14 +8,18 @@ import {
 import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtime";
+import { canPerformDepartmentAction } from "../_shared/rbac";
 
 const cognito = new CognitoIdentityProviderClient();
 
-export const handler = async (event: { arguments: { departmentKey: string } }) => {
+export const handler = async (event: any) => {
   const userPoolId = process.env.AMPLIFY_AUTH_USERPOOL_ID;
   if (!userPoolId) throw new Error("Missing AMPLIFY_AUTH_USERPOOL_ID");
 
-  const key = event.arguments.departmentKey.trim();
+  const allowed = await canPerformDepartmentAction(event, "departments_delete", "canDelete");
+  if (!allowed) throw new Error("Not authorized to delete departments. Check roles and policies configuration.");
+
+  const key = (event.arguments as any).departmentKey.trim();
   if (!key) throw new Error("departmentKey is required");
 
   const users = await cognito.send(

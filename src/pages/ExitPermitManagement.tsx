@@ -1,5 +1,5 @@
 // src/pages/ExitPermitManagement.tsx
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 
 import "./ExitPermitManagement.css";
@@ -397,6 +397,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
 
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const activeDropdownRef = useRef<string | null>(null);
 
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
@@ -490,7 +491,10 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
     const handleClickOutside = (event: any) => {
       const isDropdownButton = event.target.closest(".btn-action-dropdown");
       const isDropdownMenu = event.target.closest(".action-dropdown-menu");
-      if (!isDropdownButton && !isDropdownMenu) setActiveDropdown(null);
+      if (!isDropdownButton && !isDropdownMenu) {
+        activeDropdownRef.current = null;
+        setActiveDropdown(null);
+      }
     };
 
     if (activeDropdown) {
@@ -498,6 +502,28 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
       return () => document.removeEventListener("pointerdown", handleClickOutside, true);
     }
   }, [activeDropdown]);
+
+  const toggleActionDropdown = useCallback((orderId: string, anchorEl: HTMLElement) => {
+    const isActive = activeDropdownRef.current === orderId;
+    if (isActive) {
+      activeDropdownRef.current = null;
+      setActiveDropdown(null);
+      return;
+    }
+
+    const rect = anchorEl.getBoundingClientRect();
+    const menuHeight = 160;
+    const menuWidth = 220;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
+    const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+
+    flushSync(() => {
+      activeDropdownRef.current = orderId;
+      setDropdownPosition({ top, left });
+      setActiveDropdown(orderId);
+    });
+  }, []);
 
   // Smart search on current eligible list
   useEffect(() => {
@@ -854,24 +880,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
                                     type="button"
                                     className={`btn-action-dropdown ${activeDropdown === order.id ? "active" : ""}`}
                                     onClick={(e) => {
-                                      const isActive = activeDropdown === order.id;
-                                      if (isActive) {
-                                        setActiveDropdown(null);
-                                        return;
-                                      }
-                                      const rect = (e.currentTarget as any).getBoundingClientRect();
-                                      const menuHeight = 160;
-                                      const menuWidth = 220;
-                                      const spaceBelow = window.innerHeight - rect.bottom;
-                                      const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
-                                      const left = Math.max(
-                                        8,
-                                        Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8)
-                                      );
-                                      flushSync(() => {
-                                        setDropdownPosition({ top, left });
-                                        setActiveDropdown(order.id);
-                                      });
+                                      toggleActionDropdown(String(order.id), e.currentTarget as HTMLElement);
                                     }}
                                     disabled={loading}
                                   >
@@ -1082,19 +1091,24 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
       )}
 
       {/* Action Dropdown Menu Portal */}
-      {activeDropdown &&
-        typeof document !== "undefined" &&
+      {typeof document !== "undefined" &&
         createPortal(
           <div
-            className="action-dropdown-menu show action-dropdown-menu-fixed"
-            style={{ top: `${dropdownPosition.top}px`, left: `${dropdownPosition.left}px` }}
+            className={`action-dropdown-menu show action-dropdown-menu-fixed ${activeDropdown ? "open" : "closed"}`}
+            style={
+              activeDropdown
+                ? { top: `${dropdownPosition.top}px`, left: `${dropdownPosition.left}px` }
+                : { top: "-9999px", left: "-9999px" }
+            }
           >
             <PermissionGate moduleId="exitpermit" optionId="exitpermit_viewdetails">
               <button
                 className="dropdown-item view"
                 type="button"
                 onClick={() => {
+                  if (!activeDropdown) return;
                   void openDetailsView(activeDropdown);
+                  activeDropdownRef.current = null;
                   setActiveDropdown(null);
                 }}
                 disabled={loading}
@@ -1110,7 +1124,9 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
                   className="dropdown-item create-permit"
                   type="button"
                   onClick={() => {
+                    if (!activeDropdown) return;
                     void openExitPermitModal(activeDropdown);
+                    activeDropdownRef.current = null;
                     setActiveDropdown(null);
                   }}
                   disabled={loading}
@@ -1127,8 +1143,10 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
                   className="dropdown-item delete"
                   type="button"
                   onClick={() => {
+                    if (!activeDropdown) return;
                     setCancelOrderId(activeDropdown);
                     setShowCancelConfirmation(true);
+                    activeDropdownRef.current = null;
                     setActiveDropdown(null);
                   }}
                   disabled={loading}

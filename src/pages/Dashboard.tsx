@@ -457,11 +457,11 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
               <div className="od-welcome-meta">
                 <div>
                   <span>Budget</span>
-                  <b>${Math.round(totalRevenue || 98450).toLocaleString("en-US")}</b>
+                  <b>QAR {Math.round(totalRevenue || 98450).toLocaleString("en-US")}</b>
                 </div>
                 <div>
                   <span>Expense</span>
-                  <b>${Math.round((openApprovals || 8) * 305).toLocaleString("en-US")}</b>
+                  <b>QAR {Math.round((openApprovals || 8) * 305).toLocaleString("en-US")}</b>
                 </div>
               </div>
             </div>

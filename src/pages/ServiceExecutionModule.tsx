@@ -1,5 +1,5 @@
 // src/pages/serviceexecution/ServiceExecutionModule.tsx
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import "./ServiceExecutionModule.css";
 import "./JobOrderHistory.css";
@@ -480,6 +480,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const activeDropdownRef = useRef<string | null>(null);
   const pendingPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPersistJobRef = useRef<any | null>(null);
   const detailsCacheRef = useRef<Map<string, any>>(new Map());
@@ -498,7 +499,10 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     const handleClickOutside = (event: any) => {
       const isDropdownButton = event.target.closest(".btn-action-dropdown");
       const isDropdownMenu = event.target.closest(".action-dropdown-menu");
-      if (!isDropdownButton && !isDropdownMenu) setActiveDropdown(null);
+      if (!isDropdownButton && !isDropdownMenu) {
+        activeDropdownRef.current = null;
+        setActiveDropdown(null);
+      }
     };
 
     if (activeDropdown) {
@@ -506,6 +510,26 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
       return () => document.removeEventListener("pointerdown", handleClickOutside, true);
     }
   }, [activeDropdown]);
+
+  const toggleActionDropdown = useCallback((orderId: string, anchorEl: HTMLElement) => {
+    const isActive = activeDropdownRef.current === orderId;
+    if (isActive) {
+      activeDropdownRef.current = null;
+      setActiveDropdown(null);
+      return;
+    }
+    const rect = anchorEl.getBoundingClientRect();
+    const menuHeight = 140;
+    const menuWidth = 200;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
+    const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+    flushSync(() => {
+      activeDropdownRef.current = orderId;
+      setDropdownPosition({ top, left });
+      setActiveDropdown(orderId);
+    });
+  }, []);
 
   // Load users
   useEffect(() => {
@@ -1340,23 +1364,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                               <div className="action-dropdown-container">
                                 <button
                                   className={`btn-action-dropdown ${activeDropdown === job.id ? "active" : ""}`}
-                                  onClick={(e) => {
-                                    const isActive = activeDropdown === job.id;
-                                    if (isActive) {
-                                      setActiveDropdown(null);
-                                      return;
-                                    }
-                                    const rect = e.currentTarget.getBoundingClientRect();
-                                    const menuHeight = 140;
-                                    const menuWidth = 200;
-                                    const spaceBelow = window.innerHeight - rect.bottom;
-                                    const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
-                                    const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
-                                    flushSync(() => {
-                                      setDropdownPosition({ top, left });
-                                      setActiveDropdown(job.id);
-                                    });
-                                  }}
+                                  onClick={(e) => toggleActionDropdown(job.id, e.currentTarget as HTMLElement)}
                                 >
                                   <i className="fas fa-cogs"></i> Actions <i className="fas fa-chevron-down"></i>
                                 </button>
@@ -1369,25 +1377,33 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                   </tbody>
                 </table>
 
-                {activeDropdown &&
-                  typeof document !== "undefined" &&
+                {typeof document !== "undefined" &&
                   createPortal(
                     <PermissionGate moduleId="serviceexec" optionId="serviceexec_actions">
                       <div
-                        className="action-dropdown-menu show action-dropdown-menu-fixed"
-                        style={{ top: `${dropdownPosition.top}px`, left: `${dropdownPosition.left}px` }}
+                        className={`action-dropdown-menu show action-dropdown-menu-fixed ${activeDropdown ? "open" : "closed"}`}
+                        style={activeDropdown ? { top: `${dropdownPosition.top}px`, left: `${dropdownPosition.left}px` } : { top: "-9999px", left: "-9999px" }}
                       >
                         <button
                           className="dropdown-item view"
                           onClick={() => {
-                            void openDetailsView(activeDropdown);
+                            if (!activeDropdown) return;
+                            const target = activeDropdown;
+                            activeDropdownRef.current = null;
                             setActiveDropdown(null);
+                            void openDetailsView(target);
                           }}
                         >
                           <i className="fas fa-eye"></i> View Details
                         </button>
                         <div className="dropdown-divider"></div>
-                        <button className="dropdown-item delete" onClick={() => handleShowCancelConfirmation(activeDropdown)}>
+                        <button className="dropdown-item delete" onClick={() => {
+                          if (!activeDropdown) return;
+                          const target = activeDropdown;
+                          activeDropdownRef.current = null;
+                          setActiveDropdown(null);
+                          handleShowCancelConfirmation(target);
+                        }}>
                           <i className="fas fa-times-circle"></i> Cancel Order
                         </button>
                       </div>

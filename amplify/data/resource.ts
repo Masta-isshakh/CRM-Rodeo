@@ -798,7 +798,7 @@ const schema = a
 
     adminListDepartments: a
       .query()
-      .authorization((allow) => [allow.group(ADMIN_GROUP)])
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated()])
       .handler(a.handler.function(listDepartments))
       .returns(a.json()),
 
@@ -811,14 +811,14 @@ const schema = a
     adminCreateDepartment: a
       .mutation()
       .arguments({ departmentName: a.string().required() })
-      .authorization((allow) => [allow.group(ADMIN_GROUP)])
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated()])
       .handler(a.handler.function(createDepartment))
       .returns(a.json()),
 
     adminDeleteDepartment: a
       .mutation()
       .arguments({ departmentKey: a.string().required() })
-      .authorization((allow) => [allow.group(ADMIN_GROUP)])
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated()])
       .handler(a.handler.function(deleteDepartment))
       .returns(a.json()),
 
@@ -828,7 +828,7 @@ const schema = a
         oldKey: a.string().required(),
         newName: a.string().required(),
       })
-      .authorization((allow) => [allow.group(ADMIN_GROUP)])
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated()])
       .handler(a.handler.function(renameDepartment))
       .returns(a.json()),
 

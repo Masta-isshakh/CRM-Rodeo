@@ -1,5 +1,5 @@
 // src/pages/QualityCheckModule.tsx
-import  { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 
 import SuccessPopup from "./SuccessPopup";
@@ -139,6 +139,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
 
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const activeDropdownRef = useRef<string | null>(null);
 
   // details
   const [screenState, setScreenState] = useState<"main" | "details">("main");
@@ -266,7 +267,10 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
     const handleClickOutside = (event: any) => {
       const isDropdownButton = event.target.closest(".btn-action-dropdown");
       const isDropdownMenu = event.target.closest(".action-dropdown-menu");
-      if (!isDropdownButton && !isDropdownMenu) setActiveDropdown(null);
+      if (!isDropdownButton && !isDropdownMenu) {
+        activeDropdownRef.current = null;
+        setActiveDropdown(null);
+      }
     };
 
     if (activeDropdown) {
@@ -275,23 +279,25 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
     }
   }, [activeDropdown]);
 
-  const handleOpenDropdown = (e: any, jobId: string) => {
-    const isActive = activeDropdown === jobId;
+  const handleOpenDropdown = useCallback((anchorEl: HTMLElement, jobId: string) => {
+    const isActive = activeDropdownRef.current === jobId;
     if (isActive) {
+      activeDropdownRef.current = null;
       setActiveDropdown(null);
       return;
     }
-    const rect = e.currentTarget.getBoundingClientRect();
+    const rect = anchorEl.getBoundingClientRect();
     const menuHeight = 140;
     const menuWidth = 220;
     const spaceBelow = window.innerHeight - rect.bottom;
     const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
     const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
     flushSync(() => {
+      activeDropdownRef.current = jobId;
       setDropdownPosition({ top, left });
       setActiveDropdown(jobId);
     });
-  };
+  }, []);
 
   /* -------------------- details loader -------------------- */
   const viewDetails = async (job: QCListRow) => {
@@ -744,7 +750,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                                 <button
                                   type="button"
                                   className={`btn-action-dropdown ${activeDropdown === job.id ? "active" : ""}`}
-                                  onClick={(e) => handleOpenDropdown(e, job.id)}
+                                  onClick={(e) => handleOpenDropdown(e.currentTarget as HTMLElement, job.id)}
                                 >
                                   <i className="fas fa-cogs"></i> Actions <i className="fas fa-chevron-down"></i>
                                 </button>
@@ -816,21 +822,23 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
         </div>
 
         {/* Actions dropdown */}
-        {activeDropdown &&
-          typeof document !== "undefined" &&
+        {typeof document !== "undefined" &&
           createPortal(
             <div
-              className="action-dropdown-menu show action-dropdown-menu-fixed"
-              style={{ top: `${dropdownPosition.top}px`, left: `${dropdownPosition.left}px` }}
+              className={`action-dropdown-menu show action-dropdown-menu-fixed ${activeDropdown ? "open" : "closed"}`}
+              style={activeDropdown ? { top: `${dropdownPosition.top}px`, left: `${dropdownPosition.left}px` } : { top: "-9999px", left: "-9999px" }}
             >
               <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_viewdetails">
                 <button
                   className="dropdown-item view"
                   type="button"
                   onClick={() => {
-                    const job = filteredJobs.find((j) => j.id === activeDropdown);
-                    if (job) void viewDetails(job);
+                    if (!activeDropdown) return;
+                    const target = activeDropdown;
+                    const job = filteredJobs.find((j) => j.id === target);
+                    activeDropdownRef.current = null;
                     setActiveDropdown(null);
+                    if (job) void viewDetails(job);
                   }}
                 >
                   <i className="fas fa-eye"></i> View Details
@@ -843,7 +851,13 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                   <button
                     className="dropdown-item delete"
                     type="button"
-                    onClick={() => handleShowCancelConfirmation(activeDropdown)}
+                    onClick={() => {
+                      if (!activeDropdown) return;
+                      const target = activeDropdown;
+                      activeDropdownRef.current = null;
+                      setActiveDropdown(null);
+                      handleShowCancelConfirmation(target);
+                    }}
                   >
                     <i className="fas fa-times-circle"></i> Cancel Order
                   </button>
