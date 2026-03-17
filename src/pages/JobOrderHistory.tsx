@@ -1,5 +1,5 @@
 // src/pages/JobOrderHistory.tsx
-import  { useEffect, useMemo, useState } from "react";
+import  { useEffect, useMemo, useRef, useState } from "react";
 import "./JobOrderHistory.css";
 
 import PermissionGate from "./PermissionGate";
@@ -295,7 +295,15 @@ type DetailsOrder = any & {
   paymentActivityLog?: any[];
 };
 
-async function loadNormalizedInvoices(client: any, jobOrderId: string): Promise<InvoiceUi[]> {
+async function loadNormalizedInvoices(
+  client: any,
+  jobOrderId: string,
+  cache?: Map<string, InvoiceUi[]>
+): Promise<InvoiceUi[]> {
+  const key = String(jobOrderId ?? "").trim();
+  if (!key) return [];
+  if (cache?.has(key)) return cache.get(key) ?? [];
+
   const out: InvoiceUi[] = [];
   try {
     let invRows: any[] = [];
@@ -349,10 +357,19 @@ async function loadNormalizedInvoices(client: any, jobOrderId: string): Promise<
   } catch {
     // ignore
   }
+  cache?.set(key, out);
   return out;
 }
 
-async function loadNormalizedRoadmap(client: any, jobOrderId: string): Promise<RoadmapStepUi[]> {
+async function loadNormalizedRoadmap(
+  client: any,
+  jobOrderId: string,
+  cache?: Map<string, RoadmapStepUi[]>
+): Promise<RoadmapStepUi[]> {
+  const key = String(jobOrderId ?? "").trim();
+  if (!key) return [];
+  if (cache?.has(key)) return cache.get(key) ?? [];
+
   try {
     let rows: any[] = [];
     try {
@@ -369,22 +386,33 @@ async function loadNormalizedRoadmap(client: any, jobOrderId: string): Promise<R
       rows = (res?.data ?? []) as any[];
     }
 
-    if (!rows.length) return [];
+    if (!rows.length) {
+      cache?.set(key, []);
+      return [];
+    }
 
     // Sort by createdAt, then step
     rows.sort((a, b) => String(a.createdAt ?? "").localeCompare(String(b.createdAt ?? "")));
 
-    return rows
+    const normalized = rows
       .map((r) => normalizeRoadmapStep(r))
       .filter(Boolean) as RoadmapStepUi[];
+    cache?.set(key, normalized);
+    return normalized;
   } catch {
+    cache?.set(key, []);
     return [];
   }
 }
 
-async function loadVehicleIdByPlate(client: any, plateNumber: string): Promise<string | null> {
+async function loadVehicleIdByPlate(
+  client: any,
+  plateNumber: string,
+  cache?: Map<string, string | null>
+): Promise<string | null> {
   const plate = String(plateNumber ?? "").trim();
   if (!plate) return null;
+  if (cache?.has(plate)) return cache.get(plate) ?? null;
 
   try {
     const byIdx = await (client.models.Vehicle as any).vehiclesByPlateNumber?.({
@@ -392,7 +420,11 @@ async function loadVehicleIdByPlate(client: any, plateNumber: string): Promise<s
       limit: 1,
     });
     const row = (byIdx?.data ?? [])[0];
-    if (row?.vehicleId) return String(row.vehicleId);
+    if (row?.vehicleId) {
+      const value = String(row.vehicleId);
+      cache?.set(plate, value);
+      return value;
+    }
   } catch {}
 
   try {
@@ -401,15 +433,25 @@ async function loadVehicleIdByPlate(client: any, plateNumber: string): Promise<s
       limit: 1,
     });
     const row = (res?.data ?? [])[0];
-    if (row?.vehicleId) return String(row.vehicleId);
+    if (row?.vehicleId) {
+      const value = String(row.vehicleId);
+      cache?.set(plate, value);
+      return value;
+    }
   } catch {}
 
+  cache?.set(plate, null);
   return null;
 }
 
-async function loadCustomerDetails(client: any, customerId: string) {
+async function loadCustomerDetails(
+  client: any,
+  customerId: string,
+  cache?: Map<string, any>
+) {
   const id = String(customerId ?? "").trim();
   if (!id) return null;
+  if (cache?.has(id)) return cache.get(id) ?? null;
 
   try {
     const cRes = await client.models.Customer.get({ id } as any);
@@ -436,7 +478,7 @@ async function loadCustomerDetails(client: any, customerId: string) {
 
     const fullName = `${String(c.name ?? "")} ${String(c.lastname ?? "")}`.trim();
 
-    return {
+    const value = {
       customerId: String(c.id),
       name: fullName || "—",
       mobile: c.phone ?? "—",
@@ -448,7 +490,10 @@ async function loadCustomerDetails(client: any, customerId: string) {
         ? new Date(String(c.createdAt)).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
         : "—",
     };
+    cache?.set(id, value);
+    return value;
   } catch {
+    cache?.set(id, null);
     return null;
   }
 }
@@ -629,6 +674,11 @@ export default function JobOrderHistory({
 
   const [selectedOrder, setSelectedOrder] = useState<DetailsOrder | null>(null);
   const [userLabelMap, setUserLabelMap] = useState<Record<string, string>>({});
+  const detailsCacheRef = useRef<Map<string, DetailsOrder>>(new Map());
+  const invoicesCacheRef = useRef<Map<string, InvoiceUi[]>>(new Map());
+  const roadmapCacheRef = useRef<Map<string, RoadmapStepUi[]>>(new Map());
+  const vehicleIdCacheRef = useRef<Map<string, string | null>>(new Map());
+  const customerDetailsCacheRef = useRef<Map<string, any>>(new Map());
 
   const [navSource, setNavSource] = useState<string | null>(null);
   const [returnVehicleId, setReturnVehicleId] = useState<string | null>(null);
@@ -742,12 +792,7 @@ export default function JobOrderHistory({
     if (navigationData.returnToVehicle) setReturnVehicleId(String(navigationData.returnToVehicle));
 
     void openDetails(orderNumber);
-
-    const t = setTimeout(() => {
-      onClearNavigation?.();
-    }, 100);
-
-    return () => clearTimeout(t);
+    onClearNavigation?.();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigationData]);
 
@@ -806,9 +851,18 @@ export default function JobOrderHistory({
 
   // -------------------- DETAILS LOADER --------------------
   const openDetails = async (orderNumber: string) => {
+    const orderKey = String(orderNumber ?? "").trim();
+    if (!orderKey) return;
+
+    const cached = detailsCacheRef.current.get(orderKey);
+    if (cached) {
+      setSelectedOrder(cached);
+      return;
+    }
+
     setLoading(true);
     try {
-      const detailed = await getJobOrderByOrderNumber(orderNumber);
+      const detailed = await getJobOrderByOrderNumber(orderKey);
       if (!detailed?._backendId) throw new Error("Order not found in backend.");
 
       // Get latest JobOrder row for normalized fields/enums
@@ -822,10 +876,12 @@ export default function JobOrderHistory({
 
       // parallel: customer details, vehicle id, roadmap steps, invoices — all independent from each other
       const [customerDetails, vehicleId, normalizedRoadmap, normalizedInvoices] = await Promise.all([
-        row?.customerId ? loadCustomerDetails(client, String(row.customerId)) : Promise.resolve(null),
-        loadVehicleIdByPlate(client, vehiclePlate),
-        loadNormalizedRoadmap(client, String(detailed._backendId)),
-        loadNormalizedInvoices(client, String(detailed._backendId)),
+        row?.customerId
+          ? loadCustomerDetails(client, String(row.customerId), customerDetailsCacheRef.current)
+          : Promise.resolve(null),
+        loadVehicleIdByPlate(client, vehiclePlate, vehicleIdCacheRef.current),
+        loadNormalizedRoadmap(client, String(detailed._backendId), roadmapCacheRef.current),
+        loadNormalizedInvoices(client, String(detailed._backendId), invoicesCacheRef.current),
       ]);
 
       const vehicleDetails = {
@@ -982,7 +1038,7 @@ export default function JobOrderHistory({
       const merged: DetailsOrder = {
         ...detailed,
         _backendId: String(detailed._backendId),
-        id: String(orderNumber),
+        id: orderKey,
 
         orderType: String(row?.orderType ?? detailed?.orderType ?? parsed?.orderType ?? "Job Order"),
         customerName: String(row?.customerName ?? detailed?.customerName ?? parsed?.customerName ?? ""),
@@ -1023,7 +1079,7 @@ export default function JobOrderHistory({
         paymentActivityLog: Array.isArray(detailed?.paymentActivityLog) ? detailed.paymentActivityLog : [],
 
         summary: {
-          jobOrderId: String(orderNumber || "—"),
+          jobOrderId: String(orderKey || "—"),
           orderType: String(row?.orderType ?? detailed?.orderType ?? parsed?.orderType ?? "Job Order"),
           requestCreateDate: normalizeDateForSummary(row?.createdAt ?? detailed?.createDate ?? parsed?.createDate),
           requestCreateDateTime: normalizeDateTimeForSummary(row?.createdAt ?? detailed?.createDate ?? parsed?.createDate),
@@ -1060,6 +1116,7 @@ export default function JobOrderHistory({
         },
       };
 
+      detailsCacheRef.current.set(orderKey, merged);
       setSelectedOrder(merged);
     } catch (e) {
       alert(`Load failed: ${errMsg(e)}`);

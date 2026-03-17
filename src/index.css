@@ -227,6 +227,41 @@ html[dir="rtl"] select {
   scroll-behavior: auto !important;
 }
 
+/* Hard-disable interaction motion for action controls app-wide. */
+button,
+[role="button"],
+.btn,
+[class*="btn-"],
+[class*="-btn"],
+.dropdown-item,
+[class*="action"],
+.action-dropdown-menu button,
+.action-dropdown-menu .dropdown-item,
+button:hover,
+button:active,
+button:focus,
+button:focus-visible,
+.btn:hover,
+.btn:active,
+.btn:focus,
+.btn:focus-visible,
+.dropdown-item:hover,
+.dropdown-item:active,
+.dropdown-item:focus,
+.dropdown-item:focus-visible,
+[class*="btn-"]:hover,
+[class*="btn-"]:active,
+[class*="btn-"]:focus,
+[class*="btn-"]:focus-visible,
+[class*="-btn"]:hover,
+[class*="-btn"]:active,
+[class*="-btn"]:focus,
+[class*="-btn"]:focus-visible {
+  animation: none !important;
+  transition: none !important;
+  transform: none !important;
+}
+
 .bi-unified-card .bi-summary .jh-green,
 .bi-unified-card .bi-summary .jh-red,
 .bi-unified-card .bi-summary .pim-green,

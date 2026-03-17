@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import "./PaymentInvoiceManagment.css";
 import "./JobOrderHistory.css";
@@ -8,8 +8,14 @@ import SuccessPopup from "./SuccessPopup";
 import ErrorPopup from "./ErrorPopup";
 import PermissionGate from "./PermissionGate";
 import { getDataClient } from "../lib/amplifyClient";
+import { usePermissions } from "../lib/userPermissions";
+import { useLanguage } from "../i18n/LanguageContext";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
+import {
+  clampTotalDiscountAmount,
+  computeCumulativeDiscountAllowance,
+} from "../utils/discountPolicy";
 import {
   derivePaymentStatusFromFinancials,
   pickBillingFirstValue,
@@ -364,10 +370,17 @@ function buildPackageAuditBreakdown(services: any[]) {
 
 export default function PaymentInvoiceManagement({ currentUser }: { currentUser: any; permissions?: any }) {
   const client = useMemo(() => getDataClient(), []);
+  const { t } = useLanguage();
+  const { canOption, getOptionNumber } = usePermissions();
   const [userLabelMap, setUserLabelMap] = useState<Record<string, string>>({});
 
   // ✅ numeric limit (percent)
-  const maxPaymentDiscountPercent = 100;
+  const maxPaymentDiscountPercent = useMemo(() => {
+    if (!canOption("payment", "payment_max_discount_percent", true)) return 0;
+    const configured = Number(getOptionNumber("payment", "payment_max_discount_percent", 100));
+    if (!Number.isFinite(configured)) return 100;
+    return Math.max(0, Math.min(100, configured));
+  }, [canOption, getOptionNumber]);
 
   const [allOrders, setAllOrders] = useState<ListOrder[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -383,6 +396,20 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   const [normalizedInvoices, setNormalizedInvoices] = useState<InvoiceUi[]>([]);
   const [paymentRowsRaw, setPaymentRowsRaw] = useState<PaymentRowRaw[]>([]);
   const [approvalRequests, setApprovalRequests] = useState<any[]>([]);
+  const paymentRowsCacheRef = useRef<Map<string, PaymentRowRaw[]>>(new Map());
+  const approvalRequestsCacheRef = useRef<Map<string, any[]>>(new Map());
+  const invoicesCacheRef = useRef<Map<string, InvoiceUi[]>>(new Map());
+  const detailsViewCacheRef = useRef<
+    Map<
+      string,
+      {
+        selectedOrder: any;
+        payRows: PaymentRowRaw[];
+        approvals: any[];
+        invoices: InvoiceUi[];
+      }
+    >
+  >(new Map());
 
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
@@ -557,14 +584,18 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
   // -------------------- backend loaders --------------------
   const loadPaymentsRaw = async (jobOrderId: string): Promise<PaymentRowRaw[]> => {
+    const key = String(jobOrderId ?? "").trim();
+    if (!key) return [];
+    if (paymentRowsCacheRef.current.has(key)) return paymentRowsCacheRef.current.get(key) ?? [];
+
     try {
       try {
         const byIdx = await (client.models.JobOrderPayment as any).listPaymentsByJobOrder?.({
-          jobOrderId: String(jobOrderId),
+          jobOrderId: key,
           limit: 500,
         });
         const rows = (byIdx?.data ?? []) as any[];
-        return rows.map((p) => ({
+        const mapped = rows.map((p) => ({
           id: String(p.id),
           jobOrderId: String(p.jobOrderId),
           amount: toNum(p.amount),
@@ -576,13 +607,15 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
           createdAt: p.createdAt ?? undefined,
           updatedAt: p.updatedAt ?? undefined,
         }));
+        paymentRowsCacheRef.current.set(key, mapped);
+        return mapped;
       } catch {
         const res = await client.models.JobOrderPayment.list({
           limit: 500,
-          filter: { jobOrderId: { eq: String(jobOrderId) } } as any,
+          filter: { jobOrderId: { eq: key } } as any,
         });
         const rows = (res?.data ?? []) as any[];
-        return rows.map((p) => ({
+        const mapped = rows.map((p) => ({
           id: String(p.id),
           jobOrderId: String(p.jobOrderId),
           amount: toNum(p.amount),
@@ -594,8 +627,11 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
           createdAt: p.createdAt ?? undefined,
           updatedAt: p.updatedAt ?? undefined,
         }));
+        paymentRowsCacheRef.current.set(key, mapped);
+        return mapped;
       }
     } catch {
+      paymentRowsCacheRef.current.set(key, []);
       return [];
     }
   };
@@ -620,34 +656,44 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   };
 
   const loadApprovalRequests = async (orderNumber: string) => {
+    const key = String(orderNumber ?? "").trim();
+    if (!key) return [];
+    if (approvalRequestsCacheRef.current.has(key)) return approvalRequestsCacheRef.current.get(key) ?? [];
+
     try {
       const res = await (client.models.ServiceApprovalRequest as any).serviceApprovalRequestsByOrderNumber({
-        orderNumber: String(orderNumber),
+        orderNumber: key,
         limit: 500,
       });
       const rows = (res?.data ?? []) as any[];
       rows.sort((a, b) => String(b.requestedAt ?? b.createdAt ?? "").localeCompare(String(a.requestedAt ?? a.createdAt ?? "")));
+      approvalRequestsCacheRef.current.set(key, rows);
       return rows;
     } catch {
+      approvalRequestsCacheRef.current.set(key, []);
       return [];
     }
   };
 
   const loadNormalizedInvoices = async (jobOrderId: string): Promise<InvoiceUi[]> => {
+    const key = String(jobOrderId ?? "").trim();
+    if (!key) return [];
+    if (invoicesCacheRef.current.has(key)) return invoicesCacheRef.current.get(key) ?? [];
+
     const out: InvoiceUi[] = [];
     try {
       let invRows: any[] = [];
 
       try {
         const byIdx = await (client.models.JobOrderInvoice as any).listInvoicesByJobOrder?.({
-          jobOrderId: String(jobOrderId),
+          jobOrderId: key,
           limit: 500,
         });
         invRows = (byIdx?.data ?? []) as any[];
       } catch {
         const res = await client.models.JobOrderInvoice.list({
           limit: 500,
-          filter: { jobOrderId: { eq: String(jobOrderId) } } as any,
+          filter: { jobOrderId: { eq: key } } as any,
         });
         invRows = (res?.data ?? []) as any[];
       }
@@ -688,14 +734,28 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     } catch {
       // ignore
     }
+    invoicesCacheRef.current.set(key, out);
     return out;
   };
 
   // -------------------- details open/close --------------------
   const openDetailsView = async (orderNumber: string) => {
+    const orderKey = String(orderNumber ?? "").trim();
+    if (!orderKey) return;
+
+    const cached = detailsViewCacheRef.current.get(orderKey);
+    if (cached) {
+      setPaymentRowsRaw(cached.payRows);
+      setApprovalRequests(cached.approvals);
+      setNormalizedInvoices(cached.invoices);
+      setSelectedOrder(cached.selectedOrder);
+      setShowDetailsScreen(true);
+      return;
+    }
+
     setLoading(true);
     try {
-      const detailed = await getJobOrderByOrderNumber(orderNumber);
+      const detailed = await getJobOrderByOrderNumber(orderKey);
       if (!detailed?._backendId) throw new Error("Order not found in backend.");
 
       const rowRes = await client.models.JobOrder.get({ id: detailed._backendId } as any);
@@ -707,7 +767,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
       const [payRows, approvals, invoices] = await Promise.all([
         loadPaymentsRaw(String(detailed._backendId)),
-        loadApprovalRequests(String(orderNumber)),
+        loadApprovalRequests(orderKey),
         loadNormalizedInvoices(String(detailed._backendId)),
       ]);
       setPaymentRowsRaw(payRows);
@@ -733,8 +793,8 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       const merged = {
         ...detailed,
         _backendId: String(detailed._backendId),
-        id: String(orderNumber),
-        orderNumber: String(orderNumber),
+        id: orderKey,
+        orderNumber: orderKey,
 
         orderType: String(row?.orderType ?? detailed?.orderType ?? parsed?.orderType ?? "Job Order"),
         customerName: String(row?.customerName ?? detailed?.customerName ?? parsed?.customerName ?? ""),
@@ -753,6 +813,12 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         _parsed: parsed,
       };
 
+      detailsViewCacheRef.current.set(orderKey, {
+        selectedOrder: merged,
+        payRows,
+        approvals,
+        invoices,
+      });
       setSelectedOrder(merged);
       setShowDetailsScreen(true);
     } catch (e) {
@@ -764,6 +830,8 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   };
 
   const closeDetailsView = () => {
+    const orderKey = String(selectedOrder?.id ?? selectedOrder?.orderNumber ?? "").trim();
+    if (orderKey) detailsViewCacheRef.current.delete(orderKey);
     setShowDetailsScreen(false);
     setSelectedOrder(null);
     setNormalizedInvoices([]);
@@ -814,11 +882,13 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const totalAmount = toNum(selectedOrder?.billing?.totalAmount);
     const rawDiscount = Math.max(0, toNum(selectedOrder?.billing?.discount));
     const discountFloor = Math.min(rawDiscount, Math.max(0, totalAmount));
-    const allowedDiscountCap = Math.max(
-      (Math.max(0, totalAmount) * maxPaymentDiscountPercent) / 100,
-      discountFloor
-    );
-    const discount = Math.max(discountFloor, Math.min(discountFloor, allowedDiscountCap));
+    const discountAllowance = computeCumulativeDiscountAllowance({
+      policyMaxPercent: maxPaymentDiscountPercent,
+      baseAmount: totalAmount,
+      existingDiscountAmount: rawDiscount,
+      floorDiscountAmount: discountFloor,
+    });
+    const discount = clampTotalDiscountAmount(discountFloor, discountAllowance);
 
     const currentAmountPaid = toNum(selectedOrder?.billing?.amountPaid);
     const snap = computePaymentSnapshot(totalAmount, discount, currentAmountPaid);
@@ -860,20 +930,22 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       const next = { ...prev, [name]: value } as PaymentFormState;
 
       if (name === "discount" || name === "discountPercent" || name === "amountToPay") {
-        const maxDiscountQar = (Math.max(0, prev.totalAmount) * maxPaymentDiscountPercent) / 100;
-        const allowedDiscountCap = Math.max(maxDiscountQar, Math.max(0, prev.discountFloor || 0));
+        const discountAllowance = computeCumulativeDiscountAllowance({
+          policyMaxPercent: maxPaymentDiscountPercent,
+          baseAmount: prev.totalAmount,
+          existingDiscountAmount: Math.max(0, prev.discountFloor || 0),
+          floorDiscountAmount: Math.max(0, prev.discountFloor || 0),
+        });
 
         let discount = Math.max(0, toNum(next.discount));
         if (name === "discountPercent") {
           let percent = Math.max(0, toNum(next.discountPercent));
-          percent = Math.min(percent, 100);
+          percent = Math.min(percent, maxPaymentDiscountPercent);
           next.discountPercent = percent.toFixed(2);
           discount = (Math.max(0, prev.totalAmount) * percent) / 100;
         }
 
-        discount = Math.max(discount, Math.max(0, prev.discountFloor || 0));
-        discount = Math.min(discount, prev.totalAmount);
-        discount = Math.min(discount, allowedDiscountCap);
+        discount = clampTotalDiscountAmount(discount, discountAllowance);
 
         next.discount = discount.toFixed(2);
         next.discountPercent =
@@ -938,16 +1010,19 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const amountToPay = roundMoney(toNum(paymentForm.amountToPay));
     const rawDiscount = Math.max(0, toNum(paymentForm.discount));
     const existingDiscount = Math.max(0, toNum(selectedOrder?.billing?.discount));
-    const maxDiscountQar = (Math.max(0, paymentForm.totalAmount) * maxPaymentDiscountPercent) / 100;
-    const allowedDiscountCap = Math.max(maxDiscountQar, existingDiscount, Math.max(0, paymentForm.discountFloor || 0));
-    const discount = Math.min(
+    const discountAllowance = computeCumulativeDiscountAllowance({
+      policyMaxPercent: maxPaymentDiscountPercent,
+      baseAmount: paymentForm.totalAmount,
+      existingDiscountAmount: existingDiscount,
+      floorDiscountAmount: Math.max(0, paymentForm.discountFloor || 0),
+    });
+    const discount = clampTotalDiscountAmount(
       Math.max(rawDiscount, Math.max(0, paymentForm.discountFloor || 0)),
-      Math.max(0, paymentForm.totalAmount),
-      allowedDiscountCap
+      discountAllowance
     );
 
-    if (rawDiscount > allowedDiscountCap + 0.00001) {
-      setErrorMessage(`Discount exceeds limit. Max allowed is ${fmtQar(allowedDiscountCap)} (${maxPaymentDiscountPercent}% policy, including existing approved discount).`);
+    if (rawDiscount > discountAllowance.maxAllowedTotalDiscountAmount + 0.00001) {
+      setErrorMessage(`Discount exceeds limit. Max allowed is ${fmtQar(discountAllowance.maxAllowedTotalDiscountAmount)} (${maxPaymentDiscountPercent}% policy, including existing approved discount).`);
       setShowErrorPopup(true);
       return;
     }
@@ -1459,12 +1534,16 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       fallback: "—",
     });
 
-    const maxDiscountQarUi = paymentForm
-      ? Math.max(
-          (Math.max(0, paymentForm.totalAmount) * maxPaymentDiscountPercent) / 100,
-          Math.max(0, paymentForm.discountFloor || 0)
-        )
-      : 0;
+    const paymentDiscountAllowance = paymentForm
+      ? computeCumulativeDiscountAllowance({
+          policyMaxPercent: maxPaymentDiscountPercent,
+          baseAmount: paymentForm.totalAmount,
+          existingDiscountAmount: Math.max(0, toNum(selectedOrder?.billing?.discount)),
+          floorDiscountAmount: Math.max(0, paymentForm.discountFloor || 0),
+        })
+      : null;
+    const maxDiscountQarUi = paymentDiscountAllowance?.maxAllowedTotalDiscountAmount ?? 0;
+    const noRemainingDiscountAllowance = (paymentDiscountAllowance?.maxAdditionalDiscountAmount ?? 0) <= 0.00001;
     const summaryPaymentSnap = computePaymentSnapshot(
       toNum(selectedOrder?.billing?.totalAmount),
       toNum(selectedOrder?.billing?.discount),
@@ -1797,11 +1876,16 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                             value={paymentForm.discountPercent}
                             onChange={handlePaymentChange}
                             min={0}
-                            max={100}
+                            max={maxPaymentDiscountPercent}
                             step={0.01}
                           />
                           <div className="pim-help">Changing either discount field updates the other automatically.</div>
                         </div>
+                        {noRemainingDiscountAllowance ? (
+                          <div className="pim-help" style={{ color: "#b91c1c", fontWeight: 600 }}>
+                            {t("No additional discount can be applied. The order has already reached the role policy discount limit.")}
+                          </div>
+                        ) : null}
                       </PermissionGate>
 
                       <div className="pim-field">

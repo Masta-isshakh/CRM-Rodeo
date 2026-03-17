@@ -762,7 +762,7 @@
 .qc-quality-head{
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
   padding: 0;
 }
@@ -798,6 +798,26 @@
   opacity: 0.55;
   cursor: not-allowed;
   box-shadow: none;
+}
+
+.qc-quality-footer{
+  padding: 0 16px 16px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.quality-check-module .qc-quality-footer .qc-btn-finish,
+.quality-check-module .qc-quality-footer .qc-btn-finish:hover,
+.quality-check-module .qc-quality-footer .qc-btn-finish:active{
+  background: #be123c !important;
+  border-color: #be123c !important;
+  color: #ffffff !important;
+}
+
+.quality-check-module .qc-quality-footer .qc-btn-finish:disabled{
+  background: #fda4af !important;
+  border-color: #fda4af !important;
+  color: #0f172a !important;
 }
 
 .qc-checklist-items{
@@ -1160,6 +1180,16 @@
 
   .qc-service-dropdown{ min-width: 180px; }
   .qc-checklist-service-name{ min-width: 160px; }
+
+  .qc-quality-footer{
+    padding: 0 12px 14px;
+    justify-content: stretch;
+  }
+
+  .qc-quality-footer .qc-btn-finish{
+    width: 100%;
+    justify-content: center;
+  }
 
   .jo-details-v3 .qc-card-content,
   .jo-details-v3 .pim-card-content,

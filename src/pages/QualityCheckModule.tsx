@@ -986,17 +986,6 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                     <h3>
                       <i className="fas fa-clipboard-check"></i> Quality Check List
                     </h3>
-
-                    <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_finish">
-                      <button
-                        className="qc-btn-finish"
-                        type="button"
-                        onClick={handleFinishQC}
-                        disabled={!allServicesEvaluated() || loading}
-                      >
-                        <i className="fas fa-flag-checkered"></i> {loading ? "Saving..." : "Finish"}
-                      </button>
-                    </PermissionGate>
                   </div>
 
                   <div className="qc-checklist-items">
@@ -1028,6 +1017,19 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                     ) : (
                       <div className="qc-empty-inline">No services to evaluate</div>
                     )}
+                  </div>
+
+                  <div className="qc-quality-footer">
+                    <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_finish">
+                      <button
+                        className="qc-btn-finish"
+                        type="button"
+                        onClick={handleFinishQC}
+                        disabled={!allServicesEvaluated() || loading}
+                      >
+                        <i className="fas fa-flag-checkered"></i> {loading ? "Saving..." : "Finish"}
+                      </button>
+                    </PermissionGate>
                   </div>
                 </div>
               </PermissionGate>

@@ -561,7 +561,7 @@ async function findJobOrderRowByAnyKey(keyRaw: string): Promise<any | null> {
   }
 }
 
-async function resolveBackendIdWithRetry(orderNumberKey: string, attempts = 4): Promise<string> {
+async function resolveBackendIdWithRetry(orderNumberKey: string, attempts = 3): Promise<string> {
   const key = String(orderNumberKey ?? "").trim();
   if (!key) return "";
 
@@ -569,7 +569,7 @@ async function resolveBackendIdWithRetry(orderNumberKey: string, attempts = 4): 
     const row = await findJobOrderRowByAnyKey(key);
     const id = String(row?.id ?? "").trim();
     if (id) return id;
-    if (i < attempts - 1) await sleep(250 * (i + 1));
+    if (i < attempts - 1) await sleep(80 * (i + 1));
   }
 
   return "";

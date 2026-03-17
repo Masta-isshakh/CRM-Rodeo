@@ -31,6 +31,9 @@ import {
 import { uploadData } from "aws-amplify/storage";
 import { listServiceCatalog, resolveServicePriceForVehicleType, type ServiceCatalogItem } from "./serviceCatalogRepo";
 import { resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
+import { usePermissions } from "../lib/userPermissions";
+import { useLanguage } from "../i18n/LanguageContext";
+import { computeCumulativeDiscountAllowance, toCurrencyNumber } from "../utils/discountPolicy";
 import {
   derivePaymentStatusFromFinancials,
   pickBillingFirstValue,
@@ -171,8 +174,15 @@ function deriveDetailData(order: AnyObj, row: AnyObj) {
 }
 
 function InspectionModule({ currentUser }: any) {
+  const { canOption, getOptionNumber } = usePermissions();
   const [inspectionConfig, setInspectionConfig] = useState<any[]>(inspectionListConfig);
   const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
+  const maxServiceDiscountPercent = useMemo(() => {
+    if (!canOption("joborder", "joborder_servicediscount_percent", true)) return 0;
+    const configured = Number(getOptionNumber("joborder", "joborder_servicediscount_percent", 15));
+    if (!Number.isFinite(configured)) return 15;
+    return Math.max(0, Math.min(100, configured));
+  }, [canOption, getOptionNumber]);
 
   const sectionConfig = useMemo(() => {
     const exterior = inspectionConfig.find((c: AnyObj) => c.category === "Exterior of the Vehicle");
@@ -542,7 +552,7 @@ function InspectionModule({ currentUser }: any) {
         inspectionState,
         actor: actorEmail,
       });
-    }, 1200);
+    }, 200);
 
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1013,7 +1023,13 @@ function InspectionModule({ currentUser }: any) {
       )}
 
       {screenState === "addService" && currentAddServiceOrder && (
-        <AddServiceScreen order={currentAddServiceOrder} products={serviceCatalog} onClose={() => setScreenState("details")} onSubmit={handleAddServiceSubmit} />
+        <AddServiceScreen
+          order={currentAddServiceOrder}
+          products={serviceCatalog}
+          maxDiscountPercent={maxServiceDiscountPercent}
+          onClose={() => setScreenState("details")}
+          onSubmit={handleAddServiceSubmit}
+        />
       )}
 
       {screenState === "details" && activeRow && activeOrder && detailData && (
@@ -1112,11 +1128,6 @@ function InspectionModule({ currentUser }: any) {
               <div className="epm-detail-card inspection-list-card">
                 <div className="inspection-list-head">
                   <h3><i className="fas fa-clipboard-check"></i> Inspection List</h3>
-                  <PermissionGate moduleId="inspection" optionId="inspection_finish">
-                    <button className="finish-btn inspection-finish-btn" disabled={!canFinish || loading} onClick={finishInspection}>
-                      <i className="fas fa-flag-checkered"></i> {loading ? "Working..." : "Finish Inspection"}
-                    </button>
-                  </PermissionGate>
                 </div>
 
                 <div className="inspection-section">
@@ -1285,6 +1296,14 @@ function InspectionModule({ currentUser }: any) {
                     );
                   })}
                 </div>
+
+                <div className="inspection-list-footer">
+                  <PermissionGate moduleId="inspection" optionId="inspection_finish">
+                    <button className="finish-btn inspection-finish-btn" disabled={!canFinish || loading} onClick={finishInspection}>
+                      <i className="fas fa-flag-checkered"></i> {loading ? "Working..." : "Finish Inspection"}
+                    </button>
+                  </PermissionGate>
+                </div>
               </div>
             </PermissionGate>
           </div>
@@ -1364,7 +1383,8 @@ function InspectionModule({ currentUser }: any) {
   );
 }
 
-function AddServiceScreen({ order, products = [], onClose, onSubmit }: any) {
+function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClose, onSubmit }: any) {
+  const { t } = useLanguage();
   const [selectedServices, setSelectedServices] = useState<any[]>([]);
   const [discountPercent, setDiscountPercent] = useState(0);
   const vehicleType = order?.vehicleDetails?.type || "SUV";
@@ -1390,7 +1410,19 @@ function AddServiceScreen({ order, products = [], onClose, onSubmit }: any) {
 
   const formatPrice = (price: number) => `QAR ${price.toLocaleString()}`;
   const subtotal = selectedServices.reduce((sum, s) => sum + s.price, 0);
-  const discount = (subtotal * discountPercent) / 100;
+  const existingTotalAmount = Math.max(0, toCurrencyNumber(order?.billing?.totalAmount));
+  const existingDiscountAmount = Math.max(0, toCurrencyNumber(order?.billing?.discount));
+  const combinedTotalAmount = Math.max(0, existingTotalAmount + subtotal);
+  const discountAllowance = computeCumulativeDiscountAllowance({
+    policyMaxPercent: maxDiscountPercent,
+    baseAmount: combinedTotalAmount,
+    existingDiscountAmount,
+  });
+  const maxAdditionalDiscountAmount = Math.max(0, Math.min(subtotal, discountAllowance.maxAdditionalDiscountAmount));
+  const maxAdditionalDiscountPercent = subtotal > 0 ? (maxAdditionalDiscountAmount / subtotal) * 100 : 0;
+  const noRemainingDiscountAllowance = maxAdditionalDiscountAmount <= 0.00001;
+  const effectiveDiscountPercent = Math.max(0, Math.min(maxAdditionalDiscountPercent, Number(discountPercent || 0)));
+  const discount = (subtotal * effectiveDiscountPercent) / 100;
   const total = subtotal - discount;
 
   return (
@@ -1441,17 +1473,33 @@ function AddServiceScreen({ order, products = [], onClose, onSubmit }: any) {
               <div className="price-row">
                 <span>Apply Discount:</span>
                 <div>
-                  <input type="number" min="0" max="100" value={discountPercent} onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)} style={{ width: 80 }} />
+                  <input
+                    type="number"
+                    min="0"
+                    max={maxAdditionalDiscountPercent}
+                    value={Number(effectiveDiscountPercent.toFixed(2))}
+                    onChange={(e) => setDiscountPercent(Math.max(0, Math.min(maxAdditionalDiscountPercent, parseFloat(e.target.value) || 0)))}
+                    style={{ width: 80 }}
+                  />
                   <span> %</span>
                 </div>
               </div>
+              <div className="price-row">
+                <span>Remaining Allowed Discount:</span>
+                <span>{Number(maxAdditionalDiscountPercent.toFixed(2))}% ({formatPrice(maxAdditionalDiscountAmount)})</span>
+              </div>
+              {noRemainingDiscountAllowance ? (
+                <div style={{ marginTop: 8, fontSize: 12, color: "#b91c1c", fontWeight: 600 }}>
+                  {t("No additional discount can be applied. The order has already reached the role policy discount limit.")}
+                </div>
+              ) : null}
               <div className="price-row discount-amount"><span>Discount Amount:</span><span>{formatPrice(discount)}</span></div>
               <div className="price-row total"><span>Total:</span><span>{formatPrice(total)}</span></div>
             </div>
 
             <div className="action-buttons">
               <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
-              <button className="btn btn-primary" onClick={() => onSubmit({ selectedServices, discountPercent })} disabled={selectedServices.length === 0 || products.length === 0}>
+              <button className="btn btn-primary" onClick={() => onSubmit({ selectedServices, discountPercent: effectiveDiscountPercent })} disabled={selectedServices.length === 0 || products.length === 0}>
                 Add Services
               </button>
             </div>

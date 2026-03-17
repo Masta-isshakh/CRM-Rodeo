@@ -1,5 +1,5 @@
 // src/pages/Customers.tsx
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { generateClient } from "aws-amplify/data";
 import { getCurrentUser } from "aws-amplify/auth";
@@ -846,6 +846,10 @@ export default function Customers({ permissions }: PageProps) {
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [deals, setDeals] = useState<DealRow[]>([]);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
+  const countsRequestRef = useRef(0);
+  const relationsCacheRef = useRef<
+    Map<string, { contacts?: ContactRow[]; deals?: DealRow[]; tickets?: TicketRow[] }>
+  >(new Map());
 
   const formatCustomerId = useCallback((id: string) => formatCustomerDisplayId(id), []);
 
@@ -916,14 +920,11 @@ export default function Customers({ permissions }: PageProps) {
   const load = useCallback(async () => {
     if (!canCustomersList) return;
 
+    const requestId = Date.now();
+    countsRequestRef.current = requestId;
     setLoading(true);
     try {
-      const [cRes, contactRes, dealRes, ticketRes] = await Promise.all([
-        client.models.Customer.list({ limit: 500 }),
-        client.models.Contact.list({ limit: 5000 }),
-        client.models.Deal.list({ limit: 5000 }),
-        client.models.Ticket.list({ limit: 5000 }),
-      ]);
+      const cRes = await client.models.Customer.list({ limit: 500 });
 
       const cData = (cRes.data ?? []).slice().sort((a, b) => {
         const an = `${a.name ?? ""} ${a.lastname ?? ""}`.trim().toLowerCase();
@@ -931,13 +932,32 @@ export default function Customers({ permissions }: PageProps) {
         return an.localeCompare(bn);
       });
 
+      if (countsRequestRef.current !== requestId) return;
+
       setCustomers(cData);
-      setCounts(computeCounts(contactRes.data ?? [], dealRes.data ?? [], ticketRes.data ?? []));
+      relationsCacheRef.current.clear();
+
+      // Load relation counts in background so customer list appears immediately.
+      void (async () => {
+        try {
+          const [contactRes, dealRes, ticketRes] = await Promise.all([
+            client.models.Contact.list({ limit: 2000 }),
+            client.models.Deal.list({ limit: 2000 }),
+            client.models.Ticket.list({ limit: 2000 }),
+          ]);
+
+          if (countsRequestRef.current !== requestId) return;
+          setCounts(computeCounts(contactRes.data ?? [], dealRes.data ?? [], ticketRes.data ?? []));
+        } catch {
+          if (countsRequestRef.current !== requestId) return;
+          setCounts({});
+        }
+      })();
     } catch (err) {
       console.error(err);
       await showAlert("Error", "Failed to load customers from Amplify.", "error");
     } finally {
-      setLoading(false);
+      if (countsRequestRef.current === requestId) setLoading(false);
     }
   }, [canCustomersList, computeCounts, showAlert]);
 
@@ -1052,21 +1072,47 @@ export default function Customers({ permissions }: PageProps) {
       return;
     }
 
+    const cacheEntry = relationsCacheRef.current.get(id) ?? {};
+    const needsContacts = canCustomersRelatedContacts && !cacheEntry.contacts;
+    const needsDeals = canCustomersRelatedDeals && !cacheEntry.deals;
+    const needsTickets = canCustomersRelatedTickets && !cacheEntry.tickets;
+
+    if (!needsContacts && !needsDeals && !needsTickets) {
+      setContacts(cacheEntry.contacts ?? []);
+      setDeals(cacheEntry.deals ?? []);
+      setTickets(cacheEntry.tickets ?? []);
+      setLoadingRelations(false);
+      return;
+    }
+
     setLoadingRelations(true);
-    setContacts([]);
-    setDeals([]);
-    setTickets([]);
+    setContacts(cacheEntry.contacts ?? []);
+    setDeals(cacheEntry.deals ?? []);
+    setTickets(cacheEntry.tickets ?? []);
 
     try {
       const [contactRes, dealRes, ticketRes] = await Promise.all([
-        client.models.Contact.list({ filter: { customerId: { eq: id } }, limit: 500 }),
-        client.models.Deal.list({ filter: { customerId: { eq: id } }, limit: 500 }),
-        client.models.Ticket.list({ filter: { customerId: { eq: id } }, limit: 500 }),
+        needsContacts
+          ? client.models.Contact.list({ filter: { customerId: { eq: id } }, limit: 500 })
+          : Promise.resolve({ data: (cacheEntry.contacts ?? []) as ContactRow[] } as any),
+        needsDeals
+          ? client.models.Deal.list({ filter: { customerId: { eq: id } }, limit: 500 })
+          : Promise.resolve({ data: (cacheEntry.deals ?? []) as DealRow[] } as any),
+        needsTickets
+          ? client.models.Ticket.list({ filter: { customerId: { eq: id } }, limit: 500 })
+          : Promise.resolve({ data: (cacheEntry.tickets ?? []) as TicketRow[] } as any),
       ]);
 
-      setContacts(contactRes.data ?? []);
-      setDeals(dealRes.data ?? []);
-      setTickets(ticketRes.data ?? []);
+      const nextEntry = {
+        contacts: (contactRes.data ?? []) as ContactRow[],
+        deals: (dealRes.data ?? []) as DealRow[],
+        tickets: (ticketRes.data ?? []) as TicketRow[],
+      };
+      relationsCacheRef.current.set(id, nextEntry);
+
+      setContacts(nextEntry.contacts);
+      setDeals(nextEntry.deals);
+      setTickets(nextEntry.tickets);
     } catch (err) {
       console.error(err);
       await showAlert("Warning", "Could not load related records.", "warning");

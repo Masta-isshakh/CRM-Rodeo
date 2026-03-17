@@ -36,6 +36,12 @@ import {
 } from "../utils/paymentStatus";
 import { formatCustomerDisplayId } from "../utils/customerId";
 import { usePermissions } from "../lib/userPermissions";
+import { useLanguage } from "../i18n/LanguageContext";
+import {
+  clampTotalDiscountAmount,
+  computeCumulativeDiscountAllowance,
+  toCurrencyNumber,
+} from "../utils/discountPolicy";
 import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
 import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
 import UnifiedBillingInvoicesSection from "../components/UnifiedBillingInvoicesSection";
@@ -510,12 +516,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
       if (navigationData.returnToVehicle) setReturnToVehicleId(navigationData.returnToVehicle);
 
       setScreenState("newJob");
-
-      const timer = setTimeout(() => {
-        if (onClearNavigation) onClearNavigation();
-      }, 100);
-
-      return () => clearTimeout(timer);
+      if (onClearNavigation) onClearNavigation();
     }
   }, [navigationData, onClearNavigation]);
 
@@ -546,14 +547,23 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
       `BILL-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
 
     const { subtotal } = summarizeServicesPricing(selectedServices);
-    const safeDiscountPercent = Math.max(0, Math.min(maxServiceDiscountPercent, Number(discountPercent || 0)));
-    const discount = (subtotal * safeDiscountPercent) / 100;
-    const netAmount = subtotal - discount;
-
     const existingTotal = parseAmount(currentAddServiceOrder.billing?.totalAmount);
     const existingDiscount = parseAmount(currentAddServiceOrder.billing?.discount);
     const existingNet = parseAmount(currentAddServiceOrder.billing?.netAmount);
     const existingPaid = parseAmount(currentAddServiceOrder.billing?.amountPaid);
+
+    const combinedTotalAmount = Math.max(0, existingTotal + subtotal);
+    const discountAllowance = computeCumulativeDiscountAllowance({
+      policyMaxPercent: maxServiceDiscountPercent,
+      baseAmount: combinedTotalAmount,
+      existingDiscountAmount: existingDiscount,
+    });
+
+    const requestedAdditionalDiscount = Math.max(0, Math.min(subtotal, (subtotal * Number(discountPercent || 0)) / 100));
+    const requestedTotalDiscount = existingDiscount + requestedAdditionalDiscount;
+    const safeTotalDiscount = clampTotalDiscountAmount(requestedTotalDiscount, discountAllowance);
+    const discount = Math.max(0, Math.min(subtotal, safeTotalDiscount - existingDiscount));
+    const netAmount = subtotal - discount;
 
     const updatedBilling = {
       billId,
@@ -2621,6 +2631,7 @@ function StepThreeServices({
 // ADD SERVICE SCREEN
 // ============================================
 function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClose, onSubmit }: any) {
+  const { t } = useLanguage();
   const [selectedServices, setSelectedServices] = useState<any[]>([]);
   const [discountPercent, setDiscountPercent] = useState(0);
   const vehicleType = order?.vehicleDetails?.type || "SUV";
@@ -2642,7 +2653,18 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
   const formatPrice = (price: number) => `QAR ${price.toLocaleString()}`;
   const { subtotal, packageCount } = summarizeServicesPricing(selectedServices);
   const normalizedMaxDiscountPercent = Math.max(0, Math.min(100, Number(maxDiscountPercent || 0)));
-  const effectiveDiscountPercent = Math.max(0, Math.min(normalizedMaxDiscountPercent, Number(discountPercent || 0)));
+  const existingTotalAmount = Math.max(0, toCurrencyNumber(order?.billing?.totalAmount));
+  const existingDiscountAmount = Math.max(0, toCurrencyNumber(order?.billing?.discount));
+  const combinedTotalAmount = Math.max(0, existingTotalAmount + subtotal);
+  const discountAllowance = computeCumulativeDiscountAllowance({
+    policyMaxPercent: normalizedMaxDiscountPercent,
+    baseAmount: combinedTotalAmount,
+    existingDiscountAmount,
+  });
+  const maxAdditionalDiscountAmount = Math.max(0, Math.min(subtotal, discountAllowance.maxAdditionalDiscountAmount));
+  const maxAdditionalDiscountPercent = subtotal > 0 ? (maxAdditionalDiscountAmount / subtotal) * 100 : 0;
+  const noRemainingDiscountAllowance = maxAdditionalDiscountAmount <= 0.00001;
+  const effectiveDiscountPercent = Math.max(0, Math.min(maxAdditionalDiscountPercent, Number(discountPercent || 0)));
   const discount = (subtotal * effectiveDiscountPercent) / 100;
   const total = subtotal - discount;
 
@@ -2710,11 +2732,11 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
                       <input
                         type="number"
                         min="0"
-                        max={normalizedMaxDiscountPercent}
+                        max={maxAdditionalDiscountPercent}
                         value={Number(effectiveDiscountPercent.toFixed(2))}
                         onChange={(e) =>
                           setDiscountPercent(
-                            Math.max(0, Math.min(normalizedMaxDiscountPercent, parseFloat(e.target.value) || 0))
+                            Math.max(0, Math.min(maxAdditionalDiscountPercent, parseFloat(e.target.value) || 0))
                           )
                         }
                         style={{ width: "80px" }}
@@ -2726,10 +2748,17 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
               </PermissionGate>
               <PermissionGate moduleId="joborder" optionId="joborder_servicediscount_percent">
                 <div className="price-row">
-                  <span>Max Allowed Discount:</span>
-                  <span>{Number(normalizedMaxDiscountPercent.toFixed(2))}%</span>
+                  <span>Remaining Allowed Discount:</span>
+                  <span>
+                    {Number(maxAdditionalDiscountPercent.toFixed(2))}% ({formatPrice(maxAdditionalDiscountAmount)})
+                  </span>
                 </div>
               </PermissionGate>
+              {noRemainingDiscountAllowance ? (
+                <div style={{ marginTop: 8, fontSize: 12, color: "#b91c1c", fontWeight: 600 }}>
+                  {t("No additional discount can be applied. The order has already reached the role policy discount limit.")}
+                </div>
+              ) : null}
               <div className="price-row discount-amount">
                 <span>Discount Amount:</span>
                 <span>{formatPrice(discount)}</span>

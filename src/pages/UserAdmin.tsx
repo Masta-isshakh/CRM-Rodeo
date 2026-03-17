@@ -250,6 +250,12 @@ export default function Users(_: PageProps) {
   // RBAC display helpers
   const [dashboardAllowedByDept, setDashboardAllowedByDept] = useState<Record<string, boolean>>({});
   const [dashboardAllowedByRoleId, setDashboardAllowedByRoleId] = useState<Record<string, boolean>>({});
+  const adminDataCacheRef = useRef<{
+    links: any[];
+    roles: any[];
+    policies: any[];
+    deptListFromAdminQuery: Dept[];
+  } | null>(null);
 
   const isRootAdminSyntheticUser = (u: any) => Boolean(u?._isRootAdminSynthetic);
 
@@ -329,26 +335,53 @@ export default function Users(_: PageProps) {
     };
   }, [detailsOpen]);
 
-  const load = async () => {
+  const load = async (opts?: { fullRefresh?: boolean }) => {
+    const fullRefresh = Boolean(opts?.fullRefresh);
     setLoading(true);
     setStatus("Loading...");
     try {
-      const [allUsers, deptRes, links, roles, policies] = await Promise.all([
-        listAll<UserRow>((args) => client.models.UserProfile.list(args), 1000, 20000),
-        isAdminGroup ? client.queries.adminListDepartments().catch(() => null) : Promise.resolve(null),
+      const cached = adminDataCacheRef.current;
+      const canReuseCache = !fullRefresh && Boolean(cached);
 
-        // Used only for UI labels
-        listAll<any>((args) => client.models.DepartmentRoleLink.list(args), 1000, 20000),
-        listAll<any>((args) => client.models.AppRole.list(args), 1000, 20000),
-        listAll<any>((args) => client.models.RolePolicy.list(args), 1000, 20000),
+      const allUsersPromise = listAll<UserRow>((args) => client.models.UserProfile.list(args), 1000, 20000);
+      const deptResPromise = canReuseCache
+        ? Promise.resolve(null)
+        : (isAdminGroup ? client.queries.adminListDepartments().catch(() => null) : Promise.resolve(null));
+      const linksPromise = canReuseCache
+        ? Promise.resolve(cached?.links ?? [])
+        : listAll<any>((args) => client.models.DepartmentRoleLink.list(args), 1000, 5000);
+      const rolesPromise = canReuseCache
+        ? Promise.resolve(cached?.roles ?? [])
+        : listAll<any>((args) => client.models.AppRole.list(args), 1000, 5000);
+      const policiesPromise = canReuseCache
+        ? Promise.resolve(cached?.policies ?? [])
+        : listAll<any>((args) => client.models.RolePolicy.list(args), 1000, 5000);
+
+      const [allUsers, deptRes, links, roles, policies] = await Promise.all([
+        allUsersPromise,
+        deptResPromise,
+        linksPromise,
+        rolesPromise,
+        policiesPromise,
       ]);
 
       const anyErrors = (deptRes as any)?.errors;
-      if (isAdminGroup && deptRes && Array.isArray(anyErrors) && anyErrors.length) {
+      if (!canReuseCache && isAdminGroup && deptRes && Array.isArray(anyErrors) && anyErrors.length) {
         throw new Error(anyErrors.map((e: any) => e.message).join(" | "));
       }
 
-      const deptListFromAdminQuery = deptRes ? normalizeDepartmentsFromAdminList(deptRes) : [];
+      const deptListFromAdminQuery = canReuseCache
+        ? (cached?.deptListFromAdminQuery ?? [])
+        : (deptRes ? normalizeDepartmentsFromAdminList(deptRes) : []);
+
+      if (!canReuseCache) {
+        adminDataCacheRef.current = {
+          links: links ?? [],
+          roles: roles ?? [],
+          policies: policies ?? [],
+          deptListFromAdminQuery,
+        };
+      }
       const deptList = deptListFromAdminQuery.length
         ? deptListFromAdminQuery
         : normalizeDepartmentsFallback(allUsers ?? [], links ?? []);
@@ -549,7 +582,7 @@ export default function Users(_: PageProps) {
   };
 
   useEffect(() => {
-    load();
+    void load({ fullRefresh: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdminGroup, canShowRootAdminUser, currentUserEmail]);
 
@@ -594,6 +627,8 @@ export default function Users(_: PageProps) {
   const enriched = useMemo(() => {
     const roleNameById = new Map<string, string>();
     for (const r of roles ?? []) roleNameById.set(String(r.id ?? ""), String(r.name ?? ""));
+    const deptNameByKey = new Map<string, string>();
+    for (const d of departments ?? []) deptNameByKey.set(String(d.key ?? ""), String(d.name ?? ""));
 
     const firstRoleByDept: Record<string, string> = {};
     for (const link of deptRoleLinks ?? []) {
@@ -606,8 +641,7 @@ export default function Users(_: PageProps) {
     return (users ?? []).map((u, idx) => {
       const persistedEmpId = String((u as any).employeeId ?? "").trim();
       const empId = persistedEmpId || empIdFromIndex(idx);
-      const deptName =
-        departments.find((d) => d.key === u.departmentKey)?.name ?? (u.departmentName ?? "—");
+      const deptName = deptNameByKey.get(String(u.departmentKey ?? "")) ?? (u.departmentName ?? "—");
       const lineManagerDisplay =
         String((u as any).lineManagerName ?? "").trim() ||
         String((u as any).lineManagerEmail ?? "").trim() ||

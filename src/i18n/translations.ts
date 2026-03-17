@@ -212,6 +212,10 @@ const PHRASES_EN_AR: Array<[string, string]> = [
   ["Permit", "تصريح"],
   ["Could not add services to this job order.", "تعذر إضافة الخدمات إلى أمر العمل هذا."],
   ["Could not cancel this job order.", "تعذر إلغاء أمر العمل هذا."],
+  [
+    "No additional discount can be applied. The order has already reached the role policy discount limit.",
+    "لا يمكن تطبيق خصم إضافي. لقد وصل الطلب بالفعل إلى الحد الأقصى للخصم حسب سياسة الدور."
+  ],
   ["Your job order was not created.", "لم يتم إنشاء أمر العمل الخاص بك."],
   ["Order Cancelled Successfully!", "تم إلغاء الطلب بنجاح!"],
   ["Job Order ID:", "معرف أمر العمل:"],

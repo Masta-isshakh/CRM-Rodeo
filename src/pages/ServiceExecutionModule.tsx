@@ -482,6 +482,10 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const pendingPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPersistJobRef = useRef<any | null>(null);
+  const detailsCacheRef = useRef<Map<string, any>>(new Map());
+  const paymentRowsCacheRef = useRef<Map<string, any[]>>(new Map());
+  const normalizedInvoicesCacheRef = useRef<Map<string, any[]>>(new Map());
+  const customerDetailsCacheRef = useRef<Map<string, any>>(new Map());
 
   const canOpenServiceActions = canOption("serviceexec", "serviceexec_actions", true);
   const canViewUnassignedTab = canOption("serviceexec", "serviceexec_unassigned_tab", canOpenServiceActions);
@@ -707,10 +711,23 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   const paginatedJobs = filteredJobs.slice(startIndex, endIndex);
 
   const openDetailsView = async (orderNumber: string) => {
+    const orderKey = String(orderNumber ?? "").trim();
+    if (!orderKey) return;
+
+    const cachedDetails = detailsCacheRef.current.get(orderKey);
+    if (cachedDetails) {
+      setCurrentDetailsJob(cachedDetails);
+      setDetailsEditMode(false);
+      setShowDetails(true);
+      return;
+    }
+
     setLoading(true);
     try {
-      const detailed = await getJobOrderByOrderNumber(orderNumber);
+      const detailed = await getJobOrderByOrderNumber(orderKey);
       if (!detailed?._backendId) throw new Error("Order not found in backend.");
+
+      const backendId = String(detailed._backendId);
 
       const rowRes = await client.models.JobOrder.get({ id: detailed._backendId } as any);
       const row = (rowRes as any)?.data ?? null;
@@ -718,40 +735,50 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
       const [paymentRows, normalizedInvoices, customerDetails] = await Promise.all([
         (async () => {
+          const cached = paymentRowsCacheRef.current.get(backendId);
+          if (cached) return cached;
+
           try {
             const byIdx = await (client.models.JobOrderPayment as any).listPaymentsByJobOrder?.({
-              jobOrderId: String(detailed._backendId),
+              jobOrderId: backendId,
               limit: 500,
             });
-            return byIdx?.data ?? [];
+            const value = byIdx?.data ?? [];
+            paymentRowsCacheRef.current.set(backendId, value);
+            return value;
           } catch {
             const pRes = await client.models.JobOrderPayment.list({
               limit: 500,
-              filter: { jobOrderId: { eq: String(detailed._backendId) } } as any,
+              filter: { jobOrderId: { eq: backendId } } as any,
             });
-            return pRes?.data ?? [];
+            const value = pRes?.data ?? [];
+            paymentRowsCacheRef.current.set(backendId, value);
+            return value;
           }
         })(),
         (async () => {
+          const cached = normalizedInvoicesCacheRef.current.get(backendId);
+          if (cached) return cached;
+
           try {
             let invRows: any[] = [];
             try {
               const byIdxInv = await (client.models.JobOrderInvoice as any).listInvoicesByJobOrder?.({
-                jobOrderId: String(detailed._backendId),
+                jobOrderId: backendId,
                 limit: 500,
               });
               invRows = byIdxInv?.data ?? [];
             } catch {
               const invRes = await client.models.JobOrderInvoice.list({
                 limit: 500,
-                filter: { jobOrderId: { eq: String(detailed._backendId) } } as any,
+                filter: { jobOrderId: { eq: backendId } } as any,
               });
               invRows = invRes?.data ?? [];
             }
 
             invRows.sort((a, b) => String(a?.createdAt ?? "").localeCompare(String(b?.createdAt ?? "")));
 
-            return await Promise.all(
+            const value = await Promise.all(
               invRows.map(async (inv) => {
                 const invoiceId = String(inv?.id ?? "");
                 let svcRows: any[] = [];
@@ -781,11 +808,19 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                 };
               })
             );
+            normalizedInvoicesCacheRef.current.set(backendId, value);
+            return value;
           } catch {
+            normalizedInvoicesCacheRef.current.set(backendId, []);
             return [];
           }
         })(),
         (async () => {
+          const customerKey = String(row?.customerId ?? "").trim();
+          if (customerKey && customerDetailsCacheRef.current.has(customerKey)) {
+            return customerDetailsCacheRef.current.get(customerKey);
+          }
+
           const out: any = {};
           if (!row?.customerId) return out;
           try {
@@ -800,6 +835,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                 : "";
             }
           } catch {}
+          if (customerKey) customerDetailsCacheRef.current.set(customerKey, out);
           return out;
         })(),
       ]);
@@ -869,6 +905,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
         services,
       };
 
+      detailsCacheRef.current.set(orderKey, merged);
       setCurrentDetailsJob(merged);
       setDetailsEditMode(false); // reset each time you open
       setShowDetails(true);
@@ -881,6 +918,8 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   };
 
   const closeDetails = () => {
+    const orderKey = String(currentDetailsJob?.id ?? "").trim();
+    if (orderKey) detailsCacheRef.current.delete(orderKey);
     if (pendingPersistTimer.current) {
       clearTimeout(pendingPersistTimer.current);
       pendingPersistTimer.current = null;
@@ -908,6 +947,9 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     setLoading(true);
     try {
       await upsertJobOrder(job);
+      if (job?.id) {
+        detailsCacheRef.current.delete(String(job.id));
+      }
       if (options?.successText) {
         setSuccessMessage(options.successText);
         setShowSuccessPopup(true);
@@ -942,7 +984,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
           showErrorPopup: true,
         });
       }
-    }, 500);
+    }, 150);
   };
 
   const flushScheduledPersist = async () => {

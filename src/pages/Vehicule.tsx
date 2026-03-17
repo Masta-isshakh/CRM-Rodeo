@@ -1,5 +1,5 @@
 // src/pages/VehicleManagement.tsx
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import "./Vehicule.css";
 
@@ -561,6 +561,11 @@ export default function VehicleManagement({
     type: "info",
     showCancel: false,
   });
+  const customerLookupRef = useRef<Map<string, CustomerRow>>(new Map());
+  const customerLookupLoadedRef = useRef(false);
+  const vehicleByBusinessIdRef = useRef<Map<string, VehicleRow>>(new Map());
+  const customerByIdCacheRef = useRef<Map<string, CustomerRow | null>>(new Map());
+  const completedOrdersByPlateRef = useRef<Map<string, JobOrderRow[]>>(new Map());
 
   const showAlert = useCallback((title: string, message: string, type: AlertType = "info", showCancel = false) => {
     return new Promise<boolean>((resolve) => {
@@ -586,7 +591,16 @@ export default function VehicleManagement({
     setLoading(true);
     try {
       const res = await client.models.Vehicle.list({ limit: 500 });
-      setVehicles(res.data ?? []);
+      const nextVehicles = (res.data ?? []) as VehicleRow[];
+      const byBusinessId = new Map<string, VehicleRow>();
+      for (const row of nextVehicles) {
+        const businessId = String(row.vehicleId ?? "").trim();
+        if (businessId) byBusinessId.set(businessId, row);
+      }
+      vehicleByBusinessIdRef.current = byBusinessId;
+      customerByIdCacheRef.current.clear();
+      completedOrdersByPlateRef.current.clear();
+      setVehicles(nextVehicles);
     } catch (e) {
       console.error(e);
       await showAlert("Error", "Failed to load vehicles. Check console.", "error");
@@ -608,11 +622,17 @@ export default function VehicleManagement({
       }
       (async () => {
         try {
-          const res = await client.models.Vehicle.list({
-            limit: 1,
-            filter: { vehicleId: { eq: navigationData.vehicleId } },
-          });
-          const found = res.data?.[0];
+          const targetBusinessId = String(navigationData.vehicleId ?? "").trim();
+          let found = vehicleByBusinessIdRef.current.get(targetBusinessId);
+
+          if (!found) {
+            const res = await client.models.Vehicle.list({
+              limit: 1,
+              filter: { vehicleId: { eq: targetBusinessId } },
+            });
+            found = res.data?.[0] as VehicleRow | undefined;
+          }
+
           if (found) {
             setSelectedVehicleId(found.id);
             setViewMode("details");
@@ -703,14 +723,30 @@ export default function VehicleManagement({
       try {
         const byRawId = await client.models.Customer.get({ id: rawInput });
         if (byRawId.data) {
+          customerLookupRef.current.set(String(byRawId.data.id).trim().toLowerCase(), byRawId.data);
+          customerLookupRef.current.set(formatCustomerDisplayId(byRawId.data.id).toLowerCase(), byRawId.data);
           setVerifiedCustomer(byRawId.data);
           return byRawId.data;
         }
 
-        const listed = await client.models.Customer.list({ limit: 2000 } as any);
-        const byDisplayId = (listed.data ?? []).find(
-          (row: any) => formatCustomerDisplayId(row?.id).toLowerCase() === normalizedInput
-        ) as CustomerRow | undefined;
+        const cached = customerLookupRef.current.get(normalizedInput);
+        if (cached?.id) {
+          setVerifiedCustomer(cached);
+          return cached;
+        }
+
+        if (!customerLookupLoadedRef.current) {
+          const listed = await client.models.Customer.list({ limit: 2000 } as any);
+          for (const row of listed.data ?? []) {
+            const rowId = String((row as any)?.id ?? "").trim().toLowerCase();
+            if (!rowId) continue;
+            customerLookupRef.current.set(rowId, row as CustomerRow);
+            customerLookupRef.current.set(formatCustomerDisplayId((row as any)?.id).toLowerCase(), row as CustomerRow);
+          }
+          customerLookupLoadedRef.current = true;
+        }
+
+        const byDisplayId = customerLookupRef.current.get(normalizedInput);
         if (!byDisplayId?.id) return null;
         setVerifiedCustomer(byDisplayId);
         return byDisplayId;
@@ -962,31 +998,50 @@ export default function VehicleManagement({
 
     (async () => {
       try {
-        const v = await client.models.Vehicle.get({ id: selectedVehicleId });
-        const vehicle = v.data ?? null;
+        const fromList = vehicles.find((item) => item.id === selectedVehicleId) ?? null;
+        const v = fromList ? null : await client.models.Vehicle.get({ id: selectedVehicleId });
+        const vehicle = fromList ?? ((v as any)?.data ?? null);
         setSelectedVehicle(vehicle);
 
-        if (vehicle?.customerId) {
-          const c = await client.models.Customer.get({ id: vehicle.customerId });
-          setSelectedCustomer(c.data ?? null);
-        } else {
-          setSelectedCustomer(null);
-        }
+        const customerId = String(vehicle?.customerId ?? "").trim();
+        const plateNumber = String(vehicle?.plateNumber ?? "").trim();
 
-        if (vehicle?.plateNumber) {
-          const orders = await client.models.JobOrder.list({
-            limit: 500,
-            filter: { plateNumber: { eq: vehicle.plateNumber }, status: { eq: "COMPLETED" } },
-          });
-          setCompletedOrders(orders.data ?? []);
-        } else {
-          setCompletedOrders([]);
-        }
+        const customerPromise = customerId
+          ? (async () => {
+              if (customerByIdCacheRef.current.has(customerId)) {
+                return customerByIdCacheRef.current.get(customerId) ?? null;
+              }
+              const customerRes = await client.models.Customer.get({ id: customerId });
+              const customerData = (customerRes as any)?.data ?? null;
+              customerByIdCacheRef.current.set(customerId, customerData);
+              return customerData;
+            })()
+          : Promise.resolve(null);
+
+        const completedOrdersPromise = plateNumber
+          ? (async () => {
+              if (completedOrdersByPlateRef.current.has(plateNumber)) {
+                return completedOrdersByPlateRef.current.get(plateNumber) ?? [];
+              }
+              const ordersRes = await client.models.JobOrder.list({
+                limit: 500,
+                filter: { plateNumber: { eq: plateNumber }, status: { eq: "COMPLETED" } },
+              });
+              const rows = ((ordersRes as any)?.data ?? []) as JobOrderRow[];
+              completedOrdersByPlateRef.current.set(plateNumber, rows);
+              return rows;
+            })()
+          : Promise.resolve([] as JobOrderRow[]);
+
+        const [customerData, completedRows] = await Promise.all([customerPromise, completedOrdersPromise]);
+
+        setSelectedCustomer(customerData);
+        setCompletedOrders(completedRows);
       } catch (e) {
         console.error(e);
       }
     })();
-  }, [viewMode, selectedVehicleId]);
+  }, [viewMode, selectedVehicleId, vehicles]);
 
   const closeDetails = () => {
     setViewMode("list");
