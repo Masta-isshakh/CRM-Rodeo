@@ -921,6 +921,32 @@ body{
   box-shadow: var(--shadow2);
 }
 
+.select-all-btn{
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(22, 163, 74, 0.25);
+  background: rgba(22, 163, 74, 0.10);
+  color: #166534;
+  cursor: pointer;
+  font-weight: 900;
+  font-size: 12px;
+  transition: all 0.2s ease;
+}
+
+.select-all-btn:hover{
+  background: rgba(22, 163, 74, 0.15);
+  border-color: rgba(22, 163, 74, 0.35);
+  box-shadow: var(--shadow2);
+}
+
+.select-all-btn:active{
+  transform: translateY(1px);
+}
+
 .section-items-row{
   display: grid;
   gap: 12px;

@@ -27,8 +27,6 @@ import { jobOrderPaymentBackfillActors } from "../functions/job-orders/backfill-
 
 // ✅ MUST MATCH your Cognito group name EXACTLY
 const ADMIN_GROUP = "Admins";
-const ADMIN_DEPT_GROUP = "DEPT_ADMIN";
-const ADMIN_DEPT_GROUP_LOWER = "DEPT_admin";
 
 const schema = a
   .schema({
@@ -74,12 +72,7 @@ const schema = a
         isActive: a.boolean().default(true),
         createdAt: a.datetime(),
       })
-      .authorization((allow) => [
-        allow.group(ADMIN_GROUP),
-        allow.group(ADMIN_DEPT_GROUP),
-        allow.group(ADMIN_DEPT_GROUP_LOWER),
-        allow.authenticated().to(["read"]),
-      ]),
+      .authorization((allow) => [allow.authenticated()]),
 
     RolePolicy: a
       .model({
@@ -94,12 +87,7 @@ const schema = a
 
         createdAt: a.datetime(),
       })
-      .authorization((allow) => [
-        allow.group(ADMIN_GROUP),
-        allow.group(ADMIN_DEPT_GROUP),
-        allow.group(ADMIN_DEPT_GROUP_LOWER),
-        allow.authenticated().to(["read"]),
-      ]),
+      .authorization((allow) => [allow.authenticated()]),
 
     DepartmentRoleLink: a
       .model({
@@ -108,12 +96,7 @@ const schema = a
         roleId: a.id().required(),
         createdAt: a.datetime(),
       })
-      .authorization((allow) => [
-        allow.group(ADMIN_GROUP),
-        allow.group(ADMIN_DEPT_GROUP),
-        allow.group(ADMIN_DEPT_GROUP_LOWER),
-        allow.authenticated().to(["read"]),
-      ]),
+      .authorization((allow) => [allow.authenticated()]),
 
 
     // ✅ OPTION-LEVEL RBAC (CORRECTLY PLACED)
@@ -127,12 +110,7 @@ const schema = a
         updatedBy: a.string(),
       })
       .secondaryIndexes((index) => [index("roleId").queryField("roleOptionTogglesByRole")])
-      .authorization((allow) => [
-        allow.group(ADMIN_GROUP),
-        allow.group(ADMIN_DEPT_GROUP),
-        allow.group(ADMIN_DEPT_GROUP_LOWER),
-        allow.authenticated().to(["read"]),
-      ]),
+      .authorization((allow) => [allow.authenticated()]),
 
     RoleOptionNumber: a
       .model({
@@ -144,12 +122,7 @@ const schema = a
         updatedBy: a.string(),
       })
       .secondaryIndexes((index) => [index("roleId").queryField("roleOptionNumbersByRole")])
-      .authorization((allow) => [
-        allow.group(ADMIN_GROUP),
-        allow.group(ADMIN_DEPT_GROUP),
-        allow.group(ADMIN_DEPT_GROUP_LOWER),
-        allow.authenticated().to(["read"]),
-      ]),
+      .authorization((allow) => [allow.authenticated()]),
 
     // -----------------------------
     // CRM MODELS
@@ -801,7 +774,7 @@ const schema = a
         lineManagerEmail: a.string(),
         lineManagerName: a.string(),
       })
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated()])
+      .authorization((allow) => [allow.authenticated()])
       .handler(a.handler.function(inviteUser))
       .returns(a.json()),
 
@@ -811,20 +784,20 @@ const schema = a
         email: a.string().required(),
         isActive: a.boolean().required(),
       })
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated()])
+      .authorization((allow) => [allow.authenticated()])
       .handler(a.handler.function(setUserActive))
       .returns(a.json()),
 
     adminDeleteUser: a
       .mutation()
       .arguments({ email: a.string().required() })
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated()])
+      .authorization((allow) => [allow.authenticated()])
       .handler(a.handler.function(deleteUser))
       .returns(a.json()),
 
     adminListDepartments: a
       .query()
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated()])
+      .authorization((allow) => [allow.authenticated()])
       .handler(a.handler.function(listDepartments))
       .returns(a.json()),
 
@@ -837,14 +810,14 @@ const schema = a
     adminCreateDepartment: a
       .mutation()
       .arguments({ departmentName: a.string().required() })
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated()])
+      .authorization((allow) => [allow.authenticated()])
       .handler(a.handler.function(createDepartment))
       .returns(a.json()),
 
     adminDeleteDepartment: a
       .mutation()
       .arguments({ departmentKey: a.string().required() })
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated()])
+      .authorization((allow) => [allow.authenticated()])
       .handler(a.handler.function(deleteDepartment))
       .returns(a.json()),
 
@@ -854,7 +827,7 @@ const schema = a
         oldKey: a.string().required(),
         newName: a.string().required(),
       })
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated()])
+      .authorization((allow) => [allow.authenticated()])
       .handler(a.handler.function(renameDepartment))
       .returns(a.json()),
 
@@ -865,7 +838,7 @@ const schema = a
         departmentKey: a.string().required(),
         departmentName: a.string(),
       })
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated()])
+      .authorization((allow) => [allow.authenticated()])
       .handler(a.handler.function(setUserDepartment))
       .returns(a.json()),
 
@@ -882,7 +855,7 @@ const schema = a
         lineManagerName: a.string(),
         dashboardAccessEnabled: a.boolean(),
       })
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated()])
+      .authorization((allow) => [allow.authenticated()])
       .handler(a.handler.function(updateUserProfile))
       .returns(a.json()),
 

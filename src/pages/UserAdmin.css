@@ -1420,3 +1420,387 @@
 .ums-page .ums-menu-item {
   animation: none !important;
 }
+
+.ums-list-page {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Responsive hardening for users list and controls */
+@media (max-width: 1180px) {
+  .ums-page {
+    padding: 10px;
+  }
+
+  .ums-topbar {
+    border-radius: 12px;
+    padding: 14px 16px;
+  }
+
+  .ums-topbar h1 {
+    font-size: 22px;
+    line-height: 1.2;
+  }
+
+  .ums-card {
+    border-radius: 12px;
+    border-top: 1px solid #e6edf5;
+  }
+
+  .ums-search-card,
+  .ums-table-card {
+    border-radius: 12px;
+  }
+
+  .ums-search-card {
+    padding: 14px 12px 10px;
+  }
+
+  .ums-table-header {
+    flex-direction: column;
+    align-items: stretch;
+    padding: 12px;
+  }
+
+  .ums-table-title h2 {
+    font-size: 18px;
+  }
+
+  .ums-table-actions {
+    width: 100%;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+  }
+
+  .ums-rpp {
+    flex: 1 1 auto;
+    min-width: 0;
+    justify-content: space-between;
+  }
+
+  .ums-add-btn {
+    white-space: nowrap;
+  }
+
+  .ums-status {
+    padding: 0 12px 10px;
+  }
+
+  .ums-table-scroll {
+    padding: 0 8px 12px;
+  }
+
+  .ums-table tbody td {
+    display: grid;
+    grid-template-columns: minmax(98px, 42%) minmax(0, 1fr);
+    align-items: start;
+    justify-content: initial;
+    gap: 8px 10px;
+  }
+
+  .ums-table tbody td::before {
+    min-width: 0;
+    width: auto;
+  }
+
+  .ums-table tbody td > * {
+    min-width: 0;
+    justify-self: end;
+    text-align: right;
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .ums-actions-cell {
+    display: block !important;
+    text-align: left;
+  }
+
+  .ums-actions-cell > * {
+    width: 100%;
+  }
+
+  .ums-actions-cell .ums-actions-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .ums-line-manager-cell {
+    max-width: 100%;
+    white-space: normal;
+    text-overflow: initial;
+  }
+
+  .ums-email {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+}
+
+@media (max-width: 640px) {
+  .ums-page {
+    padding: 8px;
+  }
+
+  .ums-topbar {
+    padding: 12px 14px;
+  }
+
+  .ums-topbar h1 {
+    font-size: 19px;
+  }
+
+  .ums-table-actions {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .ums-rpp {
+    width: 100%;
+  }
+
+  .ums-select {
+    width: 100%;
+  }
+
+  .ums-add-btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .ums-table tbody td {
+    grid-template-columns: 1fr;
+    gap: 4px;
+    padding: 10px 12px;
+  }
+
+  .ums-table tbody td::before {
+    font-size: 10px;
+    opacity: 0.9;
+  }
+
+  .ums-table tbody td > * {
+    justify-self: start;
+    text-align: left;
+    width: 100%;
+  }
+
+  .pill {
+    width: auto;
+    max-width: 100%;
+  }
+}
+
+/* Force horizontal scroll for users list table on narrow viewports */
+@media (max-width: 1180px) {
+  .ums-table-scroll {
+    position: relative;
+    overflow-x: auto !important;
+    overflow-y: visible !important;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .ums-table-scroll::after {
+    content: "";
+    position: absolute;
+    top: 0;
+    right: 0;
+    width: 26px;
+    height: 100%;
+    pointer-events: none;
+    background: linear-gradient(to left, rgba(243, 246, 251, 0.96), rgba(243, 246, 251, 0));
+  }
+
+  .ums-table {
+    min-width: 1220px !important;
+    width: 1220px !important;
+    table-layout: auto !important;
+    border-spacing: 0;
+    background: #f6f9fd;
+    border-radius: 14px;
+  }
+
+  .ums-table thead {
+    display: table-header-group !important;
+  }
+
+  .ums-table tbody {
+    display: table-row-group !important;
+  }
+
+  .ums-table tr {
+    display: table-row !important;
+    margin-bottom: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+    background: transparent !important;
+  }
+
+  .ums-table th,
+  .ums-table td {
+    display: table-cell !important;
+  }
+
+  .ums-table tbody td {
+    padding: 12px 12px;
+    border-bottom: 1px solid #eef2f7;
+    font-size: 14px;
+    text-align: left;
+  }
+
+  .ums-table tbody td::before {
+    content: none !important;
+  }
+
+  .ums-actions-cell {
+    text-align: right;
+  }
+
+  .ums-actions-cell .ums-actions-btn {
+    width: auto;
+  }
+}
+
+/* Density tuning: 1366 */
+@media (max-width: 1366px) and (min-width: 1181px) {
+  .ums-page {
+    padding: 10px;
+  }
+
+  .ums-topbar {
+    padding: 12px 14px;
+  }
+
+  .ums-topbar h1 {
+    font-size: 22px;
+  }
+
+  .ums-table thead th {
+    font-size: 12.5px;
+    padding: 10px 8px;
+  }
+
+  .ums-table tbody td {
+    font-size: 13px;
+    padding: 10px 8px;
+  }
+
+  .ums-search {
+    font-size: 14px;
+    padding: 11px 12px 11px 40px;
+  }
+}
+
+/* Density tuning: 980 */
+@media (max-width: 980px) {
+  .ums-topbar h1 {
+    font-size: 20px;
+  }
+
+  .ums-table {
+    min-width: 1120px !important;
+    width: 1120px !important;
+  }
+
+  .ums-table thead th {
+    font-size: 12px;
+    padding: 10px 8px;
+  }
+
+  .ums-table tbody td {
+    font-size: 13px;
+    padding: 10px 8px;
+  }
+
+  .ums-search-card {
+    padding: 12px 10px 9px;
+  }
+
+  .ums-search {
+    font-size: 14px;
+    padding: 10px 12px 10px 38px;
+  }
+}
+
+/* Density tuning: 768 */
+@media (max-width: 768px) {
+  .ums-page {
+    padding: 8px;
+  }
+
+  .ums-topbar {
+    padding: 10px 12px;
+  }
+
+  .ums-topbar h1 {
+    font-size: 18px;
+  }
+
+  .ums-table {
+    min-width: 1020px !important;
+    width: 1020px !important;
+  }
+
+  .ums-add-btn {
+    padding: 10px 12px;
+    font-size: 13px;
+  }
+
+  .ums-actions-btn {
+    padding: 8px 9px;
+    font-size: 12px;
+  }
+
+  .ums-pill-select,
+  .ums-select,
+  .ums-input {
+    font-size: 13px;
+  }
+}
+
+/* Density tuning: 640 */
+@media (max-width: 640px) {
+  .ums-table {
+    min-width: 940px !important;
+    width: 940px !important;
+  }
+
+  .ums-showing {
+    font-size: 12px;
+  }
+
+  .ums-table-title h2 {
+    font-size: 16px;
+  }
+}
+
+/* Density tuning: 480 */
+@media (max-width: 480px) {
+  .ums-topbar h1 {
+    font-size: 17px;
+  }
+
+  .ums-table {
+    min-width: 860px !important;
+    width: 860px !important;
+  }
+
+  .ums-table thead th,
+  .ums-table tbody td {
+    font-size: 12px;
+    padding: 9px 7px;
+  }
+
+  .ums-search {
+    font-size: 13px;
+  }
+
+  .pill {
+    font-size: 11px;
+    padding: 5px 9px;
+  }
+}

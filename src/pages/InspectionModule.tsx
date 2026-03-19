@@ -466,6 +466,20 @@ function InspectionModule({ currentUser }: any) {
     });
   };
 
+  const selectAllGroupItems = (sectionKey: "exterior" | "interior", groupItems: AnyObj[]) => {
+    setInspectionState((prev: AnyObj) => {
+      const updated = { ...prev };
+      const section = { ...updated[sectionKey] };
+      const items = { ...section.items };
+      groupItems.forEach((item: AnyObj) => {
+        items[item.id] = { ...items[item.id], status: "pass", comment: "" };
+      });
+      section.items = items;
+      updated[sectionKey] = section;
+      return updated;
+    });
+  };
+
   const updateItemComment = (sectionKey: "exterior" | "interior", itemId: string, comment: string) => {
     setInspectionState((prev: AnyObj) => {
       const updated = { ...prev };
@@ -1234,6 +1248,13 @@ function InspectionModule({ currentUser }: any) {
                                       <i className={`fas fa-chevron-${isGroupExpanded ? "down" : "right"}`} />
                                     </button>
                                     <span>{group.title}</span>
+                                    <button 
+                                      className="select-all-btn" 
+                                      onClick={() => selectAllGroupItems(sectionKey, group.items)} 
+                                      title="Select all items as Pass"
+                                    >
+                                      <i className="fas fa-check-double"></i> Select All
+                                    </button>
                                   </div>
 
                                   {isGroupExpanded && (
