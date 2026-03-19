@@ -33,7 +33,11 @@ import { listServiceCatalog, resolveServicePriceForVehicleType, type ServiceCata
 import { resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
 import { usePermissions } from "../lib/userPermissions";
 import { useLanguage } from "../i18n/LanguageContext";
-import { computeCumulativeDiscountAllowance, toCurrencyNumber } from "../utils/discountPolicy";
+import {
+  computeCumulativeDiscountAllowance,
+  resolveCentralDiscountPercent,
+  toCurrencyNumber,
+} from "../utils/discountPolicy";
 import {
   derivePaymentStatusFromFinancials,
   pickBillingFirstValue,
@@ -177,12 +181,10 @@ function InspectionModule({ currentUser }: any) {
   const { canOption, getOptionNumber } = usePermissions();
   const [inspectionConfig, setInspectionConfig] = useState<any[]>(inspectionListConfig);
   const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
-  const maxServiceDiscountPercent = useMemo(() => {
-    if (!canOption("joborder", "joborder_servicediscount_percent", true)) return 0;
-    const configured = Number(getOptionNumber("joborder", "joborder_servicediscount_percent", 15));
-    if (!Number.isFinite(configured)) return 15;
-    return Math.max(0, Math.min(100, configured));
-  }, [canOption, getOptionNumber]);
+  const centralDiscountPercent = useMemo(
+    () => resolveCentralDiscountPercent(canOption, getOptionNumber),
+    [canOption, getOptionNumber]
+  );
 
   const sectionConfig = useMemo(() => {
     const exterior = inspectionConfig.find((c: AnyObj) => c.category === "Exterior of the Vehicle");
@@ -1032,7 +1034,7 @@ function InspectionModule({ currentUser }: any) {
         <AddServiceScreen
           order={currentAddServiceOrder}
           products={serviceCatalog}
-          maxDiscountPercent={maxServiceDiscountPercent}
+          maxDiscountPercent={centralDiscountPercent}
           onClose={() => setScreenState("details")}
           onSubmit={handleAddServiceSubmit}
         />

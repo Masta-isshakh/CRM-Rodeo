@@ -233,22 +233,18 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
     return sum + qty * unit;
   }, 0);
 
-  // ✅ numeric limit: discount max % (union of payment+joborder limits)
+  // ✅ numeric limit: centralized discount max %
   if (!cancelling && subtotal > 0) {
     const existingDiscount = Math.max(0, toNum(existing?.discount));
     const discountChanged = Math.abs(discount - existingDiscount) > 0.00001;
 
     if (discountChanged && discount > 0) {
-      const allowedByToggle =
-        opt.toggleEnabled("payment", "payment_discountfield", true) ||
-        opt.toggleEnabled("joborder", "joborder_discount_percent", true);
+      const allowedByToggle = opt.toggleEnabled("joborder", "joborder_discount_percent", true);
 
       if (!allowedByToggle) throw new Error("You are not allowed to change discount.");
     }
 
-    const maxPctPayment = opt.maxNumber("payment", "payment_discount_percent", 100);
-    const maxPctJob = opt.maxNumber("joborder", "joborder_discount_percent", 100);
-    const maxPct = Math.max(0, Math.min(100, Math.max(maxPctPayment, maxPctJob)));
+    const maxPct = Math.max(0, Math.min(100, opt.maxNumber("joborder", "joborder_discount_percent", 20)));
 
     const maxDiscountAmount = (subtotal * maxPct) / 100;
     if (discount > maxDiscountAmount + 0.00001) {

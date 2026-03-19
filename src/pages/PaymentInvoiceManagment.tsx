@@ -15,6 +15,7 @@ import { resolveActorDisplay, resolveActorUsername, resolveOrderCreatedBy } from
 import {
   clampTotalDiscountAmount,
   computeCumulativeDiscountAllowance,
+  resolveCentralDiscountPercent,
 } from "../utils/discountPolicy";
 import {
   derivePaymentStatusFromFinancials,
@@ -375,12 +376,10 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   const [userLabelMap, setUserLabelMap] = useState<Record<string, string>>({});
 
   // ✅ numeric limit (percent)
-  const maxPaymentDiscountPercent = useMemo(() => {
-    if (!canOption("payment", "payment_max_discount_percent", true)) return 0;
-    const configured = Number(getOptionNumber("payment", "payment_max_discount_percent", 100));
-    if (!Number.isFinite(configured)) return 100;
-    return Math.max(0, Math.min(100, configured));
-  }, [canOption, getOptionNumber]);
+  const centralDiscountPercent = useMemo(
+    () => resolveCentralDiscountPercent(canOption, getOptionNumber),
+    [canOption, getOptionNumber]
+  );
 
   const [allOrders, setAllOrders] = useState<ListOrder[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -921,7 +920,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const rawDiscount = Math.max(0, toNum(selectedOrder?.billing?.discount));
     const discountFloor = Math.min(rawDiscount, Math.max(0, totalAmount));
     const discountAllowance = computeCumulativeDiscountAllowance({
-      policyMaxPercent: maxPaymentDiscountPercent,
+      policyMaxPercent: centralDiscountPercent,
       baseAmount: totalAmount,
       existingDiscountAmount: rawDiscount,
       floorDiscountAmount: discountFloor,
@@ -969,7 +968,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
       if (name === "discount" || name === "discountPercent" || name === "amountToPay") {
         const discountAllowance = computeCumulativeDiscountAllowance({
-          policyMaxPercent: maxPaymentDiscountPercent,
+          policyMaxPercent: centralDiscountPercent,
           baseAmount: prev.totalAmount,
           existingDiscountAmount: Math.max(0, prev.discountFloor || 0),
           floorDiscountAmount: Math.max(0, prev.discountFloor || 0),
@@ -978,7 +977,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         let discount = Math.max(0, toNum(next.discount));
         if (name === "discountPercent") {
           let percent = Math.max(0, toNum(next.discountPercent));
-          percent = Math.min(percent, maxPaymentDiscountPercent);
+          percent = Math.min(percent, centralDiscountPercent);
           next.discountPercent = percent.toFixed(2);
           discount = (Math.max(0, prev.totalAmount) * percent) / 100;
         }
@@ -1049,7 +1048,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const rawDiscount = Math.max(0, toNum(paymentForm.discount));
     const existingDiscount = Math.max(0, toNum(selectedOrder?.billing?.discount));
     const discountAllowance = computeCumulativeDiscountAllowance({
-      policyMaxPercent: maxPaymentDiscountPercent,
+      policyMaxPercent: centralDiscountPercent,
       baseAmount: paymentForm.totalAmount,
       existingDiscountAmount: existingDiscount,
       floorDiscountAmount: Math.max(0, paymentForm.discountFloor || 0),
@@ -1060,7 +1059,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     );
 
     if (rawDiscount > discountAllowance.maxAllowedTotalDiscountAmount + 0.00001) {
-      setErrorMessage(`Discount exceeds limit. Max allowed is ${fmtQar(discountAllowance.maxAllowedTotalDiscountAmount)} (${maxPaymentDiscountPercent}% policy, including existing approved discount).`);
+      setErrorMessage(`Discount exceeds limit. Max allowed is ${fmtQar(discountAllowance.maxAllowedTotalDiscountAmount)} (${centralDiscountPercent}% policy, including existing approved discount).`);
       setShowErrorPopup(true);
       return;
     }
@@ -1577,7 +1576,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     const paymentDiscountAllowance = paymentForm
       ? computeCumulativeDiscountAllowance({
-          policyMaxPercent: maxPaymentDiscountPercent,
+          policyMaxPercent: centralDiscountPercent,
           baseAmount: paymentForm.totalAmount,
           existingDiscountAmount: Math.max(0, toNum(selectedOrder?.billing?.discount)),
           floorDiscountAmount: Math.max(0, paymentForm.discountFloor || 0),
@@ -1895,7 +1894,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                     </div>
 
                     <div className="pim-form">
-                      <PermissionGate moduleId="payment" optionId="payment_discountfield">
+                      <PermissionGate moduleId="joborder" optionId="joborder_discount_percent">
                         <div className="pim-field">
                           <label>Total Discount (QAR)</label>
                           <input
@@ -1907,7 +1906,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                             max={maxDiscountQarUi}
                             step={0.01}
                           />
-                          <div className="pim-help">Max discount: {maxPaymentDiscountPercent}% ({fmtQar(maxDiscountQarUi)})</div>
+                          <div className="pim-help">Max discount: {centralDiscountPercent}% ({fmtQar(maxDiscountQarUi)})</div>
                         </div>
                         <div className="pim-field">
                           <label>Total Discount (%)</label>
@@ -1917,7 +1916,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                             value={paymentForm.discountPercent}
                             onChange={handlePaymentChange}
                             min={0}
-                            max={maxPaymentDiscountPercent}
+                            max={centralDiscountPercent}
                             step={0.01}
                           />
                           <div className="pim-help">Changing either discount field updates the other automatically.</div>

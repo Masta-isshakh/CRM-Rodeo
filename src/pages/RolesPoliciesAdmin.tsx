@@ -165,19 +165,10 @@ const MODULE_DEFINITIONS = [
       { id: "joborder_download", label: "Download Document", prefix: "-" },
       { id: "joborder_addservice", label: "Add Service Button", prefix: "-" },
       { id: "joborder_serviceprice", label: "View Service Price", prefix: "-" },
-      { id: "joborder_servicediscount", label: "Service Discount", prefix: "-" },
-
-      {
-        kind: "percent",
-        id: "joborder_servicediscount_percent",
-        label: "Max Service Discount %",
-        prefix: "-",
-        defaultValue: 15,
-      },
       {
         kind: "percent",
         id: "joborder_discount_percent",
-        label: "Max Job Order Discount %",
+        label: "Central Max Discount %",
         prefix: "-",
         defaultValue: 20,
       },
@@ -269,7 +260,6 @@ const MODULE_DEFINITIONS = [
       { id: "payment_actions", label: "Actions Dropdown", prefix: "a." },
       { id: "payment_viewdetails", label: "View Details", prefix: "b." },
       { id: "payment_pay", label: "Record Payment Button", prefix: "c." },
-      { id: "payment_discountfield", label: "Discount Field", prefix: "-" },
       { id: "payment_generatebill", label: "Generate Bill", prefix: "-" },
       { id: "payment_refund", label: "Refund", prefix: "-" },
       { id: "payment_cancel", label: "Cancel Order", prefix: "-" },
@@ -282,15 +272,6 @@ const MODULE_DEFINITIONS = [
       { id: "payment_paymentlog", label: "Payment Log", prefix: "-" },
       { id: "payment_documents", label: "Documents Section", prefix: "-" },
       { id: "payment_download", label: "Download Button", prefix: "-" },
-
-      // optional numeric limit (if you enforce in UI): max discount percent of total
-      {
-        kind: "percent",
-        id: "payment_max_discount_percent",
-        label: "Max Discount % (Payment)",
-        prefix: "-",
-        defaultValue: 100,
-      },
     ],
   },
 

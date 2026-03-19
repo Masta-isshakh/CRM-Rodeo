@@ -28,6 +28,23 @@ export function normalizePercent(value: unknown): number {
   return Math.max(0, Math.min(100, raw));
 }
 
+export const CENTRAL_DISCOUNT_MODULE_ID = "joborder";
+export const CENTRAL_DISCOUNT_OPTION_ID = "joborder_discount_percent";
+export const CENTRAL_DISCOUNT_DEFAULT_PERCENT = 20;
+
+export function resolveCentralDiscountPercent(
+  canOption: (...args: any[]) => boolean,
+  getOptionNumber: (...args: any[]) => number,
+  fallback = CENTRAL_DISCOUNT_DEFAULT_PERCENT
+): number {
+  if (!canOption(CENTRAL_DISCOUNT_MODULE_ID, CENTRAL_DISCOUNT_OPTION_ID, true)) return 0;
+  const configured = Number(
+    getOptionNumber(CENTRAL_DISCOUNT_MODULE_ID, CENTRAL_DISCOUNT_OPTION_ID, fallback)
+  );
+  if (!Number.isFinite(configured)) return fallback;
+  return normalizePercent(configured);
+}
+
 export function computeCumulativeDiscountAllowance(input: DiscountAllowanceInput): DiscountAllowance {
   const normalizedMaxPercent = normalizePercent(input.policyMaxPercent);
   const normalizedBaseAmount = Math.max(0, toCurrencyNumber(input.baseAmount));

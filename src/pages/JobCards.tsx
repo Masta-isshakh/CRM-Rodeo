@@ -40,6 +40,7 @@ import { useLanguage } from "../i18n/LanguageContext";
 import {
   clampTotalDiscountAmount,
   computeCumulativeDiscountAllowance,
+  resolveCentralDiscountPercent,
   toCurrencyNumber,
 } from "../utils/discountPolicy";
 import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
@@ -473,12 +474,10 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
 
-  const maxServiceDiscountPercent = useMemo(() => {
-    if (!canOption("joborder", "joborder_servicediscount_percent", true)) return 0;
-    const configured = Number(getOptionNumber("joborder", "joborder_servicediscount_percent", 15));
-    if (!Number.isFinite(configured)) return 15;
-    return Math.max(0, Math.min(100, configured));
-  }, [canOption, getOptionNumber]);
+  const centralDiscountPercent = useMemo(
+    () => resolveCentralDiscountPercent(canOption, getOptionNumber),
+    [canOption, getOptionNumber]
+  );
 
   
 
@@ -554,7 +553,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
 
     const combinedTotalAmount = Math.max(0, existingTotal + subtotal);
     const discountAllowance = computeCumulativeDiscountAllowance({
-      policyMaxPercent: maxServiceDiscountPercent,
+      policyMaxPercent: centralDiscountPercent,
       baseAmount: combinedTotalAmount,
       existingDiscountAmount: existingDiscount,
     });
@@ -828,7 +827,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         <AddServiceScreen
           order={currentAddServiceOrder}
           products={serviceCatalog}
-          maxDiscountPercent={maxServiceDiscountPercent}
+          maxDiscountPercent={centralDiscountPercent}
           onClose={() => setScreenState("details")}
           onSubmit={handleAddServiceSubmit}
         />
@@ -1323,12 +1322,10 @@ function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actorIdentityMap, setActorIdentityMap] = useState<Record<string, string>>({});
   const actorUsername = resolveAuthenticatedEmail(currentUser) || "system";
-  const maxJobOrderDiscountPercent = useMemo(() => {
-    if (!canOption("joborder", "joborder_discount_percent", true)) return 0;
-    const configured = Number(getOptionNumber("joborder", "joborder_discount_percent", 20));
-    if (!Number.isFinite(configured)) return 20;
-    return Math.max(0, Math.min(100, configured));
-  }, [canOption, getOptionNumber]);
+  const centralDiscountPercent = useMemo(
+    () => resolveCentralDiscountPercent(canOption, getOptionNumber),
+    [canOption, getOptionNumber]
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -1408,7 +1405,7 @@ function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }
 
     const servicesToBill = orderType === "service" ? additionalServices : selectedServices;
     const { subtotal } = summarizeServicesPricing(servicesToBill);
-    const maxAllowedDiscountAmount = (Math.max(0, subtotal) * maxJobOrderDiscountPercent) / 100;
+    const maxAllowedDiscountAmount = (Math.max(0, subtotal) * centralDiscountPercent) / 100;
     const discount = Math.min(
       Math.max(0, discountAmount || 0),
       Math.max(0, subtotal),
@@ -1627,7 +1624,7 @@ return (
           selectedServices={orderType === "service" ? additionalServices : selectedServices}
           setSelectedServices={orderType === "service" ? setAdditionalServices : setSelectedServices}
           vehicleType={vehicleData?.carType || vehicleData?.vehicleType || "SUV"}
-          maxDiscountPercent={maxJobOrderDiscountPercent}
+          maxDiscountPercent={centralDiscountPercent}
           discountAmount={discountAmount}
           setDiscountAmount={setDiscountAmount}
           orderNotes={orderNotes}
@@ -1647,7 +1644,7 @@ return (
           customerData={customerData}
           vehicleData={vehicleData}
           selectedServices={orderType === "service" ? additionalServices : selectedServices}
-          maxDiscountPercent={maxJobOrderDiscountPercent}
+          maxDiscountPercent={centralDiscountPercent}
           discountAmount={discountAmount}
           orderNotes={orderNotes}
           expectedDeliveryDate={expectedDeliveryDate}
@@ -2724,11 +2721,11 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
                 <span>{packageCount > 0 ? "Packages & Services:" : "Services:"}</span>
                 <span>{formatPrice(subtotal)}</span>
               </div>
-              <PermissionGate moduleId="joborder" optionId="joborder_servicediscount">
+              <PermissionGate moduleId="joborder" optionId="joborder_discount_percent">
                 <div className="price-row">
                   <span>Apply Discount:</span>
                   <div>
-                    <PermissionGate moduleId="joborder" optionId="joborder_servicediscount_percent">
+                    <PermissionGate moduleId="joborder" optionId="joborder_discount_percent">
                       <input
                         type="number"
                         min="0"
@@ -2746,7 +2743,7 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
                   </div>
                 </div>
               </PermissionGate>
-              <PermissionGate moduleId="joborder" optionId="joborder_servicediscount_percent">
+              <PermissionGate moduleId="joborder" optionId="joborder_discount_percent">
                 <div className="price-row">
                   <span>Remaining Allowed Discount:</span>
                   <span>

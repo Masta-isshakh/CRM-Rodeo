@@ -23,6 +23,5 @@ export const PERMISSION_MAP: Record<string, PermissionKey> = {
   // --- Add service / pricing/discount fine-grained
   "joborder.joborder_addservice": "jobOrder.update",
   "joborder.joborder_serviceprice": "jobOrder.service.price.view",
-  "joborder.joborder_servicediscount": "jobOrder.service.discount.view",
-  "joborder.joborder_servicediscount_percent": "jobOrder.service.discount.edit",
+  "joborder.joborder_discount_percent": "jobOrder.discount.edit",
 };
