@@ -1335,120 +1335,250 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const billing = order?.billing ?? {};
     const billId = String(billing.billId || order?.id || "BILL");
     const now = new Date();
-
+    const currentDate = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+    
     const services: any[] = Array.isArray(order?.services) ? order.services : [];
-    const serviceAudit = buildPackageAuditBreakdown(services);
-    const serviceRows = services
-      .map((s: any) => {
-        const name = String(s?.name ?? s ?? "");
-        const price = toNum(s?.price);
-        return `<tr><td>${name}</td><td style="text-align:right">${price > 0 ? fmtQar(price) : "-"}</td></tr>`;
-      })
-      .join("");
-    const packageAuditRows = [
-      ...serviceAudit.packageLines.map(
-        (line) => `<tr>
-          <td>${line.title}</td>
-          <td style="text-align:center">${line.itemCount}</td>
-          <td style="text-align:right">${fmtQar(line.total)}</td>
-        </tr>`
-      ),
-      ...(serviceAudit.standaloneCount > 0
-        ? [
-            `<tr>
-              <td>Individual Services (Non-package)</td>
-              <td style="text-align:center">${serviceAudit.standaloneCount}</td>
-              <td style="text-align:right">${fmtQar(serviceAudit.standaloneTotal)}</td>
-            </tr>`,
-          ]
-        : []),
-    ].join("");
+    const totalAmount = toNum(billing.totalAmount || 0);
+    const discount = toNum(billing.discount || 0);
+    const netAmount = toNum(billing.netAmount || 0);
+    const amountPaid = toNum(billing.amountPaid || 0);
+    const balanceDue = toNum(billing.balanceDue || 0);
+
+    // Build service rows (max 15 rows like the template)
+    let serviceRowsHtml = "";
+    for (let i = 1; i <= 15; i++) {
+      const service = services[i - 1];
+      const description = service ? String(service?.name ?? service ?? "") : "";
+      const amount = service ? fmtQar(toNum(service?.price || 0)) : "";
+      
+      serviceRowsHtml += `
+        <tr>
+          <td style="text-align:center; padding:10px; border:1px solid #ccc;">${i}</td>
+          <td style="padding:10px; border:1px solid #ccc;">${description}</td>
+          <td style="text-align:right; padding:10px; border:1px solid #ccc;">${amount}</td>
+        </tr>
+      `;
+    }
 
     return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
-<title>Bill_${billId}.html</title>
+<title>Invoice_${billId}.html</title>
 <style>
-  body { font-family: 'Segoe UI', sans-serif; margin:0; padding:20mm; background:#f6f7fb; color:#0f172a; }
-  * { box-sizing:border-box; }
-  @page { size:A4; margin:0; }
-  .hdr { text-align:center; margin-bottom:18px; padding:18px 10px; border-radius:12px; background:linear-gradient(135deg,#0f172a,#2563eb); color:white; }
-  .hdr h1 { margin:0 0 6px 0; font-size:26px; }
-  .hdr p { margin:0; opacity:.9; font-size:12px; }
-  .card { background:white; border:1px solid #e7e8ee; border-radius:12px; padding:16px; margin-bottom:14px; box-shadow:0 10px 22px rgba(15,23,42,.08); }
-  .ttl { margin:0 0 12px 0; font-size:14px; font-weight:800; border-bottom:1px solid #eef0f5; padding-bottom:10px; }
-  .grid { display:grid; grid-template-columns:1fr 1fr; gap:10px 14px; font-size:12px; }
-  .lbl { font-weight:800; color:#334155; display:block; margin-bottom:4px; }
-  .val { color:#475569; }
-  table { width:100%; border-collapse:collapse; margin-top:10px; }
-  thead { background:#0f172a; color:white; }
-  th, td { padding:10px 12px; font-size:12px; border-bottom:1px solid #eef0f5; }
-  .sum { margin-top:10px; padding:12px; background:#f6f7fb; border:1px solid #e7e8ee; border-radius:10px; }
-  .row { display:flex; justify-content:space-between; padding:6px 0; font-size:12px; }
-  .grand { margin-top:10px; padding:12px; border-radius:10px; background:#2563eb; color:white; display:flex; justify-content:space-between; font-weight:900; }
-  .ftr { margin-top:18px; text-align:center; font-size:11px; color:#64748b; }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: Arial, sans-serif; background: #fff; }
+  @page { size: A4; margin: 0; }
+  .invoice-container { width: 210mm; height: 297mm; margin: 0 auto; padding: 15mm; background: white; color: #000; }
+  
+  /* Header */
+  .invoice-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 2px solid #000; }
+  .company-info { flex: 1; }
+  .company-info h1 { font-size: 24px; font-weight: bold; margin-bottom: 5px; color: #000; }
+  .company-info p { font-size: 11px; margin: 2px 0; line-height: 1.4; }
+  .invoice-title { text-align: center; flex: 1; }
+  .invoice-title h2 { font-size: 28px; font-weight: bold; border: 3px solid #1a3a5c; padding: 10px 30px; display: inline-block; }
+  .logo-area { flex: 1; text-align: right; }
+  .logo-placeholder { width: 80px; height: 80px; background: #f0f0f0; border: 1px solid #999; display: inline-block; text-align: center; line-height: 80px; font-size: 11px; color: #999; }
+  
+  /* Arabic text */
+  .arabic-text { direction: rtl; text-align: right; font-size: 12px; font-weight: bold; margin-top: 5px; }
+  
+  /* Bill Details Grid */
+  .bill-details { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 20px 0; font-size: 12px; }
+  .detail-field { display: flex; }
+  .detail-label { font-weight: bold; min-width: 120px; }
+  .detail-value { flex: 1; border-bottom: 1px dotted #999; }
+  
+  /* Services Table */
+  .services-table { width: 100%; margin: 20px 0; border-collapse: collapse; font-size: 12px; }
+  .services-table th { background: #e8e8e8; border: 1px solid #ccc; padding: 10px; text-align: center; font-weight: bold; }
+  .services-table td { border: 1px solid #ccc; padding: 10px; }
+  .services-table .no-col { text-align: center; width: 40px; }
+  .services-table .desc-col { text-align: left; }
+  .services-table .amount-col { text-align: right; width: 100px; }
+  
+  /* Summary Section */
+  .summary-section { margin-top: 20px; }
+  .summary-row { display: grid; grid-template-columns: 1fr 150px; gap: 10px; margin-bottom: 8px; font-size: 12px; font-weight: bold; }
+  .summary-label { text-align: right; }
+  .summary-value { text-align: right; }
+  
+  .total-amount-row { background: #e8e8e8; padding: 10px; display: grid; grid-template-columns: 1fr 150px; gap: 10px; margin: 10px 0; }
+  .total-amount-row .summary-label { text-align: right; font-size: 14px; font-weight: bold; }
+  .total-amount-row .summary-value { text-align: right; font-size: 14px; font-weight: bold; }
+  
+  /* Bottom fields */
+  .bottom-fields { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin: 25px 0; font-size: 11px; }
+  .bottom-field { }
+  .bottom-label { font-weight: bold; margin-bottom: 5px; }
+  .bottom-value { border-bottom: 1px solid #999; min-height: 25px; }
+  
+  /* Footer */
+  .invoice-footer { margin-top: 30px; padding-top: 20px; border-top: 2px solid #000; text-align: center; font-size: 10px; line-height: 1.6; }
+  .footer-text { margin-bottom: 5px; }
+  .footer-ar { direction: rtl; text-align: center; margin-top: 10px; }
 </style>
 </head>
 <body>
-  <div class="hdr">
-    <h1>Bill / Invoice</h1>
-    <p>Generated on ${now.toLocaleString()}</p>
-  </div>
-
-  <div class="card">
-    <div class="ttl">Bill Information</div>
-    <div class="grid">
-      <div><span class="lbl">Bill ID</span><span class="val">${billId}</span></div>
-      <div><span class="lbl">Job Order</span><span class="val">${order.id}</span></div>
-      <div><span class="lbl">Order Type</span><span class="val">${String(order.orderType || "Job Order")}</span></div>
-      <div><span class="lbl">Date</span><span class="val">${now.toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" })}</span></div>
+<div class="invoice-container">
+  <!-- Header -->
+  <div class="invoice-header">
+    <div class="company-info">
+      <h1>RODEO DRIVE</h1>
+      <p>Gloss PERFECTED</p>
+      <p>Block 2, Shop No. SYS 066, Block 21,</p>
+      <p>Near Dragon Mart Al Sayer, Doha.</p>
+      <div class="arabic-text">
+        <div>رودeo درايف</div>
+        <div>الخدمات المتكاملة</div>
+        <div>متجر 2، رقم متجر SYS 066 + 21</div>
+        <div>بالقرب من دراغون مارت السيارة الدوحة</div>
+      </div>
+    </div>
+    <div class="invoice-title">
+      <h2>INVOICE</h2>
+    </div>
+    <div class="logo-area">
+      <div class="logo-placeholder">logo</div>
     </div>
   </div>
-
-  <div class="card">
-    <div class="ttl">Customer</div>
-    <div class="grid">
-      <div><span class="lbl">Name</span><span class="val">${String(order.customerName || "")}</span></div>
-      <div><span class="lbl">Mobile</span><span class="val">${String(order.mobile || "")}</span></div>
-      <div><span class="lbl">Email</span><span class="val">${String(order.customerDetails?.email || "N/A")}</span></div>
-      <div><span class="lbl">Plate</span><span class="val">${String(order.vehiclePlate || order.vehicleDetails?.plateNumber || "N/A")}</span></div>
+  
+  <!-- Bill Details -->
+  <div class="bill-details">
+    <div class="detail-field">
+      <span class="detail-label">Bill Number</span>
+      <span class="detail-value">${billId}</span>
+    </div>
+    <div class="detail-field">
+      <span class="detail-label">Bill Date</span>
+      <span class="detail-value">${currentDate}</span>
+    </div>
+    <div></div>
+    
+    <div class="detail-field">
+      <span class="detail-label">Order ID</span>
+      <span class="detail-value">${String(order.id || "")}</span>
+    </div>
+    <div class="detail-field">
+      <span class="detail-label">Order Date</span>
+      <span class="detail-value">${currentDate}</span>
+    </div>
+    <div></div>
+    
+    <div class="detail-field">
+      <span class="detail-label">Customer Name</span>
+      <span class="detail-value">${String(order.customerName || "")}</span>
+    </div>
+    <div class="detail-field">
+      <span class="detail-label">Mobile</span>
+      <span class="detail-value">${String(order.mobile || "")}</span>
+    </div>
+    <div></div>
+    
+    <div class="detail-field">
+      <span class="detail-label">Make</span>
+      <span class="detail-value">${String(order.vehicleDetails?.make || "")}</span>
+    </div>
+    <div class="detail-field">
+      <span class="detail-label">Model</span>
+      <span class="detail-value">${String(order.vehicleDetails?.model || "")}</span>
+    </div>
+    <div class="detail-field">
+      <span class="detail-label">Plate Number</span>
+      <span class="detail-value">${String(order.vehiclePlate || order.vehicleDetails?.plateNumber || "")}</span>
+    </div>
+    
+    <div class="detail-field">
+      <span class="detail-label">Color</span>
+      <span class="detail-value">${String(order.vehicleDetails?.color || "")}</span>
+    </div>
+    <div class="detail-field">
+      <span class="detail-label">Year</span>
+      <span class="detail-value">${String(order.vehicleDetails?.year || "")}</span>
+    </div>
+    <div class="detail-field">
+      <span class="detail-label">VIN</span>
+      <span class="detail-value">${String(order.vehicleDetails?.vin || "")}</span>
     </div>
   </div>
-
-  ${services.length ? `
-  <div class="card">
-    <div class="ttl">Services</div>
-    <table>
-      <thead><tr><th>Service</th><th style="text-align:right">Amount</th></tr></thead>
-      <tbody>${serviceRows}</tbody>
-    </table>
-  </div>` : ""}
-
-  ${(serviceAudit.packageLines.length > 0 || serviceAudit.standaloneCount > 0) ? `
-  <div class="card">
-    <div class="ttl">Package Pricing Audit</div>
-    <table>
-      <thead><tr><th>Package / Group</th><th style="text-align:center">Included Services</th><th style="text-align:right">Total</th></tr></thead>
-      <tbody>${packageAuditRows}</tbody>
-    </table>
-  </div>` : ""}
-
-  <div class="card">
-    <div class="ttl">Payment Summary</div>
-    <div class="sum">
-      <div class="row"><span>Total</span><strong>${billing.totalAmount || "—"}</strong></div>
-      <div class="row"><span>Discount</span><strong>${billing.discount || "—"}</strong></div>
-      <div class="row"><span>Net</span><strong>${billing.netAmount || "—"}</strong></div>
-      <div class="row"><span>Paid</span><strong>${billing.amountPaid || "—"}</strong></div>
-      <div class="grand"><span>Balance Due</span><span>${billing.balanceDue || "—"}</span></div>
+  
+  <!-- Services Table -->
+  <table class="services-table">
+    <thead>
+      <tr>
+        <th class="no-col">No</th>
+        <th class="desc-col">Description</th>
+        <th class="amount-col">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${serviceRowsHtml}
+      <tr style="background: #e8e8e8;">
+        <td colspan="2" style="text-align: right; padding: 10px; font-weight: bold;">Total Amount</td>
+        <td style="text-align: right; padding: 10px; font-weight: bold;">${fmtQar(totalAmount)}</td>
+      </tr>
+    </tbody>
+  </table>
+  
+  <!-- Summary Section -->
+  <div class="summary-section">
+    <div class="summary-row">
+      <div style="text-align: right;">Total Amount</div>
+      <div>${fmtQar(totalAmount)}</div>
+    </div>
+    <div class="summary-row">
+      <div style="text-align: right;">Discount</div>
+      <div>${fmtQar(discount)}</div>
+    </div>
+    <div class="summary-row">
+      <div style="text-align: right;">Net Amount</div>
+      <div>${fmtQar(netAmount)}</div>
+    </div>
+    <div class="summary-row">
+      <div style="text-align: right;">Amount Paid</div>
+      <div>${fmtQar(amountPaid)}</div>
+    </div>
+    <div class="summary-row">
+      <div style="text-align: right; font-weight: bold; font-size: 13px;">Balance Due</div>
+      <div style="font-weight: bold; font-size: 13px;">${fmtQar(balanceDue)}</div>
     </div>
   </div>
-
-  <div class="ftr">
-    <div>Rodeo Drive CRM • This document is generated electronically.</div>
-    <div>© ${now.getFullYear()} All rights reserved.</div>
+  
+  <!-- Bottom Fields -->
+  <div class="bottom-fields">
+    <div class="bottom-field">
+      <div class="bottom-label">Received By</div>
+      <div class="bottom-value"></div>
+    </div>
+    <div class="bottom-field">
+      <div class="bottom-label">Payment Method</div>
+      <div class="bottom-value"></div>
+    </div>
+    <div class="bottom-field" style="grid-column: span 2;">
+      <div class="bottom-label">Date & Time</div>
+      <div class="bottom-value"></div>
+    </div>
   </div>
+  
+  <!-- Footer -->
+  <div class="invoice-footer">
+    <div class="footer-text">
+      <strong>RODEO DRIVE TRADING & SERVICES</strong><br>
+      C.R. No: 122716<br>
+      Location: Al Sayer, Doha<br>
+      T: +974 44311871 | M: +974 3320 2409<br>
+      E: info@rodeodrive.me | W: www.rodeodrive.me
+    </div>
+    <div class="footer-ar">
+      <strong>رودeo درايف للتجارة والخدمات</strong><br>
+      سجل تجاري: 122716<br>
+      الموقع: السيار الدوحة<br>
+      ت: +974 44311871 | م: +974 3320 2409<br>
+      البريد الإلكتروني: info@rodeodrive.me | الموقع الإلكتروني: www.rodeodrive.me
+    </div>
+  </div>
+</div>
 </body>
 </html>`;
   };

@@ -973,6 +973,34 @@
   gap: 12px;
 }
 
+/* Service filter bar (inside SEM modal) */
+.sem-modal-body .svc-filter-bar{
+  background:#f8fafc;
+  border:1px solid #e2e8f0;
+  border-radius:12px;
+  padding:12px 14px;
+  margin-bottom:0;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.sem-modal-body .svc-filter-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.sem-modal-body .svc-filter-label{font-size:11px;font-weight:700;color:#64748b;min-width:70px;white-space:nowrap}
+.sem-modal-body .svc-filter-label i{margin-right:3px}
+.sem-modal-body .svc-filter-select{
+  flex:1;min-width:130px;
+  padding:7px 10px;border:1px solid #cbd5e1;border-radius:8px;
+  font-size:12px;background:#fff;color:#1e293b;cursor:pointer;appearance:auto;
+}
+.sem-modal-body .svc-filter-select:focus{outline:none;border-color:#2563eb}
+.sem-modal-body .svc-type-pills{display:flex;gap:5px;flex-wrap:wrap}
+.sem-modal-body .svc-type-pill{
+  padding:5px 11px;border-radius:999px;border:1.5px solid #cbd5e1;
+  background:#fff;font-size:11px;font-weight:600;cursor:pointer;color:#475569;transition:all .15s;
+}
+.sem-modal-body .svc-type-pill.active{background:#2563eb;border-color:#2563eb;color:#fff}
+.sem-modal-body .svc-type-pill:hover:not(.active){background:#f1f5f9;border-color:#94a3b8}
+
 .sem-field {
   display: flex;
   flex-direction: column;

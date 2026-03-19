@@ -1466,6 +1466,27 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
     }
   };
 
+  const [inFilterCategory, setInFilterCategory] = useState("all");
+  const [inFilterType, setInFilterType] = useState("all");
+
+  const inCategories = useMemo(() => {
+    const catMap = new Map<string, { id: string; nameEn: string }>();
+    for (const p of products) {
+      const catId = String(p?.categoryId || "");
+      if (catId && !catMap.has(catId)) {
+        catMap.set(catId, { id: catId, nameEn: String(p?.categoryNameEn || p?.categoryCode || catId) });
+      }
+    }
+    return [...catMap.values()].sort((a, b) => a.nameEn.localeCompare(b.nameEn));
+  }, [products]);
+
+  const inFilteredProducts = useMemo(() =>
+    products.filter((p: any) => {
+      const catOk = inFilterCategory === "all" || String(p?.categoryId || "") === inFilterCategory;
+      const typeOk = inFilterType === "all" || String(p?.type || "").toLowerCase() === inFilterType;
+      return catOk && typeOk;
+    }), [products, inFilterCategory, inFilterType]);
+
   const formatPrice = (price: number) => `QAR ${price.toLocaleString()}`;
   const subtotal = selectedServices.reduce((sum, s) => sum + s.price, 0);
   const existingTotalAmount = Math.max(0, toCurrencyNumber(order?.billing?.totalAmount));
@@ -1509,20 +1530,61 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
                 <div className="empty-subtext">Create services from Service Creation before adding services.</div>
               </div>
             ) : (
-            <div className="services-grid">
-              {products.map((product: any) => (
-                <div
-                  key={String(product.id || product.serviceCode || product.name)}
-                  className={`service-checkbox ${selectedServices.some((s: any) => String(s.serviceCode || s.catalogId || s.name) === String(product.serviceCode || product.id || product.name)) ? "selected" : ""}`}
-                  onClick={() => handleToggleService(product)}
-                >
-                  <div className="service-info">
-                    <div className="service-name" data-no-translate="true">{toBilingualName(product?.name, product?.nameAr)}</div>
-                  </div>
-                  <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
+            <>
+              <div className="svc-filter-bar">
+                <div className="svc-filter-row">
+                  <span className="svc-filter-label"><i className="fas fa-tags"></i> Category</span>
+                  <select
+                    className="svc-filter-select"
+                    value={inFilterCategory}
+                    onChange={(e) => setInFilterCategory(e.target.value)}
+                  >
+                    <option value="all">All Categories</option>
+                    {inCategories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>{cat.nameEn}</option>
+                    ))}
+                  </select>
                 </div>
-              ))}
-            </div>
+                <div className="svc-filter-row">
+                  <span className="svc-filter-label"><i className="fas fa-layer-group"></i> Type</span>
+                  <div className="svc-type-pills">
+                    <button type="button" className={`svc-type-pill${inFilterType === "all" ? " active" : ""}`} onClick={() => setInFilterType("all")}>All</button>
+                    <button type="button" className={`svc-type-pill${inFilterType === "service" ? " active" : ""}`} onClick={() => setInFilterType("service")}><i className="fas fa-wrench"></i> Services</button>
+                    <button type="button" className={`svc-type-pill${inFilterType === "package" ? " active" : ""}`} onClick={() => setInFilterType("package")}><i className="fas fa-box-open"></i> Packages</button>
+                  </div>
+                  <span className="svc-filter-count">{inFilteredProducts.length} of {products.length}</span>
+                </div>
+              </div>
+              {inFilteredProducts.length === 0 ? (
+                <div className="empty-state" style={{ padding: "24px 12px" }}>
+                  <div className="empty-text">No services match your filter</div>
+                  <div className="empty-subtext">Try a different category or type.</div>
+                </div>
+              ) : (
+              <div className="services-grid">
+                {inFilteredProducts.map((product: any) => (
+                  <div
+                    key={String(product.id || product.serviceCode || product.name)}
+                    className={`service-checkbox ${selectedServices.some((s: any) => String(s.serviceCode || s.catalogId || s.name) === String(product.serviceCode || product.id || product.name)) ? "selected" : ""}`}
+                    onClick={() => handleToggleService(product)}
+                  >
+                    <div className="service-info">
+                      <div className="service-name-row">
+                        <div className="service-name" data-no-translate="true">{toBilingualName(product?.name, product?.nameAr)}</div>
+                        {String(product?.type ?? "").toLowerCase() === "package" && (
+                          <span className="jo-package-price-badge">
+                            <i className="fas fa-box-open" aria-hidden="true"></i>
+                            Package Price Applied
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
+                  </div>
+                ))}
+              </div>
+              )}
+            </>
             )}
 
             <div className="price-summary-box">

@@ -2472,6 +2472,27 @@ function StepThreeServices({
     }
   };
 
+  const [filterCategory, setFilterCategory] = useState("all");
+  const [filterType, setFilterType] = useState("all");
+
+  const svcCategories = useMemo(() => {
+    const catMap = new Map<string, { id: string; nameEn: string }>();
+    for (const p of products) {
+      const catId = String(p?.categoryId || "");
+      if (catId && !catMap.has(catId)) {
+        catMap.set(catId, { id: catId, nameEn: String(p?.categoryNameEn || p?.categoryCode || catId) });
+      }
+    }
+    return [...catMap.values()].sort((a, b) => a.nameEn.localeCompare(b.nameEn));
+  }, [products]);
+
+  const filteredProducts = useMemo(() =>
+    products.filter((p: any) => {
+      const catOk = filterCategory === "all" || String(p?.categoryId || "") === filterCategory;
+      const typeOk = filterType === "all" || String(p?.type || "").toLowerCase() === filterType;
+      return catOk && typeOk;
+    }), [products, filterCategory, filterType]);
+
   const formatPrice = (price: number) => `QAR ${price.toLocaleString()}`;
 
   const { subtotal, packageCount } = summarizeServicesPricing(selectedServices);
@@ -2501,28 +2522,61 @@ function StepThreeServices({
             <div className="empty-subtext">Please create services from the Service Creation page first.</div>
           </div>
         ) : (
-        <div className="services-grid">
-          {products.map((product: any) => (
-            <div
-              key={String(product.id || product.serviceCode || product.name)}
-              className={`service-checkbox ${isCatalogProductSelected(product, selectedServices) ? "selected" : ""}`}
-              onClick={() => handleToggleService(product)}
-            >
-              <div className="service-info">
-                <div className="service-name-row">
-                  <div className="service-name" data-no-translate="true">{getServiceDisplayName(product)}</div>
-                  {String(product?.type ?? "").toLowerCase() === "package" && (
-                    <span className="jo-package-price-badge">
-                      <i className="fas fa-box-open" aria-hidden="true"></i>
-                      Package Price Applied
-                    </span>
-                  )}
-                </div>
-              </div>
-              <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
+        <>
+          <div className="svc-filter-bar">
+            <div className="svc-filter-row">
+              <span className="svc-filter-label"><i className="fas fa-tags"></i> Category</span>
+              <select
+                className="svc-filter-select"
+                value={filterCategory}
+                onChange={(e) => { setFilterCategory(e.target.value); }}
+              >
+                <option value="all">All Categories</option>
+                {svcCategories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>{cat.nameEn}</option>
+                ))}
+              </select>
             </div>
-          ))}
-        </div>
+            <div className="svc-filter-row">
+              <span className="svc-filter-label"><i className="fas fa-layer-group"></i> Type</span>
+              <div className="svc-type-pills">
+                <button type="button" className={`svc-type-pill${filterType === "all" ? " active" : ""}`} onClick={() => setFilterType("all")}>All</button>
+                <button type="button" className={`svc-type-pill${filterType === "service" ? " active" : ""}`} onClick={() => setFilterType("service")}><i className="fas fa-wrench"></i> Services</button>
+                <button type="button" className={`svc-type-pill${filterType === "package" ? " active" : ""}`} onClick={() => setFilterType("package")}><i className="fas fa-box-open"></i> Packages</button>
+              </div>
+              <span className="svc-filter-count">{filteredProducts.length} of {products.length}</span>
+            </div>
+          </div>
+          {filteredProducts.length === 0 ? (
+            <div className="empty-state" style={{ padding: "24px 12px" }}>
+              <div className="empty-text">No services match your filter</div>
+              <div className="empty-subtext">Try a different category or type.</div>
+            </div>
+          ) : (
+          <div className="services-grid">
+            {filteredProducts.map((product: any) => (
+              <div
+                key={String(product.id || product.serviceCode || product.name)}
+                className={`service-checkbox ${isCatalogProductSelected(product, selectedServices) ? "selected" : ""}`}
+                onClick={() => handleToggleService(product)}
+              >
+                <div className="service-info">
+                  <div className="service-name-row">
+                    <div className="service-name" data-no-translate="true">{getServiceDisplayName(product)}</div>
+                    {String(product?.type ?? "").toLowerCase() === "package" && (
+                      <span className="jo-package-price-badge">
+                        <i className="fas fa-box-open" aria-hidden="true"></i>
+                        Package Price Applied
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
+              </div>
+            ))}
+          </div>
+          )}
+        </>
         )}
 
         <div style={{ marginTop: "20px" }}>
@@ -2659,6 +2713,27 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
     }
   };
 
+  const [asFilterCategory, setAsFilterCategory] = useState("all");
+  const [asFilterType, setAsFilterType] = useState("all");
+
+  const asCategories = useMemo(() => {
+    const catMap = new Map<string, { id: string; nameEn: string }>();
+    for (const p of products) {
+      const catId = String(p?.categoryId || "");
+      if (catId && !catMap.has(catId)) {
+        catMap.set(catId, { id: catId, nameEn: String(p?.categoryNameEn || p?.categoryCode || catId) });
+      }
+    }
+    return [...catMap.values()].sort((a, b) => a.nameEn.localeCompare(b.nameEn));
+  }, [products]);
+
+  const asFilteredProducts = useMemo(() =>
+    products.filter((p: any) => {
+      const catOk = asFilterCategory === "all" || String(p?.categoryId || "") === asFilterCategory;
+      const typeOk = asFilterType === "all" || String(p?.type || "").toLowerCase() === asFilterType;
+      return catOk && typeOk;
+    }), [products, asFilterCategory, asFilterType]);
+
   const formatPrice = (price: number) => `QAR ${price.toLocaleString()}`;
   const { subtotal, packageCount } = summarizeServicesPricing(selectedServices);
   const normalizedMaxDiscountPercent = Math.max(0, Math.min(100, Number(maxDiscountPercent || 0)));
@@ -2705,26 +2780,59 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
                 <div className="empty-subtext">Create services from Service Creation before adding to a job order.</div>
               </div>
             ) : (
-            <div className="services-grid">
-              {products.map((product: any) => (
-                <div key={String(product.id || product.serviceCode || product.name)} className={`service-checkbox ${isCatalogProductSelected(product, selectedServices) ? "selected" : ""}`} onClick={() => handleToggleService(product)}>
-                  <div className="service-info">
-                    <div className="service-name-row">
-                      <div className="service-name" data-no-translate="true">{getServiceDisplayName(product)}</div>
-                      {String(product?.type ?? "").toLowerCase() === "package" && (
-                        <span className="jo-package-price-badge">
-                          <i className="fas fa-box-open" aria-hidden="true"></i>
-                          Package Price Applied
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <PermissionGate moduleId="joborder" optionId="joborder_serviceprice">
-                    <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
-                  </PermissionGate>
+            <>
+              <div className="svc-filter-bar">
+                <div className="svc-filter-row">
+                  <span className="svc-filter-label"><i className="fas fa-tags"></i> Category</span>
+                  <select
+                    className="svc-filter-select"
+                    value={asFilterCategory}
+                    onChange={(e) => setAsFilterCategory(e.target.value)}
+                  >
+                    <option value="all">All Categories</option>
+                    {asCategories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>{cat.nameEn}</option>
+                    ))}
+                  </select>
                 </div>
-              ))}
-            </div>
+                <div className="svc-filter-row">
+                  <span className="svc-filter-label"><i className="fas fa-layer-group"></i> Type</span>
+                  <div className="svc-type-pills">
+                    <button type="button" className={`svc-type-pill${asFilterType === "all" ? " active" : ""}`} onClick={() => setAsFilterType("all")}>All</button>
+                    <button type="button" className={`svc-type-pill${asFilterType === "service" ? " active" : ""}`} onClick={() => setAsFilterType("service")}><i className="fas fa-wrench"></i> Services</button>
+                    <button type="button" className={`svc-type-pill${asFilterType === "package" ? " active" : ""}`} onClick={() => setAsFilterType("package")}><i className="fas fa-box-open"></i> Packages</button>
+                  </div>
+                  <span className="svc-filter-count">{asFilteredProducts.length} of {products.length}</span>
+                </div>
+              </div>
+              {asFilteredProducts.length === 0 ? (
+                <div className="empty-state" style={{ padding: "24px 12px" }}>
+                  <div className="empty-text">No services match your filter</div>
+                  <div className="empty-subtext">Try a different category or type.</div>
+                </div>
+              ) : (
+              <div className="services-grid">
+                {asFilteredProducts.map((product: any) => (
+                  <div key={String(product.id || product.serviceCode || product.name)} className={`service-checkbox ${isCatalogProductSelected(product, selectedServices) ? "selected" : ""}`} onClick={() => handleToggleService(product)}>
+                    <div className="service-info">
+                      <div className="service-name-row">
+                        <div className="service-name" data-no-translate="true">{getServiceDisplayName(product)}</div>
+                        {String(product?.type ?? "").toLowerCase() === "package" && (
+                          <span className="jo-package-price-badge">
+                            <i className="fas fa-box-open" aria-hidden="true"></i>
+                            Package Price Applied
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <PermissionGate moduleId="joborder" optionId="joborder_serviceprice">
+                      <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
+                    </PermissionGate>
+                  </div>
+                ))}
+              </div>
+              )}
+            </>
             )}
 
             <div className="price-summary-box">

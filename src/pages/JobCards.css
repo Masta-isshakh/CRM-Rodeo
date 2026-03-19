@@ -410,6 +410,75 @@ a:hover {
 }
 .jo-package-price-badge i{font-size:10px;line-height:1}
 
+/* Service filter bar */
+.svc-filter-bar{
+  background:#f8fafc;
+  border:1px solid #e2e8f0;
+  border-radius:14px;
+  padding:14px 16px;
+  margin-bottom:14px;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+}
+.svc-filter-row{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
+.svc-filter-label{
+  font-size:12px;
+  font-weight:700;
+  color:#64748b;
+  min-width:80px;
+  white-space:nowrap;
+}
+.svc-filter-label i{margin-right:4px}
+.svc-filter-select{
+  flex:1;
+  min-width:160px;
+  max-width:280px;
+  padding:8px 12px;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  font-size:13px;
+  background:#fff;
+  color:#1e293b;
+  cursor:pointer;
+  appearance:auto;
+  transition:border-color .15s;
+}
+.svc-filter-select:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 2px rgba(37,99,235,.15)}
+.svc-type-pills{display:flex;gap:6px;flex-wrap:wrap}
+.svc-type-pill{
+  padding:6px 14px;
+  border-radius:999px;
+  border:1.5px solid #cbd5e1;
+  background:#fff;
+  font-size:12px;
+  font-weight:600;
+  cursor:pointer;
+  color:#475569;
+  transition:all .15s ease;
+  white-space:nowrap;
+}
+.svc-type-pill i{margin-right:3px;font-size:11px}
+.svc-type-pill.active{background:#2563eb;border-color:#2563eb;color:#fff;box-shadow:0 2px 8px rgba(37,99,235,.3)}
+.svc-type-pill:hover:not(.active){background:#f1f5f9;border-color:#94a3b8}
+.svc-filter-count{
+  margin-left:auto;
+  font-size:12px;
+  color:#94a3b8;
+  font-weight:600;
+  white-space:nowrap;
+}
+@media(max-width:560px){
+  .svc-filter-row{flex-direction:column;align-items:flex-start}
+  .svc-filter-select{max-width:100%;width:100%}
+  .svc-filter-count{margin-left:0}
+}
+
 /* Price summary */
 .price-summary-box{
   margin-top:14px;border:1px solid var(--border);border-radius:16px;padding:12px;background:#fbfdff

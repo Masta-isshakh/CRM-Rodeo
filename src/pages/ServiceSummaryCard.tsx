@@ -556,6 +556,8 @@ export default function ServiceSummaryCard({
   const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [addSelectedCatalogId, setAddSelectedCatalogId] = useState("");
+  const [semFilterCategory, setSemFilterCategory] = useState("all");
+  const [semFilterType, setSemFilterType] = useState("all");
 
   useEffect(() => {
     let cancelled = false;
@@ -606,6 +608,24 @@ export default function ServiceSummaryCard({
     [serviceCatalog]
   );
 
+  const semCategories = useMemo(() => {
+    const catMap = new Map<string, { id: string; nameEn: string }>();
+    for (const p of selectableCatalog) {
+      const catId = String((p as any)?.categoryId || "");
+      if (catId && !catMap.has(catId)) {
+        catMap.set(catId, { id: catId, nameEn: String((p as any)?.categoryNameEn || (p as any)?.categoryCode || catId) });
+      }
+    }
+    return [...catMap.values()].sort((a, b) => a.nameEn.localeCompare(b.nameEn));
+  }, [selectableCatalog]);
+
+  const semFilteredCatalog = useMemo(() =>
+    selectableCatalog.filter((p) => {
+      const catOk = semFilterCategory === "all" || String((p as any)?.categoryId || "") === semFilterCategory;
+      const typeOk = semFilterType === "all" || String((p as any)?.type || "").toLowerCase() === semFilterType;
+      return catOk && typeOk;
+    }), [selectableCatalog, semFilterCategory, semFilterType]);
+
   const catalogById = useMemo(() => {
     const map = new Map<string, ServiceCatalogItem>();
     for (const item of selectableCatalog) map.set(item.id, item);
@@ -651,6 +671,8 @@ export default function ServiceSummaryCard({
 
   const openAddModal = () => {
     setAddError(null);
+    setSemFilterCategory("all");
+    setSemFilterType("all");
     const first = selectableCatalog[0];
     if (first) {
       setAddSelectedCatalogId(first.id);
@@ -829,17 +851,84 @@ export default function ServiceSummaryCard({
             </div>
 
             <div className="sem-modal-body">
-              {selectableCatalog.length > 0 ? (
+              <div className="svc-filter-bar">
+                <div className="svc-filter-row">
+                  <span className="svc-filter-label"><i className="fas fa-tags"></i> Category</span>
+                  <select
+                    className="svc-filter-select"
+                    value={semFilterCategory}
+                    onChange={(e) => {
+                      setSemFilterCategory(e.target.value);
+                      const newFiltered = selectableCatalog.filter((p) => {
+                        const catOk = e.target.value === "all" || String((p as any)?.categoryId || "") === e.target.value;
+                        const typeOk = semFilterType === "all" || String((p as any)?.type || "").toLowerCase() === semFilterType;
+                        return catOk && typeOk;
+                      });
+                      const first = newFiltered[0];
+                      if (first) {
+                        setAddSelectedCatalogId(first.id);
+                        setAddName(toBilingualName(first.name, first.nameAr));
+                        setAddPrice(resolveServicePriceForVehicleType(first, vehicleType));
+                      } else {
+                        setAddSelectedCatalogId("");
+                        setAddName("");
+                        setAddPrice(0);
+                      }
+                    }}
+                  >
+                    <option value="all">All Categories</option>
+                    {semCategories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>{cat.nameEn}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="svc-filter-row">
+                  <span className="svc-filter-label"><i className="fas fa-layer-group"></i> Type</span>
+                  <div className="svc-type-pills">
+                    {(["all", "service", "package"] as const).map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        className={`svc-type-pill${semFilterType === type ? " active" : ""}`}
+                        onClick={() => {
+                          setSemFilterType(type);
+                          const newFiltered = selectableCatalog.filter((p) => {
+                            const catOk = semFilterCategory === "all" || String((p as any)?.categoryId || "") === semFilterCategory;
+                            const typeOk = type === "all" || String((p as any)?.type || "").toLowerCase() === type;
+                            return catOk && typeOk;
+                          });
+                          const first = newFiltered[0];
+                          if (first) {
+                            setAddSelectedCatalogId(first.id);
+                            setAddName(toBilingualName(first.name, first.nameAr));
+                            setAddPrice(resolveServicePriceForVehicleType(first, vehicleType));
+                          } else {
+                            setAddSelectedCatalogId("");
+                            setAddName("");
+                            setAddPrice(0);
+                          }
+                        }}
+                      >
+                        {type === "all" ? "All" : type === "service" ? "Services" : "Packages"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {semFilteredCatalog.length > 0 ? (
                 <label className="sem-field">
                   <span>Service</span>
                   <select value={addSelectedCatalogId} onChange={(e) => handleCatalogChange(e.target.value)} disabled={catalogLoading} data-no-translate="true">
-                    {selectableCatalog.map((item) => (
+                    {semFilteredCatalog.map((item) => (
                       <option key={item.id} value={item.id}>
                         {item.serviceCode} - {toBilingualName(item.name, item.nameAr)}
                       </option>
                     ))}
                   </select>
                 </label>
+              ) : selectableCatalog.length > 0 ? (
+                <div className="sem-modal-error" style={{ marginBottom: 8 }}>No services match the selected filters.</div>
               ) : (
                 <label className="sem-field">
                   <span>Service name</span>
