@@ -52,6 +52,13 @@ function errMsg(e: unknown) {
   return String(anyE?.message ?? anyE?.errors?.[0]?.message ?? anyE ?? "Unknown error");
 }
 
+function toBilingualName(nameEn: any, nameAr: any, fallback = "Unnamed service") {
+  const en = String(nameEn || "").trim();
+  const ar = String(nameAr || "").trim();
+  if (en && ar) return `${en} / ${ar}`;
+  return en || ar || fallback;
+}
+
 function safeFileName(name: string) {
   return String(name || "file")
     .trim()
@@ -1115,7 +1122,7 @@ function InspectionModule({ currentUser }: any) {
                       activeOrder.services.map((s: any, idx: number) => (
                         <div key={idx} className="pim-service-item">
                           <div className="pim-service-header">
-                            <span className="pim-service-name">{s.name}</span>
+                            <span className="pim-service-name" data-no-translate="true">{toBilingualName(s?.name, s?.nameAr)}</span>
                             <span className={`status-badge ${getServiceStatusClass(s.status || "New")}`}>{s.status || "New"}</span>
                           </div>
                         </div>
@@ -1429,6 +1436,7 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
         ...selectedServices,
         {
           name: product.name,
+          nameAr: product.nameAr,
           price,
           serviceCode: product.serviceCode || undefined,
           catalogId: product.id || undefined,
@@ -1488,7 +1496,7 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
                   onClick={() => handleToggleService(product)}
                 >
                   <div className="service-info">
-                    <div className="service-name">{product.name}</div>
+                    <div className="service-name" data-no-translate="true">{toBilingualName(product?.name, product?.nameAr)}</div>
                   </div>
                   <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
                 </div>

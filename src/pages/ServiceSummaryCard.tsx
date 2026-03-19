@@ -91,6 +91,13 @@ function normalizeIdentity(v: any) {
   return String(v ?? "").trim().toLowerCase();
 }
 
+function toBilingualName(nameEn: any, nameAr: any, fallback = "Unnamed service") {
+  const en = String(nameEn || "").trim();
+  const ar = String(nameAr || "").trim();
+  if (en && ar) return `${en} / ${ar}`;
+  return en || ar || fallback;
+}
+
 function displayServiceStatus(status: string) {
   return status === "Inprogress" ? "Service_Operation" : status;
 }
@@ -102,6 +109,7 @@ function groupServicesByPackage(services: Service[]) {
   for (const service of services || []) {
     const packageCode = normalizeIdentity((service as any)?.packageCode);
     const packageName = String((service as any)?.packageName || "").trim();
+    const packageNameAr = String((service as any)?.packageNameAr || "").trim();
     const packageKey = packageCode || (packageName ? `pkg:${normalizeIdentity(packageName)}` : "");
 
     if (!packageKey) {
@@ -118,7 +126,7 @@ function groupServicesByPackage(services: Service[]) {
     packageGroupIndex.set(packageKey, groups.length);
     groups.push({
       key: `package-${packageKey}`,
-      packageTitle: `Package: ${packageName || (service as any)?.packageCode || "Unnamed Package"}`,
+      packageTitle: `Package: ${toBilingualName(packageName || (service as any)?.packageCode, packageNameAr, "Unnamed Package")}`,
       items: [service],
     });
   }
@@ -127,8 +135,7 @@ function groupServicesByPackage(services: Service[]) {
 }
 
 function getServiceDisplayName(service: Service) {
-  const name = String(service?.name || "").trim() || "Unnamed service";
-  return name;
+  return toBilingualName((service as any)?.name, (service as any)?.nameAr, "Unnamed service");
 }
 
 // -------------------------
@@ -383,7 +390,7 @@ function ServiceItem({
           <span className="drag-handle" style={{ visibility: editMode ? "visible" : "hidden" }}>
             <FaGripVertical />
           </span>
-          {getServiceDisplayName(service)}
+          <span data-no-translate="true">{getServiceDisplayName(service)}</span>
         </div>
 
         <span className={`status-badge ${getStatusClass(service.status)} service-status-badge`}>
@@ -647,7 +654,7 @@ export default function ServiceSummaryCard({
     const first = selectableCatalog[0];
     if (first) {
       setAddSelectedCatalogId(first.id);
-      setAddName(first.name);
+      setAddName(toBilingualName(first.name, first.nameAr));
       setAddPrice(resolveServicePriceForVehicleType(first, vehicleType));
     } else {
       setAddSelectedCatalogId("");
@@ -666,7 +673,7 @@ export default function ServiceSummaryCard({
       return;
     }
 
-    setAddName(selected.name);
+    setAddName(toBilingualName(selected.name, selected.nameAr));
     setAddPrice(resolveServicePriceForVehicleType(selected, vehicleType));
   };
 
@@ -739,7 +746,7 @@ export default function ServiceSummaryCard({
                   <React.Fragment key={group.key}>
                     {group.packageTitle && (
                       <div className="sem-package-group-header">
-                        <span className="sem-package-group-header-content">
+                        <span className="sem-package-group-header-content" data-no-translate="true">
                           <i className="fas fa-box-open sem-package-group-icon" aria-hidden="true"></i>
                           {group.packageTitle}
                         </span>
@@ -771,7 +778,7 @@ export default function ServiceSummaryCard({
                 <React.Fragment key={group.key}>
                   {group.packageTitle && (
                     <div className="sem-package-group-header">
-                      <span className="sem-package-group-header-content">
+                      <span className="sem-package-group-header-content" data-no-translate="true">
                         <i className="fas fa-box-open sem-package-group-icon" aria-hidden="true"></i>
                         {group.packageTitle}
                       </span>
@@ -825,10 +832,10 @@ export default function ServiceSummaryCard({
               {selectableCatalog.length > 0 ? (
                 <label className="sem-field">
                   <span>Service</span>
-                  <select value={addSelectedCatalogId} onChange={(e) => handleCatalogChange(e.target.value)} disabled={catalogLoading}>
+                  <select value={addSelectedCatalogId} onChange={(e) => handleCatalogChange(e.target.value)} disabled={catalogLoading} data-no-translate="true">
                     {selectableCatalog.map((item) => (
                       <option key={item.id} value={item.id}>
-                        {item.serviceCode} - {item.name}
+                        {item.serviceCode} - {toBilingualName(item.name, item.nameAr)}
                       </option>
                     ))}
                   </select>

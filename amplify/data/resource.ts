@@ -224,13 +224,38 @@ const schema = a
       })
       .authorization((allow) => [allow.authenticated()]),
 
+    ServiceCategory: a
+      .model({
+        categoryCode: a.string().required(),
+        nameEn: a.string().required(),
+        nameAr: a.string().required(),
+        descriptionEn: a.string(),
+        descriptionAr: a.string(),
+        isActive: a.boolean().default(true),
+        createdAt: a.datetime(),
+        updatedAt: a.datetime(),
+      })
+      .secondaryIndexes((index) => [index("categoryCode").queryField("serviceCategoryByCode")])
+      .authorization((allow) => [allow.authenticated()]),
+
     ServiceCatalog: a
       .model({
         serviceCode: a.string().required(),
         name: a.string().required(),
+        nameAr: a.string(),
+        descriptionEn: a.string(),
+        descriptionAr: a.string(),
+        categoryId: a.id(),
+        categoryCode: a.string(),
+        categoryNameEn: a.string(),
+        categoryNameAr: a.string(),
         type: a.enum(["SERVICE", "PACKAGE"]),
         suvPrice: a.float().required(),
         sedanPrice: a.float().required(),
+        hatchbackPrice: a.float(),
+        truckPrice: a.float(),
+        coupePrice: a.float(),
+        otherPrice: a.float(),
         includedServiceCodesJson: a.string(),
         isActive: a.boolean().default(true),
         createdAt: a.datetime(),
@@ -239,6 +264,7 @@ const schema = a
       .secondaryIndexes((index) => [
         index("serviceCode").queryField("serviceCatalogByCode"),
         index("type").queryField("serviceCatalogByType"),
+        index("categoryId").queryField("serviceCatalogByCategory"),
       ])
       .authorization((allow) => [allow.authenticated()]),
 

@@ -141,6 +141,13 @@ function normalizeCatalogKey(value: any) {
   return String(value ?? "").trim().toLowerCase();
 }
 
+function toBilingualName(nameEn: any, nameAr: any, fallback = "Unnamed service") {
+  const en = String(nameEn || "").trim();
+  const ar = String(nameAr || "").trim();
+  if (en && ar) return `${en} / ${ar}`;
+  return en || ar || fallback;
+}
+
 function dedupeSelectedServices(items: any[]) {
   const out: any[] = [];
   const seen = new Set<string>();
@@ -211,6 +218,7 @@ function expandCatalogProductToServices(product: any, products: any[], vehicleTy
     return [
       {
         name: product.name,
+        nameAr: product.nameAr,
         price: resolveServicePriceForVehicleType(product, vehicleType),
         serviceCode: product.serviceCode || undefined,
         catalogId: product.id || undefined,
@@ -232,11 +240,13 @@ function expandCatalogProductToServices(product: any, products: any[], vehicleTy
     .filter(Boolean)
     .map((child: any) => ({
       name: child.name,
+      nameAr: child.nameAr,
       price: resolveServicePriceForVehicleType(child, vehicleType),
       serviceCode: child.serviceCode || undefined,
       catalogId: child.id || undefined,
       packageCode: product.serviceCode || product.id || productCode,
       packageName: product.name,
+      packageNameAr: product.nameAr,
       packagePrice: resolvedPackagePrice,
     }));
 
@@ -245,11 +255,13 @@ function expandCatalogProductToServices(product: any, products: any[], vehicleTy
   return [
     {
       name: product.name,
+      nameAr: product.nameAr,
       price: resolveServicePriceForVehicleType(product, vehicleType),
       serviceCode: product.serviceCode || undefined,
       catalogId: product.id || undefined,
       packageCode: product.serviceCode || product.id || productCode,
       packageName: product.name,
+      packageNameAr: product.nameAr,
       packagePrice: resolvedPackagePrice,
     },
   ];
@@ -273,6 +285,7 @@ function groupServicesByPackage(services: any[]) {
   for (const service of services || []) {
     const packageCode = normalizeCatalogKey(service?.packageCode);
     const packageName = String(service?.packageName || "").trim();
+    const packageNameAr = String(service?.packageNameAr || "").trim();
     const packageKey = packageCode || (packageName ? `pkg:${normalizeCatalogKey(packageName)}` : "");
 
     if (!packageKey) {
@@ -300,7 +313,7 @@ function groupServicesByPackage(services: any[]) {
     packageGroupIndex.set(packageKey, groups.length);
     groups.push({
       key: `package-${packageKey}`,
-      packageTitle: `Package: ${packageName || service?.packageCode || "Unnamed Package"}`,
+      packageTitle: `Package: ${toBilingualName(packageName || service?.packageCode, packageNameAr, "Unnamed Package")}`,
       items: [service],
       packagePrice: maybePackagePrice > 0 ? maybePackagePrice : null,
     });
@@ -310,8 +323,7 @@ function groupServicesByPackage(services: any[]) {
 }
 
 function getServiceDisplayName(service: any) {
-  const name = String(service?.name || "").trim() || "Unnamed service";
-  return name;
+  return toBilingualName(service?.name, service?.nameAr, "Unnamed service");
 }
 
 /** ✅ Best creator name for the order (handles different payload shapes) */
@@ -2498,7 +2510,7 @@ function StepThreeServices({
             >
               <div className="service-info">
                 <div className="service-name-row">
-                  <div className="service-name">{product.name}</div>
+                  <div className="service-name" data-no-translate="true">{getServiceDisplayName(product)}</div>
                   {String(product?.type ?? "").toLowerCase() === "package" && (
                     <span className="jo-package-price-badge">
                       <i className="fas fa-box-open" aria-hidden="true"></i>
@@ -2698,7 +2710,7 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
                 <div key={String(product.id || product.serviceCode || product.name)} className={`service-checkbox ${isCatalogProductSelected(product, selectedServices) ? "selected" : ""}`} onClick={() => handleToggleService(product)}>
                   <div className="service-info">
                     <div className="service-name-row">
-                      <div className="service-name">{product.name}</div>
+                      <div className="service-name" data-no-translate="true">{getServiceDisplayName(product)}</div>
                       {String(product?.type ?? "").toLowerCase() === "package" && (
                         <span className="jo-package-price-badge">
                           <i className="fas fa-box-open" aria-hidden="true"></i>
@@ -3023,7 +3035,7 @@ function StepFourConfirm({
                     {group.packageTitle && (
                       <tr>
                         <td className="jo-package-group-header-cell">
-                          <span className="jo-package-group-header-content">
+                          <span className="jo-package-group-header-content" data-no-translate="true">
                             <i className="fas fa-box-open jo-package-group-icon" aria-hidden="true"></i>
                             {group.packageTitle}
                           </span>
@@ -3035,7 +3047,7 @@ function StepFourConfirm({
                     )}
                     {group.items.map((service: any, idx: number) => (
                       <tr key={`${group.key}-${service?.serviceCode || service?.catalogId || service?.name}-${idx}`}>
-                        <td>{getServiceDisplayName(service)}</td>
+                        <td data-no-translate="true">{getServiceDisplayName(service)}</td>
                         <td style={{ textAlign: "right", fontWeight: 700 }}>
                           {group.packageTitle ? "Included in package" : formatPrice(service.price || 0)}
                         </td>
@@ -3251,7 +3263,7 @@ function ServicesCard({ order, onAddService }: any) {
             <Fragment key={group.key}>
               {group.packageTitle && (
                 <div className="jo-package-group-header-block">
-                  <div className="jo-package-group-header-content" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                  <div className="jo-package-group-header-content" data-no-translate="true" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
                     <span>
                       <i className="fas fa-box-open jo-package-group-icon" aria-hidden="true"></i>
                       {group.packageTitle}
@@ -3263,7 +3275,7 @@ function ServicesCard({ order, onAddService }: any) {
               {group.items.map((service: any, idx: number) => (
                 <div key={`${group.key}-${idx}`} className="pim-service-item">
                   <div className="pim-service-header">
-                    <span className="pim-service-name">{getServiceDisplayName(service)}</span>
+                    <span className="pim-service-name" data-no-translate="true">{getServiceDisplayName(service)}</span>
                     <span className="pim-service-price">
                       {group.packageTitle ? "Included in package" : service.price ? `QAR ${service.price.toLocaleString()}` : "N/A"}
                     </span>

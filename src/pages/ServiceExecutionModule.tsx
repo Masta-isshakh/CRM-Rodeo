@@ -244,6 +244,13 @@ function fmtQar(n: number) {
   return `QAR ${Number.isFinite(n) ? n.toFixed(2) : "0.00"}`;
 }
 
+function toBilingualName(nameEn: any, nameAr: any, fallback = "Unnamed service") {
+  const en = String(nameEn || "").trim();
+  const ar = String(nameAr || "").trim();
+  if (en && ar) return `${en} / ${ar}`;
+  return en || ar || fallback;
+}
+
 type AssigneeOption = { value: string; label: string };
 
 function normalizeServices(orderNumber: string, services: any[]) {
@@ -1344,7 +1351,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                     {paginatedJobs.map((job) => {
                       const currentService = pickNextActiveService(job.services);
                       const serviceDisplay = currentService
-                        ? `${currentService.name} (${currentService.status})`
+                        ? `${toBilingualName(currentService.name, (currentService as any).nameAr)} (${currentService.status})`
                         : "No active services";
                       const assignedToDisplay = currentService?.assignedTo
                         ? getAssigneeDisplayName(currentService.assignedTo)
@@ -1358,7 +1365,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                           <td>{job.customerName}</td>
                           <td>{job.vehiclePlate}</td>
                           <td>{assignedToDisplay}</td>
-                          <td>{serviceDisplay}</td>
+                          <td data-no-translate="true">{serviceDisplay}</td>
                           <td>
                             <PermissionGate moduleId="serviceexec" optionId="serviceexec_actions">
                               <div className="action-dropdown-container">
