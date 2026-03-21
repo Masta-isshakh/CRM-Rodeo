@@ -32,8 +32,9 @@ function fmtQar(value: number): string {
 
 function getInvoiceStatusClass(status: string): string {
   const s = String(status || "").toLowerCase();
-  if (s.includes("paid")) return "pim-payment-full";
+  if (s.includes("unpaid")) return "pim-payment-unpaid";
   if (s.includes("partial")) return "pim-payment-partial";
+  if (s.includes("paid")) return "pim-payment-full";
   return "pim-payment-unpaid";
 }
 

@@ -15,6 +15,13 @@ function toNum(x: any) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function resolveBillingNumber(field: "totalAmount" | "discount" | "amountPaid" | "netAmount" | "balanceDue", parsed: any, job: any): number {
+  if (parsed?.billing?.[field] != null) return toNum(parsed.billing[field]);
+  if (parsed?.[field] != null) return toNum(parsed[field]);
+  if (job?.[field] != null) return toNum(job[field]);
+  return 0;
+}
+
 function formatQar(n: number) {
   return `QAR ${Number(n || 0).toLocaleString()}`;
 }
@@ -229,14 +236,20 @@ function deriveUiWorkStatus(job: any, parsed: any) {
 
 /** payment enum -> UI label (with refund override) */
 function deriveUiPaymentStatus(job: any, parsed: any) {
+  const totalAmount = resolveBillingNumber("totalAmount", parsed, job);
+  const discount = resolveBillingNumber("discount", parsed, job);
+  const amountPaid = resolveBillingNumber("amountPaid", parsed, job);
+  const netAmount = resolveBillingNumber("netAmount", parsed, job);
+  const balanceDue = resolveBillingNumber("balanceDue", parsed, job);
+
   return derivePaymentStatusFromFinancials({
     paymentEnum: job?.paymentStatus,
     paymentLabel: job?.paymentStatusLabel ?? parsed?.paymentStatusLabel,
-    totalAmount: job?.totalAmount ?? parsed?.billing?.totalAmount,
-    discount: job?.discount ?? parsed?.billing?.discount,
-    amountPaid: job?.amountPaid ?? parsed?.billing?.amountPaid,
-    netAmount: job?.netAmount ?? parsed?.billing?.netAmount,
-    balanceDue: job?.balanceDue ?? parsed?.billing?.balanceDue,
+    totalAmount,
+    discount,
+    amountPaid,
+    netAmount,
+    balanceDue,
   });
 }
 
@@ -855,10 +868,46 @@ export async function listJobOrdersForMain(): Promise<any[]> {
     String(b.updatedAt ?? b.createdAt ?? "").localeCompare(String(a.updatedAt ?? a.createdAt ?? ""))
   );
 
+  // Load all payment rows once for consistency guard (authoritative payment status across list)
+  let allPaymentRows: any[] = [];
+  try {
+    const pRes = await client.models.JobOrderPayment.list({ limit: 5000 });
+    allPaymentRows = pRes.data ?? [];
+  } catch {
+    allPaymentRows = [];
+  }
+  const paymentsByJobId: Record<string, any[]> = {};
+  (allPaymentRows ?? []).forEach((p: any) => {
+    const jobId = String(p?.jobOrderId ?? "").trim();
+    if (!jobId) return;
+    if (!paymentsByJobId[jobId]) paymentsByJobId[jobId] = [];
+    paymentsByJobId[jobId].push(p);
+  });
+
   return sorted.map((job: any) => {
     const parsed = safeJsonParse<any>(job.dataJson) ?? {};
     const workStatus = deriveUiWorkStatus(job, parsed);
-    const paymentStatus = deriveUiPaymentStatus(job, parsed);
+    
+    // Consistency guard: compute authoritative payment status from persisted payment rows
+    let paymentStatus = deriveUiPaymentStatus(job, parsed);
+    const jobPayments = paymentsByJobId[job.id] ?? [];
+    if (jobPayments.length > 0) {
+      const totalAmount = resolveBillingNumber("totalAmount", parsed, job);
+      const discount = resolveBillingNumber("discount", parsed, job);
+      const amountPaid = resolveBillingNumber("amountPaid", parsed, job);
+      const netAmount = resolveBillingNumber("netAmount", parsed, job);
+      const balanceDue = resolveBillingNumber("balanceDue", parsed, job);
+      
+      const approvedPayments = jobPayments.filter((p: any) => {
+        const status = String(p?.paymentStatus ?? "COMPLETED").trim().toUpperCase();
+        return status !== "VOID" && status !== "CANCELLED" && status !== "FAILED";
+      });
+      const amountPaidFromPayments = approvedPayments.reduce((sum: number, p: any) => sum + Math.max(0, toNum(p?.amount)), 0);
+      const authoritativeAmountPaid = approvedPayments.length > 0 ? amountPaidFromPayments : amountPaid;
+      const authoritativeSnap = computePaymentSnapshot(totalAmount, discount, authoritativeAmountPaid, netAmount, balanceDue);
+      paymentStatus = authoritativeSnap.paymentStatusLabel;
+    }
+    
     const exitPermitStatus = deriveExitPermitStatus(job, parsed);
 
     const priorityLevel = String(job?.priorityLevel ?? "NORMAL").toUpperCase();
@@ -946,13 +995,17 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
   const billingRaw = parsed?.billing ?? {};
   const billId = String(billingRaw?.billId ?? job.billId ?? "").trim();
 
-  const totalAmountRaw = toNum(job.totalAmount ?? billingRaw?.totalAmount);
-  const discountRaw = toNum(job.discount ?? billingRaw?.discount);
-  const amountPaidRaw = toNum(job.amountPaid ?? billingRaw?.amountPaid ?? 0);
+  const totalAmountRaw = resolveBillingNumber("totalAmount", parsed, job);
+  const discountRaw = resolveBillingNumber("discount", parsed, job);
+  const amountPaidRaw = resolveBillingNumber("amountPaid", parsed, job);
+  const netAmountRaw = resolveBillingNumber("netAmount", parsed, job);
+  const balanceDueRaw = resolveBillingNumber("balanceDue", parsed, job);
   const paymentSnap = computePaymentSnapshot(
     totalAmountRaw,
     discountRaw,
-    amountPaidRaw
+    amountPaidRaw,
+    netAmountRaw,
+    balanceDueRaw
   );
 
   const totalAmount = paymentSnap.totalAmount;
@@ -1146,6 +1199,14 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
     };
   });
 
+  const approvedPayments = (paymentRows ?? []).filter((p: any) => {
+    const status = String(p?.paymentStatus ?? "COMPLETED").trim().toUpperCase();
+    return status !== "VOID" && status !== "CANCELLED" && status !== "FAILED";
+  });
+  const amountPaidFromPayments = approvedPayments.reduce((sum: number, p: any) => sum + Math.max(0, toNum(p?.amount)), 0);
+  const authoritativeAmountPaid = approvedPayments.length > 0 ? amountPaidFromPayments : amountPaid;
+  const authoritativeSnap = computePaymentSnapshot(totalAmount, discount, authoritativeAmountPaid, netAmount, balanceDue);
+
   const createDate = job.createdAt
     ? new Date(String(job.createdAt)).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
     : "";
@@ -1163,7 +1224,15 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
   const actualDelivery = actualDeliveryDate || actualDeliveryTime ? `${actualDeliveryDate} ${actualDeliveryTime}`.trim() : "Not completed";
 
   const workStatus = deriveUiWorkStatus(job, parsed);
-  const paymentStatus = deriveUiPaymentStatus(job, parsed);
+  const paymentStatus = derivePaymentStatusFromFinancials({
+    paymentEnum: job?.paymentStatus,
+    paymentLabel: job?.paymentStatusLabel ?? parsed?.paymentStatusLabel,
+    totalAmount: authoritativeSnap.totalAmount,
+    discount: authoritativeSnap.discount,
+    amountPaid: authoritativeSnap.amountPaid,
+    netAmount: authoritativeSnap.netAmount,
+    balanceDue: authoritativeSnap.balanceDue,
+  });
 
   // Quality check / assignment / progress
   const qualityCheckStatus = String(job?.qualityCheckStatus ?? "PENDING").toUpperCase();
@@ -1316,11 +1385,11 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
 
     billing: {
       billId,
-      totalAmount: formatQar(totalAmount),
-      discount: formatQar(discount),
-      netAmount: formatQar(netAmount),
-      amountPaid: formatQar(amountPaid),
-      balanceDue: formatQar(balanceDue),
+      totalAmount: formatQar(authoritativeSnap.totalAmount),
+      discount: formatQar(authoritativeSnap.discount),
+      netAmount: formatQar(authoritativeSnap.netAmount),
+      amountPaid: formatQar(authoritativeSnap.amountPaid),
+      balanceDue: formatQar(authoritativeSnap.balanceDue),
       paymentMethod: billingRaw?.paymentMethod ?? job.paymentMethod ?? null,
       invoices: normalizedInvoices.length ? normalizedInvoices : invoices,
     },

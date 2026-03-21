@@ -62,6 +62,21 @@ const EMPTY = {
 
 type CrudPerm = typeof EMPTY;
 
+const THEME_STORAGE_KEY = "crm.themeMode";
+
+type ThemeMode = "light" | "dark";
+
+function resolveInitialTheme(): ThemeMode {
+  if (typeof window === "undefined") return "light";
+
+  try {
+    const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+    return stored === "dark" ? "dark" : "light";
+  } catch {
+    return "light";
+  }
+}
+
 function mergePerms(...items: CrudPerm[]): CrudPerm {
   return {
     canRead: items.some((p) => !!p?.canRead),
@@ -80,6 +95,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   const [page, setPage] = useState<Page>("dashboard");
   const [isDesktop, setIsDesktop] = useState<boolean>(detectDesktop);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(detectDesktop);
+  const [themeMode, setThemeMode] = useState<ThemeMode>(resolveInitialTheme);
 
   const { loading, email, isAdminGroup, can, canOption, isModuleEnabled, refresh } = usePermissions();
   const { language, toggleLanguage, t } = useLanguage();
@@ -258,6 +274,22 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     };
   }, [isDesktop, sidebarOpen]);
 
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", themeMode);
+    document.body.setAttribute("data-theme", themeMode);
+    document.documentElement.style.colorScheme = themeMode;
+
+    try {
+      window.localStorage.setItem(THEME_STORAGE_KEY, themeMode);
+    } catch {
+      // ignore storage failures
+    }
+  }, [themeMode]);
+
+  const toggleThemeMode = () => {
+    setThemeMode((current) => (current === "dark" ? "light" : "dark"));
+  };
+
   const title = t("Rodeo Drive CRM");
 
   const pageTitleByKey: Record<Page, string> = {
@@ -296,7 +328,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
   return (
     <ApprovalRequestsProvider>
-      <div className={`layout-root ${isDesktop ? "desktop-sidebar" : "mobile-sidebar"}`}>
+      <div className={`layout-root ${isDesktop ? "desktop-sidebar" : "mobile-sidebar"} ${themeMode === "dark" ? "theme-dark" : "theme-light"}`}>
         <div className={`drawer-overlay ${!isDesktop && sidebarOpen ? "show" : ""}`} onClick={() => setSidebarOpen(false)} />
 
         <aside className={`drawer ${isDesktop || sidebarOpen ? "open" : ""}`} aria-hidden={!isDesktop && !sidebarOpen}>
@@ -427,6 +459,20 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
               </div>
             )}
+
+            <div className="drawer-section drawer-theme-section">
+              <div className="drawer-section-label">{t("Appearance")}</div>
+              <button
+                className="drawer-theme-toggle"
+                onClick={toggleThemeMode}
+                type="button"
+                aria-pressed={themeMode === "dark"}
+                aria-label={themeMode === "dark" ? t("Switch to light mode") : t("Switch to dark mode")}
+              >
+                <i className={`fas ${themeMode === "dark" ? "fa-sun" : "fa-moon"}`} aria-hidden="true" />
+                <span>{themeMode === "dark" ? t("Light Mode") : t("Dark Mode")}</span>
+              </button>
+            </div>
 
             <div className="drawer-spacer" />
 

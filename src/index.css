@@ -17,6 +17,185 @@ html[dir="rtl"] select {
   text-align: right;
 }
 
+html[data-theme="dark"] body {
+  background: #08101d;
+  color: #e5edf7;
+}
+
+html[data-theme="dark"] :is(
+  .form-card,
+  .details-card,
+  .pim-detail-card,
+  .pim-details-screen,
+  .pim-subcard,
+  .cancel-modal,
+  .modal,
+  .cp-modal,
+  .empty-state,
+  .summary-card,
+  .service-item,
+  .job-order-card,
+  .dashboard-card,
+  .dashboard-widget,
+  .card,
+  .ticket-card,
+  .employee-card,
+  .activity-card,
+  .amplify-card,
+  .cv-unified-card,
+  .ex-unified-card,
+  .bi-invoice-card
+) {
+  background: #0f1a2b !important;
+  color: #e5edf7 !important;
+  border-color: rgba(148, 163, 184, 0.18) !important;
+  box-shadow: 0 18px 40px rgba(2, 6, 23, 0.32) !important;
+}
+
+html[data-theme="dark"] :is(
+  .details-card-header,
+  .pim-details-header,
+  .form-card-title,
+  .modal-header,
+  .cancel-modal-header,
+  .cp-header
+) {
+  background: #111d31 !important;
+  color: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.14) !important;
+}
+
+html[data-theme="dark"] :is(
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6,
+  label,
+  strong,
+  th,
+  .empty-text,
+  .brand-title
+) {
+  color: #f8fafc;
+}
+
+html[data-theme="dark"] :is(
+  p,
+  span,
+  td,
+  li,
+  .empty-subtext,
+  .meta-label,
+  .meta-value,
+  .pim-info-label,
+  .epm-info-label,
+  .qc-info-label,
+  .topbar-sub
+) {
+  color: inherit;
+}
+
+html[data-theme="dark"] :is(input, textarea, select) {
+  background: #0b1525 !important;
+  color: #e5edf7 !important;
+  border-color: rgba(148, 163, 184, 0.22) !important;
+}
+
+html[data-theme="dark"] :is(input::placeholder, textarea::placeholder) {
+  color: #7f91aa !important;
+}
+
+html[data-theme="dark"] :is(table, .table-wrap, .data-table) {
+  background: #0f1a2b !important;
+  color: #e5edf7 !important;
+}
+
+html[data-theme="dark"] :is(thead, thead tr) {
+  background: #111d31 !important;
+}
+
+html[data-theme="dark"] :is(th, td, tr) {
+  border-color: rgba(148, 163, 184, 0.14) !important;
+}
+
+html[data-theme="dark"] :is(
+  .price-summary-box,
+  .bi-summary,
+  .sum,
+  .summary-box,
+  .payment-summary,
+  .invoice-summary
+) {
+  background: #101c30 !important;
+  color: #e5edf7 !important;
+  border-color: rgba(148, 163, 184, 0.16) !important;
+}
+
+html[data-theme="dark"] :is(
+  .service-checkbox,
+  .assigned-select,
+  .work-status-select,
+  .tech-dropdown-btn,
+  .svc-filter-bar,
+  .sem-modal,
+  .sem-field select,
+  .sem-field input
+) {
+  background: #111d31 !important;
+  color: #e5edf7 !important;
+  border-color: rgba(148, 163, 184, 0.18) !important;
+}
+
+html[data-theme="dark"] :is(.service-checkbox.selected, .svc-type-pill.active) {
+  background: rgba(37, 99, 235, 0.18) !important;
+  border-color: rgba(96, 165, 250, 0.42) !important;
+}
+
+html[data-theme="dark"] .cv-unified-card,
+html[data-theme="dark"] .ex-unified-card,
+html[data-theme="dark"] .bi-unified-card .bi-invoice-card {
+  background: #0f1a2b !important;
+  border-color: rgba(148, 163, 184, 0.16) !important;
+}
+
+html[data-theme="dark"] .cv-unified-grid,
+html[data-theme="dark"] .cv-unified-grid > div {
+  background: #111d31 !important;
+  border-color: rgba(148, 163, 184, 0.14) !important;
+}
+
+html[data-theme="dark"] .cv-unified-grid .pim-info-label,
+html[data-theme="dark"] .cv-unified-grid .epm-info-label,
+html[data-theme="dark"] .cv-unified-grid .qc-info-label,
+html[data-theme="dark"] .cv-unified-grid > div > span:first-child {
+  color: #93a4bb !important;
+}
+
+html[data-theme="dark"] .cv-unified-grid .pim-info-value,
+html[data-theme="dark"] .cv-unified-grid .epm-info-value,
+html[data-theme="dark"] .cv-unified-grid .qc-info-value,
+html[data-theme="dark"] .cv-unified-grid > div > strong,
+html[data-theme="dark"] .cv-unified-grid > div > span:last-child {
+  color: #f8fafc !important;
+}
+
+html[data-theme="dark"] .bi-unified-card .bi-summary {
+  background: linear-gradient(180deg, rgba(133, 77, 14, 0.18), rgba(88, 52, 15, 0.18)) !important;
+  border-color: rgba(250, 204, 21, 0.22) !important;
+}
+
+html[data-theme="dark"] .bi-unified-card .bi-summary h4,
+html[data-theme="dark"] .bi-unified-card .bi-label,
+html[data-theme="dark"] .bi-unified-card .bi-value {
+  color: #fde68a !important;
+}
+
+html[data-theme="dark"] :is(.modal-overlay, .cancel-modal-overlay, .cp-overlay, .drawer-overlay) {
+  background: rgba(2, 6, 23, 0.72) !important;
+}
+
 /* Unified Customer/Vehicle details style (screenshot parity) */
 .cv-unified-card {
   grid-column: 1 / -1 !important;
