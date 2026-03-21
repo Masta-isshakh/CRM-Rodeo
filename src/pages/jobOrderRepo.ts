@@ -26,6 +26,19 @@ function formatQar(n: number) {
   return `QAR ${Number(n || 0).toLocaleString()}`;
 }
 
+function hasPackageSignals(services: any[]): boolean {
+  return (services ?? []).some(
+    (service: any) =>
+      String(service?.packageCode ?? "").trim() ||
+      String(service?.packageName ?? "").trim() ||
+      Math.max(0, toNum(service?.packagePrice)) > 0
+  );
+}
+
+function moneyDiffers(a: any, b: any, eps = 0.01): boolean {
+  return Math.abs(toNum(a) - toNum(b)) > eps;
+}
+
 function safeLower(s: any) {
   return String(s ?? "").trim().toLowerCase();
 }
@@ -888,23 +901,46 @@ export async function listJobOrdersForMain(): Promise<any[]> {
     const parsed = safeJsonParse<any>(job.dataJson) ?? {};
     const workStatus = deriveUiWorkStatus(job, parsed);
     
-    // Consistency guard: compute authoritative payment status from persisted payment rows
+    // Consistency guard: recompute payment status from authoritative payment rows
     let paymentStatus = deriveUiPaymentStatus(job, parsed);
     const jobPayments = paymentsByJobId[job.id] ?? [];
     if (jobPayments.length > 0) {
-      const totalAmount = resolveBillingNumber("totalAmount", parsed, job);
+      // Recompute totalAmount if services have package signals (self-healing for stale stored totals)
+      const parsedServices = Array.isArray(parsed?.services) ? parsed.services : [];
+      const hasPackageFields = hasPackageSignals(parsedServices);
+      let totalAmount = resolveBillingNumber("totalAmount", parsed, job);
+      
+      if (hasPackageFields) {
+        // Recompute package-aware total
+        let standaloneTotal = 0;
+        const packagePriceMap = new Map<string, number>();
+        for (const svc of parsedServices) {
+          const pkgKey = String(svc?.packageCode ?? "").trim();
+          const price = Math.max(0, toNum(svc?.price));
+          const pkgPrice = Math.max(0, toNum(svc?.packagePrice));
+          if (!pkgKey) {
+            standaloneTotal += price;
+          } else if (!packagePriceMap.has(pkgKey)) {
+            packagePriceMap.set(pkgKey, pkgPrice > 0 ? pkgPrice : price);
+          }
+        }
+        let pkgTotal = 0;
+        packagePriceMap.forEach((p) => (pkgTotal += p));
+        const derived = standaloneTotal + pkgTotal;
+        if (derived > 0) totalAmount = derived;
+      }
+      
       const discount = resolveBillingNumber("discount", parsed, job);
-      const amountPaid = resolveBillingNumber("amountPaid", parsed, job);
-      const netAmount = resolveBillingNumber("netAmount", parsed, job);
-      const balanceDue = resolveBillingNumber("balanceDue", parsed, job);
       
       const approvedPayments = jobPayments.filter((p: any) => {
         const status = String(p?.paymentStatus ?? "COMPLETED").trim().toUpperCase();
         return status !== "VOID" && status !== "CANCELLED" && status !== "FAILED";
       });
       const amountPaidFromPayments = approvedPayments.reduce((sum: number, p: any) => sum + Math.max(0, toNum(p?.amount)), 0);
-      const authoritativeAmountPaid = approvedPayments.length > 0 ? amountPaidFromPayments : amountPaid;
-      const authoritativeSnap = computePaymentSnapshot(totalAmount, discount, authoritativeAmountPaid, netAmount, balanceDue);
+      const storedAmountPaid = resolveBillingNumber("amountPaid", parsed, job);
+      const authoritativeAmountPaid = approvedPayments.length > 0 ? amountPaidFromPayments : storedAmountPaid;
+      // Always recompute netAmount and balanceDue — never trust stale stored values
+      const authoritativeSnap = computePaymentSnapshot(totalAmount, discount, authoritativeAmountPaid);
       paymentStatus = authoritativeSnap.paymentStatusLabel;
     }
     
@@ -964,12 +1000,19 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
     const qty = Math.max(1, toNum(s.qty ?? 1));
     const unitPrice = Math.max(0, toNum(s.unitPrice ?? s.price ?? 0));
     const price = Math.max(0, toNum(s.price ?? qty * unitPrice));
+    const packagePrice = Math.max(0, toNum(s.packagePrice ?? 0));
 
     return {
       id: String(s.id ?? `SVC-${idx + 1}`),
       order: Number(s.order ?? idx + 1),
       name: String(s.name ?? "").trim() || "Service",
       price,
+
+      // Package grouping info — preserved from save so billing total stays authoritative
+      packageCode: String(s.packageCode ?? "").trim() || null,
+      packageName: String(s.packageName ?? "").trim() || null,
+      packageNameAr: String(s.packageNameAr ?? "").trim() || null,
+      packagePrice: packagePrice > 0 ? packagePrice : null,
 
       status: s.status ?? "Pending",
       priority: s.priority ?? "normal",
@@ -995,24 +1038,45 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
   const billingRaw = parsed?.billing ?? {};
   const billId = String(billingRaw?.billId ?? job.billId ?? "").trim();
 
-  const totalAmountRaw = resolveBillingNumber("totalAmount", parsed, job);
+  // Package-aware totalAmount recomputation guard: If services have package signals
+  // (indicating they were created in the new system where package info is preserved),
+  // recompute the total using the authoritative package-vs-service pricing logic.
+  // Otherwise, trust the stored value. This prevents stale totals for package orders.
+  function computeTotalFromServicesIfPackageAware(servicesList: any[]): number | null {
+    const hasPackageFields = hasPackageSignals(servicesList);
+    if (!hasPackageFields) return null;
+    
+    let standaloneTotal = 0;
+    const packagePriceMap = new Map<string, number>();
+    for (const svc of servicesList ?? []) {
+      const pkgKey = String(svc?.packageCode ?? "").trim();
+      const price = Math.max(0, toNum(svc?.price));
+      const pkgPrice = Math.max(0, toNum(svc?.packagePrice));
+      if (!pkgKey) {
+        standaloneTotal += price;
+      } else if (!packagePriceMap.has(pkgKey)) {
+        packagePriceMap.set(pkgKey, pkgPrice > 0 ? pkgPrice : price);
+      }
+    }
+    let pkgTotal = 0;
+    packagePriceMap.forEach((p) => (pkgTotal += p));
+    return standaloneTotal + pkgTotal;
+  }
+
+  const storedTotalAmount = resolveBillingNumber("totalAmount", parsed, job);
+  const derivedTotalFromServices = computeTotalFromServicesIfPackageAware(services);
+  const totalAmountRaw = derivedTotalFromServices ?? storedTotalAmount;
   const discountRaw = resolveBillingNumber("discount", parsed, job);
   const amountPaidRaw = resolveBillingNumber("amountPaid", parsed, job);
-  const netAmountRaw = resolveBillingNumber("netAmount", parsed, job);
-  const balanceDueRaw = resolveBillingNumber("balanceDue", parsed, job);
-  const paymentSnap = computePaymentSnapshot(
-    totalAmountRaw,
-    discountRaw,
-    amountPaidRaw,
-    netAmountRaw,
-    balanceDueRaw
-  );
+
+  // Only pass totalAmount and discount — let computePaymentSnapshot always recompute
+  // netAmount (= totalAmount - discount) and balanceDue (= netAmount - amountPaid) fresh.
+  // Stored netAmount and balanceDue can be stale after payments or edits.
+  const paymentSnap = computePaymentSnapshot(totalAmountRaw, discountRaw, amountPaidRaw);
 
   const totalAmount = paymentSnap.totalAmount;
   const discount = paymentSnap.discount;
-  const netAmount = paymentSnap.netAmount;
   const amountPaid = paymentSnap.amountPaid;
-  const balanceDue = paymentSnap.balanceDue;
 
   const invoices = Array.isArray(billingRaw?.invoices)
     ? billingRaw.invoices.map((inv: any) => ({
@@ -1205,7 +1269,8 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
   });
   const amountPaidFromPayments = approvedPayments.reduce((sum: number, p: any) => sum + Math.max(0, toNum(p?.amount)), 0);
   const authoritativeAmountPaid = approvedPayments.length > 0 ? amountPaidFromPayments : amountPaid;
-  const authoritativeSnap = computePaymentSnapshot(totalAmount, discount, authoritativeAmountPaid, netAmount, balanceDue);
+  // Always recompute netAmount and balanceDue — never use stored stale values
+  const authoritativeSnap = computePaymentSnapshot(totalAmount, discount, authoritativeAmountPaid);
 
   const createDate = job.createdAt
     ? new Date(String(job.createdAt)).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
@@ -1233,6 +1298,74 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
     netAmount: authoritativeSnap.netAmount,
     balanceDue: authoritativeSnap.balanceDue,
   });
+
+  const storedDiscount = resolveBillingNumber("discount", parsed, job);
+  const storedAmountPaid = resolveBillingNumber("amountPaid", parsed, job);
+  const storedNetAmount = resolveBillingNumber("netAmount", parsed, job);
+  const storedBalanceDue = resolveBillingNumber("balanceDue", parsed, job);
+  const storedPaymentLabel = String(job?.paymentStatusLabel ?? parsed?.paymentStatusLabel ?? "").trim();
+  const paymentMethodValue = billingRaw?.paymentMethod ?? job.paymentMethod ?? null;
+
+  const shouldRepairPackageBilling = hasPackageSignals(services) && (
+    moneyDiffers(totalAmount, authoritativeSnap.totalAmount) ||
+    moneyDiffers(storedDiscount, authoritativeSnap.discount) ||
+    moneyDiffers(storedAmountPaid, authoritativeSnap.amountPaid) ||
+    moneyDiffers(storedNetAmount, authoritativeSnap.netAmount) ||
+    moneyDiffers(storedBalanceDue, authoritativeSnap.balanceDue) ||
+    storedPaymentLabel !== paymentStatus
+  );
+
+  if (shouldRepairPackageBilling) {
+    try {
+      const repairedParsed = {
+        ...parsed,
+        billing: {
+          ...(parsed?.billing ?? {}),
+          billId,
+          totalAmount: authoritativeSnap.totalAmount,
+          discount: authoritativeSnap.discount,
+          netAmount: authoritativeSnap.netAmount,
+          amountPaid: authoritativeSnap.amountPaid,
+          balanceDue: authoritativeSnap.balanceDue,
+          paymentMethod: paymentMethodValue,
+        },
+        paymentStatusLabel: paymentStatus,
+      };
+
+      const repaired = await client.models.JobOrder.update({
+        id: job.id,
+        totalAmount: authoritativeSnap.totalAmount,
+        discount: authoritativeSnap.discount,
+        netAmount: authoritativeSnap.netAmount,
+        billId: billId || undefined,
+        paymentMethod: paymentMethodValue ?? undefined,
+        paymentStatus: mapPaymentStatusToDbStatus(paymentStatus),
+        paymentStatusLabel: paymentStatus,
+        dataJson: JSON.stringify(repairedParsed),
+      } as any);
+
+      const repairedRow = (repaired as any)?.data;
+      if (repairedRow) {
+        job.totalAmount = repairedRow.totalAmount ?? authoritativeSnap.totalAmount;
+        job.discount = repairedRow.discount ?? authoritativeSnap.discount;
+        job.netAmount = repairedRow.netAmount ?? authoritativeSnap.netAmount;
+        job.paymentMethod = repairedRow.paymentMethod ?? paymentMethodValue;
+        job.paymentStatus = repairedRow.paymentStatus ?? mapPaymentStatusToDbStatus(paymentStatus);
+        job.paymentStatusLabel = repairedRow.paymentStatusLabel ?? paymentStatus;
+        job.dataJson = repairedRow.dataJson ?? JSON.stringify(repairedParsed);
+      } else {
+        job.totalAmount = authoritativeSnap.totalAmount;
+        job.discount = authoritativeSnap.discount;
+        job.netAmount = authoritativeSnap.netAmount;
+        job.paymentMethod = paymentMethodValue;
+        job.paymentStatus = mapPaymentStatusToDbStatus(paymentStatus);
+        job.paymentStatusLabel = paymentStatus;
+        job.dataJson = JSON.stringify(repairedParsed);
+      }
+    } catch {
+      // Read path should stay resilient even if repair fails.
+    }
+  }
 
   // Quality check / assignment / progress
   const qualityCheckStatus = String(job?.qualityCheckStatus ?? "PENDING").toUpperCase();
@@ -1561,6 +1694,7 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
         ? s.technicians.map((t: any) => String(t ?? "").trim()).filter(Boolean)
         : [];
 
+      const packagePrice = toNum(s.packagePrice);
       return {
         id: String(s.id ?? `SVC-${idx + 1}`),
         order: Number(s.order ?? idx + 1),
@@ -1568,6 +1702,12 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
         price,
         qty: Math.max(1, toNum(s.qty ?? 1)),
         unitPrice: Math.max(0, toNum(s.unitPrice ?? price)),
+
+        // Preserve package grouping info so billing totals stay authoritative
+        packageCode: String(s.packageCode ?? "").trim() || undefined,
+        packageName: String(s.packageName ?? "").trim() || undefined,
+        packageNameAr: String(s.packageNameAr ?? "").trim() || undefined,
+        packagePrice: packagePrice > 0 ? packagePrice : undefined,
 
         status: String(s?.status ?? "Pending"),
         priority: String(s?.priority ?? "normal"),

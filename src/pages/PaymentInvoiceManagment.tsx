@@ -313,7 +313,28 @@ function resolvePackageAwareTotalAmountFromSources(...sources: any[]): number | 
   return null;
 }
 
+function hasPackageSignalsInSources(...sources: any[]): boolean {
+  for (const source of sources) {
+    if (!source) continue;
+    const services = Array.isArray(source?.services) ? source.services : [];
+    if (!services.length) continue;
+    const hasSignals = services.some(
+      (s: any) =>
+        String(s?.packageCode ?? "").trim() ||
+        String(s?.packageName ?? "").trim() ||
+        Math.max(0, toNum(s?.packagePrice)) > 0
+    );
+    if (hasSignals) return true;
+  }
+  return false;
+}
+
 function resolveAuthoritativeTotalAmount(...sources: any[]): number {
+  if (hasPackageSignalsInSources(...sources)) {
+    const packageAwareFirst = resolvePackageAwareTotalAmountFromSources(...sources);
+    if (packageAwareFirst != null && packageAwareFirst > 0) return packageAwareFirst;
+  }
+
   const fromBilling = toNum(pickBillingFirstValue("totalAmount", ...sources));
   if (fromBilling > 0) return fromBilling;
 
@@ -798,19 +819,30 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       setApprovalRequests(approvals);
       setNormalizedInvoices(invoices);
 
-      const totalAmountRaw = resolveAuthoritativeTotalAmount(parsed, detailed, row);
-      const discountRaw = toNum(parsed?.billing?.discount ?? row?.discount ?? detailed?.billing?.discount);
-      const amountPaidRaw = toNum(parsed?.billing?.amountPaid ?? row?.amountPaid ?? detailed?.billing?.amountPaid);
+      const totalAmountRaw = resolveAuthoritativeTotalAmount(detailed, parsed, row);
+      const discountRaw = toNum(detailed?.billing?.discount ?? parsed?.billing?.discount ?? row?.discount);
+
+      // Authoritative amountPaid: sum approved payment rows (single source of truth).
+      // Never rely on the stored billing.amountPaid which can be stale after payments.
+      const approvedPayRows = payRows.filter((p: any) => {
+        const st = String(p?.paymentStatus ?? "COMPLETED").trim().toUpperCase();
+        return st !== "VOID" && st !== "CANCELLED" && st !== "FAILED";
+      });
+      const amountPaidRaw = approvedPayRows.length > 0
+        ? roundMoney(approvedPayRows.reduce((s: number, p: any) => s + Math.max(0, toNum(p?.amount)), 0))
+        : toNum(parsed?.billing?.amountPaid ?? row?.amountPaid ?? detailed?.billing?.amountPaid);
+
+      // Always recompute netAmount and balanceDue from scratch — never trust stale stored values
       const paymentSnap = computePaymentSnapshot(totalAmountRaw, discountRaw, amountPaidRaw);
 
       const billing = {
-        billId: String(row?.billId ?? parsed?.billing?.billId ?? detailed?.billing?.billId ?? ""),
+        billId: String(detailed?.billing?.billId ?? row?.billId ?? parsed?.billing?.billId ?? ""),
         totalAmount: fmtQar(paymentSnap.totalAmount),
         discount: fmtQar(paymentSnap.discount),
         netAmount: fmtQar(paymentSnap.netAmount),
         amountPaid: fmtQar(paymentSnap.amountPaid),
         balanceDue: fmtQar(paymentSnap.balanceDue),
-        paymentMethod: String(row?.paymentMethod ?? parsed?.billing?.paymentMethod ?? detailed?.billing?.paymentMethod ?? ""),
+        paymentMethod: String(detailed?.billing?.paymentMethod ?? row?.paymentMethod ?? parsed?.billing?.paymentMethod ?? ""),
       };
 
       const merged = {
