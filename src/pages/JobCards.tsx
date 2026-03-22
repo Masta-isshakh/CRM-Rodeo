@@ -43,6 +43,10 @@ import {
   resolveCentralDiscountPercent,
   toCurrencyNumber,
 } from "../utils/discountPolicy";
+import {
+  getPackageGroupKey as getSharedPackageGroupKey,
+  summarizeServicesSubtotalPackageAware,
+} from "../utils/billingFinance";
 import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
 import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
 import UnifiedBillingInvoicesSection from "../components/UnifiedBillingInvoicesSection";
@@ -170,42 +174,19 @@ function toMoneyNumber(value: any) {
 }
 
 function getPackageGroupKey(service: any) {
-  const packageCode = normalizeCatalogKey(service?.packageCode);
-  const packageName = String(service?.packageName || "").trim();
-  return packageCode || (packageName ? `pkg:${normalizeCatalogKey(packageName)}` : "");
+  return getSharedPackageGroupKey(service);
 }
 
 function summarizeServicesPricing(services: any[]) {
-  let standaloneSubtotal = 0;
-  const packageSummary = new Map<string, { packagePrice: number | null; fallbackServicesTotal: number }>();
-
+  const packageKeys = new Set<string>();
   for (const service of services || []) {
-    const price = Math.max(0, toMoneyNumber(service?.price));
-    const packageKey = getPackageGroupKey(service);
-
-    if (!packageKey) {
-      standaloneSubtotal += price;
-      continue;
-    }
-
-    const existing = packageSummary.get(packageKey) || { packagePrice: null, fallbackServicesTotal: 0 };
-    const packagePriceRaw = toMoneyNumber(service?.packagePrice);
-    const packagePrice = packagePriceRaw > 0 ? packagePriceRaw : null;
-
-    packageSummary.set(packageKey, {
-      packagePrice: existing.packagePrice ?? packagePrice,
-      fallbackServicesTotal: existing.fallbackServicesTotal + price,
-    });
+    const key = getPackageGroupKey(service);
+    if (key) packageKeys.add(key);
   }
 
-  let packageSubtotal = 0;
-  packageSummary.forEach((entry) => {
-    packageSubtotal += entry.packagePrice ?? entry.fallbackServicesTotal;
-  });
-
   return {
-    subtotal: standaloneSubtotal + packageSubtotal,
-    packageCount: packageSummary.size,
+    subtotal: summarizeServicesSubtotalPackageAware(services),
+    packageCount: packageKeys.size,
   };
 }
 

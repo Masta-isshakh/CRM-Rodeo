@@ -86,15 +86,22 @@ export async function recomputeJobOrderPaymentSummary(
     payments = res?.data ?? [];
   }
 
-  // 3) Sum amountPaid
+  // 3) Sum amountPaid — exclude VOID/CANCELLED/FAILED rows
   const sumPaid = (payments ?? []).reduce((acc: number, p: any) => {
+    const status = String(p?.paymentStatus ?? "COMPLETED").trim().toUpperCase();
+    if (status === "VOID" || status === "CANCELLED" || status === "FAILED") return acc;
     const a = Math.max(0, toNum(p?.amount));
     return acc + a;
   }, 0);
 
   // 4) Determine net amount
-  const totalAmount = toNum(job.totalAmount);
+  // IMPORTANT: prefer dataJson.billing.totalAmount as the authoritative stored total
+  // (set by the frontend with package-aware logic). Fall back to job.totalAmount only
+  // when the parsed billing total is missing — this prevents overwriting a correct
+  // package-price total with the raw per-service sum stored in the top-level field.
   const parsed = safeJsonParse<any>(job.dataJson, {});
+  const parsedBillingTotal = toNum(parsed?.billing?.totalAmount);
+  const totalAmount = parsedBillingTotal > 0 ? parsedBillingTotal : toNum(job.totalAmount);
   const parsedDiscount = toNum(parsed?.billing?.discount);
   const discount = Math.max(toNum(job.discount), parsedDiscount);
   const netAmountField = toNum(job.netAmount);

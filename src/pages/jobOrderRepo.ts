@@ -6,6 +6,12 @@ import { resolveActorDisplay } from "../utils/actorIdentity";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { computePaymentSnapshot, derivePaymentStatusFromFinancials } from "../utils/paymentStatus";
 import { formatCustomerDisplayId } from "../utils/customerId";
+import {
+  getPackageGroupKey,
+  resolveAuthoritativeTotalAmountFromSources,
+  summarizeServicesSubtotalPackageAware,
+  sumApprovedPayments,
+} from "../utils/billingFinance";
 
 type CustomerRow = Schema["Customer"]["type"];
 type JobOrderRow = Schema["JobOrder"]["type"];
@@ -24,15 +30,6 @@ function resolveBillingNumber(field: "totalAmount" | "discount" | "amountPaid" |
 
 function formatQar(n: number) {
   return `QAR ${Number(n || 0).toLocaleString()}`;
-}
-
-function hasPackageSignals(services: any[]): boolean {
-  return (services ?? []).some(
-    (service: any) =>
-      String(service?.packageCode ?? "").trim() ||
-      String(service?.packageName ?? "").trim() ||
-      Math.max(0, toNum(service?.packagePrice)) > 0
-  );
 }
 
 function moneyDiffers(a: any, b: any, eps = 0.01): boolean {
@@ -425,6 +422,135 @@ function mapPaymentStatusToDbStatus(paymentStatusLabel: string | undefined): Job
   if (s === "paid" || s === "fully paid") return "PAID";
   if (s === "partial" || s === "partially paid") return "PARTIAL";
   return "UNPAID";
+}
+
+function slugifyPackageCode(value: any): string {
+  const raw = String(value ?? "").trim().toLowerCase();
+  if (!raw) return "";
+  return raw.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+}
+
+export async function runOneTimePackageBillingRepair(limit = 2000): Promise<{ scanned: number; repaired: number; failed: number }> {
+  const client = getDataClient();
+  const res = await client.models.JobOrder.list({ limit });
+  const rows = res.data ?? [];
+
+  let repaired = 0;
+  let failed = 0;
+
+  for (const job of rows) {
+    try {
+      const parsed = safeJsonParse<any>(job?.dataJson) ?? {};
+      const parsedServices = Array.isArray(parsed?.services) ? parsed.services : [];
+      if (!parsedServices.length) continue;
+
+      const normalizedServices = parsedServices.map((service: any) => {
+        const packageCodeRaw = String(service?.packageCode ?? "").trim();
+        const packageName = String(service?.packageName ?? "").trim();
+        const packageNameAr = String(service?.packageNameAr ?? "").trim();
+
+        let normalizedPackageCode = packageCodeRaw;
+        if (!normalizedPackageCode) {
+          const keyFromGroup = getPackageGroupKey(service);
+          if (keyFromGroup) normalizedPackageCode = slugifyPackageCode(keyFromGroup);
+          else if (packageName || packageNameAr) normalizedPackageCode = slugifyPackageCode(packageName || packageNameAr);
+        }
+
+        return {
+          ...service,
+          packageCode: normalizedPackageCode || undefined,
+          packageName: packageName || undefined,
+          packageNameAr: packageNameAr || undefined,
+        };
+      });
+
+      const servicesChanged = JSON.stringify(normalizedServices) !== JSON.stringify(parsedServices);
+      const hasPackageRows = normalizedServices.some((service: any) => {
+        return !!getPackageGroupKey(service) || Math.max(0, toNum(service?.packagePrice)) > 0;
+      });
+      if (!hasPackageRows && !servicesChanged) continue;
+
+      let paymentRows: any[] = [];
+      try {
+        const byIdx = await (client.models.JobOrderPayment as any)?.listPaymentsByJobOrder?.({
+          jobOrderId: job.id,
+          limit: 2000,
+        });
+        paymentRows = byIdx?.data ?? [];
+      } catch {
+        const pRes = await client.models.JobOrderPayment.list({
+          filter: { jobOrderId: { eq: job.id } } as any,
+          limit: 2000,
+        });
+        paymentRows = pRes?.data ?? [];
+      }
+
+      const storedTotal = resolveBillingNumber("totalAmount", parsed, job);
+      const packageAwareTotal = summarizeServicesSubtotalPackageAware(normalizedServices);
+      const authoritativeTotal = packageAwareTotal > 0 ? packageAwareTotal : storedTotal;
+      const discount = resolveBillingNumber("discount", parsed, job);
+      const paidFromRows = sumApprovedPayments(paymentRows ?? []);
+      const storedPaid = resolveBillingNumber("amountPaid", parsed, job);
+      const amountPaid = paidFromRows > 0 ? paidFromRows : storedPaid;
+      const paymentSnap = computePaymentSnapshot(authoritativeTotal, discount, amountPaid);
+      const paymentStatus = derivePaymentStatusFromFinancials({
+        paymentEnum: job?.paymentStatus,
+        paymentLabel: job?.paymentStatusLabel ?? parsed?.paymentStatusLabel,
+        totalAmount: paymentSnap.totalAmount,
+        discount: paymentSnap.discount,
+        amountPaid: paymentSnap.amountPaid,
+        netAmount: paymentSnap.netAmount,
+        balanceDue: paymentSnap.balanceDue,
+      });
+
+      const currentNet = resolveBillingNumber("netAmount", parsed, job);
+      const currentBalance = resolveBillingNumber("balanceDue", parsed, job);
+      const currentLabel = String(job?.paymentStatusLabel ?? parsed?.paymentStatusLabel ?? "").trim();
+      const needsRepair =
+        servicesChanged ||
+        moneyDiffers(storedTotal, paymentSnap.totalAmount) ||
+        moneyDiffers(currentNet, paymentSnap.netAmount) ||
+        moneyDiffers(storedPaid, paymentSnap.amountPaid) ||
+        moneyDiffers(currentBalance, paymentSnap.balanceDue) ||
+        currentLabel !== paymentStatus;
+
+      if (!needsRepair) continue;
+
+      const repairedParsed = {
+        ...parsed,
+        services: normalizedServices,
+        billing: {
+          ...(parsed?.billing ?? {}),
+          totalAmount: paymentSnap.totalAmount,
+          discount: paymentSnap.discount,
+          netAmount: paymentSnap.netAmount,
+          amountPaid: paymentSnap.amountPaid,
+          balanceDue: paymentSnap.balanceDue,
+        },
+        paymentStatusLabel: paymentStatus,
+      };
+
+      await client.models.JobOrder.update({
+        id: job.id,
+        totalAmount: paymentSnap.totalAmount,
+        discount: paymentSnap.discount,
+        netAmount: paymentSnap.netAmount,
+        paymentStatus: mapPaymentStatusToDbStatus(paymentStatus),
+        paymentStatusLabel: paymentStatus,
+        dataJson: JSON.stringify(repairedParsed),
+      } as any);
+
+      repaired += 1;
+    } catch {
+      failed += 1;
+    }
+  }
+
+  return {
+    scanned: rows.length,
+    repaired,
+    failed,
+  };
 }
 
 async function persistJobOrderViaModel(client: any, payload: any): Promise<{ id?: string; orderNumber?: string }> {
@@ -905,40 +1031,11 @@ export async function listJobOrdersForMain(): Promise<any[]> {
     let paymentStatus = deriveUiPaymentStatus(job, parsed);
     const jobPayments = paymentsByJobId[job.id] ?? [];
     if (jobPayments.length > 0) {
-      // Recompute totalAmount if services have package signals (self-healing for stale stored totals)
-      const parsedServices = Array.isArray(parsed?.services) ? parsed.services : [];
-      const hasPackageFields = hasPackageSignals(parsedServices);
-      let totalAmount = resolveBillingNumber("totalAmount", parsed, job);
-      
-      if (hasPackageFields) {
-        // Recompute package-aware total
-        let standaloneTotal = 0;
-        const packagePriceMap = new Map<string, number>();
-        for (const svc of parsedServices) {
-          const pkgKey = String(svc?.packageCode ?? "").trim();
-          const price = Math.max(0, toNum(svc?.price));
-          const pkgPrice = Math.max(0, toNum(svc?.packagePrice));
-          if (!pkgKey) {
-            standaloneTotal += price;
-          } else if (!packagePriceMap.has(pkgKey)) {
-            packagePriceMap.set(pkgKey, pkgPrice > 0 ? pkgPrice : price);
-          }
-        }
-        let pkgTotal = 0;
-        packagePriceMap.forEach((p) => (pkgTotal += p));
-        const derived = standaloneTotal + pkgTotal;
-        if (derived > 0) totalAmount = derived;
-      }
-      
+      const totalAmount = resolveAuthoritativeTotalAmountFromSources(parsed, job);
       const discount = resolveBillingNumber("discount", parsed, job);
-      
-      const approvedPayments = jobPayments.filter((p: any) => {
-        const status = String(p?.paymentStatus ?? "COMPLETED").trim().toUpperCase();
-        return status !== "VOID" && status !== "CANCELLED" && status !== "FAILED";
-      });
-      const amountPaidFromPayments = approvedPayments.reduce((sum: number, p: any) => sum + Math.max(0, toNum(p?.amount)), 0);
+      const amountPaidFromPayments = sumApprovedPayments(jobPayments);
       const storedAmountPaid = resolveBillingNumber("amountPaid", parsed, job);
-      const authoritativeAmountPaid = approvedPayments.length > 0 ? amountPaidFromPayments : storedAmountPaid;
+      const authoritativeAmountPaid = amountPaidFromPayments > 0 ? amountPaidFromPayments : storedAmountPaid;
       // Always recompute netAmount and balanceDue — never trust stale stored values
       const authoritativeSnap = computePaymentSnapshot(totalAmount, discount, authoritativeAmountPaid);
       paymentStatus = authoritativeSnap.paymentStatusLabel;
@@ -1038,34 +1135,10 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
   const billingRaw = parsed?.billing ?? {};
   const billId = String(billingRaw?.billId ?? job.billId ?? "").trim();
 
-  // Package-aware totalAmount recomputation guard: If services have package signals
-  // (indicating they were created in the new system where package info is preserved),
-  // recompute the total using the authoritative package-vs-service pricing logic.
-  // Otherwise, trust the stored value. This prevents stale totals for package orders.
-  function computeTotalFromServicesIfPackageAware(servicesList: any[]): number | null {
-    const hasPackageFields = hasPackageSignals(servicesList);
-    if (!hasPackageFields) return null;
-    
-    let standaloneTotal = 0;
-    const packagePriceMap = new Map<string, number>();
-    for (const svc of servicesList ?? []) {
-      const pkgKey = String(svc?.packageCode ?? "").trim();
-      const price = Math.max(0, toNum(svc?.price));
-      const pkgPrice = Math.max(0, toNum(svc?.packagePrice));
-      if (!pkgKey) {
-        standaloneTotal += price;
-      } else if (!packagePriceMap.has(pkgKey)) {
-        packagePriceMap.set(pkgKey, pkgPrice > 0 ? pkgPrice : price);
-      }
-    }
-    let pkgTotal = 0;
-    packagePriceMap.forEach((p) => (pkgTotal += p));
-    return standaloneTotal + pkgTotal;
-  }
-
-  const storedTotalAmount = resolveBillingNumber("totalAmount", parsed, job);
-  const derivedTotalFromServices = computeTotalFromServicesIfPackageAware(services);
-  const totalAmountRaw = derivedTotalFromServices ?? storedTotalAmount;
+  const totalAmountRaw = resolveAuthoritativeTotalAmountFromSources(
+    { ...parsed, services },
+    job
+  );
   const discountRaw = resolveBillingNumber("discount", parsed, job);
   const amountPaidRaw = resolveBillingNumber("amountPaid", parsed, job);
 
@@ -1263,12 +1336,9 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
     };
   });
 
-  const approvedPayments = (paymentRows ?? []).filter((p: any) => {
-    const status = String(p?.paymentStatus ?? "COMPLETED").trim().toUpperCase();
-    return status !== "VOID" && status !== "CANCELLED" && status !== "FAILED";
-  });
-  const amountPaidFromPayments = approvedPayments.reduce((sum: number, p: any) => sum + Math.max(0, toNum(p?.amount)), 0);
-  const authoritativeAmountPaid = approvedPayments.length > 0 ? amountPaidFromPayments : amountPaid;
+  const amountPaidFromPayments = sumApprovedPayments(paymentRows ?? []);
+  const hasApprovedPayments = amountPaidFromPayments > 0;
+  const authoritativeAmountPaid = hasApprovedPayments ? amountPaidFromPayments : amountPaid;
   // Always recompute netAmount and balanceDue — never use stored stale values
   const authoritativeSnap = computePaymentSnapshot(totalAmount, discount, authoritativeAmountPaid);
 
@@ -1306,7 +1376,7 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
   const storedPaymentLabel = String(job?.paymentStatusLabel ?? parsed?.paymentStatusLabel ?? "").trim();
   const paymentMethodValue = billingRaw?.paymentMethod ?? job.paymentMethod ?? null;
 
-  const shouldRepairPackageBilling = hasPackageSignals(services) && (
+  const shouldRepairBilling = (
     moneyDiffers(totalAmount, authoritativeSnap.totalAmount) ||
     moneyDiffers(storedDiscount, authoritativeSnap.discount) ||
     moneyDiffers(storedAmountPaid, authoritativeSnap.amountPaid) ||
@@ -1315,7 +1385,7 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
     storedPaymentLabel !== paymentStatus
   );
 
-  if (shouldRepairPackageBilling) {
+  if (shouldRepairBilling) {
     try {
       const repairedParsed = {
         ...parsed,

@@ -1,11 +1,13 @@
 import type { CSSProperties } from "react";
-import { computePaymentSnapshot, toMoney } from "../utils/paymentStatus";
+import { toMoney } from "../utils/paymentStatus";
+import { getPackageGroupKey, resolveDynamicBillingSnapshot } from "../utils/billingFinance";
 import "../pages/PaymentInvoiceManagment.css";
 
 type UnifiedBillingInvoicesSectionProps = {
   order: any;
   className?: string;
   style?: CSSProperties;
+  paymentRows?: any[];
 };
 
 type InvoiceUi = {
@@ -36,12 +38,6 @@ function getInvoiceStatusClass(status: string): string {
   if (s.includes("partial")) return "pim-payment-partial";
   if (s.includes("paid")) return "pim-payment-full";
   return "pim-payment-unpaid";
-}
-
-function getPackageGroupKey(service: any): string {
-  const packageCode = String(service?.packageCode ?? service?.packageId ?? service?.packageName ?? service?.groupId ?? "").trim();
-  if (packageCode) return `pkg:${packageCode.toLowerCase()}`;
-  return "";
 }
 
 function buildPackageAuditBreakdown(services: any[]) {
@@ -83,9 +79,10 @@ function buildPackageAuditBreakdown(services: any[]) {
   };
 }
 
-export function UnifiedBillingInvoicesSection({ order, className = "", style }: UnifiedBillingInvoicesSectionProps) {
+export function UnifiedBillingInvoicesSection({ order, className = "", style, paymentRows }: UnifiedBillingInvoicesSectionProps) {
   const billing = order?.billing ?? {};
-  const paymentSnap = computePaymentSnapshot(billing?.totalAmount, billing?.discount, billing?.amountPaid);
+  const dynamicBilling = resolveDynamicBillingSnapshot(order, { paymentRows });
+  const paymentSnap = dynamicBilling.paymentSnap;
   const serviceAudit = buildPackageAuditBreakdown(Array.isArray(order?.services) ? order.services : []);
   const paymentActivityLog = Array.isArray(order?.paymentActivityLog) ? order.paymentActivityLog : [];
 
@@ -109,7 +106,7 @@ export function UnifiedBillingInvoicesSection({ order, className = "", style }: 
       </h3>
 
       <div className="pim-billing-grid bi-summary">
-        <div className="pim-billing-item bi-row"><span className="bi-label">Bill ID</span><strong className="bi-value">{billing?.billId || "—"}</strong></div>
+        <div className="pim-billing-item bi-row"><span className="bi-label">Bill ID</span><strong className="bi-value">{dynamicBilling.billId || "—"}</strong></div>
         <div className="pim-billing-item bi-row"><span className="bi-label">Total</span><strong className="bi-value">{fmtQar(paymentSnap.totalAmount)}</strong></div>
         <div className="pim-billing-item bi-row"><span className="bi-label">Discount</span><strong className="pim-green bi-value">{fmtQar(paymentSnap.discount)}</strong></div>
         <div className="pim-billing-item bi-row"><span className="bi-label">Net</span><strong className="bi-value">{fmtQar(paymentSnap.netAmount)}</strong></div>

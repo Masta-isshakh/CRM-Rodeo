@@ -933,6 +933,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
         vehicleDetails,
         billing,
         paymentActivityLog,
+        _paymentRows: paymentRows,
         services,
       };
 

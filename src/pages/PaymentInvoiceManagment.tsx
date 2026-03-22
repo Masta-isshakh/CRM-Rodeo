@@ -18,15 +18,24 @@ import {
   resolveCentralDiscountPercent,
 } from "../utils/discountPolicy";
 import {
+  computePaymentSnapshot,
   derivePaymentStatusFromFinancials,
   pickBillingFirstValue,
   pickPaymentEnum,
   pickPaymentLabel,
 } from "../utils/paymentStatus";
+import {
+  getPackageGroupKey,
+  resolveDynamicBillingSnapshot,
+  resolveAuthoritativeTotalAmountFromSources,
+  sumApprovedPayments,
+  toCurrencyNumber,
+} from "../utils/billingFinance";
 
 import {
   cancelJobOrderByOrderNumber,
   getJobOrderByOrderNumber,
+  runOneTimePackageBillingRepair,
   upsertJobOrder,
 } from "./jobOrderRepo";
 import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
@@ -241,105 +250,19 @@ function roundMoney(value: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-function computePaymentSnapshot(totalAmountRaw: number, discountRaw: number, amountPaidRaw: number) {
-  const totalAmount = roundMoney(Math.max(0, toNum(totalAmountRaw)));
-  const discount = roundMoney(Math.max(0, toNum(discountRaw)));
-  const netAmount = roundMoney(Math.max(0, totalAmount - Math.min(discount, totalAmount)));
-  const amountPaid = roundMoney(Math.max(0, toNum(amountPaidRaw)));
-  const balanceDue = roundMoney(Math.max(0, netAmount - amountPaid));
-
-  const paymentStatusEnum = balanceDue <= 0.00001 ? "PAID" : amountPaid > 0.00001 ? "PARTIAL" : "UNPAID";
-  const paymentStatusLabel = paymentStatusEnum === "PAID" ? "Fully Paid" : paymentStatusEnum === "PARTIAL" ? "Partially Paid" : "Unpaid";
-
-  return {
-    totalAmount,
-    discount,
-    netAmount,
-    amountPaid,
-    balanceDue,
-    paymentStatusEnum,
-    paymentStatusLabel,
-  };
-}
-
-function normalizeCatalogKey(value: any) {
-  return String(value ?? "").trim().toLowerCase();
-}
-
-function getPackageGroupKeyFromService(service: any) {
-  const packageCode = normalizeCatalogKey(service?.packageCode);
-  const packageName = String(service?.packageName || "").trim();
-  return packageCode || (packageName ? `pkg:${normalizeCatalogKey(packageName)}` : "");
-}
-
-function summarizeServicesSubtotalPackageAware(services: any[]): number {
-  let standaloneSubtotal = 0;
-  const packageSummary = new Map<string, { packagePrice: number | null; fallbackServicesTotal: number }>();
-
-  for (const service of services || []) {
-    const price = Math.max(0, toNum(service?.price));
-    const packageKey = getPackageGroupKeyFromService(service);
-
-    if (!packageKey) {
-      standaloneSubtotal += price;
-      continue;
-    }
-
-    const existing = packageSummary.get(packageKey) || { packagePrice: null, fallbackServicesTotal: 0 };
-    const packagePriceRaw = toNum(service?.packagePrice);
-    const packagePrice = packagePriceRaw > 0 ? packagePriceRaw : null;
-
-    packageSummary.set(packageKey, {
-      packagePrice: existing.packagePrice ?? packagePrice,
-      fallbackServicesTotal: existing.fallbackServicesTotal + price,
-    });
-  }
-
-  let packageSubtotal = 0;
-  packageSummary.forEach((entry) => {
-    packageSubtotal += entry.packagePrice ?? entry.fallbackServicesTotal;
-  });
-
-  return roundMoney(Math.max(0, standaloneSubtotal + packageSubtotal));
-}
-
-function resolvePackageAwareTotalAmountFromSources(...sources: any[]): number | null {
-  for (const source of sources) {
-    if (!source) continue;
-    const services = Array.isArray(source?.services) ? source.services : null;
-    if (!services || services.length === 0) continue;
-    return summarizeServicesSubtotalPackageAware(services);
-  }
-  return null;
-}
-
-function hasPackageSignalsInSources(...sources: any[]): boolean {
-  for (const source of sources) {
-    if (!source) continue;
-    const services = Array.isArray(source?.services) ? source.services : [];
-    if (!services.length) continue;
-    const hasSignals = services.some(
-      (s: any) =>
-        String(s?.packageCode ?? "").trim() ||
-        String(s?.packageName ?? "").trim() ||
-        Math.max(0, toNum(s?.packagePrice)) > 0
-    );
-    if (hasSignals) return true;
-  }
-  return false;
-}
-
 function resolveAuthoritativeTotalAmount(...sources: any[]): number {
-  if (hasPackageSignalsInSources(...sources)) {
-    const packageAwareFirst = resolvePackageAwareTotalAmountFromSources(...sources);
-    if (packageAwareFirst != null && packageAwareFirst > 0) return packageAwareFirst;
-  }
+  return resolveAuthoritativeTotalAmountFromSources(...sources);
+}
 
-  const fromBilling = toNum(pickBillingFirstValue("totalAmount", ...sources));
-  if (fromBilling > 0) return fromBilling;
-
-  const packageAware = resolvePackageAwareTotalAmountFromSources(...sources);
-  return packageAware ?? 0;
+// Hard payment guard: payment popup/save must use the SAME centralized dynamic
+// snapshot as the Billing section, so Total cannot drift between sections.
+function resolveLockedPaymentFinancials(order: any, paymentRows: any[]) {
+  const dynamic = resolveDynamicBillingSnapshot(order, { paymentRows });
+  return {
+    totalAmount: roundMoney(Math.max(0, toNum(dynamic.paymentSnap.totalAmount))),
+    discount: roundMoney(Math.max(0, toNum(dynamic.paymentSnap.discount))),
+    amountPaid: roundMoney(Math.max(0, toNum(dynamic.paymentSnap.amountPaid))),
+  };
 }
 
 function buildPackageAuditBreakdown(services: any[]) {
@@ -349,7 +272,7 @@ function buildPackageAuditBreakdown(services: any[]) {
 
   for (const service of services || []) {
     const servicePrice = Math.max(0, toNum(service?.price));
-    const packageKey = getPackageGroupKeyFromService(service);
+    const packageKey = getPackageGroupKey(service);
 
     if (!packageKey) {
       standaloneTotal += servicePrice;
@@ -365,7 +288,7 @@ function buildPackageAuditBreakdown(services: any[]) {
       itemCount: 0,
     };
 
-    const packagePriceRaw = toNum(service?.packagePrice);
+    const packagePriceRaw = toCurrencyNumber(service?.packagePrice);
     const packagePrice = packagePriceRaw > 0 ? packagePriceRaw : null;
 
     packageMap.set(packageKey, {
@@ -434,6 +357,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const activeDropdownRef = useRef<string | null>(null);
+  const repairTriggeredRef = useRef(false);
 
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
@@ -479,6 +403,38 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       cancelled = true;
     };
   }, [client]);
+
+  // One-time repair path:
+  // Open the page with ?repairPackageBilling=1 to normalize package keys and
+  // recalculate billing totals/status on existing records.
+  useEffect(() => {
+    if (repairTriggeredRef.current) return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("repairPackageBilling") !== "1") return;
+
+    repairTriggeredRef.current = true;
+    setLoading(true);
+
+    (async () => {
+      try {
+        const result = await runOneTimePackageBillingRepair();
+        setSuccessMessage(
+          <>
+            <span className="pim-pop-title"><i className="fas fa-check-circle" /> One-time Package Repair Completed</span>
+            <span className="pim-pop-text">
+              Scanned <strong>{result.scanned}</strong> records. Repaired <strong>{result.repaired}</strong>. Failed <strong>{result.failed}</strong>.
+            </span>
+          </>
+        );
+        setShowSuccessPopup(true);
+      } catch (e) {
+        setErrorMessage(`Repair failed: ${errMsg(e)}`);
+        setShowErrorPopup(true);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
 
   // -------------------- dropdown outside click --------------------
   useEffect(() => {
@@ -824,12 +780,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
       // Authoritative amountPaid: sum approved payment rows (single source of truth).
       // Never rely on the stored billing.amountPaid which can be stale after payments.
-      const approvedPayRows = payRows.filter((p: any) => {
-        const st = String(p?.paymentStatus ?? "COMPLETED").trim().toUpperCase();
-        return st !== "VOID" && st !== "CANCELLED" && st !== "FAILED";
-      });
-      const amountPaidRaw = approvedPayRows.length > 0
-        ? roundMoney(approvedPayRows.reduce((s: number, p: any) => s + Math.max(0, toNum(p?.amount)), 0))
+      const approvedPaidSum = roundMoney(sumApprovedPayments(payRows));
+      const amountPaidRaw = approvedPaidSum > 0
+        ? approvedPaidSum
         : toNum(parsed?.billing?.amountPaid ?? row?.amountPaid ?? detailed?.billing?.amountPaid);
 
       // Always recompute netAmount and balanceDue from scratch — never trust stale stored values
@@ -948,8 +901,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   const openPaymentPopup = () => {
     if (!selectedOrder) return;
 
-    const totalAmount = toNum(selectedOrder?.billing?.totalAmount);
-    const rawDiscount = Math.max(0, toNum(selectedOrder?.billing?.discount));
+    const locked = resolveLockedPaymentFinancials(selectedOrder, paymentRowsRaw);
+    const totalAmount = locked.totalAmount;
+    const rawDiscount = Math.max(0, locked.discount);
     const discountFloor = Math.min(rawDiscount, Math.max(0, totalAmount));
     const discountAllowance = computeCumulativeDiscountAllowance({
       policyMaxPercent: centralDiscountPercent,
@@ -959,7 +913,8 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     });
     const discount = clampTotalDiscountAmount(discountFloor, discountAllowance);
 
-    const currentAmountPaid = toNum(selectedOrder?.billing?.amountPaid);
+    // Use live payment rows as the authoritative source for amountPaid
+    const currentAmountPaid = locked.amountPaid;
     const snap = computePaymentSnapshot(totalAmount, discount, currentAmountPaid);
 
     if (snap.balanceDue <= 0.00001) {
@@ -1075,10 +1030,13 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   const handleSavePayment = async () => {
     if (!paymentForm || !selectedOrder) return;
 
+    const parsedSnapshot = safeJsonParse<any>(selectedOrder?._parsed ?? selectedOrder?.dataJson, {});
+    const locked = resolveLockedPaymentFinancials(selectedOrder, paymentRowsRaw);
+
     const method = String(paymentForm.paymentMethod || "").trim();
     const amountToPay = roundMoney(toNum(paymentForm.amountToPay));
     const rawDiscount = Math.max(0, toNum(paymentForm.discount));
-    const existingDiscount = Math.max(0, toNum(selectedOrder?.billing?.discount));
+    const existingDiscount = Math.max(0, locked.discount);
     const discountAllowance = computeCumulativeDiscountAllowance({
       policyMaxPercent: centralDiscountPercent,
       baseAmount: paymentForm.totalAmount,
@@ -1112,8 +1070,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       return;
     }
 
-    const totalAmount = Math.max(0, toNum(selectedOrder?.billing?.totalAmount));
-    const currentAmountPaid = Math.max(0, toNum(selectedOrder?.billing?.amountPaid));
+    const totalAmount = locked.totalAmount;
+    // Always derive currentAmountPaid from live payment rows to avoid stale billing data
+    const currentAmountPaid = locked.amountPaid;
     const beforePayment = computePaymentSnapshot(totalAmount, discount, currentAmountPaid);
 
     if (beforePayment.balanceDue <= 0.00001) {
@@ -1150,7 +1109,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         };
       }
 
-      const parsed = safeJsonParse<any>(selectedOrder?._parsed ?? selectedOrder?.dataJson, {});
+      const parsed = parsedSnapshot;
       const existingDocs: DocItem[] = Array.isArray(selectedOrder?.documents)
         ? selectedOrder.documents
         : Array.isArray(parsed?.documents)
@@ -1736,21 +1695,28 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       fallback: "—",
     });
 
+    // Live billing: compute amountPaid from actual payment rows so the section
+    // is always dynamic and never shows stale stored values.
+    const livePaidSum = roundMoney(sumApprovedPayments(paymentRowsRaw));
+    const liveAmountPaid = livePaidSum > 0
+      ? livePaidSum
+      : toNum(selectedOrder?.billing?.amountPaid);
+    const liveTotalAmount = toNum(selectedOrder?.billing?.totalAmount);
+    const liveDiscount = toNum(selectedOrder?.billing?.discount);
+    const summaryPaymentSnap = computePaymentSnapshot(liveTotalAmount, liveDiscount, liveAmountPaid);
+    const billingDebug = import.meta.env.DEV
+      ? resolveDynamicBillingSnapshot(selectedOrder, { paymentRows: paymentRowsRaw }).debug
+      : null;
     const paymentDiscountAllowance = paymentForm
       ? computeCumulativeDiscountAllowance({
           policyMaxPercent: centralDiscountPercent,
           baseAmount: paymentForm.totalAmount,
-          existingDiscountAmount: Math.max(0, toNum(selectedOrder?.billing?.discount)),
+          existingDiscountAmount: liveDiscount,
           floorDiscountAmount: Math.max(0, paymentForm.discountFloor || 0),
         })
       : null;
     const maxDiscountQarUi = paymentDiscountAllowance?.maxAllowedTotalDiscountAmount ?? 0;
     const noRemainingDiscountAllowance = (paymentDiscountAllowance?.maxAdditionalDiscountAmount ?? 0) <= 0.00001;
-    const summaryPaymentSnap = computePaymentSnapshot(
-      toNum(selectedOrder?.billing?.totalAmount),
-      toNum(selectedOrder?.billing?.discount),
-      toNum(selectedOrder?.billing?.amountPaid)
-    );
     const serviceAudit = buildPackageAuditBreakdown(Array.isArray(selectedOrder?.services) ? selectedOrder.services : []);
     const canRecordPayment = summaryPaymentSnap.balanceDue > 0.00001;
 
@@ -1838,12 +1804,87 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
                 <div className="pim-billing-grid bi-summary">
                   <div className="pim-billing-item bi-row"><span className="bi-label">Bill ID</span><strong className="bi-value">{selectedOrder.billing?.billId || "—"}</strong></div>
-                  <div className="pim-billing-item bi-row"><span className="bi-label">Total</span><strong className="bi-value">{selectedOrder.billing?.totalAmount || "—"}</strong></div>
-                  <div className="pim-billing-item bi-row"><span className="bi-label">Discount</span><strong className="pim-green bi-value">{selectedOrder.billing?.discount || "—"}</strong></div>
-                  <div className="pim-billing-item bi-row"><span className="bi-label">Net</span><strong className="bi-value">{selectedOrder.billing?.netAmount || "—"}</strong></div>
-                  <div className="pim-billing-item bi-row"><span className="bi-label">Paid</span><strong className="pim-green bi-value">{selectedOrder.billing?.amountPaid || "—"}</strong></div>
-                  <div className="pim-billing-item bi-row"><span className="bi-label">Balance Due</span><strong className="pim-red bi-value">{selectedOrder.billing?.balanceDue || "—"}</strong></div>
+                  <div className="pim-billing-item bi-row"><span className="bi-label">Total</span><strong className="bi-value">{fmtQar(summaryPaymentSnap.totalAmount)}</strong></div>
+                  <div className="pim-billing-item bi-row"><span className="bi-label">Discount</span><strong className="pim-green bi-value">{fmtQar(summaryPaymentSnap.discount)}</strong></div>
+                  <div className="pim-billing-item bi-row"><span className="bi-label">Net</span><strong className="bi-value">{fmtQar(summaryPaymentSnap.netAmount)}</strong></div>
+                  <div className="pim-billing-item bi-row"><span className="bi-label">Paid</span><strong className="pim-green bi-value">{fmtQar(summaryPaymentSnap.amountPaid)}</strong></div>
+                  <div className="pim-billing-item bi-row"><span className="bi-label">Balance Due</span><strong className="pim-red bi-value">{fmtQar(summaryPaymentSnap.balanceDue)}</strong></div>
+                  <div className="pim-billing-item bi-row"><span className="bi-label">Payment Status</span><strong><span className={`pim-badge ${payStatusClass(summaryPaymentSnap.paymentStatusLabel)}`}>{summaryPaymentSnap.paymentStatusLabel}</span></strong></div>
                 </div>
+
+                {billingDebug && (
+                  <div className="pim-subcard" style={{ marginTop: 14 }}>
+                    <div className="pim-subtitle"><i className="fas fa-bug"></i> Dev Billing Debug (Temporary)</div>
+                    <div className="pim-table-wrap" style={{ marginTop: 8 }}>
+                      <table className="pim-table">
+                        <thead>
+                          <tr>
+                            <th>Metric</th>
+                            <th>Resolved Value</th>
+                            <th>Source</th>
+                            <th>Details</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td>Total</td>
+                            <td>{fmtQar(Number(billingDebug.total.value || 0))}</td>
+                            <td>{String(billingDebug.total.source)}</td>
+                            <td>
+                              stored={fmtQar(Number(billingDebug.total.storedBillingTotal || 0))}, package={fmtQar(Number(billingDebug.total.packageAwareTotal || 0))}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td>Paid</td>
+                            <td>{fmtQar(Number(billingDebug.paid.value || 0))}</td>
+                            <td>{String(billingDebug.paid.source)}</td>
+                            <td>
+                              rows={fmtQar(Number(billingDebug.paid.approvedPaymentRowsTotal || 0))}, log={fmtQar(Number(billingDebug.paid.paymentActivityLogTotal || 0))}, stored={fmtQar(Number(billingDebug.paid.storedBillingAmountPaid || 0))}
+                            </td>
+                          </tr>
+                          <tr>
+                            <td>Balance</td>
+                            <td>{fmtQar(Number(billingDebug.balance.value || 0))}</td>
+                            <td>computed</td>
+                            <td>{String(billingDebug.balance.formula || "")}</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                    <div className="pim-table-wrap" style={{ marginTop: 10 }}>
+                      <table className="pim-table">
+                        <thead>
+                          <tr>
+                            <th>Package Group</th>
+                            <th>Mode</th>
+                            <th>Items</th>
+                            <th>Used Total</th>
+                            <th>Package Price</th>
+                            <th>Services Sum</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Array.isArray(billingDebug.packageBreakdown?.packageGroups) && billingDebug.packageBreakdown.packageGroups.length > 0 ? (
+                            billingDebug.packageBreakdown.packageGroups.map((g: any) => (
+                              <tr key={String(g.key)}>
+                                <td>{String(g.key)}</td>
+                                <td>{String(g.mode)}</td>
+                                <td>{Number(g.itemCount || 0)}</td>
+                                <td>{fmtQar(Number(g.usedTotal || 0))}</td>
+                                <td>{fmtQar(Number(g.packagePrice || 0))}</td>
+                                <td>{fmtQar(Number(g.fallbackServicesTotal || 0))}</td>
+                              </tr>
+                            ))
+                          ) : (
+                            <tr>
+                              <td colSpan={6}>No package groups detected for this order.</td>
+                            </tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
 
                 {(serviceAudit.packageLines.length > 0 || serviceAudit.standaloneCount > 0) && (
                   <div className="pim-subcard bi-package-audit-wrap">
