@@ -83,6 +83,62 @@ type Payload = {
   [k: string]: any;
 };
 
+function normalizeKey(value: any): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function getPackageGroupKey(service: any): string {
+  const packageCode = normalizeKey(service?.packageCode);
+  if (packageCode) return packageCode;
+
+  const packageName = normalizeKey(service?.packageName ?? service?.packageNameAr);
+  if (packageName) return `pkg:${packageName}`;
+
+  const packageId = normalizeKey(service?.packageId);
+  if (packageId) return `pkgid:${packageId}`;
+
+  const groupId = normalizeKey(service?.groupId);
+  if (groupId) return `group:${groupId}`;
+
+  const groupName = normalizeKey(service?.groupName);
+  if (groupName) return `group:${groupName}`;
+
+  return "";
+}
+
+function summarizeServicesSubtotalPackageAware(services: any[]): number {
+  let standaloneSubtotal = 0;
+  const packageSummary = new Map<string, { packagePrice: number | null; fallbackServicesTotal: number }>();
+
+  for (const service of services || []) {
+    const qty = Math.max(1, toNum((service as any)?.qty ?? 1));
+    const unit = Math.max(0, toNum((service as any)?.unitPrice ?? (service as any)?.price ?? 0));
+    const price = qty * unit;
+    const packageKey = getPackageGroupKey(service);
+
+    if (!packageKey) {
+      standaloneSubtotal += price;
+      continue;
+    }
+
+    const existing = packageSummary.get(packageKey) ?? { packagePrice: null, fallbackServicesTotal: 0 };
+    const packagePriceRaw = Math.max(0, toNum((service as any)?.packagePrice));
+    const packagePrice = packagePriceRaw > 0 ? packagePriceRaw : null;
+
+    packageSummary.set(packageKey, {
+      packagePrice: existing.packagePrice ?? packagePrice,
+      fallbackServicesTotal: existing.fallbackServicesTotal + price,
+    });
+  }
+
+  let packageSubtotal = 0;
+  packageSummary.forEach((entry) => {
+    packageSubtotal += entry.packagePrice ?? entry.fallbackServicesTotal;
+  });
+
+  return Math.max(0, standaloneSubtotal + packageSubtotal);
+}
+
 function safeParseInput(raw: any): Payload {
   if (raw == null) throw new Error("Missing input");
   
@@ -227,11 +283,9 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
     payload.discount != null ? Math.max(0, toNum(payload.discount)) : Math.max(0, toNum(existing?.discount));
 
   // subtotal
-  const subtotal = (services ?? []).reduce((sum, s) => {
-    const qty = Math.max(1, toNum((s as any).qty ?? 1));
-    const unit = Math.max(0, toNum((s as any).unitPrice ?? (s as any).price ?? 0));
-    return sum + qty * unit;
-  }, 0);
+  const subtotalCalculated = summarizeServicesSubtotalPackageAware(services ?? []);
+  const subtotalFromBilling = Math.max(0, toNum(payload?.billing?.totalAmount));
+  const subtotal = subtotalFromBilling > 0 ? subtotalFromBilling : subtotalCalculated;
 
   // ✅ numeric limit: centralized discount max %
   if (!cancelling && subtotal > 0) {
@@ -254,7 +308,9 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
 
   const taxable = Math.max(0, subtotal - discount);
   const vatAmount = taxable * vatRate;
-  const totalAmount = taxable + vatAmount;
+  const totalAmountCalculated = taxable + vatAmount;
+  const totalAmountFromBilling = Math.max(0, toNum(payload?.billing?.totalAmount));
+  const totalAmount = totalAmountFromBilling > 0 ? totalAmountFromBilling : totalAmountCalculated;
 
   // amountPaid from Payment model
   let amountPaid = 0;
@@ -292,6 +348,14 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
 
         qty: Math.max(1, toNum((s as any).qty ?? 1)),
         unitPrice: Math.max(0, toNum((s as any).unitPrice ?? price)),
+
+        packageCode: String((s as any).packageCode ?? "").trim() || undefined,
+        packageName: String((s as any).packageName ?? "").trim() || undefined,
+        packageNameAr: String((s as any).packageNameAr ?? "").trim() || undefined,
+        packagePrice: (() => {
+          const p = Math.max(0, toNum((s as any).packagePrice));
+          return p > 0 ? p : undefined;
+        })(),
 
         status: String((s as any).status ?? "Pending"),
         priority: String((s as any).priority ?? "normal"),

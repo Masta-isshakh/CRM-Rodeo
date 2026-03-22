@@ -1126,8 +1126,11 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       const updatedOrder = {
         ...selectedOrder,
 
+        totalAmount,              // numeric (authoritative locked total)
         discount,                 // numeric
         netAmount,                // numeric
+        amountPaid: afterPayment.amountPaid,   // numeric
+        balanceDue: afterPayment.balanceDue,   // numeric
         paymentMethod: method,    // top-level
         billId: String(selectedOrder?.billing?.billId ?? ""), // keep if exists
 
