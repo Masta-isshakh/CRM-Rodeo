@@ -1,7 +1,14 @@
 export type PaymentStatus = "UNPAID" | "PARTIAL" | "PAID";
 
 export function toNum(x: unknown) {
-  const n = typeof x === "number" ? x : Number(String(x ?? "").trim());
+  if (typeof x === "number") return Number.isFinite(x) ? x : 0;
+
+  const raw = String(x ?? "").trim();
+  if (!raw) return 0;
+
+  // Accept formatted currency/text values like "QAR 54,554.00".
+  const normalized = raw.replace(/,/g, "").replace(/[^0-9.-]/g, "");
+  const n = Number(normalized);
   return Number.isFinite(n) ? n : 0;
 }
 

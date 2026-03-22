@@ -66,6 +66,7 @@ export function computePaymentSnapshot(totalAmountRaw: any, discountRaw: any, am
   const netAmount = netFromField > 0 ? netFromField : Math.max(0, totalAmount - Math.min(discount, totalAmount));
 
   const balanceFromField = toMoney(balanceDueRaw);
+  // Business rule: balance due is based on Net - Paid.
   const balanceDue = balanceFromField > 0 ? balanceFromField : Math.max(0, netAmount - paid);
 
   const eps = 0.00001;
