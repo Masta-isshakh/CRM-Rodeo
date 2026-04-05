@@ -1,8 +1,9 @@
 import { defineBackend } from "@aws-amplify/backend";
-import { PolicyStatement } from "aws-cdk-lib/aws-iam";
+import { PolicyStatement, ServicePrincipal } from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 
 import { auth } from "./auth/resource";
+import { customMessage } from "./auth/custom-message/resource";
 import { data } from "./data/resource";
 import { storage } from "./storage/resource";
 
@@ -22,6 +23,7 @@ import { myGroups } from "./functions/auth/my-groups/resource";
 
 const backend = defineBackend({
   auth,
+  customMessage,
   data,
   storage,
 
@@ -70,3 +72,11 @@ adminCognitoFn.addToRolePolicy(
 );
 
 adminCognitoFn.addEnvironment("USERPOOL_ID", backend.auth.resources.userPool.userPoolId);
+
+const customMessageFn = backend.customMessage.resources.lambda as unknown as lambda.Function;
+
+customMessageFn.addPermission("AllowCognitoInvokeCustomMessage", {
+  principal: new ServicePrincipal("cognito-idp.amazonaws.com"),
+  action: "lambda:InvokeFunction",
+  sourceArn: backend.auth.resources.userPool.userPoolArn,
+});
