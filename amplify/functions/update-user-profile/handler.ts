@@ -153,9 +153,13 @@ function aggregateToggleMap(toggleRecords: any[]): Record<string, boolean> {
   for (const t of toggleRecords ?? []) {
     const k = normalizeKey(t?.key ?? "");
     if (!k) continue;
-    map[k] = !!t?.enabled;
+    map[k] = Boolean(map[k]) || Boolean(t?.enabled);
   }
   return map;
+}
+
+function isToggleExplicit(toggleMap: Record<string, boolean>, key: string) {
+  return Object.prototype.hasOwnProperty.call(toggleMap, key);
 }
 
 async function canEditUsers(
@@ -199,9 +203,17 @@ async function canEditUsers(
   );
   const toggleMap = aggregateToggleMap(roleToggles);
 
-  const moduleEnabled = toggleMap["users.__enabled"] === true;
-  const editAllowedByOption = toggleMap["users::users_edit"] === true;
-  if (moduleEnabled && editAllowedByOption) return true;
+  const moduleEnabledKey = "users.__enabled";
+  const editKey = "users::users_edit";
+
+  const moduleEnabled = isToggleExplicit(toggleMap, moduleEnabledKey)
+    ? Boolean(toggleMap[moduleEnabledKey])
+    : true;
+  if (!moduleEnabled) return false;
+
+  if (isToggleExplicit(toggleMap, editKey)) {
+    return Boolean(toggleMap[editKey]);
+  }
 
   const policies = await dataClient.models.RolePolicy.list({ limit: 30000 } as any);
   let canUpdate = false;

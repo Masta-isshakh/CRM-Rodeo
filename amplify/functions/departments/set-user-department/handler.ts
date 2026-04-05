@@ -149,9 +149,13 @@ function aggregateToggleMap(toggleRecords: any[]): Record<string, boolean> {
   for (const t of toggleRecords ?? []) {
     const k = normalizeKey(t?.key ?? "");
     if (!k) continue;
-    map[k] = !!t?.enabled;
+    map[k] = Boolean(map[k]) || Boolean(t?.enabled);
   }
   return map;
+}
+
+function isToggleExplicit(toggleMap: Record<string, boolean>, key: string) {
+  return Object.prototype.hasOwnProperty.call(toggleMap, key);
 }
 
 async function canEditUsers(
@@ -202,11 +206,18 @@ async function canEditUsers(
 
     const toggleMap = aggregateToggleMap(roleToggles);
 
-    const moduleEnabled = toggleMap["users.__enabled"] === true;
-    const editAllowedByOption = toggleMap["users::users_edit"] === true;
+    const moduleEnabledKey = "users.__enabled";
+    const editKey = "users::users_edit";
+    const moduleEnabled = isToggleExplicit(toggleMap, moduleEnabledKey)
+      ? Boolean(toggleMap[moduleEnabledKey])
+      : true;
+    const editAllowedByOption = isToggleExplicit(toggleMap, editKey)
+      ? Boolean(toggleMap[editKey])
+      : null;
     console.log(`[set-user-department RBAC] module enabled: ${moduleEnabled} edit option: ${editAllowedByOption}`);
 
-    if (moduleEnabled && editAllowedByOption) return true;
+    if (!moduleEnabled) return false;
+    if (editAllowedByOption !== null) return Boolean(editAllowedByOption);
 
     const policies = await dataClient.models.RolePolicy.list({ limit: 30000 } as any);
     let canUpdate = false;
@@ -282,6 +293,16 @@ export const handler = async (event: {
   if (!email) throw new Error("Email is required");
   if (!departmentKey) throw new Error("departmentKey is required");
 
+  // Update UserProfile
+  const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
+  Amplify.configure(resourceConfig, libraryOptions);
+  const dataClient = generateClient<Schema>();
+
+  const allowed = await canEditUsers(dataClient, event, userPoolId);
+  if (!allowed) {
+    throw new Error("Not authorized to edit users. Check roles and policies configuration.");
+  }
+
   await ensureGroup(userPoolId, departmentKey, departmentName);
 
   // ✅ Use correct Cognito Username
@@ -314,16 +335,6 @@ export const handler = async (event: {
       GroupName: departmentKey,
     })
   );
-
-  // Update UserProfile
-  const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
-  Amplify.configure(resourceConfig, libraryOptions);
-  const dataClient = generateClient<Schema>();
-
-  const allowed = await canEditUsers(dataClient, event, userPoolId);
-  if (!allowed) {
-    throw new Error("Not authorized to edit users. Check roles and policies configuration.");
-  }
 
   const existing = await dataClient.models.UserProfile.list({
     filter: { email: { eq: email } },

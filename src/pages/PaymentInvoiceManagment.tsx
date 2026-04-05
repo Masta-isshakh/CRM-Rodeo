@@ -1707,9 +1707,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const liveTotalAmount = toNum(selectedOrder?.billing?.totalAmount);
     const liveDiscount = toNum(selectedOrder?.billing?.discount);
     const summaryPaymentSnap = computePaymentSnapshot(liveTotalAmount, liveDiscount, liveAmountPaid);
-    const billingDebug = import.meta.env.DEV
-      ? resolveDynamicBillingSnapshot(selectedOrder, { paymentRows: paymentRowsRaw }).debug
-      : null;
     const paymentDiscountAllowance = paymentForm
       ? computeCumulativeDiscountAllowance({
           policyMaxPercent: centralDiscountPercent,
@@ -1814,80 +1811,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                   <div className="pim-billing-item bi-row"><span className="bi-label">Balance Due</span><strong className="pim-red bi-value">{fmtQar(summaryPaymentSnap.balanceDue)}</strong></div>
                   <div className="pim-billing-item bi-row"><span className="bi-label">Payment Status</span><strong><span className={`pim-badge ${payStatusClass(summaryPaymentSnap.paymentStatusLabel)}`}>{summaryPaymentSnap.paymentStatusLabel}</span></strong></div>
                 </div>
-
-                {billingDebug && (
-                  <div className="pim-subcard" style={{ marginTop: 14 }}>
-                    <div className="pim-subtitle"><i className="fas fa-bug"></i> Dev Billing Debug (Temporary)</div>
-                    <div className="pim-table-wrap" style={{ marginTop: 8 }}>
-                      <table className="pim-table">
-                        <thead>
-                          <tr>
-                            <th>Metric</th>
-                            <th>Resolved Value</th>
-                            <th>Source</th>
-                            <th>Details</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          <tr>
-                            <td>Total</td>
-                            <td>{fmtQar(Number(billingDebug.total.value || 0))}</td>
-                            <td>{String(billingDebug.total.source)}</td>
-                            <td>
-                              stored={fmtQar(Number(billingDebug.total.storedBillingTotal || 0))}, package={fmtQar(Number(billingDebug.total.packageAwareTotal || 0))}
-                            </td>
-                          </tr>
-                          <tr>
-                            <td>Paid</td>
-                            <td>{fmtQar(Number(billingDebug.paid.value || 0))}</td>
-                            <td>{String(billingDebug.paid.source)}</td>
-                            <td>
-                              rows={fmtQar(Number(billingDebug.paid.approvedPaymentRowsTotal || 0))}, log={fmtQar(Number(billingDebug.paid.paymentActivityLogTotal || 0))}, stored={fmtQar(Number(billingDebug.paid.storedBillingAmountPaid || 0))}
-                            </td>
-                          </tr>
-                          <tr>
-                            <td>Balance</td>
-                            <td>{fmtQar(Number(billingDebug.balance.value || 0))}</td>
-                            <td>computed</td>
-                            <td>{String(billingDebug.balance.formula || "")}</td>
-                          </tr>
-                        </tbody>
-                      </table>
-                    </div>
-                    <div className="pim-table-wrap" style={{ marginTop: 10 }}>
-                      <table className="pim-table">
-                        <thead>
-                          <tr>
-                            <th>Package Group</th>
-                            <th>Mode</th>
-                            <th>Items</th>
-                            <th>Used Total</th>
-                            <th>Package Price</th>
-                            <th>Services Sum</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {Array.isArray(billingDebug.packageBreakdown?.packageGroups) && billingDebug.packageBreakdown.packageGroups.length > 0 ? (
-                            billingDebug.packageBreakdown.packageGroups.map((g: any) => (
-                              <tr key={String(g.key)}>
-                                <td>{String(g.key)}</td>
-                                <td>{String(g.mode)}</td>
-                                <td>{Number(g.itemCount || 0)}</td>
-                                <td>{fmtQar(Number(g.usedTotal || 0))}</td>
-                                <td>{fmtQar(Number(g.packagePrice || 0))}</td>
-                                <td>{fmtQar(Number(g.fallbackServicesTotal || 0))}</td>
-                              </tr>
-                            ))
-                          ) : (
-                            <tr>
-                              <td colSpan={6}>No package groups detected for this order.</td>
-                            </tr>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
-                  </div>
-                )}
 
                 {(serviceAudit.packageLines.length > 0 || serviceAudit.standaloneCount > 0) && (
                   <div className="pim-subcard bi-package-audit-wrap">

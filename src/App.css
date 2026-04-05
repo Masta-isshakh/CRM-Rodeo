@@ -43,9 +43,8 @@
 html,
 body,
 #root {
-  background: url("/background.jpg") center center / cover no-repeat fixed;
-  background-color: #06070e;
-    border-radius: 20px;
+  background: transparent;
+  border-radius: 0;
 
 }
 

@@ -1382,7 +1382,7 @@ export default function Users(_: PageProps) {
                     <Button
                       onClick={() => void sendResetPassword(detailsUser)}
                       isDisabled={loading || isRootAdminSyntheticUser(detailsUser)}
-                            disabled={!canDeleteUsers || loading}
+                      disabled={!canEditUsers || loading}
                     >
                       Reset Password
                     </Button>

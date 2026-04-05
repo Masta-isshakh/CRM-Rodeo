@@ -52,6 +52,29 @@ html[data-theme="dark"] :is(
   box-shadow: 0 18px 40px rgba(2, 6, 23, 0.32) !important;
 }
 
+html[data-theme="dark"] .layout-root .layout-main :is(
+  [class*="-card"],
+  [class*=" card"],
+  [class*="modal"],
+  [class*="panel"],
+  [class*="screen"],
+  [class*="summary"],
+  [class*="popup"],
+  [class*="table-wrap"],
+  [class*="form"],
+  [class*="details"],
+  [class*="section"],
+  [class*="box"]
+) {
+  background: #0f1a2b !important;
+  color: #e5edf7 !important;
+  border-color: rgba(148, 163, 184, 0.18) !important;
+}
+
+html[data-theme="dark"] .layout-root .layout-main :is(main, section, article) {
+  color: #e5edf7;
+}
+
 html[data-theme="dark"] :is(
   .details-card-header,
   .pim-details-header,

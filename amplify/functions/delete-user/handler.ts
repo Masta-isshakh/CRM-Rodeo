@@ -159,9 +159,13 @@ function aggregateToggleMap(toggleRecords: any[]): Record<string, boolean | numb
   for (const t of toggleRecords) {
     const k = normalizeKey(t?.key ?? "");
     if (!k) continue;
-    map[k] = !!t?.enabled;
+    map[k] = Boolean(map[k]) || Boolean(t?.enabled);
   }
   return map;
+}
+
+function isToggleExplicit(toggleMap: Record<string, boolean | number>, key: string) {
+  return Object.prototype.hasOwnProperty.call(toggleMap, key);
 }
 
 async function canDeleteUsers(
@@ -212,11 +216,18 @@ async function canDeleteUsers(
 
     const toggleMap = aggregateToggleMap(roleToggles);
 
-    const moduleEnabled = toggleMap["users.__enabled"] === true;
-    const deleteAllowedByOption = toggleMap["users::users_delete"] === true;
+    const moduleEnabledKey = "users.__enabled";
+    const deleteKey = "users::users_delete";
+    const moduleEnabled = isToggleExplicit(toggleMap, moduleEnabledKey)
+      ? Boolean(toggleMap[moduleEnabledKey])
+      : true;
+    const deleteAllowedByOption = isToggleExplicit(toggleMap, deleteKey)
+      ? Boolean(toggleMap[deleteKey])
+      : null;
     console.log(`[delete-user RBAC] module enabled: ${moduleEnabled} delete option: ${deleteAllowedByOption}`);
 
-    if (moduleEnabled && deleteAllowedByOption) return true;
+    if (!moduleEnabled) return false;
+    if (deleteAllowedByOption !== null) return Boolean(deleteAllowedByOption);
 
     const roleIdSet = new Set(roleIds);
     const policies = await dataClient.models.RolePolicy.list({ limit: 30000 } as any);
