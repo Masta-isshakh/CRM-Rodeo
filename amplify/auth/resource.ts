@@ -25,6 +25,7 @@ export const auth = defineAuth({
       .resource(inviteUser)
       .to([
         "createUser",
+        "deleteUser",
         "getUser",
         "listUsers",
         "updateUserAttributes",

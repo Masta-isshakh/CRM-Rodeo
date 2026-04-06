@@ -5,6 +5,7 @@ import {
   CognitoIdentityProviderClient,
   AdminAddUserToGroupCommand,
   AdminCreateUserCommand,
+  AdminDeleteUserCommand,
   AdminGetUserCommand,
   AdminResetUserPasswordCommand,
   AdminSetUserPasswordCommand,
@@ -274,6 +275,79 @@ function getAttr(attrs: { Name?: string; Value?: string }[] | undefined, name: s
   return (attrs ?? []).find((a) => a.Name === name)?.Value;
 }
 
+async function listAllCognitoUsers(userPoolId: string, max = 5000) {
+  const out: Array<{ Username?: string; Attributes?: { Name?: string; Value?: string }[] }> = [];
+  let paginationToken: string | undefined;
+
+  while (out.length < max) {
+    const res = await cognito.send(
+      new ListUsersCommand({
+        UserPoolId: userPoolId,
+        Limit: 60,
+        PaginationToken: paginationToken,
+      })
+    );
+
+    out.push(...(res.Users ?? []));
+    paginationToken = res.PaginationToken;
+    if (!paginationToken) break;
+  }
+
+  return out;
+}
+
+async function resolveCognitoUsernames(userPoolId: string, email: string, sub?: string): Promise<string[]> {
+  const normalizedEmail = String(email ?? "").trim().toLowerCase();
+  const normalizedSub = String(sub ?? "").trim();
+  const usernames = new Set<string>();
+
+  if (normalizedEmail) {
+    try {
+      await cognito.send(new AdminGetUserCommand({ UserPoolId: userPoolId, Username: normalizedEmail }));
+      usernames.add(normalizedEmail);
+    } catch {
+      // continue
+    }
+
+    try {
+      const listed = await cognito.send(
+        new ListUsersCommand({
+          UserPoolId: userPoolId,
+          Filter: `email = "${normalizedEmail}"`,
+          Limit: 10,
+        })
+      );
+      for (const user of listed.Users ?? []) {
+        const username = String(user.Username ?? "").trim();
+        if (username) usernames.add(username);
+      }
+    } catch {
+      // continue
+    }
+  }
+
+  if (!usernames.size || normalizedSub) {
+    const allUsers = await listAllCognitoUsers(userPoolId);
+    for (const user of allUsers) {
+      const username = String(user.Username ?? "").trim();
+      const userEmail = String(getAttr(user.Attributes, "email") ?? "").trim().toLowerCase();
+      const userSub = String(getAttr(user.Attributes, "sub") ?? "").trim();
+      if (!username) continue;
+
+      if (normalizedEmail && (username.toLowerCase() === normalizedEmail || userEmail === normalizedEmail)) {
+        usernames.add(username);
+        continue;
+      }
+
+      if (normalizedSub && userSub === normalizedSub) {
+        usernames.add(username);
+      }
+    }
+  }
+
+  return Array.from(usernames);
+}
+
 function generateTemporaryPassword() {
   const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
   const pick = (len: number) =>
@@ -358,6 +432,8 @@ export const handler: Handler = async (event) => {
   let inviteAction: "CREATED" | "RESET" = "CREATED";
   const temporaryPassword = generateTemporaryPassword();
   let cognitoUsername = email;
+  const existingProfile = await findUserProfileByEmailCaseInsensitive(dataClient, email);
+  const existingProfileSub = String(existingProfile?.profileOwner ?? "").split("::")[0]?.trim() || "";
 
   // 1) Create user OR re-send invite if exists
   try {
@@ -379,36 +455,66 @@ const createRes = await cognito.send(
   } catch (e: any) {
     if (e?.name !== "UsernameExistsException") throw e;
 
-    inviteAction = "RESET";
-    cognitoUsername = await resolveCognitoUsername(userPoolId, email);
+    const staleUsernames = await resolveCognitoUsernames(userPoolId, email, existingProfileSub);
+    if (!existingProfile?.id && staleUsernames.length) {
+      for (const staleUsername of staleUsernames) {
+        await cognito.send(
+          new AdminDeleteUserCommand({
+            UserPoolId: userPoolId,
+            Username: staleUsername,
+          })
+        );
+      }
 
-    await cognito.send(
-      new AdminUpdateUserAttributesCommand({
-        UserPoolId: userPoolId,
-        Username: cognitoUsername,
-        UserAttributes: [
-          { Name: "email", Value: email },
-          { Name: "email_verified", Value: "true" },
-          { Name: "name", Value: fullName },
-        ],
-      })
-    );
+      const recreated = await cognito.send(
+        new AdminCreateUserCommand({
+          UserPoolId: userPoolId,
+          Username: email,
+          TemporaryPassword: temporaryPassword,
+          UserAttributes: [
+            { Name: "email", Value: email },
+            { Name: "email_verified", Value: "true" },
+            { Name: "name", Value: fullName },
+          ],
+          DesiredDeliveryMediums: ["EMAIL"],
+          ForceAliasCreation: false,
+        })
+      );
 
-    await cognito.send(
-      new AdminSetUserPasswordCommand({
-        UserPoolId: userPoolId,
-        Username: cognitoUsername,
-        Password: temporaryPassword,
-        Permanent: false,
-      })
-    );
+      sub = getAttr(recreated.User?.Attributes, "sub");
+      cognitoUsername = email;
+    } else {
+      inviteAction = "RESET";
+      cognitoUsername = staleUsernames[0] || (await resolveCognitoUsername(userPoolId, email));
 
-    await cognito.send(
-      new AdminResetUserPasswordCommand({
-        UserPoolId: userPoolId,
-        Username: cognitoUsername,
-      })
-    );
+      await cognito.send(
+        new AdminUpdateUserAttributesCommand({
+          UserPoolId: userPoolId,
+          Username: cognitoUsername,
+          UserAttributes: [
+            { Name: "email", Value: email },
+            { Name: "email_verified", Value: "true" },
+            { Name: "name", Value: fullName },
+          ],
+        })
+      );
+
+      await cognito.send(
+        new AdminSetUserPasswordCommand({
+          UserPoolId: userPoolId,
+          Username: cognitoUsername,
+          Password: temporaryPassword,
+          Permanent: false,
+        })
+      );
+
+      await cognito.send(
+        new AdminResetUserPasswordCommand({
+          UserPoolId: userPoolId,
+          Username: cognitoUsername,
+        })
+      );
+    }
   }
 
   // 2) Ensure user is in department group

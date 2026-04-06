@@ -24,6 +24,10 @@ function normalizeKey(s: string): string {
   return String(s ?? "").trim().toLowerCase();
 }
 
+function getAttr(attrs: { Name?: string; Value?: string }[] | undefined, name: string) {
+  return (attrs ?? []).find((a) => a.Name === name)?.Value;
+}
+
 function optKey(module: string, option: string): string {
   return `${module}::${option}`;
 }
@@ -253,23 +257,79 @@ async function canDeleteUsers(
 // ==================== End Utility Functions ====================
 
 
-async function resolveCognitoUsername(userPoolId: string, email: string): Promise<string> {
-  try {
-    await cognito.send(new AdminGetUserCommand({ UserPoolId: userPoolId, Username: email }));
-    return email;
-  } catch {
-    const listed = await cognito.send(
+async function listAllCognitoUsers(userPoolId: string, max = 5000) {
+  const out: Array<{ Username?: string; Attributes?: { Name?: string; Value?: string }[] }> = [];
+  let paginationToken: string | undefined;
+
+  while (out.length < max) {
+    const res = await cognito.send(
       new ListUsersCommand({
         UserPoolId: userPoolId,
-        Filter: `email = "${email}"`,
-        Limit: 1,
+        Limit: 60,
+        PaginationToken: paginationToken,
       })
     );
 
-    const username = String(listed.Users?.[0]?.Username ?? "").trim();
-    if (!username) return "";
-    return username;
+    out.push(...(res.Users ?? []));
+    paginationToken = res.PaginationToken;
+    if (!paginationToken) break;
   }
+
+  return out;
+}
+
+async function resolveCognitoUsernames(userPoolId: string, email: string, subCandidates: string[] = []): Promise<string[]> {
+  const normalizedEmail = String(email ?? "").trim().toLowerCase();
+  const normalizedSubs = new Set(
+    (subCandidates ?? []).map((value) => String(value ?? "").trim()).filter(Boolean)
+  );
+  const usernames = new Set<string>();
+
+  if (normalizedEmail) {
+    try {
+      await cognito.send(new AdminGetUserCommand({ UserPoolId: userPoolId, Username: normalizedEmail }));
+      usernames.add(normalizedEmail);
+    } catch {
+      // continue
+    }
+
+    try {
+      const listed = await cognito.send(
+        new ListUsersCommand({
+          UserPoolId: userPoolId,
+          Filter: `email = "${normalizedEmail}"`,
+          Limit: 10,
+        })
+      );
+      for (const user of listed.Users ?? []) {
+        const username = String(user.Username ?? "").trim();
+        if (username) usernames.add(username);
+      }
+    } catch {
+      // continue
+    }
+  }
+
+  if (!usernames.size || normalizedSubs.size) {
+    const allUsers = await listAllCognitoUsers(userPoolId);
+    for (const user of allUsers) {
+      const username = String(user.Username ?? "").trim();
+      const userEmail = String(getAttr(user.Attributes, "email") ?? "").trim().toLowerCase();
+      const userSub = String(getAttr(user.Attributes, "sub") ?? "").trim();
+      if (!username) continue;
+
+      if (normalizedEmail && (username.toLowerCase() === normalizedEmail || userEmail === normalizedEmail)) {
+        usernames.add(username);
+        continue;
+      }
+
+      if (userSub && normalizedSubs.has(userSub)) {
+        usernames.add(username);
+      }
+    }
+  }
+
+  return Array.from(usernames);
 }
 
 export const handler: Handler = async (event: any) => {
@@ -289,11 +349,22 @@ export const handler: Handler = async (event: any) => {
     throw new Error("Not authorized to delete users. Check roles and policies configuration.");
   }
 
-  const username = await resolveCognitoUsername(userPoolId, email);
+  const profiles = await dataClient.models.UserProfile.list({
+    filter: { email: { eq: email } },
+    limit: 50,
+  });
+
+  const subCandidates = (profiles.data ?? [])
+    .map((profile) => String((profile as any)?.profileOwner ?? "").split("::")[0]?.trim() || "")
+    .filter(Boolean);
+
+  const usernames = await resolveCognitoUsernames(userPoolId, email, subCandidates);
   let cognitoDeleted = false;
+  let cognitoDeletedCount = 0;
 
   // 1) Delete Cognito user (if it still exists)
-  if (username) {
+  for (const username of usernames) {
+    if (!username) continue;
     try {
       await cognito.send(
         new AdminDeleteUserCommand({
@@ -302,6 +373,7 @@ export const handler: Handler = async (event: any) => {
         })
       );
       cognitoDeleted = true;
+      cognitoDeletedCount += 1;
     } catch (e: any) {
       if (String(e?.name ?? "") !== "UserNotFoundException") {
         throw e;
@@ -310,11 +382,6 @@ export const handler: Handler = async (event: any) => {
   }
 
   // 2) Delete UserProfile records (NOT Customer)
-  const profiles = await dataClient.models.UserProfile.list({
-    filter: { email: { eq: email } },
-    limit: 50,
-  });
-
   for (const p of profiles.data ?? []) {
     await dataClient.models.UserProfile.delete({ id: p.id });
   }
@@ -322,8 +389,9 @@ export const handler: Handler = async (event: any) => {
   return {
     ok: true,
     email,
-    username: username || null,
+    username: usernames[0] || null,
     cognitoDeleted,
+    cognitoDeletedCount,
     deletedProfiles: (profiles.data ?? []).length,
   };
 };
