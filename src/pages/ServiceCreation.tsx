@@ -2,20 +2,26 @@ import { useEffect, useMemo, useState } from "react";
 import PermissionGate from "./PermissionGate";
 import "./ServiceCreation.css";
 import {
+  createServiceBrandSpecificationItem,
   createServiceCatalogItem,
   createServiceCategoryItem,
+  deleteServiceBrandSpecificationItem,
   deleteServiceCatalogItem,
   deleteServiceCategoryItem,
+  listServiceBrandSpecifications,
   listServiceCatalog,
   listServiceCategories,
   updateServiceCatalogItem,
   updateServiceCategoryItem,
+  updateServiceBrandSpecificationItem,
   type ServiceCatalogItem,
+  type ServiceBrandSpecificationItem,
   type ServiceCategoryItem,
+  type ServiceSpecificationBrand,
 } from "./serviceCatalogRepo";
 
-type Tab = "services" | "packages";
-type ModalType = "none" | "category" | "service" | "package";
+type Tab = "services" | "packages" | "specifications";
+type ModalType = "none" | "category" | "service" | "package" | "specification";
 
 type CategoryFormState = {
   id?: string;
@@ -40,6 +46,9 @@ type ServiceFormState = {
   truckPrice: string;
   coupePrice: string;
   otherPrice: string;
+  specificationId: string;
+  specificationProductId: string;
+  specificationMeasurement: string;
 };
 
 type PackageFormState = {
@@ -56,6 +65,26 @@ type PackageFormState = {
   coupePrice: string;
   otherPrice: string;
   includedServiceCodes: string[];
+};
+
+type SpecificationProductFormState = {
+  id: string;
+  name: string;
+  measurements: string[];
+};
+
+type SpecificationBrandFormState = {
+  id: string;
+  name: string;
+  colorHex: string;
+  products: SpecificationProductFormState[];
+};
+
+type BrandSpecificationFormState = {
+  id?: string;
+  specificationCode: string;
+  brandName: string;
+  colorHex: string;
 };
 
 const EMPTY_CATEGORY_FORM: CategoryFormState = {
@@ -79,6 +108,15 @@ const EMPTY_SERVICE_FORM: ServiceFormState = {
   truckPrice: "",
   coupePrice: "",
   otherPrice: "",
+  specificationId: "",
+  specificationProductId: "",
+  specificationMeasurement: "",
+};
+
+const EMPTY_BRAND_SPECIFICATION_FORM: BrandSpecificationFormState = {
+  specificationCode: "",
+  brandName: "",
+  colorHex: "#1F2937",
 };
 
 const EMPTY_PACKAGE_FORM: PackageFormState = {
@@ -132,6 +170,62 @@ function displayBilingual(en?: string, ar?: string) {
   return e || a || "-";
 }
 
+function makeClientId(prefix: string) {
+  return `${prefix}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function createEmptySpecificationProduct(): SpecificationProductFormState {
+  return {
+    id: makeClientId("product"),
+    name: "",
+    measurements: [""],
+  };
+}
+
+function createEmptySpecificationBrand(): SpecificationBrandFormState {
+  return {
+    id: makeClientId("brand"),
+    name: "",
+    colorHex: "#1F2937",
+    products: [createEmptySpecificationProduct()],
+  };
+}
+
+function mapSpecificationBrands(brands: ServiceSpecificationBrand[] | undefined): SpecificationBrandFormState[] {
+  if (!Array.isArray(brands) || brands.length === 0) return [createEmptySpecificationBrand()];
+
+  return brands.map((brand) => ({
+    id: brand.id || makeClientId("brand"),
+    name: brand.name || "",
+    colorHex: brand.colorHex || "#1F2937",
+    products:
+      Array.isArray(brand.products) && brand.products.length > 0
+        ? brand.products.map((product) => ({
+            id: product.id || makeClientId("product"),
+            name: product.name || "",
+            measurements: Array.isArray(product.measurements) && product.measurements.length > 0 ? product.measurements : [""],
+          }))
+        : [createEmptySpecificationProduct()],
+  }));
+}
+
+function sanitizeSpecificationBrands(brands: SpecificationBrandFormState[]): ServiceSpecificationBrand[] {
+  return brands
+    .map((brand, brandIndex) => ({
+      id: String(brand.id || `brand-${brandIndex + 1}`).trim(),
+      name: String(brand.name || "").trim(),
+      colorHex: String(brand.colorHex || "").trim() || "#1F2937",
+      products: (brand.products || [])
+        .map((product, productIndex) => ({
+          id: String(product.id || `product-${brandIndex + 1}-${productIndex + 1}`).trim(),
+          name: String(product.name || "").trim(),
+          measurements: (product.measurements || []).map((measurement) => String(measurement || "").trim()).filter(Boolean),
+        }))
+        .filter((product) => !!product.name),
+    }))
+    .filter((brand) => !!brand.name && brand.products.length > 0);
+}
+
 export default function ServiceCreation() {
   const [activeTab, setActiveTab] = useState<Tab>("services");
   const [modalType, setModalType] = useState<ModalType>("none");
@@ -142,27 +236,37 @@ export default function ServiceCreation() {
 
   const [categories, setCategories] = useState<ServiceCategoryItem[]>([]);
   const [catalog, setCatalog] = useState<ServiceCatalogItem[]>([]);
+  const [brandSpecifications, setBrandSpecifications] = useState<ServiceBrandSpecificationItem[]>([]);
 
   const [editingCategory, setEditingCategory] = useState<ServiceCategoryItem | null>(null);
   const [editingService, setEditingService] = useState<ServiceCatalogItem | null>(null);
   const [editingPackage, setEditingPackage] = useState<ServiceCatalogItem | null>(null);
+  const [editingBrandSpecification, setEditingBrandSpecification] = useState<ServiceBrandSpecificationItem | null>(null);
 
   const [pendingDelete, setPendingDelete] = useState<
     | { type: "category"; item: ServiceCategoryItem }
     | { type: "catalog"; item: ServiceCatalogItem }
+    | { type: "specification"; item: ServiceBrandSpecificationItem }
     | null
   >(null);
 
   const [categoryForm, setCategoryForm] = useState<CategoryFormState>(EMPTY_CATEGORY_FORM);
   const [serviceForm, setServiceForm] = useState<ServiceFormState>(EMPTY_SERVICE_FORM);
   const [packageForm, setPackageForm] = useState<PackageFormState>(EMPTY_PACKAGE_FORM);
+  const [brandSpecificationForm, setBrandSpecificationForm] = useState<BrandSpecificationFormState>(EMPTY_BRAND_SPECIFICATION_FORM);
+  const [specificationBrands, setSpecificationBrands] = useState<SpecificationBrandFormState[]>([createEmptySpecificationBrand()]);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const [cats, items] = await Promise.all([listServiceCategories(), listServiceCatalog()]);
+      const [cats, items, specifications] = await Promise.all([
+        listServiceCategories(),
+        listServiceCatalog(),
+        listServiceBrandSpecifications(),
+      ]);
       setCategories(cats);
       setCatalog(items);
+      setBrandSpecifications(specifications);
     } catch (e: any) {
       setBanner({ message: String(e?.message || "Failed to load service data"), isError: true });
     } finally {
@@ -176,6 +280,73 @@ export default function ServiceCreation() {
 
   const services = useMemo(() => catalog.filter((x) => x.type === "service"), [catalog]);
   const packages = useMemo(() => catalog.filter((x) => x.type === "package"), [catalog]);
+  const servicesWithSpecifications = useMemo(
+    () => services.filter((service) => service.hasSpecifications && service.specifications.length > 0),
+    [services]
+  );
+  const specificationBrandsCount = brandSpecifications.length;
+  const brandSpecificationById = useMemo(() => {
+    const map = new Map<string, ServiceBrandSpecificationItem>();
+    brandSpecifications.forEach((specification) => map.set(specification.id, specification));
+    return map;
+  }, [brandSpecifications]);
+  const selectedBrandSpecification = useMemo(
+    () => brandSpecificationById.get(serviceForm.specificationId),
+    [brandSpecificationById, serviceForm.specificationId]
+  );
+  const selectedSpecificationBrand = useMemo(
+    () => selectedBrandSpecification?.specifications?.[0] || null,
+    [selectedBrandSpecification]
+  );
+  const availableSpecificationProducts = useMemo(
+    () => selectedSpecificationBrand?.products || [],
+    [selectedSpecificationBrand]
+  );
+  const selectedSpecificationProduct = useMemo(
+    () => availableSpecificationProducts.find((product) => product.id === serviceForm.specificationProductId) || availableSpecificationProducts[0] || null,
+    [availableSpecificationProducts, serviceForm.specificationProductId]
+  );
+  const availableSpecificationMeasurements = useMemo(
+    () => selectedSpecificationProduct?.measurements || [],
+    [selectedSpecificationProduct]
+  );
+
+  useEffect(() => {
+    if (!serviceForm.specificationId) {
+      if (serviceForm.specificationProductId || serviceForm.specificationMeasurement) {
+        setServiceForm((current) => ({
+          ...current,
+          specificationProductId: "",
+          specificationMeasurement: "",
+        }));
+      }
+      return;
+    }
+
+    const nextProductId =
+      availableSpecificationProducts.find((product) => product.id === serviceForm.specificationProductId)?.id ||
+      availableSpecificationProducts[0]?.id ||
+      "";
+    const nextMeasurement =
+      (availableSpecificationProducts.find((product) => product.id === nextProductId)?.measurements || []).find(
+        (measurement) => measurement === serviceForm.specificationMeasurement
+      ) ||
+      (availableSpecificationProducts.find((product) => product.id === nextProductId)?.measurements || [])[0] ||
+      "";
+
+    if (nextProductId !== serviceForm.specificationProductId || nextMeasurement !== serviceForm.specificationMeasurement) {
+      setServiceForm((current) => ({
+        ...current,
+        specificationProductId: nextProductId,
+        specificationMeasurement: nextMeasurement,
+      }));
+    }
+  }, [
+    availableSpecificationProducts,
+    serviceForm.specificationId,
+    serviceForm.specificationMeasurement,
+    serviceForm.specificationProductId,
+  ]);
 
   const serviceByCode = useMemo(() => {
     const map = new Map<string, ServiceCatalogItem>();
@@ -224,6 +395,7 @@ export default function ServiceCreation() {
   const closeModal = () => {
     setModalType("none");
     setError("");
+    setEditingBrandSpecification(null);
   };
 
   const openCategoryModal = (item?: ServiceCategoryItem) => {
@@ -265,6 +437,9 @@ export default function ServiceCreation() {
         truckPrice: String(item.truckPrice ?? ""),
         coupePrice: String(item.coupePrice ?? ""),
         otherPrice: String(item.otherPrice ?? ""),
+        specificationId: item.specificationId || "",
+        specificationProductId: item.specificationProductId || "",
+        specificationMeasurement: item.specificationMeasurement || "",
       });
     } else {
       setServiceForm({
@@ -303,6 +478,27 @@ export default function ServiceCreation() {
     setModalType("package");
   };
 
+  const openSpecificationModal = (item?: ServiceBrandSpecificationItem) => {
+    setError("");
+    setEditingBrandSpecification(item || null);
+    if (item) {
+      setBrandSpecificationForm({
+        id: item.id,
+        specificationCode: item.specificationCode,
+        brandName: item.brandName,
+        colorHex: item.colorHex || "#1F2937",
+      });
+      setSpecificationBrands(mapSpecificationBrands(item.specifications));
+    } else {
+      setBrandSpecificationForm({
+        ...EMPTY_BRAND_SPECIFICATION_FORM,
+        specificationCode: makeNextCode(brandSpecifications.map((specification) => specification.specificationCode), "SPC"),
+      });
+      setSpecificationBrands([createEmptySpecificationBrand()]);
+    }
+    setModalType("specification");
+  };
+
   const validateCategory = () => {
     if (!categoryForm.nameEn.trim()) return "English category name is required.";
     if (!categoryForm.nameAr.trim()) return "Arabic category name is required.";
@@ -316,6 +512,8 @@ export default function ServiceCreation() {
     if (!serviceForm.nameAr.trim()) return "Arabic service name is required.";
     if (!serviceForm.suvPrice.trim() || Number(serviceForm.suvPrice) < 0) return "SUV price is required and must be valid.";
     if (!serviceForm.sedanPrice.trim() || Number(serviceForm.sedanPrice) < 0) return "Sedan price is required and must be valid.";
+    if (serviceForm.specificationId && !serviceForm.specificationProductId) return "Please select a product for the brand specification.";
+    if (serviceForm.specificationId && !serviceForm.specificationMeasurement) return "Please select a measurement for the brand specification.";
     return "";
   };
 
@@ -382,6 +580,32 @@ export default function ServiceCreation() {
     setError("");
 
     try {
+      const selectedSpecification = brandSpecificationById.get(serviceForm.specificationId);
+      const selectedProduct = selectedSpecification?.specifications?.[0]?.products?.find(
+        (product) => product.id === serviceForm.specificationProductId
+      );
+      const filteredSpecifications =
+        selectedSpecification && selectedProduct && serviceForm.specificationMeasurement
+          ? [
+              {
+                ...(selectedSpecification.specifications[0] || {
+                  id: selectedSpecification.id,
+                  name: selectedSpecification.brandName,
+                  colorHex: selectedSpecification.colorHex,
+                  products: [],
+                }),
+                name: selectedSpecification.brandName,
+                colorHex: selectedSpecification.colorHex,
+                products: [
+                  {
+                    id: selectedProduct.id,
+                    name: selectedProduct.name,
+                    measurements: [serviceForm.specificationMeasurement],
+                  },
+                ],
+              },
+            ]
+          : selectedSpecification?.specifications ?? editingService?.specifications ?? [];
       const payload = {
         serviceCode: serviceForm.serviceCode.trim().toUpperCase(),
         name: serviceForm.nameEn.trim(),
@@ -400,6 +624,14 @@ export default function ServiceCreation() {
         coupePrice: toOptionalNum(serviceForm.coupePrice),
         otherPrice: toOptionalNum(serviceForm.otherPrice),
         includedServiceCodes: [],
+        specificationId: selectedSpecification?.id,
+        specificationName: selectedSpecification?.brandName,
+        specificationColorHex: selectedSpecification?.colorHex,
+        specificationProductId: selectedProduct?.id,
+        specificationProductName: selectedProduct?.name,
+        specificationMeasurement: serviceForm.specificationMeasurement || undefined,
+        hasSpecifications: selectedSpecification ? filteredSpecifications.length > 0 : editingService?.hasSpecifications ?? false,
+        specifications: filteredSpecifications,
       };
 
       if (serviceForm.id) {
@@ -444,6 +676,8 @@ export default function ServiceCreation() {
         coupePrice: toOptionalNum(packageForm.coupePrice),
         otherPrice: toOptionalNum(packageForm.otherPrice),
         includedServiceCodes: packageForm.includedServiceCodes,
+        hasSpecifications: false,
+        specifications: [],
         categoryId: undefined,
         categoryCode: undefined,
         categoryNameEn: undefined,
@@ -485,6 +719,19 @@ export default function ServiceCreation() {
 
         await deleteServiceCategoryItem(pendingDelete.item.id);
         setBanner({ message: "Category deleted successfully." });
+      } else if (pendingDelete.type === "specification") {
+        const isAssigned = services.some((service) => service.specificationId === pendingDelete.item.id);
+        if (isAssigned) {
+          setBanner({
+            message: "Cannot delete a brand specification that is still assigned to services.",
+            isError: true,
+          });
+          setPendingDelete(null);
+          return;
+        }
+
+        await deleteServiceBrandSpecificationItem(pendingDelete.item.id);
+        setBanner({ message: "Brand specification deleted successfully." });
       } else {
         await deleteServiceCatalogItem(pendingDelete.item.id);
         setBanner({ message: `${pendingDelete.item.type === "package" ? "Package" : "Service"} deleted successfully.` });
@@ -494,6 +741,65 @@ export default function ServiceCreation() {
       await loadData();
     } catch (e: any) {
       setBanner({ message: String(e?.message || "Delete failed"), isError: true });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const saveSpecifications = async () => {
+    const primaryBrand = specificationBrands[0] || createEmptySpecificationBrand();
+    const sanitized = sanitizeSpecificationBrands([
+      {
+        ...primaryBrand,
+        name: brandSpecificationForm.brandName.trim() || primaryBrand.name,
+        colorHex: brandSpecificationForm.colorHex || primaryBrand.colorHex || "#1F2937",
+      },
+    ]);
+
+    if (!brandSpecificationForm.brandName.trim()) {
+      setError("Brand name is required.");
+      return;
+    }
+    if ((primaryBrand.products || []).every((product) => !product.name.trim())) {
+      setError("Brand must include at least one product.");
+      return;
+    }
+    if (
+      (primaryBrand.products || []).some(
+        (product) => product.name.trim() && (product.measurements || []).every((measurement) => !String(measurement || "").trim())
+      )
+    ) {
+      setError("Each product must include at least one measurement.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+
+    try {
+      const payload = {
+        specificationCode: brandSpecificationForm.specificationCode.trim().toUpperCase(),
+        brandName: brandSpecificationForm.brandName.trim(),
+        colorHex: brandSpecificationForm.colorHex || "#1F2937",
+        specifications: sanitized,
+      };
+
+      if (brandSpecificationForm.id) {
+        await updateServiceBrandSpecificationItem({ id: brandSpecificationForm.id, ...payload });
+      } else {
+        await createServiceBrandSpecificationItem(payload);
+      }
+
+      setBanner({
+        message:
+          sanitized.length > 0
+            ? "Brand specification saved successfully."
+            : "Brand specification cleared successfully.",
+      });
+      closeModal();
+      await loadData();
+    } catch (e: any) {
+      setError(String(e?.message || "Failed to save brand specification"));
     } finally {
       setSaving(false);
     }
@@ -518,6 +824,9 @@ export default function ServiceCreation() {
         </button>
         <button className={activeTab === "packages" ? "active" : ""} onClick={() => setActiveTab("packages")}>
           <i className="fas fa-suitcase"></i> Packages
+        </button>
+        <button className={activeTab === "specifications" ? "active" : ""} onClick={() => setActiveTab("specifications")}>
+          <i className="fas fa-palette"></i> Service Specification
         </button>
       </div>
 
@@ -592,6 +901,11 @@ export default function ServiceCreation() {
                           <button className="sc2-mini-btn" onClick={() => openServiceModal(service)}>Edit</button>
                         </PermissionGate>
                         <PermissionGate moduleId="joborder" optionId="joborder_create">
+                          <button className="sc2-mini-btn warn" onClick={() => openServiceModal(service)}>
+                            {service.specificationId ? "Change Brand Spec" : "Set Brand Spec"}
+                          </button>
+                        </PermissionGate>
+                        <PermissionGate moduleId="joborder" optionId="joborder_create">
                           <button className="sc2-mini-btn danger" onClick={() => setPendingDelete({ type: "catalog", item: service })}>Delete</button>
                         </PermissionGate>
                       </div>
@@ -603,6 +917,19 @@ export default function ServiceCreation() {
                     </div>
 
                     <div data-no-translate="true">{renderPriceChips(service)}</div>
+
+                    {service.hasSpecifications && service.specifications.length > 0 && (
+                      <div className="sc2-included" data-no-translate="true">
+                        {service.specificationName && (
+                          <span className="sc2-chip" style={service.specificationColorHex ? { borderColor: service.specificationColorHex, color: service.specificationColorHex } : undefined}>
+                            Brand Spec: {service.specificationName}
+                          </span>
+                        )}
+                        {service.specificationProductName && <span className="sc2-chip">Product: {service.specificationProductName}</span>}
+                        {service.specificationMeasurement && <span className="sc2-chip">Measurement: {service.specificationMeasurement}</span>}
+                        <span className="sc2-chip">{service.specifications.length} brands</span>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -670,6 +997,74 @@ export default function ServiceCreation() {
         </section>
       )}
 
+      {activeTab === "specifications" && (
+        <section className="sc2-section">
+          <div className="sc2-section-header">
+            <h2><i className="fas fa-clipboard-list"></i> Brand &amp; Product Specifications</h2>
+            <PermissionGate moduleId="joborder" optionId="joborder_create">
+              <button className="sc2-btn green" onClick={() => openSpecificationModal()}>
+                <i className="fas fa-plus-circle"></i> Add New Brand
+              </button>
+            </PermissionGate>
+          </div>
+
+          <div className="sc2-stats-grid">
+            <div className="sc2-stat-card"><strong>{specificationBrandsCount}</strong><span>Brands</span></div>
+            <div className="sc2-stat-card"><strong>{servicesWithSpecifications.length}</strong><span>Services with Specs</span></div>
+          </div>
+
+          {loading && <div className="sc2-empty">Loading specifications...</div>}
+          {!loading && brandSpecifications.length === 0 && <div className="sc2-empty">No brand specifications available yet.</div>}
+
+          {!loading && brandSpecifications.map((specification) => (
+            <article className="sc2-spec-card" key={`spec-${specification.id}`}>
+              <header className="sc2-spec-card-header" data-no-translate="true">
+                <div className="sc2-name-line">
+                  <span className="sc2-color-dot" style={{ backgroundColor: specification.colorHex }}></span>
+                  <span className="sc2-name">{specification.brandName}</span>
+                </div>
+                <div className="sc2-inline-actions">
+                  <PermissionGate moduleId="joborder" optionId="joborder_create">
+                    <button className="sc2-mini-btn warn" onClick={() => openSpecificationModal(specification)}>
+                      Edit
+                    </button>
+                  </PermissionGate>
+                  <PermissionGate moduleId="joborder" optionId="joborder_create">
+                    <button className="sc2-mini-btn danger" onClick={() => setPendingDelete({ type: "specification", item: specification })}>
+                      Delete
+                    </button>
+                  </PermissionGate>
+                </div>
+              </header>
+
+              <div className="sc2-spec-card-body" data-no-translate="true">
+                <div className="sc2-spec-section-title">Products &amp; Sizes</div>
+              {specification.specifications.length > 0 ? (
+                <div className="sc2-spec-products" data-no-translate="true">
+                  {specification.specifications.map((brand) => (
+                    <div key={`${specification.id}-${brand.id}`}>
+                      {brand.products.map((product) => (
+                        <div key={`${brand.id}-${product.id}`} className="sc2-product-block">
+                          <div className="sc2-product-title"><i className="fas fa-box"></i> {product.name}</div>
+                          <ul className="sc2-measurement-list">
+                            {product.measurements.map((measurement, index) => (
+                              <li key={`${product.id}-${index}`}><i className="fas fa-ruler"></i> {measurement}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="sc2-empty">No products configured for this brand yet.</div>
+              )}
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
+
       {modalType !== "none" && (
         <div className="sc2-overlay" onClick={closeModal}>
           <div className="sc2-modal" onClick={(e) => e.stopPropagation()}>
@@ -728,6 +1123,51 @@ export default function ServiceCreation() {
                       <input value={serviceForm.serviceCode} onChange={(e) => setServiceForm((p) => ({ ...p, serviceCode: e.target.value.toUpperCase() }))} placeholder="e.g. SVC001" />
                       <small>Auto-generated if left empty</small>
                     </label>
+
+                    <label>
+                      <span>Brand Specification</span>
+                      <select
+                        value={serviceForm.specificationId}
+                        onChange={(e) => setServiceForm((p) => ({ ...p, specificationId: e.target.value, specificationProductId: "", specificationMeasurement: "" }))}
+                      >
+                        <option value="">-- No brand specification --</option>
+                        {brandSpecifications.map((specification) => (
+                          <option key={specification.id} value={specification.id}>
+                            {specification.brandName}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+
+                    {serviceForm.specificationId && (
+                      <label>
+                        <span>Product</span>
+                        <select
+                          value={serviceForm.specificationProductId}
+                          onChange={(e) => setServiceForm((p) => ({ ...p, specificationProductId: e.target.value, specificationMeasurement: "" }))}
+                        >
+                          <option value="">-- Select a product --</option>
+                          {availableSpecificationProducts.map((product) => (
+                            <option key={product.id} value={product.id}>{product.name}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
+
+                    {serviceForm.specificationId && serviceForm.specificationProductId && (
+                      <label>
+                        <span>Measurement</span>
+                        <select
+                          value={serviceForm.specificationMeasurement}
+                          onChange={(e) => setServiceForm((p) => ({ ...p, specificationMeasurement: e.target.value }))}
+                        >
+                          <option value="">-- Select a measurement --</option>
+                          {availableSpecificationMeasurements.map((measurement) => (
+                            <option key={measurement} value={measurement}>{measurement}</option>
+                          ))}
+                        </select>
+                      </label>
+                    )}
                   </div>
 
                   <div className="sc2-grid-2">
@@ -836,13 +1276,198 @@ export default function ServiceCreation() {
               </>
             )}
 
+            {modalType === "specification" && (
+              <>
+                <div className="sc2-modal-header">
+                  <h3>{editingBrandSpecification ? "TM Edit Brand" : "TM Add Brand"}</h3>
+                  <button onClick={closeModal}>✕</button>
+                </div>
+                <div className="sc2-modal-body sc2-brand-modal-body">
+                  <div className="sc2-grid-2">
+                    <label>
+                      <span>Brand Name</span>
+                      <input value={brandSpecificationForm.brandName} onChange={(e) => setBrandSpecificationForm((p) => ({ ...p, brandName: e.target.value }))} placeholder="Brand name" />
+                    </label>
+                    <label>
+                      <span>Brand Color</span>
+                      <div className="sc2-color-picker-wrap">
+                        <input type="color" value={brandSpecificationForm.colorHex} onChange={(e) => setBrandSpecificationForm((p) => ({ ...p, colorHex: e.target.value }))} />
+                        <span className="sc2-color-badge">
+                          <span className="sc2-color-dot" style={{ backgroundColor: brandSpecificationForm.colorHex }}></span>
+                          {brandSpecificationForm.colorHex}
+                        </span>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div className="sc2-brand-products-head">
+                    <h4>Products &amp; Measurements</h4>
+                    <button
+                      className="sc2-btn ghost sc2-brand-add-btn"
+                      type="button"
+                      onClick={() => {
+                        setSpecificationBrands((current) => {
+                          const brand = current[0] || createEmptySpecificationBrand();
+                          return [
+                            {
+                              ...brand,
+                              products: [...brand.products, createEmptySpecificationProduct()],
+                            },
+                          ];
+                        });
+                      }}
+                    >
+                      <i className="fas fa-plus"></i> Add Product
+                    </button>
+                  </div>
+
+                  <div className="sc2-brand-product-list" data-no-translate="true">
+                    {(specificationBrands[0]?.products || []).map((product, productIndex) => (
+                      <div key={product.id} className="sc2-brand-product-card">
+                        <div className="sc2-brand-product-row">
+                          <input
+                            value={product.name}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              setSpecificationBrands((current) => {
+                                const brand = current[0] || createEmptySpecificationBrand();
+                                return [
+                                  {
+                                    ...brand,
+                                    products: brand.products.map((candidate) =>
+                                      candidate.id === product.id ? { ...candidate, name: value } : candidate
+                                    ),
+                                  },
+                                ];
+                              });
+                            }}
+                            placeholder="Product Name (e.g., Ceramic Coating)"
+                          />
+                          <button
+                            className="sc2-mini-btn danger"
+                            type="button"
+                            onClick={() => {
+                              setSpecificationBrands((current) => {
+                                const brand = current[0] || createEmptySpecificationBrand();
+                                return [
+                                  {
+                                    ...brand,
+                                    products:
+                                      brand.products.length > 1
+                                        ? brand.products.filter((candidate) => candidate.id !== product.id)
+                                        : [createEmptySpecificationProduct()],
+                                  },
+                                ];
+                              });
+                            }}
+                          >
+                            <i className="fas fa-trash"></i> Remove
+                          </button>
+                        </div>
+
+                        <div className="sc2-brand-measurements">
+                          {(product.measurements || []).map((measurement, measurementIndex) => (
+                            <div key={`${product.id}-measurement-${measurementIndex}`} className="sc2-brand-product-row">
+                                <input
+                                  value={measurement}
+                                  onChange={(e) => {
+                                    const value = e.target.value;
+                                    setSpecificationBrands((current) => {
+                                      const brand = current[0] || createEmptySpecificationBrand();
+                                      return [
+                                        {
+                                          ...brand,
+                                          products: brand.products.map((candidate) =>
+                                            candidate.id !== product.id
+                                              ? candidate
+                                              : {
+                                                  ...candidate,
+                                                  measurements: candidate.measurements.map((currentMeasurement, currentIndex) =>
+                                                    currentIndex === measurementIndex ? value : currentMeasurement
+                                                  ),
+                                                }
+                                          ),
+                                        },
+                                      ];
+                                    });
+                                  }}
+                                  placeholder={productIndex === 0 && measurementIndex === 0 ? "Standard" : `Size/Measure ${measurementIndex + 1}`}
+                                />
+                                <button
+                                  className="sc2-mini-btn danger"
+                                  type="button"
+                                  onClick={() => {
+                                    setSpecificationBrands((current) => {
+                                      const brand = current[0] || createEmptySpecificationBrand();
+                                      return [
+                                        {
+                                          ...brand,
+                                          products: brand.products.map((candidate) =>
+                                            candidate.id !== product.id
+                                              ? candidate
+                                              : {
+                                                  ...candidate,
+                                                  measurements:
+                                                    candidate.measurements.length > 1
+                                                      ? candidate.measurements.filter((_, currentIndex) => currentIndex !== measurementIndex)
+                                                      : [""],
+                                                }
+                                          ),
+                                        },
+                                      ];
+                                    });
+                                  }}
+                                >
+                                  <i className="fas fa-minus-circle"></i> Remove
+                                </button>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="sc2-inline-actions" style={{ marginTop: 12 }}>
+                          <button
+                            className="sc2-btn ghost sc2-brand-add-btn"
+                            type="button"
+                            onClick={() => {
+                              setSpecificationBrands((current) => {
+                                const brand = current[0] || createEmptySpecificationBrand();
+                                return [
+                                  {
+                                    ...brand,
+                                    products: brand.products.map((candidate) =>
+                                      candidate.id === product.id
+                                        ? { ...candidate, measurements: [...candidate.measurements, ""] }
+                                        : candidate
+                                    ),
+                                  },
+                                ];
+                              });
+                            }}
+                          >
+                            <i className="fas fa-plus"></i> Add Size/Measure
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
             {error && <div className="sc2-form-error">{error}</div>}
 
             <div className="sc2-modal-actions">
-              <button className="sc2-btn ghost" onClick={closeModal}>Cancel</button>
               {modalType === "category" && <button className="sc2-btn green" disabled={saving} onClick={() => void saveCategory()}>{saving ? "Saving..." : editingCategory ? "Update Category" : "Add Category"}</button>}
               {modalType === "service" && <button className="sc2-btn blue" disabled={saving} onClick={() => void saveService()}>{saving ? "Saving..." : editingService ? "Update Service" : "Add Service"}</button>}
               {modalType === "package" && <button className="sc2-btn blue" disabled={saving} onClick={() => void savePackage()}>{saving ? "Saving..." : editingPackage ? "Update Package" : "Add Package"}</button>}
+              {modalType === "specification" ? (
+                <>
+                  <button className="sc2-btn blue" disabled={saving} onClick={() => void saveSpecifications()}>{saving ? "Saving..." : "Save Brand"}</button>
+                  <button className="sc2-btn ghost" onClick={closeModal}>Cancel</button>
+                </>
+              ) : (
+                <button className="sc2-btn ghost" onClick={closeModal}>Cancel</button>
+              )}
             </div>
           </div>
         </div>
@@ -857,7 +1482,7 @@ export default function ServiceCreation() {
             </div>
             <div className="sc2-modal-body">
               <p>
-                You are about to delete <strong data-no-translate="true">{pendingDelete.type === "category" ? displayBilingual(pendingDelete.item.nameEn, pendingDelete.item.nameAr) : displayBilingual(pendingDelete.item.name, pendingDelete.item.nameAr)}</strong>.
+                You are about to delete <strong data-no-translate="true">{pendingDelete.type === "category" ? displayBilingual(pendingDelete.item.nameEn, pendingDelete.item.nameAr) : pendingDelete.type === "specification" ? pendingDelete.item.brandName : displayBilingual(pendingDelete.item.name, pendingDelete.item.nameAr)}</strong>.
                 This action cannot be undone.
               </p>
             </div>

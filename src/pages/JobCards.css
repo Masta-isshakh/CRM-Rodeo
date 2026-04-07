@@ -20,6 +20,50 @@
   --radius-lg: 18px;
 }
 
+.jo-spec-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.jo-spec-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: #f8fafc;
+  color: #0f172a;
+  font-size: 12px;
+  line-height: 1;
+}
+
+.jo-spec-badge-label {
+  font-weight: 700;
+  color: #475569;
+}
+
+.jo-spec-badge-value {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.jo-spec-badge-brand {
+  background: #eff6ff;
+  border-color: rgba(37, 99, 235, 0.22);
+}
+
+.jo-spec-badge-product {
+  background: #f0fdf4;
+  border-color: rgba(22, 163, 74, 0.22);
+}
+
+.jo-spec-badge-measurement {
+  background: #fff7ed;
+  border-color: rgba(234, 88, 12, 0.2);
+}
+
 /* ========================================
    RESET & BASE STYLES
 ======================================== */

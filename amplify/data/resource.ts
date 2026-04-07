@@ -211,6 +211,19 @@ const schema = a
       .secondaryIndexes((index) => [index("categoryCode").queryField("serviceCategoryByCode")])
       .authorization((allow) => [allow.authenticated()]),
 
+    ServiceBrandSpecification: a
+      .model({
+        specificationCode: a.string().required(),
+        brandName: a.string().required(),
+        colorHex: a.string().required(),
+        specificationsJson: a.string().required(),
+        isActive: a.boolean().default(true),
+        createdAt: a.datetime(),
+        updatedAt: a.datetime(),
+      })
+      .secondaryIndexes((index) => [index("specificationCode").queryField("serviceBrandSpecificationByCode")])
+      .authorization((allow) => [allow.authenticated()]),
+
     ServiceCatalog: a
       .model({
         serviceCode: a.string().required(),
@@ -222,6 +235,12 @@ const schema = a
         categoryCode: a.string(),
         categoryNameEn: a.string(),
         categoryNameAr: a.string(),
+        specificationId: a.id(),
+        specificationName: a.string(),
+        specificationColorHex: a.string(),
+        specificationProductId: a.string(),
+        specificationProductName: a.string(),
+        specificationMeasurement: a.string(),
         type: a.enum(["SERVICE", "PACKAGE"]),
         suvPrice: a.float().required(),
         sedanPrice: a.float().required(),
@@ -230,6 +249,8 @@ const schema = a
         coupePrice: a.float(),
         otherPrice: a.float(),
         includedServiceCodesJson: a.string(),
+        hasSpecifications: a.boolean().default(false),
+        specificationsJson: a.string(),
         isActive: a.boolean().default(true),
         createdAt: a.datetime(),
         updatedAt: a.datetime(),

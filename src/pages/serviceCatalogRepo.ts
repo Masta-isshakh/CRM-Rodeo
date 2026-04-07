@@ -2,6 +2,30 @@ import { getDataClient } from "../lib/amplifyClient";
 
 export type ServiceCatalogType = "service" | "package";
 
+export type ServiceSpecificationProduct = {
+  id: string;
+  name: string;
+  measurements: string[];
+};
+
+export type ServiceSpecificationBrand = {
+  id: string;
+  name: string;
+  colorHex: string;
+  products: ServiceSpecificationProduct[];
+};
+
+export type ServiceBrandSpecificationItem = {
+  id: string;
+  specificationCode: string;
+  brandName: string;
+  colorHex: string;
+  specifications: ServiceSpecificationBrand[];
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+};
+
 export type ServiceCategoryItem = {
   id: string;
   categoryCode: string;
@@ -25,6 +49,12 @@ export type ServiceCatalogItem = {
   categoryCode?: string;
   categoryNameEn?: string;
   categoryNameAr?: string;
+  specificationId?: string;
+  specificationName?: string;
+  specificationColorHex?: string;
+  specificationProductId?: string;
+  specificationProductName?: string;
+  specificationMeasurement?: string;
   type: ServiceCatalogType;
   suvPrice: number;
   sedanPrice: number;
@@ -33,10 +63,54 @@ export type ServiceCatalogItem = {
   coupePrice?: number;
   otherPrice?: number;
   includedServiceCodes: string[];
+  hasSpecifications: boolean;
+  specifications: ServiceSpecificationBrand[];
   isActive: boolean;
   createdAt?: string;
   updatedAt?: string;
 };
+
+function parseSpecifications(raw: unknown): ServiceSpecificationBrand[] {
+  if (!raw) return [];
+
+  const parsed = (() => {
+    if (Array.isArray(raw)) return raw;
+    const text = String(raw).trim();
+    if (!text) return [];
+    try {
+      return JSON.parse(text);
+    } catch {
+      return [];
+    }
+  })();
+
+  if (!Array.isArray(parsed)) return [];
+
+  return parsed
+    .map((entry: any, brandIndex: number) => {
+      const name = String(entry?.name || "").trim();
+      const colorHex = String(entry?.colorHex || "").trim() || "#1F2937";
+      const products = Array.isArray(entry?.products)
+        ? entry.products
+            .map((product: any, productIndex: number) => ({
+              id: String(product?.id || `product-${brandIndex + 1}-${productIndex + 1}`).trim(),
+              name: String(product?.name || "").trim(),
+              measurements: Array.isArray(product?.measurements)
+                ? product.measurements.map((measurement: any) => String(measurement || "").trim()).filter(Boolean)
+                : [],
+            }))
+            .filter((product: ServiceSpecificationProduct) => !!product.name)
+        : [];
+
+      return {
+        id: String(entry?.id || `brand-${brandIndex + 1}`).trim(),
+        name,
+        colorHex,
+        products,
+      };
+    })
+    .filter((brand: ServiceSpecificationBrand) => !!brand.name && brand.products.length > 0);
+}
 
 function parseIncludedCodes(raw: unknown): string[] {
   if (!raw) return [];
@@ -92,7 +166,39 @@ function mapCategoryRow(row: any): ServiceCategoryItem {
   };
 }
 
-function mapServiceRow(row: any): ServiceCatalogItem {
+function mapBrandSpecificationRow(row: any): ServiceBrandSpecificationItem {
+  const parsedSpecifications = parseSpecifications(row?.specificationsJson);
+  const brandName = String(row?.brandName || "").trim();
+  const colorHex = String(row?.colorHex || "").trim() || parsedSpecifications[0]?.colorHex || "#1F2937";
+  const specifications = parsedSpecifications.length
+    ? parsedSpecifications.map((brand, index) =>
+        index === 0
+          ? {
+              ...brand,
+              name: brandName || brand.name,
+              colorHex: colorHex || brand.colorHex,
+            }
+          : brand
+      )
+    : [];
+
+  return {
+    id: String(row?.id || ""),
+    specificationCode: String(row?.specificationCode || "").trim(),
+    brandName,
+    colorHex,
+    specifications,
+    isActive: row?.isActive !== false,
+    createdAt: row?.createdAt ? String(row.createdAt) : undefined,
+    updatedAt: row?.updatedAt ? String(row.updatedAt) : undefined,
+  };
+}
+
+function mapServiceRow(row: any, specificationsById?: Map<string, ServiceBrandSpecificationItem>): ServiceCatalogItem {
+  const storedSpecifications = parseSpecifications(row?.specificationsJson);
+  const specificationId = row?.specificationId ? String(row.specificationId).trim() : undefined;
+  const specification = specificationId ? specificationsById?.get(specificationId) : undefined;
+  const specifications = specification?.specifications?.length ? specification.specifications : storedSpecifications;
   return {
     id: String(row?.id || ""),
     serviceCode: String(row?.serviceCode || "").trim(),
@@ -104,6 +210,12 @@ function mapServiceRow(row: any): ServiceCatalogItem {
     categoryCode: row?.categoryCode ? String(row.categoryCode) : undefined,
     categoryNameEn: row?.categoryNameEn ? String(row.categoryNameEn) : undefined,
     categoryNameAr: row?.categoryNameAr ? String(row.categoryNameAr) : undefined,
+    specificationId,
+    specificationName: specification?.brandName || (row?.specificationName ? String(row.specificationName) : undefined),
+    specificationColorHex: specification?.colorHex || (row?.specificationColorHex ? String(row.specificationColorHex) : undefined),
+    specificationProductId: row?.specificationProductId ? String(row.specificationProductId).trim() : undefined,
+    specificationProductName: row?.specificationProductName ? String(row.specificationProductName).trim() : undefined,
+    specificationMeasurement: row?.specificationMeasurement ? String(row.specificationMeasurement).trim() : undefined,
     type: toCatalogType(row?.type),
     suvPrice: toNumber(row?.suvPrice),
     sedanPrice: toNumber(row?.sedanPrice),
@@ -112,6 +224,8 @@ function mapServiceRow(row: any): ServiceCatalogItem {
     coupePrice: toOptionalNumber(row?.coupePrice),
     otherPrice: toOptionalNumber(row?.otherPrice),
     includedServiceCodes: parseIncludedCodes(row?.includedServiceCodesJson),
+    hasSpecifications: specifications.length > 0,
+    specifications,
     isActive: row?.isActive !== false,
     createdAt: row?.createdAt ? String(row.createdAt) : undefined,
     updatedAt: row?.updatedAt ? String(row.updatedAt) : undefined,
@@ -179,7 +293,35 @@ export async function listServiceCatalog(includeInactive = false): Promise<Servi
     nextToken = pageResult?.nextToken;
   } while (nextToken);
 
-  return sortCatalog(out.map(mapServiceRow).filter((s) => !!s.id && !!s.name && !!s.serviceCode));
+  const specifications = await listServiceBrandSpecifications(includeInactive);
+  const specificationsById = new Map<string, ServiceBrandSpecificationItem>();
+  specifications.forEach((specification) => specificationsById.set(specification.id, specification));
+
+  return sortCatalog(out.map((row) => mapServiceRow(row, specificationsById)).filter((s) => !!s.id && !!s.name && !!s.serviceCode));
+}
+
+export async function listServiceBrandSpecifications(includeInactive = false): Promise<ServiceBrandSpecificationItem[]> {
+  const client = getDataClient();
+
+  const out: any[] = [];
+  let nextToken: string | null | undefined = undefined;
+  let pageResult: any;
+
+  do {
+    pageResult = await (client.models as any).ServiceBrandSpecification.list({
+      limit: 1000,
+      nextToken,
+      ...(includeInactive ? {} : ({ filter: { isActive: { ne: false } } } as any)),
+    } as any);
+
+    out.push(...(pageResult?.data || []));
+    nextToken = pageResult?.nextToken;
+  } while (nextToken);
+
+  return out
+    .map(mapBrandSpecificationRow)
+    .filter((specification) => !!specification.id && !!specification.specificationCode && !!specification.brandName)
+    .sort((a, b) => compareServiceCode(a.specificationCode, b.specificationCode));
 }
 
 export async function createServiceCatalogItem(input: {
@@ -192,6 +334,12 @@ export async function createServiceCatalogItem(input: {
   categoryCode?: string;
   categoryNameEn?: string;
   categoryNameAr?: string;
+  specificationId?: string;
+  specificationName?: string;
+  specificationColorHex?: string;
+  specificationProductId?: string;
+  specificationProductName?: string;
+  specificationMeasurement?: string;
   type: ServiceCatalogType;
   suvPrice: number;
   sedanPrice: number;
@@ -200,6 +348,8 @@ export async function createServiceCatalogItem(input: {
   coupePrice?: number;
   otherPrice?: number;
   includedServiceCodes?: string[];
+  hasSpecifications?: boolean;
+  specifications?: ServiceSpecificationBrand[];
   isActive?: boolean;
 }) {
   const client = getDataClient();
@@ -214,6 +364,12 @@ export async function createServiceCatalogItem(input: {
     categoryCode: input.categoryCode ? String(input.categoryCode).trim() : undefined,
     categoryNameEn: input.categoryNameEn ? String(input.categoryNameEn).trim() : undefined,
     categoryNameAr: input.categoryNameAr ? String(input.categoryNameAr).trim() : undefined,
+    specificationId: input.specificationId || undefined,
+    specificationName: input.specificationName ? String(input.specificationName).trim() : undefined,
+    specificationColorHex: input.specificationColorHex ? String(input.specificationColorHex).trim() : undefined,
+    specificationProductId: input.specificationProductId ? String(input.specificationProductId).trim() : undefined,
+    specificationProductName: input.specificationProductName ? String(input.specificationProductName).trim() : undefined,
+    specificationMeasurement: input.specificationMeasurement ? String(input.specificationMeasurement).trim() : undefined,
     type: input.type === "package" ? "PACKAGE" : "SERVICE",
     suvPrice: toNumber(input.suvPrice),
     sedanPrice: toNumber(input.sedanPrice),
@@ -222,6 +378,8 @@ export async function createServiceCatalogItem(input: {
     coupePrice: toOptionalNumber(input.coupePrice),
     otherPrice: toOptionalNumber(input.otherPrice),
     includedServiceCodesJson: JSON.stringify(input.includedServiceCodes || []),
+    hasSpecifications: input.type === "service" && input.hasSpecifications === true,
+    specificationsJson: JSON.stringify(input.type === "service" ? input.specifications || [] : []),
     isActive: input.isActive !== false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -246,6 +404,12 @@ export async function updateServiceCatalogItem(input: {
   categoryCode?: string;
   categoryNameEn?: string;
   categoryNameAr?: string;
+  specificationId?: string;
+  specificationName?: string;
+  specificationColorHex?: string;
+  specificationProductId?: string;
+  specificationProductName?: string;
+  specificationMeasurement?: string;
   type: ServiceCatalogType;
   suvPrice: number;
   sedanPrice: number;
@@ -254,6 +418,8 @@ export async function updateServiceCatalogItem(input: {
   coupePrice?: number;
   otherPrice?: number;
   includedServiceCodes?: string[];
+  hasSpecifications?: boolean;
+  specifications?: ServiceSpecificationBrand[];
   isActive?: boolean;
 }) {
   const client = getDataClient();
@@ -269,6 +435,12 @@ export async function updateServiceCatalogItem(input: {
     categoryCode: input.categoryCode ? String(input.categoryCode).trim() : undefined,
     categoryNameEn: input.categoryNameEn ? String(input.categoryNameEn).trim() : undefined,
     categoryNameAr: input.categoryNameAr ? String(input.categoryNameAr).trim() : undefined,
+    specificationId: input.specificationId || undefined,
+    specificationName: input.specificationName ? String(input.specificationName).trim() : undefined,
+    specificationColorHex: input.specificationColorHex ? String(input.specificationColorHex).trim() : undefined,
+    specificationProductId: input.specificationProductId ? String(input.specificationProductId).trim() : undefined,
+    specificationProductName: input.specificationProductName ? String(input.specificationProductName).trim() : undefined,
+    specificationMeasurement: input.specificationMeasurement ? String(input.specificationMeasurement).trim() : undefined,
     type: input.type === "package" ? "PACKAGE" : "SERVICE",
     suvPrice: toNumber(input.suvPrice),
     sedanPrice: toNumber(input.sedanPrice),
@@ -277,6 +449,8 @@ export async function updateServiceCatalogItem(input: {
     coupePrice: toOptionalNumber(input.coupePrice),
     otherPrice: toOptionalNumber(input.otherPrice),
     includedServiceCodesJson: JSON.stringify(input.includedServiceCodes || []),
+    hasSpecifications: input.type === "service" && input.hasSpecifications === true,
+    specificationsJson: JSON.stringify(input.type === "service" ? input.specifications || [] : []),
     isActive: input.isActive !== false,
     updatedAt: new Date().toISOString(),
   };
@@ -294,6 +468,69 @@ export async function deleteServiceCatalogItem(id: string) {
   const res = await client.models.ServiceCatalog.delete({ id } as any);
   if ((res as any)?.errors?.length) {
     throw new Error(String((res as any).errors[0]?.message || "Failed to delete service"));
+  }
+}
+
+export async function createServiceBrandSpecificationItem(input: {
+  specificationCode: string;
+  brandName: string;
+  colorHex: string;
+  specifications: ServiceSpecificationBrand[];
+  isActive?: boolean;
+}) {
+  const client = getDataClient();
+
+  const payload = {
+    specificationCode: String(input.specificationCode || "").trim(),
+    brandName: String(input.brandName || "").trim(),
+    colorHex: String(input.colorHex || "").trim() || "#1F2937",
+    specificationsJson: JSON.stringify(input.specifications || []),
+    isActive: input.isActive !== false,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  const res = await (client.models as any).ServiceBrandSpecification.create(payload as any);
+  if ((res as any)?.errors?.length) {
+    throw new Error(String((res as any).errors[0]?.message || "Failed to create brand specification"));
+  }
+
+  return mapBrandSpecificationRow((res as any)?.data);
+}
+
+export async function updateServiceBrandSpecificationItem(input: {
+  id: string;
+  specificationCode: string;
+  brandName: string;
+  colorHex: string;
+  specifications: ServiceSpecificationBrand[];
+  isActive?: boolean;
+}) {
+  const client = getDataClient();
+
+  const payload = {
+    id: input.id,
+    specificationCode: String(input.specificationCode || "").trim(),
+    brandName: String(input.brandName || "").trim(),
+    colorHex: String(input.colorHex || "").trim() || "#1F2937",
+    specificationsJson: JSON.stringify(input.specifications || []),
+    isActive: input.isActive !== false,
+    updatedAt: new Date().toISOString(),
+  };
+
+  const res = await (client.models as any).ServiceBrandSpecification.update(payload as any);
+  if ((res as any)?.errors?.length) {
+    throw new Error(String((res as any).errors[0]?.message || "Failed to update brand specification"));
+  }
+
+  return mapBrandSpecificationRow((res as any)?.data);
+}
+
+export async function deleteServiceBrandSpecificationItem(id: string) {
+  const client = getDataClient();
+  const res = await (client.models as any).ServiceBrandSpecification.delete({ id } as any);
+  if ((res as any)?.errors?.length) {
+    throw new Error(String((res as any).errors[0]?.message || "Failed to delete brand specification"));
   }
 }
 

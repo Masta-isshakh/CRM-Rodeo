@@ -173,6 +173,103 @@ function toMoneyNumber(value: any) {
   return Number.isFinite(n) ? n : 0;
 }
 
+function hasServiceSpecifications(product: any) {
+  return (
+    String(product?.type ?? "").toLowerCase() === "service" &&
+    product?.hasSpecifications === true &&
+    Array.isArray(product?.specifications) &&
+    product.specifications.length > 0
+  );
+}
+
+function getServiceSpecificationLabel(service: any) {
+  const brand = String(service?.specificationBrandName ?? "").trim();
+  const product = String(service?.specificationProductName ?? "").trim();
+  const measurement = String(service?.specificationMeasurement ?? "").trim();
+  if (brand && product && measurement) return `${brand} / ${product} / ${measurement}`;
+  if (brand && product) return `${brand} / ${product}`;
+  return brand || product || measurement || "";
+}
+
+function getServiceSpecificationParts(service: any) {
+  const brand = String(service?.specificationBrandName ?? "").trim();
+  const product = String(service?.specificationProductName ?? "").trim();
+  const measurement = String(service?.specificationMeasurement ?? "").trim();
+  const colorHex = String(service?.specificationColorHex ?? "").trim();
+
+  return [
+    brand ? { key: "brand", label: "Brand", value: brand, colorHex } : null,
+    product ? { key: "product", label: "Product", value: product } : null,
+    measurement ? { key: "measurement", label: "Measurement", value: measurement } : null,
+  ].filter(Boolean) as Array<{ key: string; label: string; value: string; colorHex?: string }>;
+}
+
+function renderServiceSpecificationBadges(service: any) {
+  const parts = getServiceSpecificationParts(service);
+  if (!parts.length) return null;
+
+  return (
+    <div className="jo-spec-badges" data-no-translate="true">
+      {parts.map((part) => (
+        <span
+          key={`${service?.id || service?.serviceCode || service?.name}-${part.key}`}
+          className={`jo-spec-badge jo-spec-badge-${part.key}`}
+          style={part.key === "brand" && part.colorHex ? ({
+            background: `${part.colorHex}18`,
+            borderColor: `${part.colorHex}55`,
+          } as React.CSSProperties) : undefined}
+        >
+          <span className="jo-spec-badge-label">{part.label}</span>
+          <span className="jo-spec-badge-value">{part.value}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+function getSelectedSpecificationForProduct(product: any, selectedServices: any[]) {
+  const productCode = normalizeCatalogKey(product?.serviceCode || product?.id || product?.name);
+  return selectedServices.find(
+    (service: any) => normalizeCatalogKey(service?.serviceCode || service?.catalogId || service?.name) === productCode
+  );
+}
+
+function buildCatalogServiceSelection(product: any, vehicleType: any, specification?: any) {
+  return {
+    name: product.name,
+    nameAr: product.nameAr,
+    price: resolveServicePriceForVehicleType(product, vehicleType),
+    serviceCode: product.serviceCode || undefined,
+    catalogId: product.id || undefined,
+    specificationBrandId: specification?.brandId || undefined,
+    specificationBrandName: specification?.brandName || undefined,
+    specificationColorHex: specification?.colorHex || undefined,
+    specificationProductId: specification?.productId || undefined,
+    specificationProductName: specification?.productName || undefined,
+    specificationMeasurement: specification?.measurement || undefined,
+  };
+}
+
+function getConfiguredSpecificationSelection(product: any) {
+  const specificationId = String(product?.specificationId || "").trim();
+  const brandName = String(product?.specificationName || "").trim();
+  const colorHex = String(product?.specificationColorHex || "").trim();
+  const productId = String(product?.specificationProductId || "").trim();
+  const productName = String(product?.specificationProductName || "").trim();
+  const measurement = String(product?.specificationMeasurement || "").trim();
+
+  if (!specificationId || !productId || !measurement) return null;
+
+  return {
+    brandId: specificationId,
+    brandName,
+    colorHex,
+    productId,
+    productName,
+    measurement,
+  };
+}
+
 function getPackageGroupKey(service: any) {
   return getSharedPackageGroupKey(service);
 }
@@ -190,21 +287,13 @@ function summarizeServicesPricing(services: any[]) {
   };
 }
 
-function expandCatalogProductToServices(product: any, products: any[], vehicleType: any) {
+function expandCatalogProductToServices(product: any, products: any[], vehicleType: any, specification?: any) {
   const isPackage = String(product?.type ?? "").toLowerCase() === "package";
   const productCode = String(product?.serviceCode || product?.id || product?.name || "").trim();
   if (!productCode) return [];
 
   if (!isPackage) {
-    return [
-      {
-        name: product.name,
-        nameAr: product.nameAr,
-        price: resolveServicePriceForVehicleType(product, vehicleType),
-        serviceCode: product.serviceCode || undefined,
-        catalogId: product.id || undefined,
-      },
-    ];
+    return [buildCatalogServiceSelection(product, vehicleType, specification)];
   }
 
   const byCode = new Map<string, any>();
@@ -305,6 +394,144 @@ function groupServicesByPackage(services: any[]) {
 
 function getServiceDisplayName(service: any) {
   return toBilingualName(service?.name, service?.nameAr, "Unnamed service");
+}
+
+function ServiceSpecificationModal({ product, onClose, onConfirm }: any) {
+  const brands = Array.isArray(product?.specifications) ? product.specifications : [];
+  const [brandId, setBrandId] = useState(() => String(brands[0]?.id || ""));
+  const selectedBrand = brands.find((brand: any) => String(brand?.id || "") === brandId) || brands[0] || null;
+  const selectedBrandProducts = Array.isArray(selectedBrand?.products) ? selectedBrand.products : [];
+  const [productId, setProductId] = useState(() => String(selectedBrandProducts[0]?.id || ""));
+  const selectedProduct = selectedBrandProducts.find((entry: any) => String(entry?.id || "") === productId) || selectedBrandProducts[0] || null;
+  const selectedProductMeasurements = Array.isArray(selectedProduct?.measurements) ? selectedProduct.measurements : [];
+  const [measurement, setMeasurement] = useState(() => String(selectedProductMeasurements[0] || ""));
+
+  useEffect(() => {
+    const nextBrandId = String(brands[0]?.id || "");
+    setBrandId(nextBrandId);
+    const nextBrand = brands.find((brand: any) => String(brand?.id || "") === nextBrandId) || brands[0] || null;
+    const nextProducts = Array.isArray(nextBrand?.products) ? nextBrand.products : [];
+    setProductId(String(nextProducts[0]?.id || ""));
+    const nextMeasurements = Array.isArray(nextProducts[0]?.measurements) ? nextProducts[0].measurements : [];
+    setMeasurement(String(nextMeasurements[0] || ""));
+  }, [product]);
+
+  useEffect(() => {
+    const nextProducts = Array.isArray(selectedBrand?.products) ? selectedBrand.products : [];
+    if (!nextProducts.some((candidate: any) => String(candidate?.id || "") === productId)) {
+      setProductId(String(nextProducts[0]?.id || ""));
+    }
+  }, [brandId, selectedBrand, productId]);
+
+  useEffect(() => {
+    const nextMeasurements = Array.isArray(selectedProduct?.measurements) ? selectedProduct.measurements : [];
+    if (!nextMeasurements.some((candidate: any) => String(candidate || "") === measurement)) {
+      setMeasurement(String(nextMeasurements[0] || ""));
+    }
+  }, [selectedProduct, measurement]);
+
+  if (!product) return null;
+
+  const selectedColor = String(selectedBrand?.colorHex || "").trim() || "#1F2937";
+
+  return (
+    <div className="sc2-overlay" onClick={onClose}>
+      <div className="sc2-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="sc2-modal-header">
+          <h3><i className="fas fa-palette"></i> Service Specification</h3>
+          <button onClick={onClose}>✕</button>
+        </div>
+        <div className="sc2-modal-body">
+          <div className="sc2-grid-1">
+            <label>
+              <span>Service</span>
+              <input value={getServiceDisplayName(product)} readOnly />
+            </label>
+          </div>
+
+          <div className="sc2-grid-2" style={{ marginTop: 16 }}>
+            <label>
+              <span>Brand *</span>
+              <select value={brandId} onChange={(e) => setBrandId(e.target.value)}>
+                {brands.map((brand: any) => (
+                  <option key={String(brand?.id || brand?.name)} value={String(brand?.id || "")}>
+                    {brand?.name}
+                  </option>
+                ))}
+              </select>
+              <small style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
+                <span style={{ width: 12, height: 12, borderRadius: 999, background: selectedColor, display: "inline-block", border: "1px solid rgba(15, 23, 42, 0.14)" }}></span>
+                {selectedColor}
+              </small>
+            </label>
+            <label>
+              <span>Product *</span>
+              <select value={productId} onChange={(e) => setProductId(e.target.value)}>
+                {selectedBrandProducts.map((entry: any) => (
+                  <option key={String(entry?.id || entry?.name)} value={String(entry?.id || "")}>
+                    {entry?.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <div className="sc2-grid-1" style={{ marginTop: 16 }}>
+            <label>
+              <span>Measurement *</span>
+              <select value={measurement} onChange={(e) => setMeasurement(e.target.value)}>
+                {selectedProductMeasurements.map((entry: any, index: number) => (
+                  <option key={`${String(selectedProduct?.id || "product")}-measurement-${index}`} value={String(entry || "")}>
+                    {String(entry || "")}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          {selectedBrand && (
+            <div className="sc2-checklist-group" style={{ marginTop: 16 }}>
+              <div className="sc2-group-title" style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <span
+                  aria-hidden="true"
+                  style={{
+                    width: 14,
+                    height: 14,
+                    borderRadius: 999,
+                    background: selectedColor,
+                    border: "1px solid rgba(15, 23, 42, 0.15)",
+                    display: "inline-block",
+                  }}
+                ></span>
+                {selectedBrand?.name}
+              </div>
+              {selectedProduct && <div className="sc2-empty">Selected product: {selectedProduct.name}</div>}
+              {measurement && <div className="sc2-empty">Selected measurement: {measurement}</div>}
+            </div>
+          )}
+        </div>
+        <div className="sc2-modal-actions">
+          <button className="sc2-btn ghost" onClick={onClose}>Cancel</button>
+          <button
+            className="sc2-btn blue"
+            onClick={() =>
+              onConfirm({
+                brandId: String(selectedBrand?.id || ""),
+                brandName: String(selectedBrand?.name || ""),
+                colorHex: selectedColor,
+                productId: String(selectedProduct?.id || ""),
+                productName: String(selectedProduct?.name || ""),
+                measurement: String(measurement || ""),
+              })
+            }
+            disabled={!selectedBrand || !selectedProduct || !measurement}
+          >
+            Apply Specification
+          </button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 /** ✅ Best creator name for the order (handles different payload shapes) */
@@ -586,6 +813,12 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
       packageCode: service.packageCode || undefined,
       packageName: service.packageName || undefined,
       packagePrice: service.packagePrice || undefined,
+      specificationBrandId: service.specificationBrandId || undefined,
+      specificationBrandName: service.specificationBrandName || undefined,
+      specificationColorHex: service.specificationColorHex || undefined,
+      specificationProductId: service.specificationProductId || undefined,
+      specificationProductName: service.specificationProductName || undefined,
+      specificationMeasurement: service.specificationMeasurement || undefined,
       status: "New",
       started: "Not started",
       ended: "Not completed",
@@ -1467,6 +1700,12 @@ function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }
               packageCode: s.packageCode || undefined,
               packageName: s.packageName || undefined,
               packagePrice: s.packagePrice || undefined,
+              specificationBrandId: s.specificationBrandId || undefined,
+              specificationBrandName: s.specificationBrandName || undefined,
+              specificationColorHex: s.specificationColorHex || undefined,
+              specificationProductId: s.specificationProductId || undefined,
+              specificationProductName: s.specificationProductName || undefined,
+              specificationMeasurement: s.specificationMeasurement || undefined,
               status: "New",
               started: "Not started",
               ended: "Not completed",
@@ -1482,6 +1721,12 @@ function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }
               packageCode: s.packageCode || undefined,
               packageName: s.packageName || undefined,
               packagePrice: s.packagePrice || undefined,
+              specificationBrandId: s.specificationBrandId || undefined,
+              specificationBrandName: s.specificationBrandName || undefined,
+              specificationColorHex: s.specificationColorHex || undefined,
+              specificationProductId: s.specificationProductId || undefined,
+              specificationProductName: s.specificationProductName || undefined,
+              specificationMeasurement: s.specificationMeasurement || undefined,
               status: "New",
               started: "Not started",
               ended: "Not completed",
@@ -2439,6 +2684,8 @@ function StepThreeServices({
   onNext,
   onBack,
 }: any) {
+  const [pendingSpecificationProduct, setPendingSpecificationProduct] = useState<any>(null);
+
   const handleToggleService = (product: any) => {
     const productKey = normalizeCatalogKey(product.serviceCode || product.id || product.name);
     const isSelected = isCatalogProductSelected(product, selectedServices);
@@ -2448,6 +2695,16 @@ function StepThreeServices({
         : selectedServices.filter((s: any) => normalizeCatalogKey(s.serviceCode || s.catalogId || s.name) !== productKey);
       setSelectedServices(dedupeSelectedServices(next));
     } else {
+      if (hasServiceSpecifications(product)) {
+        const configuredSpecification = getConfiguredSpecificationSelection(product);
+        if (configuredSpecification) {
+          const expanded = expandCatalogProductToServices(product, products, vehicleType, configuredSpecification);
+          setSelectedServices(dedupeSelectedServices([...selectedServices, ...expanded]));
+          return;
+        }
+        setPendingSpecificationProduct(product);
+        return;
+      }
       const expanded = expandCatalogProductToServices(product, products, vehicleType);
       setSelectedServices(dedupeSelectedServices([...selectedServices, ...expanded]));
     }
@@ -2551,6 +2808,15 @@ function StepThreeServices({
                       </span>
                     )}
                   </div>
+                  {hasServiceSpecifications(product) && (
+                    <div className="empty-subtext" data-no-translate="true">
+                      {(() => {
+                        const selectedSpecification = getSelectedSpecificationForProduct(product, selectedServices);
+                        const label = getServiceSpecificationLabel(selectedSpecification);
+                        return label ? `Specification: ${label}` : "Specification required before adding this service.";
+                      })()}
+                    </div>
+                  )}
                 </div>
                 <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
               </div>
@@ -2667,6 +2933,18 @@ function StepThreeServices({
           Next: Confirm
         </button>
       </div>
+
+      {pendingSpecificationProduct && (
+        <ServiceSpecificationModal
+          product={pendingSpecificationProduct}
+          onClose={() => setPendingSpecificationProduct(null)}
+          onConfirm={(specification: any) => {
+            const expanded = expandCatalogProductToServices(pendingSpecificationProduct, products, vehicleType, specification);
+            setSelectedServices(dedupeSelectedServices([...selectedServices, ...expanded]));
+            setPendingSpecificationProduct(null);
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -2678,6 +2956,7 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
   const { t } = useLanguage();
   const [selectedServices, setSelectedServices] = useState<any[]>([]);
   const [discountPercent, setDiscountPercent] = useState(0);
+  const [pendingSpecificationProduct, setPendingSpecificationProduct] = useState<any>(null);
   const vehicleType = order?.vehicleDetails?.type || "SUV";
 
   const handleToggleService = (product: any) => {
@@ -2689,6 +2968,16 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
         : selectedServices.filter((s: any) => normalizeCatalogKey(s.serviceCode || s.catalogId || s.name) !== productKey);
       setSelectedServices(dedupeSelectedServices(next));
     } else {
+      if (hasServiceSpecifications(product)) {
+        const configuredSpecification = getConfiguredSpecificationSelection(product);
+        if (configuredSpecification) {
+          const expanded = expandCatalogProductToServices(product, products, vehicleType, configuredSpecification);
+          setSelectedServices(dedupeSelectedServices([...selectedServices, ...expanded]));
+          return;
+        }
+        setPendingSpecificationProduct(product);
+        return;
+      }
       const expanded = expandCatalogProductToServices(product, products, vehicleType);
       setSelectedServices(dedupeSelectedServices([...selectedServices, ...expanded]));
     }
@@ -2805,6 +3094,15 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
                           </span>
                         )}
                       </div>
+                      {hasServiceSpecifications(product) && (
+                        <div className="empty-subtext" data-no-translate="true">
+                          {(() => {
+                            const selectedSpecification = getSelectedSpecificationForProduct(product, selectedServices);
+                            const label = getServiceSpecificationLabel(selectedSpecification);
+                            return label ? `Specification: ${label}` : "Specification required before adding this service.";
+                          })()}
+                        </div>
+                      )}
                     </div>
                     <PermissionGate moduleId="joborder" optionId="joborder_serviceprice">
                       <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
@@ -2879,6 +3177,18 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
                 Add Services
               </button>
             </div>
+
+            {pendingSpecificationProduct && (
+              <ServiceSpecificationModal
+                product={pendingSpecificationProduct}
+                onClose={() => setPendingSpecificationProduct(null)}
+                onConfirm={(specification: any) => {
+                  const expanded = expandCatalogProductToServices(pendingSpecificationProduct, products, vehicleType, specification);
+                  setSelectedServices(dedupeSelectedServices([...selectedServices, ...expanded]));
+                  setPendingSpecificationProduct(null);
+                }}
+              />
+            )}
           </div>
         </div>
       </div>
@@ -3136,7 +3446,12 @@ function StepFourConfirm({
                     )}
                     {group.items.map((service: any, idx: number) => (
                       <tr key={`${group.key}-${service?.serviceCode || service?.catalogId || service?.name}-${idx}`}>
-                        <td data-no-translate="true">{getServiceDisplayName(service)}</td>
+                        <td data-no-translate="true">
+                          <div>{getServiceDisplayName(service)}</div>
+                          {getServiceSpecificationLabel(service) && (
+                            <div style={{ marginTop: 8 }}>{renderServiceSpecificationBadges(service)}</div>
+                          )}
+                        </td>
                         <td style={{ textAlign: "right", fontWeight: 700 }}>
                           {group.packageTitle ? "Included in package" : formatPrice(service.price || 0)}
                         </td>
@@ -3370,6 +3685,12 @@ function ServicesCard({ order, onAddService }: any) {
                     </span>
                   </div>
                   <div className="pim-service-meta">
+                    {getServiceSpecificationLabel(service) && (
+                      <div className="pim-service-meta-row" style={{ gridColumn: 'span 2' }}>
+                        <span className="pim-service-meta-label">Specification:</span>
+                        <div className="pim-service-meta-value">{renderServiceSpecificationBadges(service)}</div>
+                      </div>
+                    )}
                     <div className="pim-service-meta-row">
                       <span className="pim-service-meta-label">Status:</span>
                       <span className="pim-service-meta-value">{service.status || 'N/A'}</span>

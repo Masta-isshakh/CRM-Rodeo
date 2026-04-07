@@ -356,6 +356,12 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
           const p = Math.max(0, toNum((s as any).packagePrice));
           return p > 0 ? p : undefined;
         })(),
+        specificationBrandId: String((s as any).specificationBrandId ?? "").trim() || undefined,
+        specificationBrandName: String((s as any).specificationBrandName ?? "").trim() || undefined,
+        specificationColorHex: String((s as any).specificationColorHex ?? "").trim() || undefined,
+        specificationProductId: String((s as any).specificationProductId ?? "").trim() || undefined,
+        specificationProductName: String((s as any).specificationProductName ?? "").trim() || undefined,
+        specificationMeasurement: String((s as any).specificationMeasurement ?? "").trim() || undefined,
 
         status: String((s as any).status ?? "Pending"),
         priority: String((s as any).priority ?? "normal"),
