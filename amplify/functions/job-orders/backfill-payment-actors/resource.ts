@@ -4,4 +4,5 @@ export const jobOrderPaymentBackfillActors = defineFunction({
   name: "jobOrderPaymentBackfillActors",
   entry: "./handler.ts",
   runtime: 20,
+  timeoutSeconds: 60,
 });

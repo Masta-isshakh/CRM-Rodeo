@@ -4,4 +4,5 @@ export const jobOrderPaymentDelete = defineFunction({
   name: "jobOrderPaymentDelete",
   entry: "./handler.ts",
   runtime: 20,
+  timeoutSeconds: 30,
 });

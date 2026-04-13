@@ -4,4 +4,5 @@ export const jobOrderPaymentUpdate = defineFunction({
   name: "jobOrderPaymentUpdate",
   entry: "./handler.ts",
   runtime: 20,
+  timeoutSeconds: 30,
 });
