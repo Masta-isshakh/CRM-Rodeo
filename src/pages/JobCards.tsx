@@ -2813,7 +2813,25 @@ function StepThreeServices({
                       {(() => {
                         const selectedSpecification = getSelectedSpecificationForProduct(product, selectedServices);
                         const label = getServiceSpecificationLabel(selectedSpecification);
-                        return label ? `Specification: ${label}` : "Specification required before adding this service.";
+                        const colorHex = String(selectedSpecification?.specificationColorHex || "").trim();
+                        return label ? (
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                            {colorHex ? (
+                              <span
+                                aria-hidden="true"
+                                style={{
+                                  width: 10,
+                                  height: 10,
+                                  borderRadius: 999,
+                                  background: colorHex,
+                                  border: "1px solid rgba(15, 23, 42, 0.14)",
+                                  display: "inline-block",
+                                }}
+                              ></span>
+                            ) : null}
+                            {`Specification: ${label}`}
+                          </span>
+                        ) : "Specification required before adding this service.";
                       })()}
                     </div>
                   )}
@@ -3099,7 +3117,25 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
                           {(() => {
                             const selectedSpecification = getSelectedSpecificationForProduct(product, selectedServices);
                             const label = getServiceSpecificationLabel(selectedSpecification);
-                            return label ? `Specification: ${label}` : "Specification required before adding this service.";
+                            const colorHex = String(selectedSpecification?.specificationColorHex || "").trim();
+                            return label ? (
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                                {colorHex ? (
+                                  <span
+                                    aria-hidden="true"
+                                    style={{
+                                      width: 10,
+                                      height: 10,
+                                      borderRadius: 999,
+                                      background: colorHex,
+                                      border: "1px solid rgba(15, 23, 42, 0.14)",
+                                      display: "inline-block",
+                                    }}
+                                  ></span>
+                                ) : null}
+                                {`Specification: ${label}`}
+                              </span>
+                            ) : "Specification required before adding this service.";
                           })()}
                         </div>
                       )}

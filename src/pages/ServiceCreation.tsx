@@ -47,8 +47,6 @@ type ServiceFormState = {
   coupePrice: string;
   otherPrice: string;
   specificationId: string;
-  specificationProductId: string;
-  specificationMeasurement: string;
 };
 
 type PackageFormState = {
@@ -109,9 +107,11 @@ const EMPTY_SERVICE_FORM: ServiceFormState = {
   coupePrice: "",
   otherPrice: "",
   specificationId: "",
-  specificationProductId: "",
-  specificationMeasurement: "",
 };
+
+function uniq(values: string[]) {
+  return Array.from(new Set(values.map((value) => String(value || "").trim()).filter(Boolean)));
+}
 
 const EMPTY_BRAND_SPECIFICATION_FORM: BrandSpecificationFormState = {
   specificationCode: "",
@@ -226,6 +226,38 @@ function sanitizeSpecificationBrands(brands: SpecificationBrandFormState[]): Ser
     .filter((brand) => !!brand.name && brand.products.length > 0);
 }
 
+function resolveServiceSpecificationIds(
+  item: ServiceCatalogItem,
+  brandSpecifications: ServiceBrandSpecificationItem[]
+) {
+  const byId = new Map<string, ServiceBrandSpecificationItem>();
+  const byBrandName = new Map<string, ServiceBrandSpecificationItem>();
+
+  for (const spec of brandSpecifications) {
+    byId.set(String(spec.id || "").trim(), spec);
+    byBrandName.set(String(spec.brandName || "").trim().toLowerCase(), spec);
+  }
+
+  const collected: string[] = [];
+
+  if (item.specificationId && byId.has(String(item.specificationId).trim())) {
+    collected.push(String(item.specificationId).trim());
+  }
+
+  for (const brand of item.specifications || []) {
+    const idCandidate = String(brand?.id || "").trim();
+    if (idCandidate && byId.has(idCandidate)) {
+      collected.push(idCandidate);
+      continue;
+    }
+
+    const byName = byBrandName.get(String(brand?.name || "").trim().toLowerCase());
+    if (byName?.id) collected.push(String(byName.id));
+  }
+
+  return uniq(collected);
+}
+
 export default function ServiceCreation() {
   const [activeTab, setActiveTab] = useState<Tab>("services");
   const [modalType, setModalType] = useState<ModalType>("none");
@@ -252,6 +284,7 @@ export default function ServiceCreation() {
 
   const [categoryForm, setCategoryForm] = useState<CategoryFormState>(EMPTY_CATEGORY_FORM);
   const [serviceForm, setServiceForm] = useState<ServiceFormState>(EMPTY_SERVICE_FORM);
+  const [selectedServiceSpecificationIds, setSelectedServiceSpecificationIds] = useState<string[]>([]);
   const [packageForm, setPackageForm] = useState<PackageFormState>(EMPTY_PACKAGE_FORM);
   const [brandSpecificationForm, setBrandSpecificationForm] = useState<BrandSpecificationFormState>(EMPTY_BRAND_SPECIFICATION_FORM);
   const [specificationBrands, setSpecificationBrands] = useState<SpecificationBrandFormState[]>([createEmptySpecificationBrand()]);
@@ -290,63 +323,11 @@ export default function ServiceCreation() {
     brandSpecifications.forEach((specification) => map.set(specification.id, specification));
     return map;
   }, [brandSpecifications]);
-  const selectedBrandSpecification = useMemo(
-    () => brandSpecificationById.get(serviceForm.specificationId),
-    [brandSpecificationById, serviceForm.specificationId]
-  );
-  const selectedSpecificationBrand = useMemo(
-    () => selectedBrandSpecification?.specifications?.[0] || null,
-    [selectedBrandSpecification]
-  );
-  const availableSpecificationProducts = useMemo(
-    () => selectedSpecificationBrand?.products || [],
-    [selectedSpecificationBrand]
-  );
-  const selectedSpecificationProduct = useMemo(
-    () => availableSpecificationProducts.find((product) => product.id === serviceForm.specificationProductId) || availableSpecificationProducts[0] || null,
-    [availableSpecificationProducts, serviceForm.specificationProductId]
-  );
-  const availableSpecificationMeasurements = useMemo(
-    () => selectedSpecificationProduct?.measurements || [],
-    [selectedSpecificationProduct]
-  );
-
   useEffect(() => {
-    if (!serviceForm.specificationId) {
-      if (serviceForm.specificationProductId || serviceForm.specificationMeasurement) {
-        setServiceForm((current) => ({
-          ...current,
-          specificationProductId: "",
-          specificationMeasurement: "",
-        }));
-      }
-      return;
-    }
-
-    const nextProductId =
-      availableSpecificationProducts.find((product) => product.id === serviceForm.specificationProductId)?.id ||
-      availableSpecificationProducts[0]?.id ||
-      "";
-    const nextMeasurement =
-      (availableSpecificationProducts.find((product) => product.id === nextProductId)?.measurements || []).find(
-        (measurement) => measurement === serviceForm.specificationMeasurement
-      ) ||
-      (availableSpecificationProducts.find((product) => product.id === nextProductId)?.measurements || [])[0] ||
-      "";
-
-    if (nextProductId !== serviceForm.specificationProductId || nextMeasurement !== serviceForm.specificationMeasurement) {
-      setServiceForm((current) => ({
-        ...current,
-        specificationProductId: nextProductId,
-        specificationMeasurement: nextMeasurement,
-      }));
-    }
-  }, [
-    availableSpecificationProducts,
-    serviceForm.specificationId,
-    serviceForm.specificationMeasurement,
-    serviceForm.specificationProductId,
-  ]);
+    setSelectedServiceSpecificationIds((current) =>
+      current.filter((id) => brandSpecificationById.has(String(id || "").trim()))
+    );
+  }, [brandSpecificationById]);
 
   const serviceByCode = useMemo(() => {
     const map = new Map<string, ServiceCatalogItem>();
@@ -396,6 +377,7 @@ export default function ServiceCreation() {
     setModalType("none");
     setError("");
     setEditingBrandSpecification(null);
+    setSelectedServiceSpecificationIds([]);
   };
 
   const openCategoryModal = (item?: ServiceCategoryItem) => {
@@ -438,14 +420,14 @@ export default function ServiceCreation() {
         coupePrice: String(item.coupePrice ?? ""),
         otherPrice: String(item.otherPrice ?? ""),
         specificationId: item.specificationId || "",
-        specificationProductId: item.specificationProductId || "",
-        specificationMeasurement: item.specificationMeasurement || "",
       });
+      setSelectedServiceSpecificationIds(resolveServiceSpecificationIds(item, brandSpecifications));
     } else {
       setServiceForm({
         ...EMPTY_SERVICE_FORM,
         serviceCode: makeNextCode(services.map((s) => s.serviceCode), "SVC"),
       });
+      setSelectedServiceSpecificationIds([]);
     }
     setModalType("service");
   };
@@ -512,8 +494,6 @@ export default function ServiceCreation() {
     if (!serviceForm.nameAr.trim()) return "Arabic service name is required.";
     if (!serviceForm.suvPrice.trim() || Number(serviceForm.suvPrice) < 0) return "SUV price is required and must be valid.";
     if (!serviceForm.sedanPrice.trim() || Number(serviceForm.sedanPrice) < 0) return "Sedan price is required and must be valid.";
-    if (serviceForm.specificationId && !serviceForm.specificationProductId) return "Please select a product for the brand specification.";
-    if (serviceForm.specificationId && !serviceForm.specificationMeasurement) return "Please select a measurement for the brand specification.";
     return "";
   };
 
@@ -580,32 +560,25 @@ export default function ServiceCreation() {
     setError("");
 
     try {
-      const selectedSpecification = brandSpecificationById.get(serviceForm.specificationId);
-      const selectedProduct = selectedSpecification?.specifications?.[0]?.products?.find(
-        (product) => product.id === serviceForm.specificationProductId
-      );
-      const filteredSpecifications =
-        selectedSpecification && selectedProduct && serviceForm.specificationMeasurement
-          ? [
-              {
-                ...(selectedSpecification.specifications[0] || {
-                  id: selectedSpecification.id,
-                  name: selectedSpecification.brandName,
-                  colorHex: selectedSpecification.colorHex,
-                  products: [],
-                }),
-                name: selectedSpecification.brandName,
-                colorHex: selectedSpecification.colorHex,
-                products: [
-                  {
-                    id: selectedProduct.id,
-                    name: selectedProduct.name,
-                    measurements: [serviceForm.specificationMeasurement],
-                  },
-                ],
-              },
-            ]
-          : selectedSpecification?.specifications ?? editingService?.specifications ?? [];
+      const selectedSpecifications = selectedServiceSpecificationIds
+        .map((id) => brandSpecificationById.get(String(id || "").trim()))
+        .filter(Boolean) as ServiceBrandSpecificationItem[];
+
+      const mergedSpecifications = selectedSpecifications.flatMap((specification) => {
+        if (Array.isArray(specification.specifications) && specification.specifications.length > 0) {
+          return specification.specifications;
+        }
+        return [
+          {
+            id: specification.id,
+            name: specification.brandName,
+            colorHex: specification.colorHex,
+            products: [],
+          },
+        ];
+      });
+
+      const primarySpecification = selectedSpecifications[0];
       const payload = {
         serviceCode: serviceForm.serviceCode.trim().toUpperCase(),
         name: serviceForm.nameEn.trim(),
@@ -624,14 +597,14 @@ export default function ServiceCreation() {
         coupePrice: toOptionalNum(serviceForm.coupePrice),
         otherPrice: toOptionalNum(serviceForm.otherPrice),
         includedServiceCodes: [],
-        specificationId: selectedSpecification?.id,
-        specificationName: selectedSpecification?.brandName,
-        specificationColorHex: selectedSpecification?.colorHex,
-        specificationProductId: selectedProduct?.id,
-        specificationProductName: selectedProduct?.name,
-        specificationMeasurement: serviceForm.specificationMeasurement || undefined,
-        hasSpecifications: selectedSpecification ? filteredSpecifications.length > 0 : editingService?.hasSpecifications ?? false,
-        specifications: filteredSpecifications,
+        specificationId: primarySpecification?.id,
+        specificationName: primarySpecification?.brandName,
+        specificationColorHex: primarySpecification?.colorHex,
+        specificationProductId: undefined,
+        specificationProductName: undefined,
+        specificationMeasurement: undefined,
+        hasSpecifications: mergedSpecifications.length > 0,
+        specifications: mergedSpecifications,
       };
 
       if (serviceForm.id) {
@@ -920,13 +893,15 @@ export default function ServiceCreation() {
 
                     {service.hasSpecifications && service.specifications.length > 0 && (
                       <div className="sc2-included" data-no-translate="true">
-                        {service.specificationName && (
-                          <span className="sc2-chip" style={service.specificationColorHex ? { borderColor: service.specificationColorHex, color: service.specificationColorHex } : undefined}>
-                            Brand Spec: {service.specificationName}
+                        {service.specifications.map((brand) => (
+                          <span
+                            key={`${service.id}-${brand.id}`}
+                            className="sc2-chip"
+                            style={brand.colorHex ? { borderColor: brand.colorHex, color: brand.colorHex } : undefined}
+                          >
+                            Brand: {brand.name}
                           </span>
-                        )}
-                        {service.specificationProductName && <span className="sc2-chip">Product: {service.specificationProductName}</span>}
-                        {service.specificationMeasurement && <span className="sc2-chip">Measurement: {service.specificationMeasurement}</span>}
+                        ))}
                         <span className="sc2-chip">{service.specifications.length} brands</span>
                       </div>
                     )}
@@ -1125,49 +1100,34 @@ export default function ServiceCreation() {
                     </label>
 
                     <label>
-                      <span>Brand Specification</span>
-                      <select
-                        value={serviceForm.specificationId}
-                        onChange={(e) => setServiceForm((p) => ({ ...p, specificationId: e.target.value, specificationProductId: "", specificationMeasurement: "" }))}
-                      >
-                        <option value="">-- No brand specification --</option>
-                        {brandSpecifications.map((specification) => (
-                          <option key={specification.id} value={specification.id}>
-                            {specification.brandName}
-                          </option>
-                        ))}
-                      </select>
+                      <span>Brand Specifications</span>
+                      <div className="sc2-checklist" data-no-translate="true">
+                        {brandSpecifications.length === 0 && <div className="sc2-empty">No brand specifications available.</div>}
+                        {brandSpecifications.map((specification) => {
+                          const checked = selectedServiceSpecificationIds.includes(specification.id);
+                          return (
+                            <label key={specification.id} className="sc2-check-item" style={{ alignItems: "center" }}>
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  const next = e.target.checked
+                                    ? uniq([...selectedServiceSpecificationIds, specification.id])
+                                    : selectedServiceSpecificationIds.filter((id) => id !== specification.id);
+                                  setSelectedServiceSpecificationIds(next);
+                                  setServiceForm((current) => ({
+                                    ...current,
+                                    specificationId: next[0] || "",
+                                  }));
+                                }}
+                              />
+                              <span className="sc2-color-dot" style={{ backgroundColor: specification.colorHex }}></span>
+                              <span>{specification.brandName}</span>
+                            </label>
+                          );
+                        })}
+                      </div>
                     </label>
-
-                    {serviceForm.specificationId && (
-                      <label>
-                        <span>Product</span>
-                        <select
-                          value={serviceForm.specificationProductId}
-                          onChange={(e) => setServiceForm((p) => ({ ...p, specificationProductId: e.target.value, specificationMeasurement: "" }))}
-                        >
-                          <option value="">-- Select a product --</option>
-                          {availableSpecificationProducts.map((product) => (
-                            <option key={product.id} value={product.id}>{product.name}</option>
-                          ))}
-                        </select>
-                      </label>
-                    )}
-
-                    {serviceForm.specificationId && serviceForm.specificationProductId && (
-                      <label>
-                        <span>Measurement</span>
-                        <select
-                          value={serviceForm.specificationMeasurement}
-                          onChange={(e) => setServiceForm((p) => ({ ...p, specificationMeasurement: e.target.value }))}
-                        >
-                          <option value="">-- Select a measurement --</option>
-                          {availableSpecificationMeasurements.map((measurement) => (
-                            <option key={measurement} value={measurement}>{measurement}</option>
-                          ))}
-                        </select>
-                      </label>
-                    )}
                   </div>
 
                   <div className="sc2-grid-2">
