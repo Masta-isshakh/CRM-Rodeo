@@ -506,6 +506,19 @@ function workStatusClass(status: string) {
   return "jh-badge jh-badge-neutral";
 }
 
+function getServiceSpecificationLabel(service: any) {
+  const brand = String(service?.specificationBrandName ?? "").trim();
+  const product = String(service?.specificationProductName ?? "").trim();
+  const measurement = String(service?.specificationMeasurement ?? "").trim();
+  if (brand && product && measurement) return `${brand} / ${product} / ${measurement}`;
+  if (brand && product) return `${brand} / ${product}`;
+  return brand || product || measurement || "";
+}
+
+function getServiceSpecificationColor(service: any) {
+  return String(service?.specificationColorHex ?? "").trim();
+}
+
 function paymentStatusClass(status: string) {
   const s = String(status ?? "").toLowerCase();
   if (s.includes("fully paid") || s === "paid") return "jh-badge jh-badge-success";
@@ -1489,6 +1502,27 @@ function JobHistoryDetails({
                       </div>
 
                       <div className="pim-service-meta">
+                        {getServiceSpecificationLabel(svc) ? (
+                          <div className="pim-service-meta-row" style={{ gridColumn: "span 2" }}>
+                            <span className="pim-service-meta-label">Specification:</span>
+                            <span className="pim-service-meta-value" data-no-translate="true" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                              {getServiceSpecificationColor(svc) ? (
+                                <span
+                                  aria-hidden="true"
+                                  style={{
+                                    width: 10,
+                                    height: 10,
+                                    borderRadius: 999,
+                                    background: getServiceSpecificationColor(svc),
+                                    border: "1px solid rgba(15, 23, 42, 0.14)",
+                                    display: "inline-block",
+                                  }}
+                                ></span>
+                              ) : null}
+                              {getServiceSpecificationLabel(svc)}
+                            </span>
+                          </div>
+                        ) : null}
                         <div className="pim-service-meta-row">
                           <span className="pim-service-meta-label">Status:</span>
                           <span className="pim-service-meta-value">{String(svc?.status ?? "N/A")}</span>

@@ -88,6 +88,19 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+function getServiceSpecificationLabel(service: any) {
+  const brand = String(service?.specificationBrandName ?? "").trim();
+  const product = String(service?.specificationProductName ?? "").trim();
+  const measurement = String(service?.specificationMeasurement ?? "").trim();
+  if (brand && product && measurement) return `${brand} / ${product} / ${measurement}`;
+  if (brand && product) return `${brand} / ${product}`;
+  return brand || product || measurement || "";
+}
+
+function getServiceSpecificationColor(service: any) {
+  return String(service?.specificationColorHex ?? "").trim();
+}
+
 function resolveActorName(user: any) {
   return resolveActorUsername(user, "qc");
 }
@@ -984,6 +997,29 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                               {String(service?.status ?? "New")}
                             </span>
                           </div>
+                          {getServiceSpecificationLabel(service) ? (
+                            <div className="pim-service-meta" style={{ marginTop: 8 }}>
+                              <div className="pim-service-meta-row" style={{ gridColumn: "span 2" }}>
+                                <span className="pim-service-meta-label">Specification:</span>
+                                <span className="pim-service-meta-value" data-no-translate="true" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                                  {getServiceSpecificationColor(service) ? (
+                                    <span
+                                      aria-hidden="true"
+                                      style={{
+                                        width: 10,
+                                        height: 10,
+                                        borderRadius: 999,
+                                        background: getServiceSpecificationColor(service),
+                                        border: "1px solid rgba(15, 23, 42, 0.14)",
+                                        display: "inline-block",
+                                      }}
+                                    ></span>
+                                  ) : null}
+                                  {getServiceSpecificationLabel(service)}
+                                </span>
+                              </div>
+                            </div>
+                          ) : null}
                         </div>
                       ))
                     ) : (

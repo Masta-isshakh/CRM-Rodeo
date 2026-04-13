@@ -198,7 +198,11 @@ function mapServiceRow(row: any, specificationsById?: Map<string, ServiceBrandSp
   const storedSpecifications = parseSpecifications(row?.specificationsJson);
   const specificationId = row?.specificationId ? String(row.specificationId).trim() : undefined;
   const specification = specificationId ? specificationsById?.get(specificationId) : undefined;
-  const specifications = specification?.specifications?.length ? specification.specifications : storedSpecifications;
+  const specifications = storedSpecifications.length
+    ? storedSpecifications
+    : specification?.specifications?.length
+    ? specification.specifications
+    : [];
   return {
     id: String(row?.id || ""),
     serviceCode: String(row?.serviceCode || "").trim(),

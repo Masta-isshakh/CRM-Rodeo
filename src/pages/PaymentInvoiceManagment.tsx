@@ -254,6 +254,27 @@ function resolveAuthoritativeTotalAmount(...sources: any[]): number {
   return resolveAuthoritativeTotalAmountFromSources(...sources);
 }
 
+function getServiceSpecificationLabel(service: any) {
+  const brand = String(service?.specificationBrandName ?? "").trim();
+  const product = String(service?.specificationProductName ?? "").trim();
+  const measurement = String(service?.specificationMeasurement ?? "").trim();
+  if (brand && product && measurement) return `${brand} / ${product} / ${measurement}`;
+  if (brand && product) return `${brand} / ${product}`;
+  return brand || product || measurement || "";
+}
+
+function getServiceSpecificationColor(service: any) {
+  return String(service?.specificationColorHex ?? "").trim();
+}
+
+function findServiceByInvoiceName(services: any[], invoiceServiceName: string) {
+  const normalizedTarget = String(invoiceServiceName ?? "").trim().toLowerCase();
+  if (!normalizedTarget) return null;
+  return (
+    services.find((service: any) => String(service?.name ?? "").trim().toLowerCase() === normalizedTarget) ?? null
+  );
+}
+
 // Hard payment guard: payment popup/save must use the SAME centralized dynamic
 // snapshot as the Billing section, so Total cannot drift between sections.
 function resolveLockedPaymentFinancials(order: any, paymentRows: any[]) {
@@ -1693,6 +1714,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       String(selectedOrder?._row?.status || "").toUpperCase() === "CANCELLED";
 
     const docs: DocItem[] = Array.isArray(selectedOrder.documents) ? selectedOrder.documents : [];
+    const detailServices: any[] = Array.isArray(selectedOrder?.services) ? selectedOrder.services : [];
     const createdByDisplay = resolveOrderCreatedBy(selectedOrder, {
       identityToUsernameMap: userLabelMap,
       fallback: "—",
@@ -1892,9 +1914,34 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                                 <div className="pim-empty-inline">No services linked to this invoice.</div>
                               ) : (
                                 <ul className="pim-invoice-services-list">
-                                  {inv.services.map((s, idx) => (
-                                    <li key={idx}><i className="fas fa-check-circle"></i> {s}</li>
-                                  ))}
+                                  {inv.services.map((s, idx) => {
+                                    const matchedService = findServiceByInvoiceName(detailServices, s);
+                                    const specLabel = getServiceSpecificationLabel(matchedService);
+                                    const specColor = getServiceSpecificationColor(matchedService);
+                                    return (
+                                      <li key={idx} data-no-translate="true">
+                                        <i className="fas fa-check-circle"></i> {s}
+                                        {specLabel ? (
+                                          <span style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                            {specColor ? (
+                                              <span
+                                                aria-hidden="true"
+                                                style={{
+                                                  width: 10,
+                                                  height: 10,
+                                                  borderRadius: 999,
+                                                  background: specColor,
+                                                  border: "1px solid rgba(15, 23, 42, 0.14)",
+                                                  display: "inline-block",
+                                                }}
+                                              ></span>
+                                            ) : null}
+                                            <span>{specLabel}</span>
+                                          </span>
+                                        ) : null}
+                                      </li>
+                                    );
+                                  })}
                                 </ul>
                               )}
                             </div>
