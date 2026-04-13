@@ -21,6 +21,10 @@ const cognito = new CognitoIdentityProviderClient();
 const ADMIN_GROUP = "Admins";
 const DEPT_PREFIX = "DEPT_";
 
+function getAttr(attrs: { Name?: string; Value?: string }[] | undefined, name: string) {
+  return (attrs ?? []).find((a) => a.Name === name)?.Value;
+}
+
 function normalizeKey(s: string): string {
   return String(s ?? "").trim().toLowerCase();
 }
@@ -206,7 +210,7 @@ async function canEditUsers(
 
     const toggleMap = aggregateToggleMap(roleToggles);
 
-    const moduleEnabledKey = "users.__enabled";
+    const moduleEnabledKey = "users::__enabled";
     const editKey = "users::users_edit";
     const moduleEnabled = isToggleExplicit(toggleMap, moduleEnabledKey)
       ? Boolean(toggleMap[moduleEnabledKey])
@@ -275,6 +279,30 @@ async function resolveCognitoUsername(userPoolId: string, email: string): Promis
   }
 }
 
+async function findUserProfileByEmailCaseInsensitive(
+  dataClient: ReturnType<typeof generateClient<Schema>>,
+  email: string
+) {
+  const normalized = String(email ?? "").trim().toLowerCase();
+  if (!normalized) return null;
+
+  try {
+    const exact = await dataClient.models.UserProfile.list({
+      filter: { email: { eq: normalized } },
+      limit: 1,
+    });
+    const row = (exact?.data ?? [])[0] as any;
+    if (row?.id) return row;
+  } catch {
+    // fallback below
+  }
+
+  const all = await dataClient.models.UserProfile.list({ limit: 20000 } as any);
+  return (
+    (all?.data ?? []).find((row: any) => String(row?.email ?? "").trim().toLowerCase() === normalized) ?? null
+  );
+}
+
 export const handler = async (event: {
   arguments: { email: string; departmentKey: string; departmentName?: string };
   identity?: any;
@@ -336,14 +364,40 @@ export const handler = async (event: {
     })
   );
 
-  const existing = await dataClient.models.UserProfile.list({
-    filter: { email: { eq: email } },
-    limit: 1,
-  });
+  let profile = await findUserProfileByEmailCaseInsensitive(dataClient, email);
+  if (!profile?.id) {
+    const user = await cognito.send(
+      new AdminGetUserCommand({
+        UserPoolId: userPoolId,
+        Username: username,
+      })
+    );
+    const attrs = user.UserAttributes ?? [];
+    const resolvedEmail = String(getAttr(attrs, "email") ?? email).trim().toLowerCase();
+    const fullName = String(getAttr(attrs, "name") ?? resolvedEmail).trim() || resolvedEmail;
+    const sub = String(getAttr(attrs, "sub") ?? "").trim();
+    const profileOwner = `${sub || resolvedEmail}::${resolvedEmail}`;
 
-  if (!existing.data.length) throw new Error(`UserProfile not found for ${email}`);
+    try {
+      const created = await dataClient.models.UserProfile.create({
+        email: resolvedEmail,
+        fullName,
+        profileOwner,
+        createdAt: new Date().toISOString(),
+        isActive: true,
+        dashboardAccessEnabled: true,
+        failedLoginAttempts: 0,
+        lastFailedLoginAt: null,
+        departmentKey,
+        departmentName: departmentName || keyToLabel(departmentKey),
+      } as any);
+      profile = (created as any)?.data ?? profile;
+    } catch {
+      profile = await findUserProfileByEmailCaseInsensitive(dataClient, resolvedEmail);
+    }
+  }
 
-  const profile = existing.data[0];
+  if (!profile?.id) throw new Error(`UserProfile not found for ${email}`);
 
   await dataClient.models.UserProfile.update({
     id: profile.id,

@@ -217,7 +217,7 @@ async function canEditUsers(
 
     const toggleMap = aggregateToggleMap(roleToggles);
 
-    const moduleEnabledKey = "users.__enabled";
+    const moduleEnabledKey = "users::__enabled";
     const editKey = "users::users_edit";
     const moduleEnabled = isToggleExplicit(toggleMap, moduleEnabledKey)
       ? Boolean(toggleMap[moduleEnabledKey])

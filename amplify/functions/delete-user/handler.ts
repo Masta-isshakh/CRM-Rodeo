@@ -220,7 +220,7 @@ async function canDeleteUsers(
 
     const toggleMap = aggregateToggleMap(roleToggles);
 
-    const moduleEnabledKey = "users.__enabled";
+    const moduleEnabledKey = "users::__enabled";
     const deleteKey = "users::users_delete";
     const moduleEnabled = isToggleExplicit(toggleMap, moduleEnabledKey)
       ? Boolean(toggleMap[moduleEnabledKey])
