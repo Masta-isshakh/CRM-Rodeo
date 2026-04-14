@@ -229,7 +229,7 @@ export function usePermissions() {
       setLoading(true);
 
       try {
-        const session = await fetchAuthSession({ forceRefresh: true });
+        const session = await fetchAuthSession();
         const idPayload: any = session.tokens?.idToken?.payload ?? {};
         const accessPayload: any = session.tokens?.accessToken?.payload ?? {};
 

@@ -286,6 +286,29 @@
   gap: 6px;
 }
 
+.inv-quick-add {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) 72px auto;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.inv-quick-add input {
+  width: 100%;
+  border: 1px solid #cfdceb;
+  border-radius: 8px;
+  padding: 7px 9px;
+  font-size: 12px;
+  color: #1f2937;
+  background: #fff;
+}
+
+.inv-quick-add input:focus {
+  outline: none;
+  border-color: #5ea2e8;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+}
+
 /* ============================================================
    BUTTONS
    ============================================================ */

@@ -123,6 +123,8 @@ export default function InventoryManagement({ permissions }: PageProps) {
   // ── Add product modal
   const [showAddProdModal, setShowAddProdModal] = useState(false);
   const [addMode, setAddMode] = useState<AddMode>("quantity");
+  const [modalCategory, setModalCategory] = useState<InvCategory | null>(null);
+  const [modalSubcategoryId, setModalSubcategoryId] = useState("");
   const [prodName, setProdName]     = useState("");
   const [prodSerial, setProdSerial] = useState("");
   const [prodBarcode, setProdBarcode] = useState("");
@@ -134,6 +136,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
   const [scanInput, setScanInput]     = useState("");
   const [scannedItems, setScannedItems] = useState<ScannedEntry[]>([]);
   const scanRef = useRef<HTMLInputElement>(null);
+  const [quickDrafts, setQuickDrafts] = useState<Record<string, { name: string; qty: number }>>({});
 
   // ── Delete confirm
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -454,7 +457,12 @@ export default function InventoryManagement({ permissions }: PageProps) {
   // ────────────────────────────────────────────────────────────────────────────
   // ADD PRODUCT (by quantity)
   // ────────────────────────────────────────────────────────────────────────────
-  const openAddProdModal = () => {
+  const openAddProdModal = (context?: { category?: InvCategory | null; subcategory?: InvSubcategory | null }) => {
+    const nextCategory = context?.category ?? selectedCategory ?? null;
+    const nextSubcategory = context?.subcategory ?? selectedSubcategory ?? null;
+
+    setModalCategory(nextCategory);
+    setModalSubcategoryId(nextSubcategory?.id ?? "");
     setProdName(""); setProdSerial(""); setProdBarcode("");
     setProdQty(1); setProdNotes("");
     setProdCustom({});
@@ -464,12 +472,21 @@ export default function InventoryManagement({ permissions }: PageProps) {
     setShowAddProdModal(true);
   };
 
+  const modalCategorySubcategories = (modalCategory
+    ? allSubcategories.filter((s) => s.categoryId === modalCategory.id && s.isActive !== false)
+    : []
+  ).sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
+
+  const activeModalSubcategory =
+    modalCategorySubcategories.find((s) => s.id === modalSubcategoryId) ??
+    (selectedSubcategory && modalCategory && selectedSubcategory.categoryId === modalCategory.id ? selectedSubcategory : null);
+
   const currentFieldDefs = (): FieldDef[] => {
-    return parseFields(selectedSubcategory?.fieldsSchemaJson);
+    return parseFields(activeModalSubcategory?.fieldsSchemaJson);
   };
 
   const addProductByQuantity = async () => {
-    if (!selectedSubcategory || !selectedCategory) return;
+    if (!activeModalSubcategory || !modalCategory) return;
     const name = prodName.trim();
     if (!name) { setStatus({ msg: "Please enter a product name.", type: "error" }); return; }
     const qty = Math.max(1, Number(prodQty) || 1);
@@ -478,9 +495,9 @@ export default function InventoryManagement({ permissions }: PageProps) {
       const actor = (await getCurrentUser()).signInDetails?.loginId ?? "";
       const now = new Date().toISOString();
       const product = await client.models.InventoryProduct.create({
-        categoryId: selectedCategory.id,
-        subcategoryId: selectedSubcategory.id,
-        subcategoryName: selectedSubcategory.name ?? "",
+        categoryId: modalCategory.id,
+        subcategoryId: activeModalSubcategory.id,
+        subcategoryName: activeModalSubcategory.name ?? "",
         name,
         serialNumber: prodSerial.trim() || undefined,
         barcode: prodBarcode.trim() || undefined,
@@ -498,8 +515,8 @@ export default function InventoryManagement({ permissions }: PageProps) {
         await client.models.InventoryTransaction.create({
           productId: product.data.id,
           productName: name,
-          subcategoryId: selectedSubcategory.id,
-          categoryId: selectedCategory.id,
+          subcategoryId: activeModalSubcategory.id,
+          categoryId: modalCategory.id,
           transactionType: "ADD",
           quantity: qty,
           notesText: `Initial stock addition of ${qty} unit(s)`,
@@ -510,7 +527,11 @@ export default function InventoryManagement({ permissions }: PageProps) {
 
       setShowAddProdModal(false);
       setStatus({ msg: `Added ${qty} unit(s) of "${name}".`, type: "success" });
-      await loadProducts(selectedSubcategory.id);
+      if (selectedSubcategory && selectedSubcategory.id === activeModalSubcategory.id && productsView === "products") {
+        await loadProducts(activeModalSubcategory.id);
+      } else if (modalCategory) {
+        await loadSubcategories(modalCategory.id);
+      }
     } catch (e: any) {
       setStatus({ msg: e?.message ?? "Failed to add product", type: "error" });
     } finally {
@@ -543,7 +564,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
   };
 
   const processScannedItems = async () => {
-    if (!selectedSubcategory || !selectedCategory) return;
+    if (!activeModalSubcategory || !modalCategory) return;
     const valid = scannedItems.filter((s) => s.serial.trim());
     if (!valid.length) { setStatus({ msg: "No items to process.", type: "error" }); return; }
     setSaving(true);
@@ -553,9 +574,9 @@ export default function InventoryManagement({ permissions }: PageProps) {
       for (const entry of valid) {
         const name = entry.name.trim() || entry.serial;
         const product = await client.models.InventoryProduct.create({
-          categoryId: selectedCategory.id,
-          subcategoryId: selectedSubcategory.id,
-          subcategoryName: selectedSubcategory.name ?? "",
+          categoryId: modalCategory.id,
+          subcategoryId: activeModalSubcategory.id,
+          subcategoryName: activeModalSubcategory.name ?? "",
           name,
           serialNumber: entry.serial,
           quantity: 1,
@@ -571,8 +592,8 @@ export default function InventoryManagement({ permissions }: PageProps) {
           await client.models.InventoryTransaction.create({
             productId: product.data.id,
             productName: name,
-            subcategoryId: selectedSubcategory.id,
-            categoryId: selectedCategory.id,
+            subcategoryId: activeModalSubcategory.id,
+            categoryId: modalCategory.id,
             transactionType: "ADD",
             quantity: 1,
             notesText: `Added via serial number scan`,
@@ -583,9 +604,78 @@ export default function InventoryManagement({ permissions }: PageProps) {
       }
       setShowAddProdModal(false);
       setStatus({ msg: `${valid.length} item(s) added via scan.`, type: "success" });
-      await loadProducts(selectedSubcategory.id);
+      if (selectedSubcategory && selectedSubcategory.id === activeModalSubcategory.id && productsView === "products") {
+        await loadProducts(activeModalSubcategory.id);
+      } else if (modalCategory) {
+        await loadSubcategories(modalCategory.id);
+      }
     } catch (e: any) {
       setStatus({ msg: e?.message ?? "Failed to process scan", type: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const setQuickDraft = (subcategoryId: string, patch: Partial<{ name: string; qty: number }>) => {
+    setQuickDrafts((prev) => {
+      const curr = prev[subcategoryId] ?? { name: "", qty: 1 };
+      return {
+        ...prev,
+        [subcategoryId]: {
+          name: patch.name ?? curr.name,
+          qty: patch.qty ?? curr.qty,
+        },
+      };
+    });
+  };
+
+  const quickAddProductToSubcategory = async (sub: InvSubcategory) => {
+    if (!selectedCategory) return;
+    const draft = quickDrafts[sub.id] ?? { name: "", qty: 1 };
+    const name = draft.name.trim();
+    const qty = Math.max(1, Number(draft.qty) || 1);
+
+    if (!name) {
+      setStatus({ msg: `Enter a product name for ${sub.name ?? "this subcategory"}.`, type: "error" });
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const actor = (await getCurrentUser()).signInDetails?.loginId ?? "";
+      const now = new Date().toISOString();
+      const product = await client.models.InventoryProduct.create({
+        categoryId: selectedCategory.id,
+        subcategoryId: sub.id,
+        subcategoryName: sub.name ?? "",
+        name,
+        quantity: qty,
+        availableQuantity: qty,
+        customFieldsJson: JSON.stringify({}),
+        status: "ACTIVE",
+        createdAt: now,
+        createdBy: actor,
+        updatedAt: now,
+      });
+
+      if (product.data) {
+        await client.models.InventoryTransaction.create({
+          productId: product.data.id,
+          productName: name,
+          subcategoryId: sub.id,
+          categoryId: selectedCategory.id,
+          transactionType: "ADD",
+          quantity: qty,
+          notesText: `Quick add: ${qty} unit(s)`,
+          createdAt: now,
+          createdBy: actor,
+        });
+      }
+
+      setQuickDraft(sub.id, { name: "", qty: 1 });
+      setStatus({ msg: `Quick added ${qty} unit(s) of "${name}" in ${sub.name}.`, type: "success" });
+    } catch (e: any) {
+      setStatus({ msg: e?.message ?? "Quick add failed", type: "error" });
     } finally {
       setSaving(false);
     }
@@ -900,6 +990,17 @@ export default function InventoryManagement({ permissions }: PageProps) {
                       <i className="fas fa-plus" /> Add Subcategory
                     </button>
                   )}
+                  {canCreate && (
+                    <button
+                      className="inv-btn inv-btn-success"
+                      type="button"
+                      onClick={() => openAddProdModal({ category: selectedCategory, subcategory: subcategories[0] ?? null })}
+                      disabled={subcategories.length === 0}
+                      title={subcategories.length === 0 ? "Create at least one subcategory first" : "Add product directly in this category"}
+                    >
+                      <i className="fas fa-box-open" /> Add Product
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -917,6 +1018,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                 <div className="inv-grid">
                   {subcategories.map((sub) => {
                     const fields = parseFields(sub.fieldsSchemaJson);
+                    const quick = quickDrafts[sub.id] ?? { name: "", qty: 1 };
                     return (
                       <div
                         key={sub.id}
@@ -941,6 +1043,30 @@ export default function InventoryManagement({ permissions }: PageProps) {
                             <i className="fas fa-sliders" /> {fields.length} Custom Field{fields.length !== 1 ? "s" : ""}
                           </span>
                         </div>
+                        {canCreate && (
+                          <div className="inv-quick-add" onClick={(e) => e.stopPropagation()}>
+                            <input
+                              type="text"
+                              value={quick.name}
+                              placeholder="Quick product name"
+                              onChange={(e) => setQuickDraft(sub.id, { name: e.target.value })}
+                            />
+                            <input
+                              type="number"
+                              min={1}
+                              value={quick.qty}
+                              onChange={(e) => setQuickDraft(sub.id, { qty: Math.max(1, Number(e.target.value) || 1) })}
+                            />
+                            <button
+                              type="button"
+                              className="inv-btn inv-btn-success inv-btn-sm"
+                              disabled={saving || !quick.name.trim()}
+                              onClick={() => quickAddProductToSubcategory(sub)}
+                            >
+                              <i className="fas fa-bolt" /> Quick Add
+                            </button>
+                          </div>
+                        )}
                         <div className="inv-card-footer" onClick={(e) => e.stopPropagation()}>
                           <span className="inv-card-enter-hint">Click to view products →</span>
                           <div className="inv-card-actions">
@@ -1023,7 +1149,11 @@ export default function InventoryManagement({ permissions }: PageProps) {
                     <i className="fas fa-arrow-left" /> Back
                   </button>
                   {canCreate && (
-                    <button className="inv-btn inv-btn-success" type="button" onClick={openAddProdModal}>
+                    <button
+                      className="inv-btn inv-btn-success"
+                      type="button"
+                      onClick={() => openAddProdModal({ category: selectedCategory, subcategory: selectedSubcategory })}
+                    >
                       <i className="fas fa-plus" /> Add Products
                     </button>
                   )}
@@ -1565,14 +1695,39 @@ export default function InventoryManagement({ permissions }: PageProps) {
       )}
 
       {/* Add Product Modal */}
-      {showAddProdModal && selectedSubcategory && (
+      {showAddProdModal && modalCategory && (
         <div className="inv-modal-overlay" onClick={() => !saving && setShowAddProdModal(false)}>
           <div className="inv-modal wide" onClick={(e) => e.stopPropagation()}>
             <div className="inv-modal-header">
-              <h3><i className="fas fa-plus-circle" style={{ marginRight: 8 }} />Add Products to {selectedSubcategory.name}</h3>
+              <h3>
+                <i className="fas fa-plus-circle" style={{ marginRight: 8 }} />
+                Add Products{activeModalSubcategory ? ` to ${activeModalSubcategory.name}` : ` in ${modalCategory.name}`}
+              </h3>
               <button type="button" className="inv-modal-close" onClick={() => !saving && setShowAddProdModal(false)}>✕</button>
             </div>
             <div className="inv-modal-body">
+              <div className="inv-form-row" style={{ marginBottom: 10 }}>
+                <div className="inv-form-group">
+                  <label>Category</label>
+                  <input type="text" value={modalCategory.name ?? ""} readOnly />
+                </div>
+                <div className="inv-form-group">
+                  <label>Subcategory <span className="req">*</span></label>
+                  <select
+                    value={activeModalSubcategory?.id ?? ""}
+                    onChange={(e) => setModalSubcategoryId(e.target.value)}
+                  >
+                    <option value="">Select subcategory...</option>
+                    {modalCategorySubcategories.map((sub) => (
+                      <option key={sub.id} value={sub.id}>{sub.name}</option>
+                    ))}
+                  </select>
+                  {modalCategorySubcategories.length === 0 && (
+                    <p className="inv-form-hint">No subcategories found. Create a subcategory first.</p>
+                  )}
+                </div>
+              </div>
+
               {/* Mode switcher */}
               <div className="inv-mode-switcher">
                 <button
@@ -1761,7 +1916,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                   type="button"
                   className="inv-btn inv-btn-success"
                   onClick={addProductByQuantity}
-                  disabled={saving || !prodName.trim()}
+                  disabled={saving || !prodName.trim() || !activeModalSubcategory}
                 >
                   {saving
                     ? <><i className="fas fa-circle-notch fa-spin" /> Adding…</>
@@ -1772,7 +1927,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                   type="button"
                   className="inv-btn inv-btn-success"
                   onClick={processScannedItems}
-                  disabled={saving || scannedItems.length === 0}
+                  disabled={saving || scannedItems.length === 0 || !activeModalSubcategory}
                 >
                   {saving
                     ? <><i className="fas fa-circle-notch fa-spin" /> Processing…</>

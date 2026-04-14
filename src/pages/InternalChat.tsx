@@ -32,6 +32,7 @@ type ConversationItem = {
 const GLOBAL_KEY = "global:all";
 const GLOBAL_LABEL = "All Team";
 const POLL_MS = 8000;
+const CHAT_LAST_SEEN_STORAGE_PREFIX = "crm.chat.lastSeen.";
 
 function normalizeEmail(value: string): string {
   return String(value ?? "").trim().toLowerCase();
@@ -70,6 +71,16 @@ export default function InternalChat({ permissions }: PageProps) {
   const listEndRef = useRef<HTMLDivElement | null>(null);
 
   const canSend = permissions.canCreate || permissions.canUpdate;
+
+  const markSeen = (emailValue: string) => {
+    const normalized = normalizeEmail(emailValue);
+    if (!normalized) return;
+    try {
+      window.localStorage.setItem(`${CHAT_LAST_SEEN_STORAGE_PREFIX}${normalized}`, new Date().toISOString());
+    } catch {
+      // ignore storage failures
+    }
+  };
 
   useEffect(() => {
     if (!permissions.canRead) return;
@@ -184,6 +195,7 @@ export default function InternalChat({ permissions }: PageProps) {
         .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
       setMessages(ordered);
+      markSeen(selfEmail);
       setStatus("");
     } catch (error: any) {
       setStatus(error?.message || t("Failed to load messages."));
@@ -200,6 +212,10 @@ export default function InternalChat({ permissions }: PageProps) {
 
     return () => window.clearInterval(timer);
   }, [ChatModel, conversationKey, permissions.canRead]);
+
+  useEffect(() => {
+    markSeen(selfEmail);
+  }, [selfEmail]);
 
   useEffect(() => {
     listEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });

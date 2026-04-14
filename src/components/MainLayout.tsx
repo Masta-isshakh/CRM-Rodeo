@@ -1,30 +1,30 @@
 // src/layout/MainLayout.tsx
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 
-import Dashboard from "../pages/Dashboard";
-import Customers from "../pages/Customer";
-import Vehicles from "../pages/Vehicule";
-import Tickets from "../pages/Tickets";
-import Employees from "../pages/Employees";
-import ActivityLog from "../pages/ActivityLogs";
+const Dashboard = lazy(() => import("../pages/Dashboard"));
+const Customers = lazy(() => import("../pages/Customer"));
+const Vehicles = lazy(() => import("../pages/Vehicule"));
+const Tickets = lazy(() => import("../pages/Tickets"));
+const Employees = lazy(() => import("../pages/Employees"));
+const ActivityLog = lazy(() => import("../pages/ActivityLogs"));
 
-import JobCards from "../pages/JobCards";
-import ServiceCreation from "../pages/ServiceCreation";
-import CallTracking from "../pages/CallTracking";
-import ServiceExecution from "../pages/ServiceExecutionModule";
-import Users from "../pages/UserAdmin";
-import DepartmentsAdmin from "../pages/DepartmentsAdmin";
-import RolesPoliciesAdmin from "../pages/RolesPoliciesAdmin";
-import InventoryManagement from "../pages/InventoryManagement";
-import InternalChat from "../pages/InternalChat";
-import EmailInbox from "../pages/EmailInbox";
+const JobCards = lazy(() => import("../pages/JobCards"));
+const ServiceCreation = lazy(() => import("../pages/ServiceCreation"));
+const CallTracking = lazy(() => import("../pages/CallTracking"));
+const ServiceExecution = lazy(() => import("../pages/ServiceExecutionModule"));
+const Users = lazy(() => import("../pages/UserAdmin"));
+const DepartmentsAdmin = lazy(() => import("../pages/DepartmentsAdmin"));
+const RolesPoliciesAdmin = lazy(() => import("../pages/RolesPoliciesAdmin"));
+const InventoryManagement = lazy(() => import("../pages/InventoryManagement"));
+const InternalChat = lazy(() => import("../pages/InternalMessaging"));
+const EmailInbox = lazy(() => import("../pages/EmailInboxPage"));
 
-import JobOrderHistory from "../pages/JobOrderHistory";
-import QualityCheckModule from "../pages/QualityCheckModule";
-import ExitPermitManagement from "../pages/ExitPermitManagement";
+const JobOrderHistory = lazy(() => import("../pages/JobOrderHistory"));
+const QualityCheckModule = lazy(() => import("../pages/QualityCheckModule"));
+const ExitPermitManagement = lazy(() => import("../pages/ExitPermitManagement"));
 
-import InspectionModule from "../pages/InspectionModule";
-import PaymentInvoiceManagment from "../pages/PaymentInvoiceManagment";
+const InspectionModule = lazy(() => import("../pages/InspectionModule"));
+const PaymentInvoiceManagment = lazy(() => import("../pages/PaymentInvoiceManagment"));
 import PermissionGate from "../pages/PermissionGate";
 
 
@@ -34,6 +34,7 @@ import "./mainLayout.css";
 import { usePermissions } from "../lib/userPermissions";
 import { ApprovalRequestsProvider } from "../pages/ApprovalRequestsContext";
 import { useLanguage } from "../i18n/LanguageContext";
+import { getDataClient } from "../lib/amplifyClient";
 
 type Page =
   | "dashboard"
@@ -69,6 +70,7 @@ const EMPTY = {
 type CrudPerm = typeof EMPTY;
 
 const THEME_STORAGE_KEY = "crm.themeMode";
+const CHAT_LAST_SEEN_STORAGE_PREFIX = "crm.chat.lastSeen.";
 
 type ThemeMode = "light" | "dark";
 
@@ -102,6 +104,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   const [isDesktop, setIsDesktop] = useState<boolean>(detectDesktop);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(detectDesktop);
   const [themeMode, setThemeMode] = useState<ThemeMode>(resolveInitialTheme);
+  const [unreadChatCount, setUnreadChatCount] = useState(0);
 
   const { loading, email, isAdminGroup, can, canOption, isModuleEnabled, refresh } = usePermissions();
   const { language, toggleLanguage, t } = useLanguage();
@@ -284,6 +287,85 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   }, [isDesktop]);
 
   useEffect(() => {
+    const normalizedEmail = String(email ?? "").trim().toLowerCase();
+    if (!normalizedEmail || !show.internalchat) {
+      setUnreadChatCount(0);
+      return;
+    }
+
+    let cancelled = false;
+    const client = getDataClient();
+    const chatModel = (client.models as any).InternalChatMessage as any;
+    const seenKey = `${CHAT_LAST_SEEN_STORAGE_PREFIX}${normalizedEmail}`;
+
+    if (!chatModel) {
+      setUnreadChatCount(0);
+      return;
+    }
+
+    const refreshUnreadCount = async () => {
+      try {
+        let seenAt = 0;
+        try {
+          const raw = window.localStorage.getItem(seenKey);
+          const parsed = raw ? Date.parse(raw) : NaN;
+          seenAt = Number.isFinite(parsed) ? parsed : 0;
+        } catch {
+          seenAt = 0;
+        }
+
+        const minIso = seenAt > 0 ? new Date(seenAt).toISOString() : undefined;
+        const res = await chatModel.list({
+          limit: 500,
+          filter: minIso ? { createdAt: { gt: minIso } } : undefined,
+        });
+        const rows = (res?.data ?? []) as Array<Record<string, any>>;
+        const unread = rows.filter((row) => {
+          const senderEmail = String(row?.senderEmail ?? "").trim().toLowerCase();
+          if (!senderEmail || senderEmail === normalizedEmail) return false;
+
+          const conversationKey = String(row?.conversationKey ?? "").trim().toLowerCase();
+          const forUser =
+            conversationKey === "global:all" ||
+            (conversationKey.startsWith("direct:") && conversationKey.includes(normalizedEmail));
+          if (!forUser) return false;
+
+          const createdAt = Date.parse(String(row?.createdAt ?? ""));
+          if (!Number.isFinite(createdAt)) return false;
+          return createdAt > seenAt;
+        }).length;
+
+        if (!cancelled) setUnreadChatCount(unread);
+      } catch {
+        if (!cancelled) setUnreadChatCount(0);
+      }
+    };
+
+    void refreshUnreadCount();
+    const timer = window.setInterval(() => {
+      void refreshUnreadCount();
+    }, 7000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [email, page, show.internalchat]);
+
+  useEffect(() => {
+    if (page !== "internalchat") return;
+    const normalizedEmail = String(email ?? "").trim().toLowerCase();
+    if (!normalizedEmail) return;
+
+    try {
+      window.localStorage.setItem(`${CHAT_LAST_SEEN_STORAGE_PREFIX}${normalizedEmail}`, new Date().toISOString());
+    } catch {
+      // ignore storage issues
+    }
+    setUnreadChatCount(0);
+  }, [page, email]);
+
+  useEffect(() => {
     const prev = document.body.style.overflow;
     if (!isDesktop && sidebarOpen) document.body.style.overflow = "hidden";
     else document.body.style.overflow = prev || "";
@@ -437,6 +519,11 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             {show.internalchat && (
               <button className={page === "internalchat" ? "active" : ""} onClick={() => go("internalchat")}>
                 <i className="fas fa-comments" aria-hidden="true" /> {t("Internal Chat")}
+                {unreadChatCount > 0 && (
+                  <span className="drawer-chat-badge" aria-label={`${unreadChatCount} unread chat messages`}>
+                    {unreadChatCount > 99 ? "99+" : unreadChatCount}
+                  </span>
+                )}
               </button>
             )}
 
@@ -559,6 +646,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
           </header>
 
           <main className="content">
+            <Suspense fallback={<div className="no-access"><h3>{t("Loading...")}</h3></div>}>
             {nothingVisible && (
               <div className="no-access">
                 <h3>{t("No access configured")}</h3>
@@ -694,6 +782,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
                 <RolesPoliciesAdmin />
               </PermissionGate>
             )}
+            </Suspense>
           </main>
         </div>
       </div>
