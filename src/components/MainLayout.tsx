@@ -15,6 +15,7 @@ import ServiceExecution from "../pages/ServiceExecutionModule";
 import Users from "../pages/UserAdmin";
 import DepartmentsAdmin from "../pages/DepartmentsAdmin";
 import RolesPoliciesAdmin from "../pages/RolesPoliciesAdmin";
+import InventoryManagement from "../pages/InventoryManagement";
 
 import JobOrderHistory from "../pages/JobOrderHistory";
 import QualityCheckModule from "../pages/QualityCheckModule";
@@ -50,7 +51,8 @@ type Page =
   | "inspection"
   | "users"
   | "departments"
-  | "rolespolicies";
+  | "rolespolicies"
+  | "inventory";
 
 const EMPTY = {
   canRead: false,
@@ -147,6 +149,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       qualitycheck: jobCardsRead && listOn("qualitycheck", "qualitycheck_list"),
       exitpermit: jobCardsRead && listOn("exitpermit", "exitpermit_list"),
       inspection: jobCardsRead && listOn("inspection", "inspection_list"),
+      inventory: (isAdminGroup || canAny("INVENTORY").canRead) && listOn("inventory", "inventory_list"),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdminGroup, can, canOption, customerPerms]);
@@ -186,6 +189,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !show.qualitycheck &&
     !show.exitpermit &&
     !show.inspection &&
+    !show.inventory &&
     !showAdmin.users &&
     !showAdmin.departments &&
     !showAdmin.rolespolicies;
@@ -209,6 +213,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.tickets) allowedPages.push("tickets");
     if (show.employees) allowedPages.push("employees");
     if (show.activitylog) allowedPages.push("activitylog");
+    if (show.inventory) allowedPages.push("inventory");
 
     if (showAdmin.users) allowedPages.push("users");
     if (showAdmin.departments) allowedPages.push("departments");
@@ -230,6 +235,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       (page === "tickets" && show.tickets) ||
       (page === "employees" && show.employees) ||
       (page === "activitylog" && show.activitylog) ||
+      (page === "inventory" && show.inventory) ||
       (page === "users" && showAdmin.users) ||
       (page === "departments" && showAdmin.departments) ||
       (page === "rolespolicies" && showAdmin.rolespolicies);
@@ -307,6 +313,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     qualitycheck: t("Quality Check"),
     exitpermit: t("Exit Permit"),
     calltracking: t("Call Tracking"),
+    inventory: t("Inventory"),
     inspection: t("Inspection"),
     users: t("User Management"),
     departments: t("Departments"),
@@ -428,6 +435,12 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             {show.employees && (
               <button className={page === "employees" ? "active" : ""} onClick={() => go("employees")}>
                 <i className="fas fa-user-tie" aria-hidden="true" /> {t("Employees")}
+              </button>
+            )}
+
+            {show.inventory && (
+              <button className={page === "inventory" ? "active" : ""} onClick={() => go("inventory")}>
+                <i className="fas fa-boxes-stacked" aria-hidden="true" /> {t("Inventory")}
               </button>
             )}
 
@@ -615,6 +628,12 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
                 <Employees permissions={canAny("EMPLOYEES")} />
               </PermissionGate>
             )}
+            {page === "inventory" && show.inventory && (
+              <PermissionGate moduleId="inventory" optionId="inventory_list">
+                <InventoryManagement permissions={canAny("INVENTORY")} />
+              </PermissionGate>
+            )}
+
             {page === "activitylog" && show.activitylog && (
               <PermissionGate moduleId="activitylog" optionId="activitylog_list">
                 <ActivityLog permissions={canAny("ACTIVITY_LOG")} />

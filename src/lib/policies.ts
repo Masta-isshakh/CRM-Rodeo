@@ -9,6 +9,7 @@ export const POLICY_LABELS = {
   JOB_CARDS: "Job Cards",
   CALL_TRACKING: "Call Tracking",
   INSPECTION_APPROVALS: "Inspection Approvals",
+  INVENTORY: "Inventory",
 
   USERS_ADMIN: "Users (Admin)",
   DEPARTMENTS_ADMIN: "Departments (Admin)",

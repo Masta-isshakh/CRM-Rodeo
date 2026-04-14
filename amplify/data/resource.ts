@@ -780,6 +780,81 @@ const schema = a
       .authorization((allow) => [allow.authenticated()]),
 
     // -----------------------------
+    // INVENTORY MODULE
+    // -----------------------------
+    InventoryCategory: a
+      .model({
+        name: a.string().required(),
+        description: a.string(),
+        isActive: a.boolean().default(true),
+        createdAt: a.datetime(),
+        createdBy: a.string(),
+        updatedAt: a.datetime(),
+      })
+      .authorization((allow) => [allow.authenticated()]),
+
+    InventorySubcategory: a
+      .model({
+        categoryId: a.id().required(),
+        categoryName: a.string(),
+        name: a.string().required(),
+        description: a.string(),
+        fieldsSchemaJson: a.string(),
+        isActive: a.boolean().default(true),
+        createdAt: a.datetime(),
+        createdBy: a.string(),
+        updatedAt: a.datetime(),
+      })
+      .secondaryIndexes((index) => [
+        index("categoryId").queryField("invSubcategoriesByCategoryId"),
+      ])
+      .authorization((allow) => [allow.authenticated()]),
+
+    InventoryProduct: a
+      .model({
+        categoryId: a.id().required(),
+        subcategoryId: a.id().required(),
+        subcategoryName: a.string(),
+        name: a.string().required(),
+        serialNumber: a.string(),
+        barcode: a.string(),
+        quantity: a.integer().default(0),
+        availableQuantity: a.integer().default(0),
+        customFieldsJson: a.string(),
+        status: a.enum(["ACTIVE", "INACTIVE"]),
+        notes: a.string(),
+        createdAt: a.datetime(),
+        createdBy: a.string(),
+        updatedAt: a.datetime(),
+        updatedBy: a.string(),
+      })
+      .secondaryIndexes((index) => [
+        index("subcategoryId").queryField("invProductsBySubcategoryId"),
+        index("serialNumber").queryField("invProductsBySerialNumber"),
+        index("barcode").queryField("invProductsByBarcode"),
+      ])
+      .authorization((allow) => [allow.authenticated()]),
+
+    InventoryTransaction: a
+      .model({
+        productId: a.id().required(),
+        productName: a.string(),
+        subcategoryId: a.id().required(),
+        categoryId: a.id().required(),
+        transactionType: a.enum(["ADD", "CHECKOUT"]),
+        quantity: a.integer().required(),
+        notesText: a.string(),
+        checkedOutBy: a.string(),
+        createdAt: a.datetime(),
+        createdBy: a.string(),
+      })
+      .secondaryIndexes((index) => [
+        index("productId").queryField("invTransactionsByProductId"),
+        index("subcategoryId").queryField("invTransactionsBySubcategoryId"),
+      ])
+      .authorization((allow) => [allow.authenticated()]),
+
+    // -----------------------------
     // ADMIN MUTATIONS / QUERIES
     // -----------------------------
     inviteUser: a

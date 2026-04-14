@@ -336,6 +336,25 @@ const MODULE_DEFINITIONS = [
   },
 
   {
+    id: "inventory",
+    title: "Inventory",
+    icon: "fas fa-boxes-stacked",
+    category: "core",
+    options: [
+      { id: "inventory_list",          label: "Show Inventory page in sidebar",               prefix: "-"  },
+      { id: "inventory_categories",    label: "View / Manage Categories",                     prefix: "a." },
+      { id: "inventory_subcategories", label: "View / Manage Subcategories",                  prefix: "b." },
+      { id: "inventory_products",      label: "View Products",                                prefix: "c." },
+      { id: "inventory_add_quantity",  label: "Add Products by Quantity",                     prefix: "d." },
+      { id: "inventory_scan",          label: "Add Products by Scanning",                     prefix: "e." },
+      { id: "inventory_fields",        label: "Manage Custom Fields",                         prefix: "f." },
+      { id: "inventory_delete",        label: "Delete Categories / Subcategories / Products", prefix: "g." },
+      { id: "inventory_store",         label: "Show Store (Checkout) Tab",                    prefix: "h." },
+      { id: "inventory_checkout",      label: "Check Out Products from Store",                prefix: "i." },
+    ],
+  },
+
+  {
     id: "admin",
     title: "Inspection Config Admin",
     icon: "fas fa-sliders",
@@ -622,13 +641,10 @@ export default function RoleAccessControl() {
         setLoading(false);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Load settings for selected role
   useEffect(() => {
     if (!currentRoleId) return;
-
     (async () => {
       setLoading(true);
       try {
