@@ -120,6 +120,7 @@ type CrudPerm = typeof EMPTY;
 
 const THEME_STORAGE_KEY = "crm.themeMode";
 const CHAT_LAST_SEEN_STORAGE_PREFIX = "crm.chat.lastSeen.";
+const WORKMAIL_URL = String(import.meta.env.VITE_WORKMAIL_URL ?? "https://mail.awsapps.com/").trim();
 
 type ThemeMode = "light" | "dark";
 
@@ -171,6 +172,11 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     setPage(p);
     if (!isDesktop) setSidebarOpen(false);
   };
+
+  const openEmailInbox = useCallback(() => {
+    if (!WORKMAIL_URL) return;
+    window.open(WORKMAIL_URL, "_blank", "noopener,noreferrer");
+  }, []);
 
   // ✅ helper: sidebar “list” toggle gate (defaults to true if key not stored)
   const listOn = (moduleId: string, listOptionId: string) => {
@@ -645,7 +651,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             )}
 
             {show.emailinbox && (
-              <button className={page === "emailinbox" ? "active" : ""} onClick={() => go("emailinbox")}>
+              <button className={page === "emailinbox" ? "active" : ""} onClick={openEmailInbox}>
                 <i className="fas fa-envelope-open-text" aria-hidden="true" /> {t("Email Inbox")}
               </button>
             )}

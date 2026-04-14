@@ -1873,6 +1873,8 @@ return (
           setExpectedDeliveryTime={setExpectedDeliveryTime}
           onNext={() => setStep(5)}
           onBack={() => setStep(3)}
+          orderType={orderType}
+          vehicleCompletedServices={vehicleCompletedServices}
         />
       )}
 
@@ -2683,8 +2685,75 @@ function StepThreeServices({
   setExpectedDeliveryTime,
   onNext,
   onBack,
+  orderType,
+  vehicleCompletedServices,
 }: any) {
   const [pendingSpecificationProduct, setPendingSpecificationProduct] = useState<any>(null);
+
+  // Unique services extracted from all completed orders (for "service" order type)
+  const completedOrdersServices = useMemo(() => {
+    if (!vehicleCompletedServices?.length) return [];
+    const seen = new Set<string>();
+    const out: any[] = [];
+    for (const order of vehicleCompletedServices ?? []) {
+      for (const svc of order.services ?? []) {
+        const key = normalizeCatalogKey(svc?.serviceCode || svc?.catalogId || svc?.name);
+        if (!key || seen.has(key)) continue;
+        seen.add(key);
+        out.push(svc);
+      }
+    }
+    return out;
+  }, [vehicleCompletedServices]);
+
+  // In "service" mode show completed services; fall through to catalog if none
+  const useCompletedPool = orderType === "service" && completedOrdersServices.length > 0;
+
+  const handleToggleCompletedService = (svc: any) => {
+    const svcKey = normalizeCatalogKey(svc?.serviceCode || svc?.catalogId || svc?.name);
+    const isSelected = selectedServices.some(
+      (s: any) => normalizeCatalogKey(s?.serviceCode || s?.catalogId || s?.name) === svcKey
+    );
+    if (isSelected) {
+      setSelectedServices(
+        selectedServices.filter(
+          (s: any) => normalizeCatalogKey(s?.serviceCode || s?.catalogId || s?.name) !== svcKey
+        )
+      );
+      return;
+    }
+    // Check if the matching catalog product has specifications
+    const catalogProduct = products.find(
+      (p: any) =>
+        normalizeCatalogKey(p?.serviceCode || p?.id || p?.name) ===
+        normalizeCatalogKey(svc?.serviceCode || svc?.catalogId || svc?.name)
+    );
+    if (catalogProduct && hasServiceSpecifications(catalogProduct)) {
+      setPendingSpecificationProduct(catalogProduct);
+      return;
+    }
+    // No spec flow — add directly, preserving any previously saved specification
+    setSelectedServices(
+      dedupeSelectedServices([
+        ...selectedServices,
+        {
+          name: svc.name,
+          nameAr: svc.nameAr,
+          price: catalogProduct
+            ? resolveServicePriceForVehicleType(catalogProduct, vehicleType)
+            : (svc.price || 0),
+          serviceCode: svc.serviceCode || undefined,
+          catalogId: svc.catalogId || undefined,
+          specificationBrandId: svc.specificationBrandId || undefined,
+          specificationBrandName: svc.specificationBrandName || undefined,
+          specificationColorHex: svc.specificationColorHex || undefined,
+          specificationProductId: svc.specificationProductId || undefined,
+          specificationProductName: svc.specificationProductName || undefined,
+          specificationMeasurement: svc.specificationMeasurement || undefined,
+        },
+      ])
+    );
+  };
 
   const handleToggleService = (product: any) => {
     const productKey = normalizeCatalogKey(product.serviceCode || product.id || product.name);
@@ -2752,96 +2821,177 @@ function StepThreeServices({
       </div>
 
       <div className="form-card-content">
-        <p>Select services for {vehicleType}:</p>
 
-        {products.length === 0 ? (
-          <div className="empty-state" style={{ padding: "30px 12px" }}>
-            <div className="empty-text">No services configured yet</div>
-            <div className="empty-subtext">Please create services from the Service Creation page first.</div>
-          </div>
-        ) : (
-        <>
-          <div className="svc-filter-bar">
-            <div className="svc-filter-row">
-              <span className="svc-filter-label"><i className="fas fa-tags"></i> Category</span>
-              <select
-                className="svc-filter-select"
-                value={filterCategory}
-                onChange={(e) => { setFilterCategory(e.target.value); }}
-              >
-                <option value="all">All Categories</option>
-                {svcCategories.map((cat) => (
-                  <option key={cat.id} value={cat.id}>{cat.nameEn}</option>
-                ))}
-              </select>
+        {/* ── COMPLETED SERVICES MODE (service order + completed history) ── */}
+        {useCompletedPool ? (
+          <>
+            <div className="jo-completed-svc-banner">
+              <i className="fas fa-history"></i>
+              <span>Select from previously completed services for this vehicle</span>
             </div>
-            <div className="svc-filter-row">
-              <span className="svc-filter-label"><i className="fas fa-layer-group"></i> Type</span>
-              <div className="svc-type-pills">
-                <button type="button" className={`svc-type-pill${filterType === "all" ? " active" : ""}`} onClick={() => setFilterType("all")}>All</button>
-                <button type="button" className={`svc-type-pill${filterType === "service" ? " active" : ""}`} onClick={() => setFilterType("service")}><i className="fas fa-wrench"></i> Services</button>
-                <button type="button" className={`svc-type-pill${filterType === "package" ? " active" : ""}`} onClick={() => setFilterType("package")}><i className="fas fa-box-open"></i> Packages</button>
-              </div>
-              <span className="svc-filter-count">{filteredProducts.length} of {products.length}</span>
-            </div>
-          </div>
-          {filteredProducts.length === 0 ? (
-            <div className="empty-state" style={{ padding: "24px 12px" }}>
-              <div className="empty-text">No services match your filter</div>
-              <div className="empty-subtext">Try a different category or type.</div>
-            </div>
-          ) : (
-          <div className="services-grid">
-            {filteredProducts.map((product: any) => (
-              <div
-                key={String(product.id || product.serviceCode || product.name)}
-                className={`service-checkbox ${isCatalogProductSelected(product, selectedServices) ? "selected" : ""}`}
-                onClick={() => handleToggleService(product)}
-              >
-                <div className="service-info">
-                  <div className="service-name-row">
-                    <div className="service-name" data-no-translate="true">{getServiceDisplayName(product)}</div>
-                    {String(product?.type ?? "").toLowerCase() === "package" && (
-                      <span className="jo-package-price-badge">
-                        <i className="fas fa-box-open" aria-hidden="true"></i>
-                        Package Price Applied
+
+            <div className="jo-completed-svc-grid">
+              {completedOrdersServices.map((svc: any, idx: number) => {
+                const svcKey = normalizeCatalogKey(svc?.serviceCode || svc?.catalogId || svc?.name);
+                const isSelected = selectedServices.some(
+                  (s: any) => normalizeCatalogKey(s?.serviceCode || s?.catalogId || s?.name) === svcKey
+                );
+                const catalogProduct = products.find(
+                  (p: any) =>
+                    normalizeCatalogKey(p?.serviceCode || p?.id || p?.name) === svcKey
+                );
+                const currentPrice = catalogProduct
+                  ? resolveServicePriceForVehicleType(catalogProduct, vehicleType)
+                  : (svc.price || 0);
+                const selectedSpec = selectedServices.find(
+                  (s: any) => normalizeCatalogKey(s?.serviceCode || s?.catalogId || s?.name) === svcKey
+                );
+                const specLabel = getServiceSpecificationLabel(selectedSpec || svc);
+                const hasSpecs = catalogProduct
+                  ? hasServiceSpecifications(catalogProduct)
+                  : !!(svc.specificationBrandId || svc.specificationBrandName);
+
+                return (
+                  <div
+                    key={`completed-svc-${svcKey || idx}`}
+                    className={`jo-completed-svc-card${isSelected ? " selected" : ""}`}
+                    onClick={() => handleToggleCompletedService(svc)}
+                  >
+                    <div className="jo-completed-svc-check">
+                      <span className={`jo-completed-svc-checkbox${isSelected ? " checked" : ""}`}>
+                        {isSelected && <i className="fas fa-check"></i>}
                       </span>
-                    )}
-                  </div>
-                  {hasServiceSpecifications(product) && (
-                    <div className="empty-subtext" data-no-translate="true">
-                      {(() => {
-                        const selectedSpecification = getSelectedSpecificationForProduct(product, selectedServices);
-                        const label = getServiceSpecificationLabel(selectedSpecification);
-                        const colorHex = String(selectedSpecification?.specificationColorHex || "").trim();
-                        return label ? (
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                            {colorHex ? (
-                              <span
-                                aria-hidden="true"
-                                style={{
-                                  width: 10,
-                                  height: 10,
-                                  borderRadius: 999,
-                                  background: colorHex,
-                                  border: "1px solid rgba(15, 23, 42, 0.14)",
-                                  display: "inline-block",
-                                }}
-                              ></span>
-                            ) : null}
-                            {`Specification: ${label}`}
-                          </span>
-                        ) : "Specification required before adding this service.";
-                      })()}
                     </div>
-                  )}
-                </div>
-                <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
+                    <div className="jo-completed-svc-body">
+                      <div className="jo-completed-svc-name" data-no-translate="true">
+                        {getServiceDisplayName(svc)}
+                      </div>
+                      {hasSpecs && (
+                        <div className="jo-completed-svc-spec" data-no-translate="true">
+                          {specLabel ? (
+                            <span className="jo-completed-spec-set">
+                              {svc.specificationColorHex && (
+                                <span
+                                  className="jo-completed-spec-dot"
+                                  style={{ background: svc.specificationColorHex }}
+                                />
+                              )}
+                              <i className="fas fa-palette"></i> {specLabel}
+                            </span>
+                          ) : (
+                            <span className="jo-completed-spec-hint">
+                              <i className="fas fa-info-circle"></i> Specification required
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      <div className="jo-completed-svc-badge">
+                        <i className="fas fa-check-circle"></i> Previously completed
+                      </div>
+                    </div>
+                    <div className="jo-completed-svc-price">
+                      QAR {Number(currentPrice || 0).toLocaleString()}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          /* ── CATALOG MODE (new order or no completed services) ── */
+          <>
+            <p>Select services for {vehicleType}:</p>
+
+            {products.length === 0 ? (
+              <div className="empty-state" style={{ padding: "30px 12px" }}>
+                <div className="empty-text">No services configured yet</div>
+                <div className="empty-subtext">Please create services from the Service Creation page first.</div>
               </div>
-            ))}
-          </div>
-          )}
-        </>
+            ) : (
+            <>
+              <div className="svc-filter-bar">
+                <div className="svc-filter-row">
+                  <span className="svc-filter-label"><i className="fas fa-tags"></i> Category</span>
+                  <select
+                    className="svc-filter-select"
+                    value={filterCategory}
+                    onChange={(e) => { setFilterCategory(e.target.value); }}
+                  >
+                    <option value="all">All Categories</option>
+                    {svcCategories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>{cat.nameEn}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="svc-filter-row">
+                  <span className="svc-filter-label"><i className="fas fa-layer-group"></i> Type</span>
+                  <div className="svc-type-pills">
+                    <button type="button" className={`svc-type-pill${filterType === "all" ? " active" : ""}`} onClick={() => setFilterType("all")}>All</button>
+                    <button type="button" className={`svc-type-pill${filterType === "service" ? " active" : ""}`} onClick={() => setFilterType("service")}><i className="fas fa-wrench"></i> Services</button>
+                    <button type="button" className={`svc-type-pill${filterType === "package" ? " active" : ""}`} onClick={() => setFilterType("package")}><i className="fas fa-box-open"></i> Packages</button>
+                  </div>
+                  <span className="svc-filter-count">{filteredProducts.length} of {products.length}</span>
+                </div>
+              </div>
+              {filteredProducts.length === 0 ? (
+                <div className="empty-state" style={{ padding: "24px 12px" }}>
+                  <div className="empty-text">No services match your filter</div>
+                  <div className="empty-subtext">Try a different category or type.</div>
+                </div>
+              ) : (
+              <div className="services-grid">
+                {filteredProducts.map((product: any) => (
+                  <div
+                    key={String(product.id || product.serviceCode || product.name)}
+                    className={`service-checkbox ${isCatalogProductSelected(product, selectedServices) ? "selected" : ""}`}
+                    onClick={() => handleToggleService(product)}
+                  >
+                    <div className="service-info">
+                      <div className="service-name-row">
+                        <div className="service-name" data-no-translate="true">{getServiceDisplayName(product)}</div>
+                        {String(product?.type ?? "").toLowerCase() === "package" && (
+                          <span className="jo-package-price-badge">
+                            <i className="fas fa-box-open" aria-hidden="true"></i>
+                            Package Price Applied
+                          </span>
+                        )}
+                      </div>
+                      {hasServiceSpecifications(product) && (
+                        <div className="empty-subtext" data-no-translate="true">
+                          {(() => {
+                            const selectedSpecification = getSelectedSpecificationForProduct(product, selectedServices);
+                            const label = getServiceSpecificationLabel(selectedSpecification);
+                            const colorHex = String(selectedSpecification?.specificationColorHex || "").trim();
+                            return label ? (
+                              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                                {colorHex ? (
+                                  <span
+                                    aria-hidden="true"
+                                    style={{
+                                      width: 10,
+                                      height: 10,
+                                      borderRadius: 999,
+                                      background: colorHex,
+                                      border: "1px solid rgba(15, 23, 42, 0.14)",
+                                      display: "inline-block",
+                                    }}
+                                  ></span>
+                                ) : null}
+                                {`Specification: ${label}`}
+                              </span>
+                            ) : "Specification required before adding this service.";
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                    <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
+                  </div>
+                ))}
+              </div>
+              )}
+            </>
+            )}
+          </>
         )}
 
         <div style={{ marginTop: "20px" }}>
@@ -2947,7 +3097,7 @@ function StepThreeServices({
         <button className="btn btn-secondary" onClick={onBack}>
           Back
         </button>
-        <button className="btn btn-primary" onClick={onNext} disabled={selectedServices.length === 0 || products.length === 0}>
+        <button className="btn btn-primary" onClick={onNext} disabled={selectedServices.length === 0 || (!useCompletedPool && products.length === 0)}>
           Next: Confirm
         </button>
       </div>

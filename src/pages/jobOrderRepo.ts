@@ -1901,11 +1901,21 @@ export async function listCompletedOrdersByPlateNumber(plateNumber: string): Pro
 
   return (rows ?? [])
     .filter((r: any) => String(r.status) === "COMPLETED")
-    .map((r: any) => ({
-      id: r.orderNumber,
-      vehiclePlate: r.plateNumber,
-      workStatus: r.workStatusLabel ?? "Completed",
-    }));
+    .map((r: any) => {
+      let services: any[] = [];
+      try {
+        const parsed = JSON.parse(String(r.dataJson ?? "{}"));
+        services = Array.isArray(parsed.services) ? parsed.services : [];
+      } catch {
+        services = [];
+      }
+      return {
+        id: r.orderNumber,
+        vehiclePlate: r.plateNumber,
+        workStatus: r.workStatusLabel ?? "Completed",
+        services,
+      };
+    });
 }
 
 export async function listJobOrdersForExitPermit(): Promise<any[]> {

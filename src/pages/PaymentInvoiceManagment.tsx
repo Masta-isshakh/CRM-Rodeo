@@ -1386,27 +1386,29 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   @page { size: A4; margin: 0; }
   .invoice-container { width: 210mm; height: 297mm; margin: 0 auto; padding: 15mm; background: white; color: #000; }
   
-  /* Header */
-  .invoice-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 2px solid #000; }
-  .company-info { flex: 1; }
-  .company-info h1 { font-size: 24px; font-weight: bold; margin-bottom: 5px; color: #000; }
-  .company-info p { font-size: 11px; margin: 2px 0; line-height: 1.4; }
-  .invoice-title { text-align: center; flex: 1; }
-  .invoice-title h2 { font-size: 28px; font-weight: bold; border: 3px solid #1a3a5c; padding: 10px 30px; display: inline-block; }
-  .logo-area { flex: 1; text-align: right; }
-  .logo-placeholder { width: 80px; height: 80px; background: #f0f0f0; border: 1px solid #999; display: inline-block; text-align: center; line-height: 80px; font-size: 11px; color: #999; }
-  
-  /* Arabic text */
-  .arabic-text { direction: rtl; text-align: right; font-size: 12px; font-weight: bold; margin-top: 5px; }
-  
-  /* Bill Details Grid */
-  .bill-details { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; margin: 20px 0; font-size: 12px; }
-  .detail-field { display: flex; }
-  .detail-label { font-weight: bold; min-width: 120px; }
-  .detail-value { flex: 1; border-bottom: 1px dotted #999; }
-  
-  /* Services Table */
-  .services-table { width: 100%; margin: 20px 0; border-collapse: collapse; font-size: 12px; }
+  <!-- Header: EN left | Logo center | AR right — matches brand template -->
+  <div class="invoice-header">
+    <div class="co-en">
+      <div class="co-en-name">RODEO DRIVE</div>
+      <div class="co-en-tagline">Gloss Perfected</div>
+      <div class="co-en-addr">Block 2, Shop No. SYS 066, Block 21,</div>
+      <div class="co-en-addr">Near Dragon Mart Al Sayer, Doha.</div>
+    </div>
+    <div class="co-logo">
+      <div class="logo-box">header logo</div>
+    </div>
+    <div class="co-ar">
+      <div class="co-ar-name">رودیو درایف</div>
+      <div class="co-ar-tagline">اللمعات المثالي</div>
+      <div class="co-ar-addr">مبنى 2 ، محل رقم SYS 066 ، 21 ،</div>
+      <div class="co-ar-addr">بالقرب من دراجون مارت السایر ، الدوحة</div>
+    </div>
+  </div>
+  <hr class="header-rule">
+  <!-- INVOICE stamp -->
+  <div class="invoice-title-row">
+    <div class="invoice-title-stamp">INVOICE</div>
+  </div>
   .services-table th { background: #e8e8e8; border: 1px solid #ccc; padding: 10px; text-align: center; font-weight: bold; }
   .services-table td { border: 1px solid #ccc; padding: 10px; }
   .services-table .no-col { text-align: center; width: 40px; }
@@ -1429,18 +1431,22 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   .bottom-label { font-weight: bold; margin-bottom: 5px; }
   .bottom-value { border-bottom: 1px solid #999; min-height: 25px; }
   
-  /* Footer */
-  .invoice-footer { margin-top: 30px; padding-top: 20px; border-top: 2px solid #000; text-align: center; font-size: 10px; line-height: 1.6; }
-  .footer-text { margin-bottom: 5px; }
-  .footer-ar { direction: rtl; text-align: center; margin-top: 10px; }
-</style>
-</head>
-<body>
-<div class="invoice-container">
-  <!-- Header -->
-  <div class="invoice-header">
-    <div class="company-info">
-      <h1>RODEO DRIVE</h1>
+  /* ─── Header: EN left | Logo center | AR right ─── */
+  .invoice-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 0; padding-bottom: 12px; }
+  .co-en { flex: 1; }
+  .co-en-name { font-size: 18px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; color: #000; margin-bottom: 2px; font-family: Arial, sans-serif; }
+  .co-en-tagline { font-size: 11px; font-style: italic; color: #333; margin-bottom: 5px; }
+  .co-en-addr { font-size: 11px; line-height: 1.65; color: #222; }
+  .co-logo { flex: 0 0 160px; display: flex; justify-content: center; align-items: center; }
+  .logo-box { width: 148px; height: 90px; background: #f0f0f0; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 12px; font-family: Arial, sans-serif; }
+  .co-ar { flex: 1; direction: rtl; text-align: right; }
+  .co-ar-name { font-size: 18px; font-weight: 900; color: #000; margin-bottom: 2px; font-family: Arial, sans-serif; }
+  .co-ar-tagline { font-size: 11px; font-style: italic; color: #333; margin-bottom: 5px; }
+  .co-ar-addr { font-size: 11px; line-height: 1.65; color: #222; }
+  .header-rule { border: none; border-top: 1.5px solid #000; margin: 0 0 16px 0; }
+  /* INVOICE title stamp */
+  .invoice-title-row { text-align: center; margin-bottom: 18px; }
+  .invoice-title-stamp { display: inline-block; font-size: 20px; font-weight: 900; letter-spacing: 4px; border: 2.5px solid #1a3a5c; padding: 7px 28px; color: #1a3a5c; }
       <p>Gloss PERFECTED</p>
       <p>Block 2, Shop No. SYS 066, Block 21,</p>
       <p>Near Dragon Mart Al Sayer, Doha.</p>

@@ -65,6 +65,32 @@ export default defineConfig({
             return 'vendor-icons';
           }
 
+          // ── vendor-misc heavy contributors (non-React groups) ─────────────
+          if (id.includes('node_modules/lodash/')) {
+            return 'vendor-lodash';
+          }
+
+          if (id.includes('node_modules/rxjs/')) {
+            return 'vendor-rxjs';
+          }
+
+          if (
+            id.includes('node_modules/xstate/') ||
+            id.includes('node_modules/@xstate/react/') ||
+            id.includes('node_modules/use-isomorphic-layout-effect/')
+          ) {
+            return 'vendor-xstate';
+          }
+
+          if (
+            id.includes('node_modules/qrcode/') ||
+            id.includes('node_modules/dijkstrajs/') ||
+            id.includes('node_modules/encode-utf8/') ||
+            id.includes('node_modules/crc-32/')
+          ) {
+            return 'vendor-qrcode';
+          }
+
           // ── Everything else in node_modules → generic vendor chunk ─────────
           if (id.includes('node_modules/')) {
             return 'vendor-misc';
