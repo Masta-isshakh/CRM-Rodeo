@@ -1,0 +1,42 @@
+.mailx-wrap {
+  min-height: 65vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+}
+
+.mailx-card {
+  width: min(640px, 95vw);
+  border-radius: 20px;
+  border: 1px solid #d8e7f7;
+  background:
+    radial-gradient(120% 120% at 10% 0%, rgba(32, 121, 208, 0.16), transparent 45%),
+    radial-gradient(120% 120% at 90% 100%, rgba(23, 168, 133, 0.14), transparent 45%),
+    #ffffff;
+  box-shadow: 0 20px 48px rgba(14, 41, 74, 0.14);
+  padding: 28px;
+  text-align: center;
+}
+
+.mailx-card h2 {
+  margin: 0;
+  color: #113154;
+}
+
+.mailx-card p {
+  margin: 12px 0 0;
+  color: #4d6784;
+  line-height: 1.5;
+}
+
+.mailx-card a {
+  margin-top: 16px;
+  display: inline-block;
+  text-decoration: none;
+  border-radius: 12px;
+  border: 1px solid #2a79c7;
+  background: linear-gradient(165deg, #1d71c6, #198f9f);
+  color: #fff;
+  font-weight: 800;
+  padding: 11px 14px;
+}

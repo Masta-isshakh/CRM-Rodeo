@@ -124,6 +124,27 @@ export function resolvePolicyAndOp(moduleId: string, optionId: string): Resolved
     return null;
   }
 
+  // INTERNAL CHAT
+  if (m === "internalchat" || m === "chat") {
+    if (
+      o === "internalchat_list" ||
+      o === "internalchat_view" ||
+      o === "internalchat_send" ||
+      o === "internalchat_direct_message"
+    ) {
+      return { policyKey: "INTERNAL_CHAT", op: o === "internalchat_send" ? "canCreate" : "canRead", fallbackOps: ["canUpdate"] };
+    }
+    return null;
+  }
+
+  // EMAIL INBOX
+  if (m === "emailinbox" || m === "email") {
+    if (o === "emailinbox_list" || o === "emailinbox_open") {
+      return { policyKey: "EMAIL_INBOX", op: "canRead" };
+    }
+    return null;
+  }
+
   // JOB ORDERS
   if (m === "joborder" || m === "joborders") {
     if (

@@ -44,6 +44,8 @@ export const POLICY_KEYS = [
   "USERS_ADMIN",
   "DEPARTMENTS_ADMIN",
   "ROLES_POLICIES_ADMIN",
+  "INTERNAL_CHAT",
+  "EMAIL_INBOX",
 ] as const;
 
 function normalizeKey(x: unknown) {

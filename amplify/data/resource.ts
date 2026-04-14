@@ -272,6 +272,25 @@ const schema = a
       })
       .authorization((allow) => [allow.authenticated()]),
 
+    InternalChatMessage: a
+      .model({
+        messageOwner: a.string().required(),
+        conversationKey: a.string().required(),
+        channelType: a.enum(["GLOBAL", "DIRECT"]),
+        senderEmail: a.string().required(),
+        senderName: a.string(),
+        recipientEmail: a.string(),
+        body: a.string().required(),
+        createdAt: a.datetime().required(),
+        editedAt: a.datetime(),
+      })
+      .secondaryIndexes((index) => [index("conversationKey").queryField("internalChatMessagesByConversation")])
+      .authorization((allow) => [
+        allow.ownerDefinedIn("messageOwner"),
+        allow.group(ADMIN_GROUP),
+        allow.authenticated().to(["read", "create"]),
+      ]),
+
     Contact: a
       .model({
         customerId: a.id().required(),

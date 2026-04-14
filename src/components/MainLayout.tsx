@@ -16,6 +16,8 @@ import Users from "../pages/UserAdmin";
 import DepartmentsAdmin from "../pages/DepartmentsAdmin";
 import RolesPoliciesAdmin from "../pages/RolesPoliciesAdmin";
 import InventoryManagement from "../pages/InventoryManagement";
+import InternalChat from "../pages/InternalChat";
+import EmailInbox from "../pages/EmailInbox";
 
 import JobOrderHistory from "../pages/JobOrderHistory";
 import QualityCheckModule from "../pages/QualityCheckModule";
@@ -49,6 +51,8 @@ type Page =
   | "exitpermit"
   | "calltracking"
   | "inspection"
+  | "internalchat"
+  | "emailinbox"
   | "users"
   | "departments"
   | "rolespolicies"
@@ -139,6 +143,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       employees: (isAdminGroup || canAny("EMPLOYEES").canRead) && listOn("employees", "employees_list"),
       activitylog: (isAdminGroup || canAny("ACTIVITY_LOG").canRead) && listOn("activitylog", "activitylog_list"),
       calltracking: (isAdminGroup || canAny("CALL_TRACKING").canRead) && listOn("calltracking", "calltracking_list"),
+      internalchat: (isAdminGroup || canAny("INTERNAL_CHAT").canRead) && listOn("internalchat", "internalchat_list"),
+      emailinbox: (isAdminGroup || canAny("EMAIL_INBOX").canRead) && listOn("emailinbox", "emailinbox_list"),
 
       // Job ecosystem (policy JOB_CARDS)
       jobcards: jobCardsRead && listOn("joborder", "joborder_list"),
@@ -181,6 +187,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !show.employees &&
     !show.activitylog &&
     !show.calltracking &&
+    !show.internalchat &&
+    !show.emailinbox &&
     !show.jobcards &&
     !show.servicecreation &&
     !show.jobhistory &&
@@ -213,6 +221,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.tickets) allowedPages.push("tickets");
     if (show.employees) allowedPages.push("employees");
     if (show.activitylog) allowedPages.push("activitylog");
+    if (show.internalchat) allowedPages.push("internalchat");
+    if (show.emailinbox) allowedPages.push("emailinbox");
     if (show.inventory) allowedPages.push("inventory");
 
     if (showAdmin.users) allowedPages.push("users");
@@ -235,6 +245,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       (page === "tickets" && show.tickets) ||
       (page === "employees" && show.employees) ||
       (page === "activitylog" && show.activitylog) ||
+      (page === "internalchat" && show.internalchat) ||
+      (page === "emailinbox" && show.emailinbox) ||
       (page === "inventory" && show.inventory) ||
       (page === "users" && showAdmin.users) ||
       (page === "departments" && showAdmin.departments) ||
@@ -313,6 +325,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     qualitycheck: t("Quality Check"),
     exitpermit: t("Exit Permit"),
     calltracking: t("Call Tracking"),
+    internalchat: t("Internal Chat"),
+    emailinbox: t("Email Inbox"),
     inventory: t("Inventory"),
     inspection: t("Inspection"),
     users: t("User Management"),
@@ -417,6 +431,18 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             {show.calltracking && (
               <button className={page === "calltracking" ? "active" : ""} onClick={() => go("calltracking")}>
                 <i className="fas fa-phone-alt" aria-hidden="true" /> {t("Call Tracking")}
+              </button>
+            )}
+
+            {show.internalchat && (
+              <button className={page === "internalchat" ? "active" : ""} onClick={() => go("internalchat")}>
+                <i className="fas fa-comments" aria-hidden="true" /> {t("Internal Chat")}
+              </button>
+            )}
+
+            {show.emailinbox && (
+              <button className={page === "emailinbox" ? "active" : ""} onClick={() => go("emailinbox")}>
+                <i className="fas fa-envelope-open-text" aria-hidden="true" /> {t("Email Inbox")}
               </button>
             )}
 
@@ -615,6 +641,18 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             {page === "inspection" && show.inspection && (
               <PermissionGate moduleId="inspection" optionId="inspection_list">
                 <InspectionModule permissions={canAny("JOB_CARDS")} currentUser={currentUser} />
+              </PermissionGate>
+            )}
+
+            {page === "internalchat" && show.internalchat && (
+              <PermissionGate moduleId="internalchat" optionId="internalchat_list">
+                <InternalChat permissions={canAny("INTERNAL_CHAT")} />
+              </PermissionGate>
+            )}
+
+            {page === "emailinbox" && show.emailinbox && (
+              <PermissionGate moduleId="emailinbox" optionId="emailinbox_list">
+                <EmailInbox />
               </PermissionGate>
             )}
 

@@ -140,6 +140,30 @@ const MODULE_DEFINITIONS = [
     ],
   },
 
+  {
+    id: "internalchat",
+    title: "Internal Chat",
+    icon: "fas fa-comments",
+    category: "core",
+    options: [
+      { id: "internalchat_list", label: "Show Internal Chat in sidebar", prefix: "-" },
+      { id: "internalchat_view", label: "View conversations", prefix: "a." },
+      { id: "internalchat_send", label: "Send messages", prefix: "b." },
+      { id: "internalchat_direct_message", label: "Start direct messages", prefix: "c." },
+    ],
+  },
+
+  {
+    id: "emailinbox",
+    title: "Email Inbox",
+    icon: "fas fa-envelope-open-text",
+    category: "core",
+    options: [
+      { id: "emailinbox_list", label: "Show Email Inbox in sidebar", prefix: "-" },
+      { id: "emailinbox_open", label: "Open Amazon WorkMail inbox", prefix: "a." },
+    ],
+  },
+
   // ✅ Job Order page (your JOB_CARDS family)
   {
     id: "joborder",
