@@ -1,14 +1,12 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentUser } from "aws-amplify/auth";
 import type { PageProps } from "../lib/PageProps";
 import { getDataClient } from "../lib/amplifyClient";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./InternalChat.css";
 
-type ChatUser = {
-  email: string;
-  fullName: string;
-};
+// ─── Types ─────────────────────────────────────────────────────────────────────
+type ChatUser = { email: string; fullName: string };
 
 type ChatMessage = {
   id: string;
@@ -29,12 +27,55 @@ type ConversationItem = {
   recipientEmail?: string;
 };
 
+// ─── Constants ──────────────────────────────────────────────────────────────────
 const GLOBAL_KEY = "global:all";
 const GLOBAL_LABEL = "All Team";
-const POLL_MS = 8000;
-const CHAT_LAST_SEEN_STORAGE_PREFIX = "crm.chat.lastSeen.";
-const CONV_LAST_READ_PREFIX = "crm.chat.convread.";
+const POLL_MS = 8_000;
+const RECEIPT_POLL_MS = 12_000;
 const UNREAD_POLL_MS = 30_000;
+export const CHAT_LAST_SEEN_STORAGE_PREFIX = "crm.chat.lastSeen.";
+const CONV_LAST_READ_PREFIX = "crm.chat.convread.";
+const AVATAR_COLORS = [
+  "#e17055", "#00b894", "#0984e3", "#6c5ce7",
+  "#fd79a8", "#00cec9", "#fdcb6e", "#74b9ff",
+];
+
+// ─── Helpers ────────────────────────────────────────────────────────────────────
+function normalizeEmail(value: string): string {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function conversationKeyForDirect(a: string, b: string): string {
+  const x = normalizeEmail(a);
+  const y = normalizeEmail(b);
+  return x < y ? `direct:${x}|${y}` : `direct:${y}|${x}`;
+}
+
+function formatMsgTime(iso: string): string {
+  if (!iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function getDayLabel(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return "TODAY";
+  if (d.toDateString() === yesterday.toDateString()) return "YESTERDAY";
+  return d
+    .toLocaleDateString([], { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+    .toUpperCase();
+}
+
+function getAvatarColor(seed: string): string {
+  let h = 0;
+  for (let i = 0; i < seed.length; i++) h = (h << 5) - h + seed.charCodeAt(i);
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
 
 function getConvLastRead(convKey: string): Date | null {
   try {
@@ -48,32 +89,66 @@ function getConvLastRead(convKey: string): Date | null {
 function markConvRead(convKey: string): void {
   try {
     window.localStorage.setItem(`${CONV_LAST_READ_PREFIX}${convKey}`, new Date().toISOString());
-  } catch { /* ignore storage errors */ }
+  } catch { /* ignore */ }
 }
 
-function normalizeEmail(value: string): string {
-  return String(value ?? "").trim().toLowerCase();
+function markGlobalSeen(email: string): void {
+  const e = normalizeEmail(email);
+  if (!e) return;
+  try {
+    window.localStorage.setItem(`${CHAT_LAST_SEEN_STORAGE_PREFIX}${e}`, new Date().toISOString());
+  } catch { /* ignore */ }
 }
 
-function conversationKeyForDirect(a: string, b: string): string {
-  const x = normalizeEmail(a);
-  const y = normalizeEmail(b);
-  return x < y ? `direct:${x}|${y}` : `direct:${y}|${x}`;
+// ─── SVG Ticks (WhatsApp style) ─────────────────────────────────────────────────
+function SingleTick() {
+  return (
+    <svg width="16" height="11" viewBox="0 0 16 11" fill="none" aria-hidden="true">
+      <path
+        d="M1 5.5L5.5 10L15 1"
+        stroke="#8696a0"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
-function formatTime(value: string): string {
-  if (!value) return "";
-  const dt = new Date(value);
-  if (Number.isNaN(dt.getTime())) return "";
-  return dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+function DoubleTick({ seen }: { seen: boolean }) {
+  const color = seen ? "#53bdeb" : "#8696a0";
+  return (
+    <svg width="22" height="11" viewBox="0 0 22 11" fill="none" aria-hidden="true">
+      <path
+        d="M1 5.5L5.5 10L15 1"
+        stroke={color}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M8 5.5L12.5 10L22 1"
+        stroke={color}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
 }
 
+// ─── Main Component ─────────────────────────────────────────────────────────────
 export default function InternalChat({ permissions }: PageProps) {
   const { t } = useLanguage();
   const client = useMemo(() => getDataClient(), []);
-  const ChatModel = (client.models as any).InternalChatMessage as any;
-  const UserModel = (client.models as any).UserProfile as any;
+  const ChatModel = useMemo(() => (client.models as any).InternalChatMessage as any, [client]);
+  const UserModel = useMemo(() => (client.models as any).UserProfile as any, [client]);
+  const ReceiptModel = useMemo(() => {
+    const m = (client.models as any).ChatReadReceipt;
+    return m ?? null;
+  }, [client]);
 
+  // ── Core state ───────────────────────────────────────────────────────────────
   const [selfEmail, setSelfEmail] = useState("");
   const [selfName, setSelfName] = useState("");
   const [selfOwner, setSelfOwner] = useState("");
@@ -84,81 +159,69 @@ export default function InternalChat({ permissions }: PageProps) {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
-  const [status, setStatus] = useState("");
-  const [dmUnreadMap, setDmUnreadMap] = useState<Record<string, boolean>>({});
+  const [statusMsg, setStatusMsg] = useState("");
+
+  // ── WhatsApp extras ──────────────────────────────────────────────────────────
+  const [dmUnreadMap, setDmUnreadMap] = useState<Record<string, number>>({});
+  const [readReceipts, setReadReceipts] = useState<Record<string, string>>({}); // email → lastReadAt ISO
+  const [mobileShowChat, setMobileShowChat] = useState(false);
+  const myReceiptIds = useRef<Record<string, string | null>>({});
   const listEndRef = useRef<HTMLDivElement | null>(null);
+  const draftRef = useRef<HTMLTextAreaElement | null>(null);
 
   const canSend = permissions.canCreate || permissions.canUpdate;
 
-  const markSeen = (emailValue: string) => {
-    const normalized = normalizeEmail(emailValue);
-    if (!normalized) return;
-    try {
-      window.localStorage.setItem(`${CHAT_LAST_SEEN_STORAGE_PREFIX}${normalized}`, new Date().toISOString());
-    } catch {
-      // ignore storage failures
-    }
-  };
-
+  // ── Initialization ───────────────────────────────────────────────────────────
   useEffect(() => {
     if (!permissions.canRead) return;
-
     let mounted = true;
-
-    const init = async () => {
+    (async () => {
       setLoading(true);
       try {
         const authUser = await getCurrentUser();
-        const loginId = String(authUser?.signInDetails?.loginId ?? authUser?.username ?? "").trim();
+        const loginId = String(
+          authUser?.signInDetails?.loginId ?? authUser?.username ?? ""
+        ).trim();
         const email = normalizeEmail(loginId);
-        const owner = email && authUser?.userId ? `${authUser.userId}::${email}` : email;
-
+        const owner =
+          email && authUser?.userId ? `${authUser.userId}::${email}` : email;
         if (!mounted) return;
         setSelfEmail(email);
         setSelfOwner(owner);
+        markGlobalSeen(email);
 
         if (UserModel) {
-          const profileRes = await UserModel.list({ limit: 1000 });
-          const rows = (profileRes?.data ?? []) as Array<Record<string, any>>;
-
+          const res = await UserModel.list({ limit: 1000 });
+          const rows = (res?.data ?? []) as Array<Record<string, any>>;
           const directory = rows
-            .map((row) => ({
-              email: normalizeEmail(String(row?.email ?? "")),
-              fullName: String(row?.fullName ?? row?.email ?? "").trim(),
+            .map((r) => ({
+              email: normalizeEmail(String(r?.email ?? "")),
+              fullName: String(r?.fullName ?? r?.email ?? "").trim(),
             }))
             .filter((u) => !!u.email)
             .sort((a, b) => a.fullName.localeCompare(b.fullName));
-
           if (!mounted) return;
           setUsers(directory);
-
           const mine = directory.find((u) => u.email === email);
           setSelfName(mine?.fullName || email || "You");
         }
-      } catch (error: any) {
-        if (!mounted) return;
-        setStatus(error?.message || t("Unable to initialize chat."));
+      } catch (err: any) {
+        if (mounted) setStatusMsg(err?.message || t("Unable to initialize chat."));
       } finally {
         if (mounted) setLoading(false);
       }
-    };
-
-    init();
-    return () => {
-      mounted = false;
-    };
+    })();
+    return () => { mounted = false; };
   }, [UserModel, permissions.canRead, t]);
 
-  const conversations = useMemo(() => {
-    const base: ConversationItem[] = [
-      {
-        key: GLOBAL_KEY,
-        label: t(GLOBAL_LABEL),
-        subLabel: t("Company-wide announcements and updates"),
-        channelType: "GLOBAL",
-      },
-    ];
-
+  // ── Conversation list ────────────────────────────────────────────────────────
+  const conversations = useMemo((): ConversationItem[] => {
+    const base: ConversationItem[] = [{
+      key: GLOBAL_KEY,
+      label: t(GLOBAL_LABEL),
+      subLabel: t("Company-wide channel"),
+      channelType: "GLOBAL",
+    }];
     const roster = users
       .filter((u) => u.email && u.email !== selfEmail)
       .map((u) => ({
@@ -168,145 +231,225 @@ export default function InternalChat({ permissions }: PageProps) {
         channelType: "DIRECT" as const,
         recipientEmail: u.email,
       }));
-
     return [...base, ...roster];
   }, [selfEmail, t, users]);
+
+  const sortedConversations = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const filtered = q
+      ? conversations.filter(
+          (c) =>
+            c.label.toLowerCase().includes(q) ||
+            c.subLabel.toLowerCase().includes(q)
+        )
+      : conversations;
+    return [...filtered].sort(
+      (a, b) =>
+        ((dmUnreadMap[b.key] ?? 0) > 0 ? 1 : 0) -
+        ((dmUnreadMap[a.key] ?? 0) > 0 ? 1 : 0)
+    );
+  }, [conversations, query, dmUnreadMap]);
 
   const activeConversation = useMemo(
     () => conversations.find((c) => c.key === conversationKey) ?? conversations[0],
     [conversationKey, conversations]
   );
 
-  const filteredConversations = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const base = q
-      ? conversations.filter(
-          (c) => c.label.toLowerCase().includes(q) || c.subLabel.toLowerCase().includes(q)
-        )
-      : conversations;
-    // Sort: unread conversations float to the top
-    return [...base].sort((a, b) => {
-      const au = dmUnreadMap[a.key] ? 1 : 0;
-      const bu = dmUnreadMap[b.key] ? 1 : 0;
-      return bu - au;
-    });
-  }, [conversations, query, dmUnreadMap]);
+  // ── Load messages ────────────────────────────────────────────────────────────
+  const loadMessages = useCallback(
+    async (key: string) => {
+      if (!ChatModel) return;
+      try {
+        const res = await ChatModel.list({
+          filter: { conversationKey: { eq: key } },
+          limit: 600,
+        });
+        const rows = (res?.data ?? []) as Array<Record<string, any>>;
+        const ordered = rows
+          .map((r) => ({
+            id: String(r?.id ?? ""),
+            conversationKey: String(r?.conversationKey ?? ""),
+            channelType: r?.channelType as "GLOBAL" | "DIRECT" | undefined,
+            senderEmail: normalizeEmail(String(r?.senderEmail ?? "")),
+            senderName: String(r?.senderName ?? "").trim(),
+            recipientEmail: normalizeEmail(String(r?.recipientEmail ?? "")),
+            body: String(r?.body ?? ""),
+            createdAt: String(r?.createdAt ?? ""),
+          }))
+          .filter((r) => !!r.id && !!r.createdAt)
+          .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+        setMessages(ordered);
+        markConvRead(key);
+        markGlobalSeen(selfEmail);
+        setDmUnreadMap((prev) => ({ ...prev, [key]: 0 }));
+        setStatusMsg("");
+      } catch (err: any) {
+        setStatusMsg(err?.message || t("Failed to load messages."));
+      }
+    },
+    [ChatModel, selfEmail, t]
+  );
 
-  const loadMessages = async (key: string) => {
-    if (!ChatModel) {
-      setStatus(t("Internal chat data model is not available. Please deploy backend changes."));
-      return;
-    }
+  // ── Read receipts ────────────────────────────────────────────────────────────
+  const loadReadReceipts = useCallback(
+    async (convKey: string) => {
+      if (!ReceiptModel || !convKey) return;
+      try {
+        let rows: any[] = [];
+        try {
+          const res = await ReceiptModel.chatReadReceiptsByConversation?.({
+            conversationKey: convKey,
+            limit: 200,
+          });
+          rows = res?.data ?? [];
+        } catch {
+          const res = await ReceiptModel.list?.({
+            filter: { conversationKey: { eq: convKey } },
+            limit: 200,
+          });
+          rows = res?.data ?? [];
+        }
+        const map: Record<string, string> = {};
+        for (const r of rows) {
+          const e = normalizeEmail(String(r?.readerEmail ?? ""));
+          const ra = String(r?.lastReadAt ?? "");
+          if (e && ra) map[e] = ra;
+        }
+        setReadReceipts(map);
+      } catch { /* silently ignore */ }
+    },
+    [ReceiptModel]
+  );
 
-    try {
-      const res = await ChatModel.list({
-        filter: { conversationKey: { eq: key } },
-        limit: 600,
-      });
+  const upsertMyReceipt = useCallback(
+    async (convKey: string, email: string) => {
+      if (!ReceiptModel || !email || !convKey) return;
+      const now = new Date().toISOString();
+      const cachedId = myReceiptIds.current[convKey];
+      try {
+        if (cachedId) {
+          await ReceiptModel.update?.({ id: cachedId, lastReadAt: now });
+          return;
+        }
+        // Query to find existing receipt
+        let rows: any[] = [];
+        try {
+          const res = await ReceiptModel.chatReadReceiptsByConversation?.({
+            conversationKey: convKey,
+            limit: 200,
+          });
+          rows = res?.data ?? [];
+        } catch {
+          const res = await ReceiptModel.list?.({
+            filter: { conversationKey: { eq: convKey } },
+            limit: 100,
+          });
+          rows = res?.data ?? [];
+        }
+        const mine = rows.find(
+          (r: any) => normalizeEmail(String(r?.readerEmail ?? "")) === email
+        );
+        if (mine?.id) {
+          myReceiptIds.current[convKey] = mine.id;
+          await ReceiptModel.update?.({ id: mine.id, lastReadAt: now });
+        } else {
+          const created = await ReceiptModel.create?.({
+            conversationKey: convKey,
+            readerEmail: email,
+            lastReadAt: now,
+          });
+          myReceiptIds.current[convKey] = created?.data?.id ?? null;
+        }
+      } catch { /* silently ignore receipt errors */ }
+    },
+    [ReceiptModel]
+  );
 
-      const rows = (res?.data ?? []) as Array<Record<string, any>>;
-      const ordered = rows
-        .map((row) => ({
-          id: String(row?.id ?? ""),
-          conversationKey: String(row?.conversationKey ?? ""),
-          channelType: row?.channelType as "GLOBAL" | "DIRECT" | undefined,
-          senderEmail: normalizeEmail(String(row?.senderEmail ?? "")),
-          senderName: String(row?.senderName ?? "").trim(),
-          recipientEmail: normalizeEmail(String(row?.recipientEmail ?? "")),
-          body: String(row?.body ?? ""),
-          createdAt: String(row?.createdAt ?? ""),
-        }))
-        .filter((row) => !!row.id && !!row.createdAt)
-        .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-
-      setMessages(ordered);
-      markSeen(selfEmail);
-      markConvRead(key);
-      setDmUnreadMap((prev) => ({ ...prev, [key]: false }));
-      setStatus("");
-    } catch (error: any) {
-      setStatus(error?.message || t("Failed to load messages."));
-    }
-  };
-
-  const goToConversation = (key: string) => {
-    markConvRead(key);
-    setDmUnreadMap((prev) => ({ ...prev, [key]: false }));
-    setConversationKey(key);
-  };
-
+  // ── Message polling ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!permissions.canRead || !conversationKey) return;
     loadMessages(conversationKey);
-
-    const timer = window.setInterval(() => {
-      loadMessages(conversationKey);
-    }, POLL_MS);
-
+    const timer = window.setInterval(() => loadMessages(conversationKey), POLL_MS);
     return () => window.clearInterval(timer);
-  }, [ChatModel, conversationKey, permissions.canRead]);
+  }, [ChatModel, conversationKey, permissions.canRead, loadMessages]);
 
-  // Background poll to detect unread messages in OTHER conversations
+  // ── Read receipt polling ─────────────────────────────────────────────────────
+  useEffect(() => {
+    if (!selfEmail || !conversationKey) return;
+    upsertMyReceipt(conversationKey, selfEmail);
+    loadReadReceipts(conversationKey);
+    const timer = window.setInterval(() => {
+      upsertMyReceipt(conversationKey, selfEmail);
+      loadReadReceipts(conversationKey);
+    }, RECEIPT_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [conversationKey, selfEmail, upsertMyReceipt, loadReadReceipts]);
+
+  // ── Background unread poll ───────────────────────────────────────────────────
   useEffect(() => {
     if (!permissions.canRead || !selfEmail || !ChatModel || conversations.length === 0) return;
-
-    const check = async () => {
-      const checks = conversations.map(async (conv) => {
-        // active conversation is always "read"
-        if (conv.key === conversationKey) return { key: conv.key, hasUnread: false };
-        try {
-          const res = await ChatModel.list({
-            filter: { conversationKey: { eq: conv.key } },
-            limit: 20,
-          });
-          const rows = (res?.data ?? []) as Array<Record<string, any>>;
-          const lastRead = getConvLastRead(conv.key);
-          const hasUnread = rows.some((msg) => {
-            if (normalizeEmail(String(msg?.senderEmail ?? "")) === selfEmail) return false;
-            if (!lastRead) return true;
-            const t = new Date(String(msg?.createdAt ?? ""));
-            return !Number.isNaN(t.getTime()) && t > lastRead;
-          });
-          return { key: conv.key, hasUnread };
-        } catch {
-          return { key: conv.key, hasUnread: false };
+    const poll = async () => {
+      const results = await Promise.allSettled(
+        conversations.map(async (conv) => {
+          if (conv.key === conversationKey) return { key: conv.key, count: 0 };
+          try {
+            const res = await ChatModel.list({
+              filter: { conversationKey: { eq: conv.key } },
+              limit: 30,
+            });
+            const rows = (res?.data ?? []) as Array<Record<string, any>>;
+            const lastRead = getConvLastRead(conv.key);
+            const count = rows.filter((msg) => {
+              if (normalizeEmail(String(msg?.senderEmail ?? "")) === selfEmail) return false;
+              if (!lastRead) return true;
+              const ts = new Date(String(msg?.createdAt ?? ""));
+              return !Number.isNaN(ts.getTime()) && ts > lastRead;
+            }).length;
+            return { key: conv.key, count };
+          } catch {
+            return { key: conv.key, count: 0 };
+          }
+        })
+      );
+      setDmUnreadMap((prev) => {
+        const next = { ...prev };
+        for (const r of results) {
+          if (r.status === "fulfilled") next[r.value.key] = r.value.count;
         }
+        next[conversationKey] = 0;
+        return next;
       });
-
-      const results = await Promise.allSettled(checks);
-      const newMap: Record<string, boolean> = {};
-      for (const r of results) {
-        if (r.status === "fulfilled") newMap[r.value.key] = r.value.hasUnread;
-      }
-      setDmUnreadMap(newMap);
     };
-
-    check();
-    const timer = window.setInterval(check, UNREAD_POLL_MS);
+    poll();
+    const timer = window.setInterval(poll, UNREAD_POLL_MS);
     return () => window.clearInterval(timer);
   }, [ChatModel, conversations, selfEmail, conversationKey, permissions.canRead]);
 
-  useEffect(() => {
-    markSeen(selfEmail);
-  }, [selfEmail]);
-
+  // ── Auto-scroll ──────────────────────────────────────────────────────────────
   useEffect(() => {
     listEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages]);
 
-  const sendCurrentMessage = async () => {
-    if (!canSend || sending) return;
+  // ── Switch conversation ──────────────────────────────────────────────────────
+  const goToConversation = (key: string) => {
+    markConvRead(key);
+    setMessages([]);
+    setReadReceipts({});
+    setDmUnreadMap((prev) => ({ ...prev, [key]: 0 }));
+    setConversationKey(key);
+    setMobileShowChat(true);
+    setTimeout(() => draftRef.current?.focus(), 120);
+  };
 
-    const body = draft.trim();
-    if (!body) return;
+  // ── Send message ─────────────────────────────────────────────────────────────
+  const sendCurrentMessage = async () => {
+    if (!canSend || sending || !draft.trim()) return;
     if (!ChatModel) {
-      setStatus(t("Internal chat data model is not available. Please deploy backend changes."));
+      setStatusMsg(t("Chat backend not yet deployed."));
       return;
     }
-
     setSending(true);
-    setStatus("");
-
+    setStatusMsg("");
     try {
       await ChatModel.create({
         messageOwner: selfOwner || selfEmail,
@@ -315,140 +458,331 @@ export default function InternalChat({ permissions }: PageProps) {
         senderEmail: selfEmail,
         senderName: selfName,
         recipientEmail: activeConversation?.recipientEmail,
-        body,
+        body: draft.trim(),
         createdAt: new Date().toISOString(),
       });
-
       setDraft("");
       await loadMessages(conversationKey);
-    } catch (error: any) {
-      setStatus(error?.message || t("Message could not be sent."));
+    } catch (err: any) {
+      setStatusMsg(err?.message || t("Message could not be sent."));
     } finally {
       setSending(false);
     }
   };
 
-  const onSend = async (event: FormEvent) => {
-    event.preventDefault();
+  const onSubmit = async (e: FormEvent) => {
+    e.preventDefault();
     await sendCurrentMessage();
   };
 
+  // ── Message seen status ──────────────────────────────────────────────────────
+  const getMsgStatus = (msg: ChatMessage): "sent" | "seen" => {
+    if (activeConversation?.channelType !== "DIRECT") return "sent";
+    const recip = activeConversation?.recipientEmail;
+    if (!recip) return "sent";
+    const recipReadAt = readReceipts[recip];
+    if (!recipReadAt) return "sent";
+    try {
+      return new Date(recipReadAt) >= new Date(msg.createdAt) ? "seen" : "sent";
+    } catch {
+      return "sent";
+    }
+  };
+
+  // ── Message grouping ─────────────────────────────────────────────────────────
+  type GroupMsg = ChatMessage & { isFirst: boolean; isLast: boolean };
+  const groupedMessages = useMemo(
+    (): GroupMsg[] =>
+      messages.map((msg, i) => {
+        const prev = messages[i - 1];
+        const next = messages[i + 1];
+        const samePrev =
+          prev?.senderEmail === msg.senderEmail &&
+          new Date(msg.createdAt).getTime() - new Date(prev.createdAt).getTime() <
+            5 * 60_000;
+        const sameNext =
+          next?.senderEmail === msg.senderEmail &&
+          new Date(next.createdAt).getTime() - new Date(msg.createdAt).getTime() <
+            5 * 60_000;
+        return { ...msg, isFirst: !samePrev, isLast: !sameNext };
+      }),
+    [messages]
+  );
+
+  // ── Permission guard ─────────────────────────────────────────────────────────
   if (!permissions.canRead) {
-    return <div style={{ padding: 24 }}>{t("You do not have access to this page.")}</div>;
+    return (
+      <div className="wa-no-access">{t("You do not have access to this page.")}</div>
+    );
   }
 
+  // ── Render ───────────────────────────────────────────────────────────────────
+  const seenDays = new Set<string>();
+
   return (
-    <section className="chatx-shell">
-      <div className="chatx-backdrop" />
-      <header className="chatx-header">
-        <div>
-          <p className="chatx-kicker">{t("Internal Communication")}</p>
-          <h2>{t("Rodeo Team Chat")}</h2>
-        </div>
-        <div className="chatx-badges">
-          <span>{users.length + 1} {t("members")}</span>
-          <span>{activeConversation?.channelType === "GLOBAL" ? t("Broadcast") : t("Direct")}</span>
-        </div>
-      </header>
+    <div className={`wa-shell${mobileShowChat ? " mobile-chat-open" : ""}`}>
 
-      <div className="chatx-grid">
-        <aside className="chatx-sidebar" aria-label={t("Conversations")}> 
-          <div className="chatx-search-wrap">
-            <i className="fas fa-search" aria-hidden="true" />
-            <input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder={t("Search people or channels")}
-              aria-label={t("Search conversations")}
-            />
+      {/* ─── Sidebar ──────────────────────────────────────────────────────────── */}
+      <aside className="wa-sidebar">
+        <div className="wa-sidebar-header">
+          <div className="wa-sidebar-brand">
+            <i className="fas fa-comments" aria-hidden="true" />
+            <span>{t("Team Chat")}</span>
           </div>
+          <div className="wa-member-count">
+            {users.length + 1}&nbsp;{t("members")}
+          </div>
+        </div>
 
-          <div className="chatx-conversations">
-            {filteredConversations.map((conv) => {
-              const hasUnread = Boolean(dmUnreadMap[conv.key]);
-              return (
-                <button
-                  key={conv.key}
-                  type="button"
-                  className={[
-                    conv.key === conversationKey ? "is-active" : "",
-                    hasUnread ? "is-unread" : "",
-                  ].filter(Boolean).join(" ")}
-                  onClick={() => goToConversation(conv.key)}
+        <div className="wa-search-wrap">
+          <i className="fas fa-search" aria-hidden="true" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder={t("Search or start new chat")}
+            aria-label={t("Search conversations")}
+          />
+        </div>
+
+        <div className="wa-conv-list" role="listbox" aria-label={t("Conversations")}>
+          {sortedConversations.map((conv) => {
+            const unread = dmUnreadMap[conv.key] ?? 0;
+            const isActive = conv.key === conversationKey;
+            const isGlobal = conv.channelType === "GLOBAL";
+            return (
+              <button
+                key={conv.key}
+                type="button"
+                role="option"
+                aria-selected={isActive}
+                className={`wa-conv-item${isActive ? " active" : ""}${unread > 0 ? " has-unread" : ""}`}
+                onClick={() => goToConversation(conv.key)}
+              >
+                <div
+                  className="wa-conv-avatar"
+                  style={isGlobal ? {} : { background: getAvatarColor(conv.subLabel) }}
                 >
-                  <span className="chatx-avatar">{conv.label.slice(0, 1).toUpperCase()}</span>
-                  <span className="chatx-title-wrap">
-                    <strong>{conv.label}</strong>
-                    <small>{conv.subLabel}</small>
-                  </span>
-                  {hasUnread && (
-                    <span className="chatx-unread-dot" aria-label="Unread messages" />
+                  {isGlobal ? (
+                    <i className="fas fa-users" aria-hidden="true" />
+                  ) : (
+                    conv.label.charAt(0).toUpperCase()
                   )}
-                </button>
-              );
-            })}
-          </div>
-        </aside>
+                </div>
 
-        <article className="chatx-thread" aria-live="polite">
-          <div className="chatx-thread-head">
-            <div>
-              <h3>{activeConversation?.label ?? t(GLOBAL_LABEL)}</h3>
-              <p>{activeConversation?.subLabel || t("Real-time team communication")}</p>
-            </div>
-            <button type="button" onClick={() => loadMessages(conversationKey)}>
-              <i className="fas fa-rotate-right" aria-hidden="true" /> {t("Refresh")}
-            </button>
-          </div>
-
-          <div className="chatx-messages">
-            {loading && <p className="chatx-empty">{t("Loading...")}</p>}
-            {!loading && messages.length === 0 && (
-              <p className="chatx-empty">{t("No messages yet. Start the conversation.")}</p>
-            )}
-
-            {messages.map((message) => {
-              const mine = message.senderEmail === selfEmail;
-              return (
-                <div key={message.id} className={`chatx-msg ${mine ? "mine" : "other"}`}>
-                  <div className="chatx-msg-card">
-                    <div className="chatx-msg-meta">
-                      <strong>{mine ? t("You") : (message.senderName || message.senderEmail)}</strong>
-                      <time>{formatTime(message.createdAt)}</time>
-                    </div>
-                    <p>{message.body}</p>
+                <div className="wa-conv-body">
+                  <div className="wa-conv-top">
+                    <span className="wa-conv-name">{conv.label}</span>
+                  </div>
+                  <div className="wa-conv-bottom">
+                    <span className="wa-conv-sub">{conv.subLabel}</span>
+                    {unread > 0 && (
+                      <span className="wa-unread-badge" aria-label={`${unread} unread`}>
+                        {unread > 99 ? "99+" : unread}
+                      </span>
+                    )}
                   </div>
                 </div>
-              );
-            })}
-            <div ref={listEndRef} />
+              </button>
+            );
+          })}
+        </div>
+      </aside>
+
+      {/* ─── Chat panel ───────────────────────────────────────────────────────── */}
+      <section className="wa-chat">
+
+        {/* Header */}
+        <div className="wa-chat-header">
+          <button
+            type="button"
+            className="wa-back-btn"
+            onClick={() => setMobileShowChat(false)}
+            aria-label={t("Back")}
+          >
+            <i className="fas fa-arrow-left" aria-hidden="true" />
+          </button>
+
+          <div
+            className="wa-chat-avatar"
+            style={
+              activeConversation?.channelType === "GLOBAL"
+                ? {}
+                : { background: getAvatarColor(activeConversation?.subLabel ?? "") }
+            }
+          >
+            {activeConversation?.channelType === "GLOBAL" ? (
+              <i className="fas fa-users" aria-hidden="true" />
+            ) : (
+              (activeConversation?.label?.charAt(0) ?? "?").toUpperCase()
+            )}
           </div>
 
-          <form className="chatx-compose" onSubmit={onSend}>
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              placeholder={
-                canSend
-                  ? t("Write a message and press Enter")
-                  : t("You can view messages only")
-              }
-              disabled={!canSend || sending}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  void sendCurrentMessage();
-                }
-              }}
-            />
-            <button type="submit" disabled={!canSend || sending || !draft.trim()}>
-              <i className="fas fa-paper-plane" aria-hidden="true" /> {sending ? t("Sending...") : t("Send")}
-            </button>
-          </form>
-        </article>
-      </div>
+          <div className="wa-chat-header-info">
+            <strong>{activeConversation?.label ?? t(GLOBAL_LABEL)}</strong>
+            <span>
+              {activeConversation?.channelType === "DIRECT"
+                ? activeConversation.subLabel
+                : `${users.length + 1} ${t("members")}`}
+            </span>
+          </div>
 
-      {status && <div className="chatx-status">{status}</div>}
-    </section>
+          <button
+            type="button"
+            className="wa-icon-btn"
+            onClick={() => loadMessages(conversationKey)}
+            title={t("Refresh")}
+          >
+            <i className="fas fa-rotate-right" aria-hidden="true" />
+          </button>
+        </div>
+
+        {/* Message list */}
+        <div className="wa-messages" role="log" aria-live="polite">
+          {loading && (
+            <div className="wa-day-sep">
+              <span className="wa-day-label">{t("Loading…")}</span>
+            </div>
+          )}
+
+          {!loading && messages.length === 0 && (
+            <div className="wa-empty">
+              <i className="fas fa-lock" aria-hidden="true" />
+              <p>{t("No messages yet. Say hello!")}</p>
+            </div>
+          )}
+
+          {groupedMessages.map((msg) => {
+            const mine = msg.senderEmail === selfEmail;
+            const dayLabel = getDayLabel(msg.createdAt);
+            const showDay = !!dayLabel && !seenDays.has(dayLabel);
+            if (showDay) seenDays.add(dayLabel);
+            const status = mine ? getMsgStatus(msg) : null;
+
+            return (
+              <div key={msg.id}>
+                {showDay && (
+                  <div className="wa-day-sep" aria-hidden="true">
+                    <span className="wa-day-label">{dayLabel}</span>
+                  </div>
+                )}
+
+                <div
+                  className={[
+                    "wa-row",
+                    mine ? "wa-sent" : "wa-recv",
+                    msg.isFirst ? "wa-first" : "",
+                    msg.isLast ? "wa-last" : "",
+                  ]
+                    .filter(Boolean)
+                    .join(" ")}
+                >
+                  {/* Receiver avatar */}
+                  {!mine && (
+                    <div
+                      className="wa-avatar-sm"
+                      style={{
+                        background: getAvatarColor(msg.senderEmail),
+                        visibility: msg.isLast ? "visible" : "hidden",
+                      }}
+                      aria-hidden="true"
+                    >
+                      {(msg.senderName || msg.senderEmail).charAt(0).toUpperCase()}
+                    </div>
+                  )}
+
+                  {/* Bubble */}
+                  <div
+                    className={[
+                      "wa-bubble",
+                      mine ? "wa-mine" : "wa-theirs",
+                      !msg.isFirst ? "wa-grouped" : "",
+                      msg.isFirst ? (mine ? "wa-tail-right" : "wa-tail-left") : "",
+                    ]
+                      .filter(Boolean)
+                      .join(" ")}
+                  >
+                    {/* Sender name (group channel only) */}
+                    {!mine &&
+                      msg.isFirst &&
+                      activeConversation?.channelType === "GLOBAL" && (
+                        <div
+                          className="wa-sender-name"
+                          style={{ color: getAvatarColor(msg.senderEmail) }}
+                        >
+                          {msg.senderName || msg.senderEmail}
+                        </div>
+                      )}
+
+                    <p className="wa-msg-text">{msg.body}</p>
+
+                    <div className="wa-msg-meta">
+                      <time className="wa-msg-time">{formatMsgTime(msg.createdAt)}</time>
+                      {mine && (
+                        <span
+                          className="wa-ticks"
+                          aria-label={status === "seen" ? t("Seen") : t("Sent")}
+                        >
+                          {activeConversation?.channelType === "DIRECT" ? (
+                            <DoubleTick seen={status === "seen"} />
+                          ) : (
+                            <SingleTick />
+                          )}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          <div ref={listEndRef} />
+        </div>
+
+        {/* Status bar */}
+        {statusMsg && (
+          <div className="wa-status-bar" role="alert">
+            {statusMsg}
+          </div>
+        )}
+
+        {/* Compose bar */}
+        <form className="wa-compose" onSubmit={onSubmit}>
+          <textarea
+            ref={draftRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder={canSend ? t("Type a message") : t("View only")}
+            disabled={!canSend || sending}
+            rows={1}
+            onInput={(e) => {
+              // Auto-resize textarea
+              const el = e.currentTarget;
+              el.style.height = "auto";
+              el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                void sendCurrentMessage();
+              }
+            }}
+            aria-label={t("Message input")}
+          />
+          <button
+            type="submit"
+            className="wa-send-btn"
+            disabled={!canSend || sending || !draft.trim()}
+            aria-label={t("Send message")}
+          >
+            {sending ? (
+              <i className="fas fa-spinner fa-spin" aria-hidden="true" />
+            ) : (
+              <i className="fas fa-paper-plane" aria-hidden="true" />
+            )}
+          </button>
+        </form>
+      </section>
+    </div>
   );
 }

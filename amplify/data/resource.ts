@@ -291,6 +291,20 @@ const schema = a
         allow.authenticated().to(["read", "create"]),
       ]),
 
+    // Tracks when each user last read a conversation — used for "seen" receipts
+    ChatReadReceipt: a
+      .model({
+        conversationKey: a.string().required(),
+        readerEmail: a.string().required(),
+        lastReadAt: a.datetime().required(),
+      })
+      .secondaryIndexes((index) => [
+        index("conversationKey").queryField("chatReadReceiptsByConversation"),
+      ])
+      .authorization((allow) => [
+        allow.authenticated().to(["read", "create", "update"]),
+      ]),
+
     Contact: a
       .model({
         customerId: a.id().required(),
