@@ -133,7 +133,7 @@
   border-radius: 14px;
   background: transparent;
   display: grid;
-  grid-template-columns: 34px 1fr;
+  grid-template-columns: 34px 1fr auto;
   gap: 10px;
   align-items: center;
   padding: 9px;
@@ -149,6 +149,36 @@
 .chatx-conversations button.is-active {
   border-color: #98c2ea;
   background: linear-gradient(150deg, rgba(15, 111, 198, 0.14), rgba(15, 163, 111, 0.12));
+}
+
+/* ─── Unread conversation highlight ───────────────────────────────────── */
+.chatx-conversations button.is-unread {
+  background: linear-gradient(150deg, rgba(15, 111, 198, 0.11), rgba(15, 163, 111, 0.08));
+  border-color: #7fbde8;
+}
+
+.chatx-conversations button.is-unread:hover {
+  background: linear-gradient(150deg, rgba(15, 111, 198, 0.16), rgba(15, 163, 111, 0.12));
+}
+
+.chatx-conversations button.is-unread .chatx-title-wrap strong {
+  color: #0a4897;
+  font-weight: 800;
+}
+
+.chatx-conversations button.is-unread .chatx-avatar {
+  background: linear-gradient(170deg, #d6ecff, #d2fff2);
+  border-color: #6ab3e4;
+  color: #0a4897;
+}
+
+.chatx-unread-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #0f6fc6;
+  flex-shrink: 0;
+  box-shadow: 0 0 7px rgba(15, 111, 198, 0.55);
 }
 
 .chatx-avatar {

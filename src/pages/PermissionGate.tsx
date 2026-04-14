@@ -405,6 +405,29 @@ export function resolvePolicyAndOp(moduleId: string, optionId: string): Resolved
     return null;
   }
 
+  // INVENTORY
+  if (m === "inventory") {
+    if (
+      o === "inventory_list" ||
+      o === "inventory_categories" ||
+      o === "inventory_subcategories" ||
+      o === "inventory_products" ||
+      o === "inventory_store"
+    ) {
+      return { policyKey: "INVENTORY", op: "canRead" };
+    }
+    if (o === "inventory_add_quantity" || o === "inventory_scan" || o === "inventory_fields") {
+      return { policyKey: "INVENTORY", op: "canCreate", fallbackOps: ["canUpdate"] };
+    }
+    if (o === "inventory_checkout") {
+      return { policyKey: "INVENTORY", op: "canUpdate", fallbackOps: ["canRead"] };
+    }
+    if (o === "inventory_delete") {
+      return { policyKey: "INVENTORY", op: "canDelete" };
+    }
+    return null;
+  }
+
   // ADMIN - Inspection config
   if (m === "admin" && o === "inspection_config_admin") {
     return { policyKey: "INSPECTION_APPROVALS", op: "canUpdate", fallbackOps: ["canRead"] };

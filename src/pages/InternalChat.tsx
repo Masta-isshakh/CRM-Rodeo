@@ -33,6 +33,23 @@ const GLOBAL_KEY = "global:all";
 const GLOBAL_LABEL = "All Team";
 const POLL_MS = 8000;
 const CHAT_LAST_SEEN_STORAGE_PREFIX = "crm.chat.lastSeen.";
+const CONV_LAST_READ_PREFIX = "crm.chat.convread.";
+const UNREAD_POLL_MS = 30_000;
+
+function getConvLastRead(convKey: string): Date | null {
+  try {
+    const stored = window.localStorage.getItem(`${CONV_LAST_READ_PREFIX}${convKey}`);
+    if (!stored) return null;
+    const d = new Date(stored);
+    return Number.isNaN(d.getTime()) ? null : d;
+  } catch { return null; }
+}
+
+function markConvRead(convKey: string): void {
+  try {
+    window.localStorage.setItem(`${CONV_LAST_READ_PREFIX}${convKey}`, new Date().toISOString());
+  } catch { /* ignore storage errors */ }
+}
 
 function normalizeEmail(value: string): string {
   return String(value ?? "").trim().toLowerCase();
@@ -68,6 +85,7 @@ export default function InternalChat({ permissions }: PageProps) {
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
   const [status, setStatus] = useState("");
+  const [dmUnreadMap, setDmUnreadMap] = useState<Record<string, boolean>>({});
   const listEndRef = useRef<HTMLDivElement | null>(null);
 
   const canSend = permissions.canCreate || permissions.canUpdate;
@@ -161,11 +179,18 @@ export default function InternalChat({ permissions }: PageProps) {
 
   const filteredConversations = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return conversations;
-    return conversations.filter(
-      (c) => c.label.toLowerCase().includes(q) || c.subLabel.toLowerCase().includes(q)
-    );
-  }, [conversations, query]);
+    const base = q
+      ? conversations.filter(
+          (c) => c.label.toLowerCase().includes(q) || c.subLabel.toLowerCase().includes(q)
+        )
+      : conversations;
+    // Sort: unread conversations float to the top
+    return [...base].sort((a, b) => {
+      const au = dmUnreadMap[a.key] ? 1 : 0;
+      const bu = dmUnreadMap[b.key] ? 1 : 0;
+      return bu - au;
+    });
+  }, [conversations, query, dmUnreadMap]);
 
   const loadMessages = async (key: string) => {
     if (!ChatModel) {
@@ -196,10 +221,18 @@ export default function InternalChat({ permissions }: PageProps) {
 
       setMessages(ordered);
       markSeen(selfEmail);
+      markConvRead(key);
+      setDmUnreadMap((prev) => ({ ...prev, [key]: false }));
       setStatus("");
     } catch (error: any) {
       setStatus(error?.message || t("Failed to load messages."));
     }
+  };
+
+  const goToConversation = (key: string) => {
+    markConvRead(key);
+    setDmUnreadMap((prev) => ({ ...prev, [key]: false }));
+    setConversationKey(key);
   };
 
   useEffect(() => {
@@ -212,6 +245,46 @@ export default function InternalChat({ permissions }: PageProps) {
 
     return () => window.clearInterval(timer);
   }, [ChatModel, conversationKey, permissions.canRead]);
+
+  // Background poll to detect unread messages in OTHER conversations
+  useEffect(() => {
+    if (!permissions.canRead || !selfEmail || !ChatModel || conversations.length === 0) return;
+
+    const check = async () => {
+      const checks = conversations.map(async (conv) => {
+        // active conversation is always "read"
+        if (conv.key === conversationKey) return { key: conv.key, hasUnread: false };
+        try {
+          const res = await ChatModel.list({
+            filter: { conversationKey: { eq: conv.key } },
+            limit: 20,
+          });
+          const rows = (res?.data ?? []) as Array<Record<string, any>>;
+          const lastRead = getConvLastRead(conv.key);
+          const hasUnread = rows.some((msg) => {
+            if (normalizeEmail(String(msg?.senderEmail ?? "")) === selfEmail) return false;
+            if (!lastRead) return true;
+            const t = new Date(String(msg?.createdAt ?? ""));
+            return !Number.isNaN(t.getTime()) && t > lastRead;
+          });
+          return { key: conv.key, hasUnread };
+        } catch {
+          return { key: conv.key, hasUnread: false };
+        }
+      });
+
+      const results = await Promise.allSettled(checks);
+      const newMap: Record<string, boolean> = {};
+      for (const r of results) {
+        if (r.status === "fulfilled") newMap[r.value.key] = r.value.hasUnread;
+      }
+      setDmUnreadMap(newMap);
+    };
+
+    check();
+    const timer = window.setInterval(check, UNREAD_POLL_MS);
+    return () => window.clearInterval(timer);
+  }, [ChatModel, conversations, selfEmail, conversationKey, permissions.canRead]);
 
   useEffect(() => {
     markSeen(selfEmail);
@@ -291,20 +364,29 @@ export default function InternalChat({ permissions }: PageProps) {
           </div>
 
           <div className="chatx-conversations">
-            {filteredConversations.map((conv) => (
-              <button
-                key={conv.key}
-                type="button"
-                className={conv.key === conversationKey ? "is-active" : ""}
-                onClick={() => setConversationKey(conv.key)}
-              >
-                <span className="chatx-avatar">{conv.label.slice(0, 1).toUpperCase()}</span>
-                <span className="chatx-title-wrap">
-                  <strong>{conv.label}</strong>
-                  <small>{conv.subLabel}</small>
-                </span>
-              </button>
-            ))}
+            {filteredConversations.map((conv) => {
+              const hasUnread = Boolean(dmUnreadMap[conv.key]);
+              return (
+                <button
+                  key={conv.key}
+                  type="button"
+                  className={[
+                    conv.key === conversationKey ? "is-active" : "",
+                    hasUnread ? "is-unread" : "",
+                  ].filter(Boolean).join(" ")}
+                  onClick={() => goToConversation(conv.key)}
+                >
+                  <span className="chatx-avatar">{conv.label.slice(0, 1).toUpperCase()}</span>
+                  <span className="chatx-title-wrap">
+                    <strong>{conv.label}</strong>
+                    <small>{conv.subLabel}</small>
+                  </span>
+                  {hasUnread && (
+                    <span className="chatx-unread-dot" aria-label="Unread messages" />
+                  )}
+                </button>
+              );
+            })}
           </div>
         </aside>
 
