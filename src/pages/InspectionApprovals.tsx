@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import { Button, TextField, SelectField } from "@aws-amplify/ui-react";
-import "@aws-amplify/ui-react/styles.css";
 
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";

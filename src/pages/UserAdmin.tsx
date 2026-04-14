@@ -1,7 +1,6 @@
 // src/pages/UserAdmin.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@aws-amplify/ui-react";
-import "@aws-amplify/ui-react/styles.css";
 import { createPortal } from "react-dom";
 import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 

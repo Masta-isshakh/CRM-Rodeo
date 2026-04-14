@@ -31,8 +31,8 @@ type ConversationItem = {
 const GLOBAL_KEY = "global:all";
 const GLOBAL_LABEL = "All Team";
 const POLL_MS = 8_000;
-const RECEIPT_POLL_MS = 12_000;
-const UNREAD_POLL_MS = 30_000;
+const RECEIPT_POLL_MS = 15_000;
+const UNREAD_POLL_MS = 45_000;
 export const CHAT_LAST_SEEN_STORAGE_PREFIX = "crm.chat.lastSeen.";
 const CONV_LAST_READ_PREFIX = "crm.chat.convread.";
 const AVATAR_COLORS = [
@@ -167,6 +167,7 @@ export default function InternalChat({ permissions }: PageProps) {
   const [mobileShowChat, setMobileShowChat] = useState(false);
   const myReceiptIds = useRef<Record<string, string | null>>({});
   const listEndRef = useRef<HTMLDivElement | null>(null);
+  const lastMessageIdRef = useRef<string>("");
   const draftRef = useRef<HTMLTextAreaElement | null>(null);
 
   const canSend = permissions.canCreate || permissions.canUpdate;
@@ -278,7 +279,11 @@ export default function InternalChat({ permissions }: PageProps) {
           }))
           .filter((r) => !!r.id && !!r.createdAt)
           .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-        setMessages(ordered);
+        const nextLastId = ordered[ordered.length - 1]?.id ?? "";
+        if (nextLastId !== lastMessageIdRef.current) {
+          lastMessageIdRef.current = nextLastId;
+          setMessages(ordered);
+        }
         markConvRead(key);
         markGlobalSeen(selfEmail);
         setDmUnreadMap((prev) => ({ ...prev, [key]: 0 }));
@@ -368,19 +373,25 @@ export default function InternalChat({ permissions }: PageProps) {
   // ── Message polling ──────────────────────────────────────────────────────────
   useEffect(() => {
     if (!permissions.canRead || !conversationKey) return;
-    loadMessages(conversationKey);
-    const timer = window.setInterval(() => loadMessages(conversationKey), POLL_MS);
+    let cancelled = false;
+    const tick = () => {
+      if (cancelled || document.hidden) return;
+      void loadMessages(conversationKey);
+    };
+    void loadMessages(conversationKey);
+    const timer = window.setInterval(tick, POLL_MS);
     return () => window.clearInterval(timer);
   }, [ChatModel, conversationKey, permissions.canRead, loadMessages]);
 
   // ── Read receipt polling ─────────────────────────────────────────────────────
   useEffect(() => {
     if (!selfEmail || !conversationKey) return;
-    upsertMyReceipt(conversationKey, selfEmail);
-    loadReadReceipts(conversationKey);
+    void upsertMyReceipt(conversationKey, selfEmail);
+    void loadReadReceipts(conversationKey);
     const timer = window.setInterval(() => {
-      upsertMyReceipt(conversationKey, selfEmail);
-      loadReadReceipts(conversationKey);
+      if (document.hidden) return;
+      void upsertMyReceipt(conversationKey, selfEmail);
+      void loadReadReceipts(conversationKey);
     }, RECEIPT_POLL_MS);
     return () => window.clearInterval(timer);
   }, [conversationKey, selfEmail, upsertMyReceipt, loadReadReceipts]);
@@ -388,41 +399,53 @@ export default function InternalChat({ permissions }: PageProps) {
   // ── Background unread poll ───────────────────────────────────────────────────
   useEffect(() => {
     if (!permissions.canRead || !selfEmail || !ChatModel || conversations.length === 0) return;
+    const convSet = new Set(conversations.map((c) => c.key));
+    let cancelled = false;
+
     const poll = async () => {
-      const results = await Promise.allSettled(
-        conversations.map(async (conv) => {
-          if (conv.key === conversationKey) return { key: conv.key, count: 0 };
-          try {
-            const res = await ChatModel.list({
-              filter: { conversationKey: { eq: conv.key } },
-              limit: 30,
-            });
-            const rows = (res?.data ?? []) as Array<Record<string, any>>;
-            const lastRead = getConvLastRead(conv.key);
-            const count = rows.filter((msg) => {
-              if (normalizeEmail(String(msg?.senderEmail ?? "")) === selfEmail) return false;
-              if (!lastRead) return true;
-              const ts = new Date(String(msg?.createdAt ?? ""));
-              return !Number.isNaN(ts.getTime()) && ts > lastRead;
-            }).length;
-            return { key: conv.key, count };
-          } catch {
-            return { key: conv.key, count: 0 };
-          }
-        })
-      );
-      setDmUnreadMap((prev) => {
-        const next = { ...prev };
-        for (const r of results) {
-          if (r.status === "fulfilled") next[r.value.key] = r.value.count;
+      if (cancelled || document.hidden) return;
+      try {
+        const res = await ChatModel.list({ limit: 800 });
+        const rows = (res?.data ?? []) as Array<Record<string, any>>;
+        const next: Record<string, number> = {};
+
+        for (const conv of conversations) {
+          next[conv.key] = 0;
         }
+
+        for (const msg of rows) {
+          const convKey = String(msg?.conversationKey ?? "");
+          if (!convSet.has(convKey)) continue;
+          if (convKey === conversationKey) continue;
+
+          const sender = normalizeEmail(String(msg?.senderEmail ?? ""));
+          if (!sender || sender === selfEmail) continue;
+
+          const createdAtRaw = String(msg?.createdAt ?? "");
+          const createdAtMs = Date.parse(createdAtRaw);
+          if (!Number.isFinite(createdAtMs)) continue;
+
+          const lastRead = getConvLastRead(convKey);
+          if (lastRead && createdAtMs <= lastRead.getTime()) continue;
+
+          next[convKey] = (next[convKey] ?? 0) + 1;
+        }
+
         next[conversationKey] = 0;
-        return next;
-      });
+        if (!cancelled) setDmUnreadMap(next);
+      } catch {
+        if (!cancelled) {
+          setDmUnreadMap((prev) => ({ ...prev, [conversationKey]: 0 }));
+        }
+      }
     };
-    poll();
-    const timer = window.setInterval(poll, UNREAD_POLL_MS);
-    return () => window.clearInterval(timer);
+
+    void poll();
+    const timer = window.setInterval(() => void poll(), UNREAD_POLL_MS);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
   }, [ChatModel, conversations, selfEmail, conversationKey, permissions.canRead]);
 
   // ── Auto-scroll ──────────────────────────────────────────────────────────────

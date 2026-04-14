@@ -10,6 +10,22 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
+          // ── Amplify category entry points (smaller, cache-friendly splits) ─
+          if (
+            id.includes('node_modules/aws-amplify/api') ||
+            id.includes('node_modules/@aws-amplify/api') ||
+            id.includes('node_modules/@aws-amplify/data-schema')
+          ) {
+            return 'vendor-amplify-api';
+          }
+
+          if (
+            id.includes('node_modules/aws-amplify/data') ||
+            id.includes('node_modules/@aws-amplify/data')
+          ) {
+            return 'vendor-amplify-data';
+          }
+
           // ── Amplify core runtime ──────────────────────────────────────────
           if (
             id.includes('node_modules/aws-amplify') ||

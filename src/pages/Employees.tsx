@@ -3,7 +3,6 @@ import { useEffect, useState, type ChangeEvent } from "react";
 import { generateClient } from "aws-amplify/data";
 import type { Schema } from "../../amplify/data/resource";
 import { Button, TextField } from "@aws-amplify/ui-react";
-import "@aws-amplify/ui-react/styles.css";
 import "./employees.css";
 import { logActivity } from "../utils/activityLogger";
 import type { PageProps } from "../lib/PageProps";

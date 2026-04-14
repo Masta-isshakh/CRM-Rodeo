@@ -1,7 +1,6 @@
 // src/pages/DepartmentsAdmin.tsx
 import { useEffect, useMemo, useState } from "react";
 import { Button, TextField } from "@aws-amplify/ui-react";
-import "@aws-amplify/ui-react/styles.css";
 import "./DepartmentsAdmin.css";
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";

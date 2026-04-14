@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button, TextField, SelectField } from "@aws-amplify/ui-react";
-import "@aws-amplify/ui-react/styles.css";
 
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";

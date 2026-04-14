@@ -1,30 +1,55 @@
 // src/layout/MainLayout.tsx
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-const Dashboard = lazy(() => import("../pages/Dashboard"));
-const Customers = lazy(() => import("../pages/Customer"));
-const Vehicles = lazy(() => import("../pages/Vehicule"));
-const Tickets = lazy(() => import("../pages/Tickets"));
-const Employees = lazy(() => import("../pages/Employees"));
-const ActivityLog = lazy(() => import("../pages/ActivityLogs"));
+const loadDashboard = () => import("../pages/Dashboard");
+const loadCustomers = () => import("../pages/Customer");
+const loadVehicles = () => import("../pages/Vehicule");
+const loadTickets = () => import("../pages/Tickets");
+const loadEmployees = () => import("../pages/Employees");
+const loadActivityLog = () => import("../pages/ActivityLogs");
 
-const JobCards = lazy(() => import("../pages/JobCards"));
-const ServiceCreation = lazy(() => import("../pages/ServiceCreation"));
-const CallTracking = lazy(() => import("../pages/CallTracking"));
-const ServiceExecution = lazy(() => import("../pages/ServiceExecutionModule"));
-const Users = lazy(() => import("../pages/UserAdmin"));
-const DepartmentsAdmin = lazy(() => import("../pages/DepartmentsAdmin"));
-const RolesPoliciesAdmin = lazy(() => import("../pages/RolesPoliciesAdmin"));
-const InventoryManagement = lazy(() => import("../pages/InventoryManagement"));
-const InternalChat = lazy(() => import("../pages/InternalMessaging"));
-const EmailInbox = lazy(() => import("../pages/EmailInboxPage"));
+const loadJobCards = () => import("../pages/JobCards");
+const loadServiceCreation = () => import("../pages/ServiceCreation");
+const loadCallTracking = () => import("../pages/CallTracking");
+const loadServiceExecution = () => import("../pages/ServiceExecutionModule");
+const loadUsers = () => import("../pages/UserAdmin");
+const loadDepartmentsAdmin = () => import("../pages/DepartmentsAdmin");
+const loadRolesPoliciesAdmin = () => import("../pages/RolesPoliciesAdmin");
+const loadInventoryManagement = () => import("../pages/InventoryManagement");
+const loadInternalChat = () => import("../pages/InternalMessaging");
+const loadEmailInbox = () => import("../pages/EmailInboxPage");
 
-const JobOrderHistory = lazy(() => import("../pages/JobOrderHistory"));
-const QualityCheckModule = lazy(() => import("../pages/QualityCheckModule"));
-const ExitPermitManagement = lazy(() => import("../pages/ExitPermitManagement"));
+const loadJobOrderHistory = () => import("../pages/JobOrderHistory");
+const loadQualityCheckModule = () => import("../pages/QualityCheckModule");
+const loadExitPermitManagement = () => import("../pages/ExitPermitManagement");
 
-const InspectionModule = lazy(() => import("../pages/InspectionModule"));
-const PaymentInvoiceManagment = lazy(() => import("../pages/PaymentInvoiceManagment"));
+const loadInspectionModule = () => import("../pages/InspectionModule");
+const loadPaymentInvoiceManagment = () => import("../pages/PaymentInvoiceManagment");
+
+const Dashboard = lazy(loadDashboard);
+const Customers = lazy(loadCustomers);
+const Vehicles = lazy(loadVehicles);
+const Tickets = lazy(loadTickets);
+const Employees = lazy(loadEmployees);
+const ActivityLog = lazy(loadActivityLog);
+
+const JobCards = lazy(loadJobCards);
+const ServiceCreation = lazy(loadServiceCreation);
+const CallTracking = lazy(loadCallTracking);
+const ServiceExecution = lazy(loadServiceExecution);
+const Users = lazy(loadUsers);
+const DepartmentsAdmin = lazy(loadDepartmentsAdmin);
+const RolesPoliciesAdmin = lazy(loadRolesPoliciesAdmin);
+const InventoryManagement = lazy(loadInventoryManagement);
+const InternalChat = lazy(loadInternalChat);
+const EmailInbox = lazy(loadEmailInbox);
+
+const JobOrderHistory = lazy(loadJobOrderHistory);
+const QualityCheckModule = lazy(loadQualityCheckModule);
+const ExitPermitManagement = lazy(loadExitPermitManagement);
+
+const InspectionModule = lazy(loadInspectionModule);
+const PaymentInvoiceManagment = lazy(loadPaymentInvoiceManagment);
 import PermissionGate from "../pages/PermissionGate";
 
 
@@ -58,6 +83,30 @@ type Page =
   | "departments"
   | "rolespolicies"
   | "inventory";
+
+const PAGE_LOADERS: Record<Page, () => Promise<unknown>> = {
+  dashboard: loadDashboard,
+  customers: loadCustomers,
+  vehicles: loadVehicles,
+  tickets: loadTickets,
+  employees: loadEmployees,
+  activitylog: loadActivityLog,
+  jobcards: loadJobCards,
+  servicecreation: loadServiceCreation,
+  jobhistory: loadJobOrderHistory,
+  serviceexecution: loadServiceExecution,
+  paymentinvoices: loadPaymentInvoiceManagment,
+  qualitycheck: loadQualityCheckModule,
+  exitpermit: loadExitPermitManagement,
+  calltracking: loadCallTracking,
+  inspection: loadInspectionModule,
+  internalchat: loadInternalChat,
+  emailinbox: loadEmailInbox,
+  users: loadUsers,
+  departments: loadDepartmentsAdmin,
+  rolespolicies: loadRolesPoliciesAdmin,
+  inventory: loadInventoryManagement,
+};
 
 const EMPTY = {
   canRead: false,
@@ -105,6 +154,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(detectDesktop);
   const [themeMode, setThemeMode] = useState<ThemeMode>(resolveInitialTheme);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const prefetchedPagesRef = useRef<Set<Page>>(new Set());
 
   const { loading, email, isAdminGroup, can, canOption, isModuleEnabled, refresh } = usePermissions();
   const { language, toggleLanguage, t } = useLanguage();
@@ -180,6 +230,72 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       rolespolicies: rolesRead && listOn("rolespolicies", "rolespolicies_list"),
     };
   }, [isAdminGroup, can, canOption, isModuleEnabled]);
+
+  const visiblePages = useMemo(() => {
+    const pages: Page[] = [];
+    if (show.dashboard) pages.push("dashboard");
+    if (show.customers) pages.push("customers");
+    if (show.vehicles) pages.push("vehicles");
+    if (show.jobcards) pages.push("jobcards");
+    if (show.servicecreation) pages.push("servicecreation");
+    if (show.jobhistory) pages.push("jobhistory");
+    if (show.serviceexecution) pages.push("serviceexecution");
+    if (show.paymentinvoices) pages.push("paymentinvoices");
+    if (show.qualitycheck) pages.push("qualitycheck");
+    if (show.exitpermit) pages.push("exitpermit");
+    if (show.inspection) pages.push("inspection");
+    if (show.calltracking) pages.push("calltracking");
+    if (show.tickets) pages.push("tickets");
+    if (show.employees) pages.push("employees");
+    if (show.activitylog) pages.push("activitylog");
+    if (show.internalchat) pages.push("internalchat");
+    if (show.emailinbox) pages.push("emailinbox");
+    if (show.inventory) pages.push("inventory");
+    if (showAdmin.users) pages.push("users");
+    if (showAdmin.departments) pages.push("departments");
+    if (showAdmin.rolespolicies) pages.push("rolespolicies");
+    return pages;
+  }, [show, showAdmin]);
+
+  const prefetchPage = useCallback((target: Page) => {
+    if (prefetchedPagesRef.current.has(target)) return;
+
+    const connection = (navigator as any)?.connection;
+    const saveData = Boolean(connection?.saveData);
+    const slowConn =
+      connection?.effectiveType === "slow-2g" || connection?.effectiveType === "2g";
+    if (saveData || slowConn) return;
+
+    const loader = PAGE_LOADERS[target];
+    if (!loader) return;
+
+    prefetchedPagesRef.current.add(target);
+    void loader();
+  }, []);
+
+  useEffect(() => {
+    const toPrefetch = visiblePages.filter((p) => p !== page).slice(0, 3);
+    if (toPrefetch.length === 0) return;
+
+    const idle = (window as any).requestIdleCallback as
+      | ((cb: () => void, opts?: { timeout: number }) => number)
+      | undefined;
+
+    if (idle) {
+      const id = idle(() => {
+        for (const p of toPrefetch) prefetchPage(p);
+      }, { timeout: 1500 });
+      return () => {
+        const cancelIdle = (window as any).cancelIdleCallback as ((id: number) => void) | undefined;
+        cancelIdle?.(id);
+      };
+    }
+
+    const timer = window.setTimeout(() => {
+      for (const p of toPrefetch) prefetchPage(p);
+    }, 800);
+    return () => window.clearTimeout(timer);
+  }, [page, prefetchPage, visiblePages]);
 
   const nothingVisible =
     !loading &&
@@ -288,7 +404,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
   useEffect(() => {
     const normalizedEmail = String(email ?? "").trim().toLowerCase();
-    if (!normalizedEmail || !show.internalchat) {
+    if (!normalizedEmail || !show.internalchat || page === "internalchat") {
       setUnreadChatCount(0);
       return;
     }
@@ -343,8 +459,9 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
     void refreshUnreadCount();
     const timer = window.setInterval(() => {
+      if (document.hidden) return;
       void refreshUnreadCount();
-    }, 7000);
+    }, 15000);
 
     return () => {
       cancelled = true;

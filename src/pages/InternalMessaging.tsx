@@ -1,1 +1,1 @@
-export { default } from "./InternalChat";
+export { default } from "./InternalChat.tsx";
