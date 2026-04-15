@@ -290,8 +290,9 @@ function VehiclesTable(props: {
   canView: boolean;
   canUpdate: boolean;
   canDelete: boolean;
+  completedServicesByPlate: Record<string, number>;
 }) {
-  const { data, searchQuery, onView, onEdit, onDelete, canView, canUpdate, canDelete } = props;
+  const { data, searchQuery, onView, onEdit, onDelete, canView, canUpdate, canDelete, completedServicesByPlate } = props;
 
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
@@ -350,7 +351,14 @@ function VehiclesTable(props: {
               <td>{highlightText(v.color ?? "—", searchQuery)}</td>
               <td>{highlightText(v.plateNumber ?? "—", searchQuery)}</td>
               <td>
-                <span className="count-badge">{(v.completedServicesCount ?? 0).toString()} services</span>
+                {(() => {
+                  const plateKey = String(v.plateNumber ?? "").trim().toLowerCase();
+                  const dynamicCount = plateKey ? completedServicesByPlate[plateKey] : undefined;
+                  const finalCount = Number.isFinite(dynamicCount as number)
+                    ? Number(dynamicCount)
+                    : Number(v.completedServicesCount ?? 0);
+                  return <span className="count-badge">{finalCount.toString()} services</span>;
+                })()}
               </td>
 
               <td>
@@ -473,6 +481,7 @@ export default function VehicleManagement({
   }
 
   const [vehicles, setVehicles] = useState<VehicleRow[]>([]);
+  const [completedServicesByPlate, setCompletedServicesByPlate] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(false);
 
   const [searchQuery, setSearchQuery] = useState("");
@@ -484,6 +493,8 @@ export default function VehicleManagement({
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleRow | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerRow | null>(null);
   const [completedOrders, setCompletedOrders] = useState<JobOrderRow[]>([]);
+  const [selectedCustomerVehiclesCount, setSelectedCustomerVehiclesCount] = useState(0);
+  const [selectedCustomerCompletedServicesCount, setSelectedCustomerCompletedServicesCount] = useState(0);
 
   // modals
   const [showAddModal, setShowAddModal] = useState(false);
@@ -609,9 +620,49 @@ export default function VehicleManagement({
     }
   }, [showAlert]);
 
+  const loadCompletedServicesByPlate = useCallback(async () => {
+    try {
+      let rows: JobOrderRow[] = [];
+
+      try {
+        const out: JobOrderRow[] = [];
+        let nextToken: string | null | undefined = undefined;
+        do {
+          const byStatus: any = await (client.models.JobOrder as any)?.jobOrdersByStatus?.({
+            status: "COMPLETED",
+            limit: 2000,
+            nextToken,
+          });
+          out.push(...(((byStatus as any)?.data ?? []) as JobOrderRow[]));
+          nextToken = (byStatus as any)?.nextToken;
+        } while (nextToken && out.length < 12000);
+        rows = out;
+      } catch {
+        const res = await client.models.JobOrder.list({
+          limit: 5000,
+          filter: { status: { eq: "COMPLETED" } },
+        } as any);
+        rows = ((res as any)?.data ?? []) as JobOrderRow[];
+      }
+
+      const counts: Record<string, number> = {};
+      for (const row of rows) {
+        const key = String((row as any)?.plateNumber ?? "").trim().toLowerCase();
+        if (!key) continue;
+        counts[key] = (counts[key] ?? 0) + 1;
+      }
+
+      setCompletedServicesByPlate(counts);
+    } catch (e) {
+      console.error("[vehicles] failed to load completed-services counts", e);
+      setCompletedServicesByPlate({});
+    }
+  }, []);
+
   useEffect(() => {
     loadVehicles();
-  }, [loadVehicles]);
+    loadCompletedServicesByPlate();
+  }, [loadVehicles, loadCompletedServicesByPlate]);
 
   // Optional navigation hook
   useEffect(() => {
@@ -881,6 +932,7 @@ export default function VehicleManagement({
       setShowAddModal(false);
       resetForm();
       await loadVehicles();
+      await loadCompletedServicesByPlate();
       await showAlert("Success", "Vehicle created successfully!", "success");
     } catch (e) {
       console.error(e);
@@ -939,6 +991,7 @@ export default function VehicleManagement({
       resetForm();
       setSelectedVehicleId(null);
       await loadVehicles();
+      await loadCompletedServicesByPlate();
       await showAlert("Success", "Vehicle updated successfully!", "success");
     } catch (e) {
       console.error(e);
@@ -974,6 +1027,7 @@ export default function VehicleManagement({
       }
 
       await loadVehicles();
+      await loadCompletedServicesByPlate();
       await showAlert("Success", "Vehicle deleted successfully!", "success");
     } catch (e) {
       console.error(e);
@@ -1018,6 +1072,74 @@ export default function VehicleManagement({
             })()
           : Promise.resolve(null);
 
+        const customerVehiclesCountPromise = customerId
+          ? (async () => {
+              try {
+                const byCustomer = await client.models.Vehicle.list({
+                  filter: { customerId: { eq: customerId } } as any,
+                  limit: 2000,
+                } as any);
+                return (byCustomer.data ?? []).length;
+              } catch {
+                return 0;
+              }
+            })()
+          : Promise.resolve(0);
+
+        const customerCompletedServicesPromise = customerId
+          ? (async () => {
+              try {
+                const completed = await client.models.JobOrder.list({
+                  filter: { customerId: { eq: customerId }, status: { eq: "COMPLETED" } } as any,
+                  limit: 5000,
+                } as any);
+                const direct = (completed.data ?? []).length;
+                if (direct > 0) return direct;
+              } catch {
+                // fallback below
+              }
+
+              try {
+                const customerVehicles = await client.models.Vehicle.list({
+                  filter: { customerId: { eq: customerId } } as any,
+                  limit: 2000,
+                } as any);
+                const uniquePlates = Array.from(
+                  new Set(
+                    (customerVehicles.data ?? [])
+                      .map((v: any) => String(v?.plateNumber ?? "").trim())
+                      .filter(Boolean)
+                  )
+                );
+
+                if (!uniquePlates.length) return 0;
+
+                const counts = await Promise.all(
+                  uniquePlates.map(async (plate) => {
+                    try {
+                      const byPlate = await (client.models.JobOrder as any)?.jobOrdersByPlateNumber?.({
+                        plateNumber: plate,
+                        limit: 2000,
+                      });
+                      const rows = ((byPlate as any)?.data ?? []) as any[];
+                      return rows.filter((row) => String(row?.status ?? "") === "COMPLETED").length;
+                    } catch {
+                      const listed = await client.models.JobOrder.list({
+                        filter: { plateNumber: { eq: plate }, status: { eq: "COMPLETED" } } as any,
+                        limit: 2000,
+                      } as any);
+                      return (listed.data ?? []).length;
+                    }
+                  })
+                );
+
+                return counts.reduce((sum, n) => sum + Number(n || 0), 0);
+              } catch {
+                return 0;
+              }
+            })()
+          : Promise.resolve(0);
+
         const completedOrdersPromise = plateNumber
           ? (async () => {
               if (completedOrdersByPlateRef.current.has(plateNumber)) {
@@ -1033,10 +1155,17 @@ export default function VehicleManagement({
             })()
           : Promise.resolve([] as JobOrderRow[]);
 
-        const [customerData, completedRows] = await Promise.all([customerPromise, completedOrdersPromise]);
+        const [customerData, completedRows, customerVehiclesCount, customerCompletedServicesCount] = await Promise.all([
+          customerPromise,
+          completedOrdersPromise,
+          customerVehiclesCountPromise,
+          customerCompletedServicesPromise,
+        ]);
 
         setSelectedCustomer(customerData);
         setCompletedOrders(completedRows);
+        setSelectedCustomerVehiclesCount(customerVehiclesCount);
+        setSelectedCustomerCompletedServicesCount(customerCompletedServicesCount);
       } catch (e) {
         console.error(e);
       }
@@ -1049,6 +1178,8 @@ export default function VehicleManagement({
     setSelectedVehicle(null);
     setSelectedCustomer(null);
     setCompletedOrders([]);
+    setSelectedCustomerVehiclesCount(0);
+    setSelectedCustomerCompletedServicesCount(0);
   };
 
   // ----------------------
@@ -1110,6 +1241,20 @@ export default function VehicleManagement({
                   <div className="pim-info-item">
                     <span className="pim-info-label">Email</span>
                     <span className="pim-info-value">{selectedCustomer?.email ?? "Not provided"}</span>
+                  </div>
+
+                  <div className="pim-info-item">
+                    <span className="pim-info-label">Registered Vehicles</span>
+                    <span className="pim-info-value">
+                      <span className="count-badge">{selectedCustomerVehiclesCount} vehicles</span>
+                    </span>
+                  </div>
+
+                  <div className="pim-info-item">
+                    <span className="pim-info-label">Completed Services</span>
+                    <span className="pim-info-value">
+                      <span className="count-badge">{selectedCustomerCompletedServicesCount} completed</span>
+                    </span>
                   </div>
                 </div>
               </div>
@@ -1449,6 +1594,7 @@ export default function VehicleManagement({
             canView={canViewDetails}
             canUpdate={canEdit}
             canDelete={canDelete}
+            completedServicesByPlate={completedServicesByPlate}
           />
 
           {totalPages > 1 && (

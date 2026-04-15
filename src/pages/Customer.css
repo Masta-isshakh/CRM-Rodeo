@@ -1100,3 +1100,66 @@
     max-width: 100% !important;
   }
 }
+
+/* ========================================
+   BUTTON VISIBILITY + CONSISTENCY
+======================================== */
+.customer-page .btn-refresh,
+.customer-page .btn-new-customer,
+.customer-page .btn-action-dropdown,
+.customer-page .btn-save,
+.customer-page .btn-confirm-delete,
+.customer-page .alert-popup-btn.ok,
+.customer-page .alert-popup-btn.confirm,
+.customer-page .pagination-btn.active,
+.customer-page .btn-action.btn-edit {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border: 1px solid #2563eb !important;
+}
+
+.customer-page .btn-refresh:hover,
+.customer-page .btn-new-customer:hover,
+.customer-page .btn-action-dropdown:hover,
+.customer-page .btn-save:hover,
+.customer-page .btn-confirm-delete:hover,
+.customer-page .alert-popup-btn.ok:hover,
+.customer-page .alert-popup-btn.confirm:hover,
+.customer-page .btn-action.btn-edit:hover {
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
+}
+
+.customer-page .btn-cancel,
+.customer-page .delete-modal .btn-cancel,
+.customer-page .alert-popup-btn.cancel,
+.customer-page .pim-btn-close-details,
+.customer-page .btn-close-modal,
+.customer-page .pagination-btn {
+  background: #ffffff !important;
+  color: #1e3a8a !important;
+  border: 1px solid #93c5fd !important;
+}
+
+.customer-page .btn-cancel:hover,
+.customer-page .delete-modal .btn-cancel:hover,
+.customer-page .alert-popup-btn.cancel:hover,
+.customer-page .pim-btn-close-details:hover,
+.customer-page .btn-close-modal:hover,
+.customer-page .pagination-btn:hover:not(.active):not(:disabled) {
+  background: #eff6ff !important;
+  border-color: #60a5fa !important;
+  color: #1d4ed8 !important;
+}
+
+.customer-page .btn-action-dropdown,
+.customer-page .btn-new-customer,
+.customer-page .btn-refresh,
+.customer-page .btn-save,
+.customer-page .btn-cancel,
+.customer-page .btn-confirm-delete,
+.customer-page .pim-btn-close-details {
+  min-height: 38px;
+  border-radius: 8px;
+  font-weight: 700;
+}

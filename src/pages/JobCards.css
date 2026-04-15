@@ -3115,6 +3115,70 @@ i {
     margin-bottom: 4px;
   }
 
+  .jo-completed-orders-wrap {
+    margin: 0 0 14px;
+    border: 1px solid #dbeafe;
+    background: #f8fbff;
+    border-radius: 12px;
+    padding: 12px;
+  }
+
+  .jo-completed-orders-title {
+    font-size: 13px;
+    font-weight: 700;
+    color: #1e3a8a;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+
+  .jo-completed-orders-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 8px;
+  }
+
+  .jo-completed-order-card {
+    border: 1px solid #bfdbfe;
+    background: #ffffff;
+    border-radius: 10px;
+    padding: 9px 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .jo-completed-order-id {
+    font-size: 12px;
+    font-weight: 800;
+    color: #1d4ed8;
+    line-height: 1.2;
+    word-break: break-word;
+  }
+
+  .jo-completed-order-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    font-size: 11px;
+  }
+
+  .jo-completed-order-status {
+    color: #065f46;
+    background: #ecfdf5;
+    border: 1px solid #bbf7d0;
+    border-radius: 999px;
+    padding: 2px 7px;
+    font-weight: 700;
+  }
+
+  .jo-completed-order-count {
+    color: #334155;
+    font-weight: 700;
+  }
+
   .jo-completed-svc-card {
     display: flex;
     align-items: flex-start;

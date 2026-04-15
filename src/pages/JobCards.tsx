@@ -2709,6 +2709,18 @@ function StepThreeServices({
   // In "service" mode show completed services; fall through to catalog if none
   const useCompletedPool = orderType === "service" && completedOrdersServices.length > 0;
 
+  const completedOrderHistory = useMemo(() => {
+    return (vehicleCompletedServices ?? []).map((order: any, idx: number) => {
+      const orderId = String(order?.id || order?.orderNumber || `Completed-${idx + 1}`).trim();
+      const services = Array.isArray(order?.services) ? order.services : [];
+      return {
+        orderId,
+        workStatus: String(order?.workStatus || "Completed").trim() || "Completed",
+        servicesCount: services.length,
+      };
+    });
+  }, [vehicleCompletedServices]);
+
   const handleToggleCompletedService = (svc: any) => {
     const svcKey = normalizeCatalogKey(svc?.serviceCode || svc?.catalogId || svc?.name);
     const isSelected = selectedServices.some(
@@ -2828,6 +2840,25 @@ function StepThreeServices({
             <div className="jo-completed-svc-banner">
               <i className="fas fa-history"></i>
               <span>Select from previously completed services for this vehicle</span>
+            </div>
+
+            <div className="jo-completed-orders-wrap">
+              <div className="jo-completed-orders-title">
+                <i className="fas fa-list-check"></i> Completed Job Orders for this Vehicle
+              </div>
+              <div className="jo-completed-orders-grid">
+                {completedOrderHistory.map((entry: any) => (
+                  <div key={entry.orderId} className="jo-completed-order-card">
+                    <div className="jo-completed-order-id">{entry.orderId}</div>
+                    <div className="jo-completed-order-meta">
+                      <span className="jo-completed-order-status">{entry.workStatus}</span>
+                      <span className="jo-completed-order-count">
+                        {entry.servicesCount} service{entry.servicesCount === 1 ? "" : "s"}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
 
             <div className="jo-completed-svc-grid">

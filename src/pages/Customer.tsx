@@ -460,6 +460,7 @@ function CustomersTable(props: {
 function DetailsView(props: {
   customer: CustomerRow;
   counts: CountsMap;
+  customerStats: { vehicles: number; completedServices: number };
   contacts: ContactRow[];
   deals: DealRow[];
   tickets: TicketRow[];
@@ -477,6 +478,7 @@ function DetailsView(props: {
   const {
     customer,
     counts,
+    customerStats,
     contacts,
     deals,
     tickets,
@@ -607,6 +609,20 @@ function DetailsView(props: {
                   <span className="pim-info-label">Tickets</span>
                   <span className="pim-info-value">
                     <span className="count-badge">{ct.tickets} tickets</span>
+                  </span>
+                </div>
+
+                <div className="pim-info-item">
+                  <span className="pim-info-label">Registered Vehicles</span>
+                  <span className="pim-info-value">
+                    <span className="count-badge">{customerStats.vehicles} vehicles</span>
+                  </span>
+                </div>
+
+                <div className="pim-info-item">
+                  <span className="pim-info-label">Completed Services</span>
+                  <span className="pim-info-value">
+                    <span className="count-badge">{customerStats.completedServices} completed</span>
                   </span>
                 </div>
 
@@ -846,10 +862,15 @@ export default function Customers({ permissions }: PageProps) {
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [deals, setDeals] = useState<DealRow[]>([]);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
+  const [customerStats, setCustomerStats] = useState<{ vehicles: number; completedServices: number }>({
+    vehicles: 0,
+    completedServices: 0,
+  });
   const countsRequestRef = useRef(0);
   const relationsCacheRef = useRef<
     Map<string, { contacts?: ContactRow[]; deals?: DealRow[]; tickets?: TicketRow[] }>
   >(new Map());
+  const customerStatsCacheRef = useRef<Map<string, { vehicles: number; completedServices: number }>>(new Map());
 
   const formatCustomerId = useCallback((id: string) => formatCustomerDisplayId(id), []);
 
@@ -1059,6 +1080,69 @@ export default function Customers({ permissions }: PageProps) {
     setSelectedCustomerId(id);
     setViewMode("details");
 
+    const cachedStats = customerStatsCacheRef.current.get(id);
+    setCustomerStats(cachedStats ?? { vehicles: 0, completedServices: 0 });
+
+    void (async () => {
+      try {
+        const vehiclesByCustomer = await client.models.Vehicle.list({
+          filter: { customerId: { eq: id } } as any,
+          limit: 2000,
+        } as any);
+        const vehiclesRows = (vehiclesByCustomer.data ?? []) as any[];
+        const vehiclesCount = vehiclesRows.length;
+
+        let completedCount = 0;
+        try {
+          const byCustomerCompleted = await client.models.JobOrder.list({
+            filter: { customerId: { eq: id }, status: { eq: "COMPLETED" } } as any,
+            limit: 5000,
+          } as any);
+          completedCount = (byCustomerCompleted.data ?? []).length;
+        } catch {
+          completedCount = 0;
+        }
+
+        if (completedCount === 0 && vehiclesRows.length) {
+          const uniquePlates = Array.from(
+            new Set(
+              vehiclesRows
+                .map((v: any) => String(v?.plateNumber ?? "").trim())
+                .filter(Boolean)
+            )
+          );
+
+          if (uniquePlates.length) {
+            const byPlate = await Promise.all(
+              uniquePlates.map(async (plate) => {
+                try {
+                  const out = await (client.models.JobOrder as any)?.jobOrdersByPlateNumber?.({
+                    plateNumber: plate,
+                    limit: 2000,
+                  });
+                  const rows = ((out as any)?.data ?? []) as any[];
+                  return rows.filter((row) => String(row?.status ?? "") === "COMPLETED").length;
+                } catch {
+                  const listed = await client.models.JobOrder.list({
+                    filter: { plateNumber: { eq: plate }, status: { eq: "COMPLETED" } } as any,
+                    limit: 2000,
+                  } as any);
+                  return (listed.data ?? []).length;
+                }
+              })
+            );
+            completedCount = byPlate.reduce((sum, n) => sum + Number(n || 0), 0);
+          }
+        }
+
+        const nextStats = { vehicles: vehiclesCount, completedServices: completedCount };
+        customerStatsCacheRef.current.set(id, nextStats);
+        setCustomerStats(nextStats);
+      } catch (e) {
+        console.error("[customers] failed to compute customer stats", e);
+      }
+    })();
+
     // only load relations if at least one related section is enabled
     const shouldLoadRelations =
       canCustomersDetailsRelated &&
@@ -1124,6 +1208,7 @@ export default function Customers({ permissions }: PageProps) {
   const closeDetailsView = () => {
     setViewMode("list");
     setSelectedCustomerId(null);
+    setCustomerStats({ vehicles: 0, completedServices: 0 });
   };
 
   const validate = (): boolean => {
@@ -1288,6 +1373,7 @@ export default function Customers({ permissions }: PageProps) {
         <DetailsView
           customer={selectedCustomer}
           counts={counts}
+          customerStats={customerStats}
           contacts={contacts}
           deals={deals}
           tickets={tickets}

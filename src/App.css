@@ -437,3 +437,87 @@ body,
     font-size: 14px;
   }
 }
+
+/* ========================================
+   GLOBAL BUTTON NORMALIZATION (All Modules)
+======================================== */
+.layout-main :is(
+  .btn-refresh,
+  .btn-new-customer,
+  .btn-new-job,
+  .btn-save,
+  .btn-confirm-delete,
+  .btn-action-dropdown,
+  .btn-action.btn-edit,
+  .btn-primary,
+  .btn-success,
+  .alert-popup-btn.ok,
+  .alert-popup-btn.confirm,
+  .pagination-btn.active
+) {
+  background: #2563eb !important;
+  color: #ffffff !important;
+  border: 1px solid #2563eb !important;
+}
+
+.layout-main :is(
+  .btn-refresh:hover,
+  .btn-new-customer:hover,
+  .btn-new-job:hover,
+  .btn-save:hover,
+  .btn-confirm-delete:hover,
+  .btn-action-dropdown:hover,
+  .btn-action.btn-edit:hover,
+  .btn-primary:hover,
+  .btn-success:hover,
+  .alert-popup-btn.ok:hover,
+  .alert-popup-btn.confirm:hover
+) {
+  background: #1d4ed8 !important;
+  border-color: #1d4ed8 !important;
+}
+
+.layout-main :is(
+  .btn-cancel,
+  .btn-secondary,
+  .delete-modal .btn-cancel,
+  .alert-popup-btn.cancel,
+  .pim-btn-close-details,
+  .btn-close-modal,
+  .pagination-btn
+) {
+  background: #ffffff !important;
+  color: #1e3a8a !important;
+  border: 1px solid #93c5fd !important;
+}
+
+.layout-main :is(
+  .btn-cancel:hover,
+  .btn-secondary:hover,
+  .delete-modal .btn-cancel:hover,
+  .alert-popup-btn.cancel:hover,
+  .pim-btn-close-details:hover,
+  .btn-close-modal:hover,
+  .pagination-btn:hover:not(.active):not(:disabled)
+) {
+  background: #eff6ff !important;
+  border-color: #60a5fa !important;
+  color: #1d4ed8 !important;
+}
+
+.layout-main :is(
+  .btn-refresh,
+  .btn-new-customer,
+  .btn-new-job,
+  .btn-save,
+  .btn-cancel,
+  .btn-secondary,
+  .btn-confirm-delete,
+  .btn-action-dropdown,
+  .btn-action.btn-edit,
+  .pim-btn-close-details
+) {
+  min-height: 38px;
+  border-radius: 8px !important;
+  font-weight: 700 !important;
+}
