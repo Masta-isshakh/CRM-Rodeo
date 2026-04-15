@@ -25,6 +25,7 @@ const loadExitPermitManagement = () => import("../pages/ExitPermitManagement");
 
 const loadInspectionModule = () => import("../pages/InspectionModule");
 const loadPaymentInvoiceManagment = () => import("../pages/PaymentInvoiceManagment");
+const loadDatabaseCleanup = () => import("../pages/DatabaseCleanupAdmin");
 
 const Dashboard = lazy(loadDashboard);
 const Customers = lazy(loadCustomers);
@@ -50,6 +51,7 @@ const ExitPermitManagement = lazy(loadExitPermitManagement);
 
 const InspectionModule = lazy(loadInspectionModule);
 const PaymentInvoiceManagment = lazy(loadPaymentInvoiceManagment);
+const DatabaseCleanupAdmin = lazy(loadDatabaseCleanup);
 import PermissionGate from "../pages/PermissionGate";
 
 
@@ -82,7 +84,8 @@ type Page =
   | "users"
   | "departments"
   | "rolespolicies"
-  | "inventory";
+    | "inventory"
+    | "dbcleanup";
 
 const PAGE_LOADERS: Record<Page, () => Promise<unknown>> = {
   dashboard: loadDashboard,
@@ -106,6 +109,7 @@ const PAGE_LOADERS: Record<Page, () => Promise<unknown>> = {
   departments: loadDepartmentsAdmin,
   rolespolicies: loadRolesPoliciesAdmin,
   inventory: loadInventoryManagement,
+  dbcleanup: loadDatabaseCleanup,
 };
 
 const EMPTY = {
@@ -234,6 +238,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       users: usersRead,
       departments: departmentsRead,
       rolespolicies: rolesRead && listOn("rolespolicies", "rolespolicies_list"),
+     dbcleanup: isAdminGroup,
     };
   }, [isAdminGroup, can, canOption, isModuleEnabled]);
 
@@ -260,6 +265,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (showAdmin.users) pages.push("users");
     if (showAdmin.departments) pages.push("departments");
     if (showAdmin.rolespolicies) pages.push("rolespolicies");
+      if (showAdmin.dbcleanup) pages.push("dbcleanup");
     return pages;
   }, [show, showAdmin]);
 
@@ -325,7 +331,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !show.inventory &&
     !showAdmin.users &&
     !showAdmin.departments &&
-    !showAdmin.rolespolicies;
+      !showAdmin.rolespolicies &&
+      !showAdmin.dbcleanup;
 
   useEffect(() => {
     if (loading) return;
@@ -353,6 +360,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (showAdmin.users) allowedPages.push("users");
     if (showAdmin.departments) allowedPages.push("departments");
     if (showAdmin.rolespolicies) allowedPages.push("rolespolicies");
+      if (showAdmin.dbcleanup) allowedPages.push("dbcleanup");
 
     const isCurrentAllowed =
       (page === "dashboard" && show.dashboard) ||
@@ -375,7 +383,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       (page === "inventory" && show.inventory) ||
       (page === "users" && showAdmin.users) ||
       (page === "departments" && showAdmin.departments) ||
-      (page === "rolespolicies" && showAdmin.rolespolicies);
+      (page === "rolespolicies" && showAdmin.rolespolicies) ||
+      (page === "dbcleanup" && showAdmin.dbcleanup);
 
     if (!isCurrentAllowed) {
       setPage(allowedPages[0] ?? "dashboard");
@@ -537,6 +546,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     users: t("User Management"),
     departments: t("Departments"),
     rolespolicies: t("Roles & Policies"),
+    dbcleanup: t("Database Cleanup"),
   };
 
   const activePageTitle = pageTitleByKey[page] ?? t("Workspace");
@@ -705,6 +715,11 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
                     <i className="fas fa-shield-alt" aria-hidden="true" /> {t("Roles & Policies")}
                   </button>
                 )}
+                 {showAdmin.dbcleanup && (
+                   <button className={page === "dbcleanup" ? "active" : ""} onClick={() => go("dbcleanup")}>
+                     <i className="fas fa-trash-alt" aria-hidden="true" /> {t("Database Cleanup")}
+                   </button>
+                 )}
 
               </div>
             )}
@@ -905,6 +920,9 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
                 <RolesPoliciesAdmin />
               </PermissionGate>
             )}
+             {page === "dbcleanup" && showAdmin.dbcleanup && (
+               <DatabaseCleanupAdmin />
+             )}
             </Suspense>
           </main>
         </div>

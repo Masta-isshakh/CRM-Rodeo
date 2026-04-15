@@ -2649,6 +2649,64 @@ i {
   color: #243b53;
 }
 
+/* Per-card title accents (View Details page) */
+.jo-details-v3 .jo-card-theme-summary > h3 {
+  color: #0f3a67;
+  border-bottom-color: #bfdbfe;
+  box-shadow: inset 0 -2px 0 #dbeafe;
+}
+
+.jo-details-v3 .jo-card-theme-customer > h3 {
+  color: #14532d;
+  border-bottom-color: #bbf7d0;
+  box-shadow: inset 0 -2px 0 #dcfce7;
+}
+
+.jo-details-v3 .jo-card-theme-vehicle > h3 {
+  color: #7c2d12;
+  border-bottom-color: #fed7aa;
+  box-shadow: inset 0 -2px 0 #ffedd5;
+}
+
+.jo-details-v3 .jo-card-theme-services > div > h3 {
+  color: #4a1d96;
+  border-bottom-color: #ddd6fe;
+  box-shadow: inset 0 -2px 0 #ede9fe;
+}
+
+.jo-details-v3 .jo-card-theme-billing > h3 {
+  color: #7f1d1d;
+  border-bottom-color: #fecaca;
+  box-shadow: inset 0 -2px 0 #fee2e2;
+}
+
+.jo-details-v3 .jo-card-theme-docs > h3,
+.jo-details-v3 .jo-card-theme-docs .jo-docs-title {
+  color: #0f4c5c;
+  border-bottom-color: #bae6fd;
+  box-shadow: inset 0 -2px 0 #e0f2fe;
+}
+
+.jo-details-v3 .jo-card-theme-quality > h3 {
+  color: #365314;
+  border-bottom-color: #d9f99d;
+  box-shadow: inset 0 -2px 0 #ecfccb;
+}
+
+.jo-details-v3 .jo-card-theme-delivery > h3 {
+  color: #9a3412;
+  border-bottom-color: #fdba74;
+  box-shadow: inset 0 -2px 0 #ffedd5;
+}
+
+.jo-details-v3 .jo-card-theme-roadmap-title {
+  color: #1e3a8a;
+  border-left: 4px solid #3b82f6;
+  padding-left: 10px;
+  background: linear-gradient(90deg, #eff6ff 0%, rgba(239, 246, 255, 0) 80%);
+  border-radius: 6px;
+}
+
 .jo-details-v3 .pim-detail-card h3 i,
 .jo-details-v3 .epm-detail-card h3 i,
 .jo-details-v3 .pim-card h3 i,

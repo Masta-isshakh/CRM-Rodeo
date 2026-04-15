@@ -1481,19 +1481,19 @@ function DetailsScreen({ order, onClose, onAddService, currentUser, actorMap }: 
       <div className="pim-details-body">
         <div className="pim-details-grid">
           <PermissionGate moduleId="joborder" optionId="joborder_summary">
-            <JobOrderSummaryCard order={order} currentUser={currentUser} actorMap={actorMap} />
+            <JobOrderSummaryCard order={order} currentUser={currentUser} actorMap={actorMap} className="jo-card-theme-summary" />
           </PermissionGate>
           <PermissionGate moduleId="joborder" optionId="joborder_customer">
-            <UnifiedCustomerInfoCard order={order} className="cv-unified-card" />
+            <UnifiedCustomerInfoCard order={order} className="cv-unified-card jo-card-theme-customer" />
           </PermissionGate>
           <PermissionGate moduleId="joborder" optionId="joborder_vehicle">
-            <UnifiedVehicleInfoCard order={order} className="cv-unified-card" />
+            <UnifiedVehicleInfoCard order={order} className="cv-unified-card jo-card-theme-vehicle" />
           </PermissionGate>
           <PermissionGate moduleId="joborder" optionId="joborder_services">
             <ServicesCard order={order} onAddService={onAddService} />
           </PermissionGate>
           <PermissionGate moduleId="joborder" optionId="joborder_billing">
-            <BillingCard order={order} />
+            <BillingCard order={order} className="jo-card-theme-billing" />
           </PermissionGate>
           
           {/* ✅ NEW: Quality Check Card */}
@@ -3728,13 +3728,14 @@ function StepFourConfirm({
 // ============================================
 // SIMPLE DISPLAY CARDS
 // ============================================
-function JobOrderSummaryCard({ order, actorMap }: any) {
+function JobOrderSummaryCard({ order, actorMap, className = "" }: any) {
   const createdBy = resolveCreatedBy(order, actorMap);
   return (
     <UnifiedJobOrderSummaryCard
       order={order}
       identityToUsernameMap={actorMap}
       createdByOverride={createdBy}
+      className={className}
     />
   );
 }
@@ -3817,7 +3818,7 @@ function ServicesCard({ order, onAddService }: any) {
   })();
   
   return (
-    <div className="pim-detail-card" style={{ gridColumn: 'span 12' }}>
+    <div className="pim-detail-card jo-card-theme-services" style={{ gridColumn: 'span 12' }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
         <div style={{ flex: 1 }}>
           <h3 style={{ margin: '0 0 12px 0' }}>
@@ -3926,8 +3927,8 @@ function ServicesCard({ order, onAddService }: any) {
   );
 }
 
-function BillingCard({ order }: any) {
-  return <UnifiedBillingInvoicesSection order={order} className="epm-detail-card" style={{ gridColumn: "span 12" }} />;
+function BillingCard({ order, className = "" }: any) {
+  return <UnifiedBillingInvoicesSection order={order} className={`epm-detail-card ${className}`.trim()} style={{ gridColumn: "span 12" }} />;
 }
 
 type DocUi = {
@@ -3963,7 +3964,7 @@ function JobOrderDocumentsCard({ order }: any) {
   };
 
   return (
-    <div className="pim-detail-card jo-docs-card">
+    <div className="pim-detail-card jo-docs-card jo-card-theme-docs">
       <h3 className="jo-docs-title">
         <span className="jo-docs-title-left">
           <i className="fas fa-folder-open"></i> Documents ({docs.length})
@@ -4055,7 +4056,7 @@ function QualityCheckCard({ order }: any) {
   };
 
   return (
-    <div className="pim-detail-card jo-qc-card">
+    <div className="pim-detail-card jo-qc-card jo-card-theme-quality">
       <h3 className="jo-qc-heading">
         <span className="jo-qc-title-dot" aria-hidden="true"></span>
         Quality Check List
@@ -4111,7 +4112,7 @@ function DeliveryTrackingCard({ order }: any) {
   ];
 
   return (
-    <div className="pim-detail-card jo-delivery-card">
+    <div className="pim-detail-card jo-delivery-card jo-card-theme-delivery">
       <h3>
         <i className="fas fa-truck"></i> Delivery & Time Tracking
       </h3>
@@ -4197,8 +4198,8 @@ function RoadmapCard({ order, actorMap }: any) {
   const getStatusLabel = (step: any) => step?.stepStatus || step?.status || "Pending";
 
   return (
-    <div className="pim-roadmap-container jo-roadmap-compact">
-      <div className="pim-roadmap-title">
+    <div className="pim-roadmap-container jo-roadmap-compact jo-card-theme-roadmap">
+      <div className="pim-roadmap-title jo-card-theme-roadmap-title">
         <i className="fas fa-route"></i>
         Job Order Roadmap
       </div>

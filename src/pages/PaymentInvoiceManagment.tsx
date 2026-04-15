@@ -1376,7 +1376,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     }
 
     return `<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <title>Invoice_${billId}.html</title>
@@ -1384,55 +1384,10 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body { font-family: Arial, sans-serif; background: #fff; }
   @page { size: A4; margin: 0; }
-  .invoice-container { width: 210mm; height: 297mm; margin: 0 auto; padding: 15mm; background: white; color: #000; }
-  
-  <!-- Header: EN left | Logo center | AR right — matches brand template -->
-  <div class="invoice-header">
-    <div class="co-en">
-      <div class="co-en-name">RODEO DRIVE</div>
-      <div class="co-en-tagline">Gloss Perfected</div>
-      <div class="co-en-addr">Block 2, Shop No. SYS 066, Block 21,</div>
-      <div class="co-en-addr">Near Dragon Mart Al Sayer, Doha.</div>
-    </div>
-    <div class="co-logo">
-      <div class="logo-box">header logo</div>
-    </div>
-    <div class="co-ar">
-      <div class="co-ar-name">رودیو درایف</div>
-      <div class="co-ar-tagline">اللمعات المثالي</div>
-      <div class="co-ar-addr">مبنى 2 ، محل رقم SYS 066 ، 21 ،</div>
-      <div class="co-ar-addr">بالقرب من دراجون مارت السایر ، الدوحة</div>
-    </div>
-  </div>
-  <hr class="header-rule">
-  <!-- INVOICE stamp -->
-  <div class="invoice-title-row">
-    <div class="invoice-title-stamp">INVOICE</div>
-  </div>
-  .services-table th { background: #e8e8e8; border: 1px solid #ccc; padding: 10px; text-align: center; font-weight: bold; }
-  .services-table td { border: 1px solid #ccc; padding: 10px; }
-  .services-table .no-col { text-align: center; width: 40px; }
-  .services-table .desc-col { text-align: left; }
-  .services-table .amount-col { text-align: right; width: 100px; }
-  
-  /* Summary Section */
-  .summary-section { margin-top: 20px; }
-  .summary-row { display: grid; grid-template-columns: 1fr 150px; gap: 10px; margin-bottom: 8px; font-size: 12px; font-weight: bold; }
-  .summary-label { text-align: right; }
-  .summary-value { text-align: right; }
-  
-  .total-amount-row { background: #e8e8e8; padding: 10px; display: grid; grid-template-columns: 1fr 150px; gap: 10px; margin: 10px 0; }
-  .total-amount-row .summary-label { text-align: right; font-size: 14px; font-weight: bold; }
-  .total-amount-row .summary-value { text-align: right; font-size: 14px; font-weight: bold; }
-  
-  /* Bottom fields */
-  .bottom-fields { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin: 25px 0; font-size: 11px; }
-  .bottom-field { }
-  .bottom-label { font-weight: bold; margin-bottom: 5px; }
-  .bottom-value { border-bottom: 1px solid #999; min-height: 25px; }
-  
-  /* ─── Header: EN left | Logo center | AR right ─── */
-  .invoice-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; margin-bottom: 0; padding-bottom: 12px; }
+  .invoice-container { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 15mm; background: #fff; color: #000; display: flex; flex-direction: column; }
+
+  /* ─── Header ─── */
+  .invoice-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding-bottom: 12px; }
   .co-en { flex: 1; }
   .co-en-name { font-size: 18px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; color: #000; margin-bottom: 2px; font-family: Arial, sans-serif; }
   .co-en-tagline { font-size: 11px; font-style: italic; color: #333; margin-bottom: 5px; }
@@ -1444,27 +1399,74 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   .co-ar-tagline { font-size: 11px; font-style: italic; color: #333; margin-bottom: 5px; }
   .co-ar-addr { font-size: 11px; line-height: 1.65; color: #222; }
   .header-rule { border: none; border-top: 1.5px solid #000; margin: 0 0 16px 0; }
-  /* INVOICE title stamp */
+
+  /* ─── Invoice Title Stamp ─── */
   .invoice-title-row { text-align: center; margin-bottom: 18px; }
   .invoice-title-stamp { display: inline-block; font-size: 20px; font-weight: 900; letter-spacing: 4px; border: 2.5px solid #1a3a5c; padding: 7px 28px; color: #1a3a5c; }
-      <p>Gloss PERFECTED</p>
-      <p>Block 2, Shop No. SYS 066, Block 21,</p>
-      <p>Near Dragon Mart Al Sayer, Doha.</p>
-      <div class="arabic-text">
-        <div>رودeo درايف</div>
-        <div>الخدمات المتكاملة</div>
-        <div>متجر 2، رقم متجر SYS 066 + 21</div>
-        <div>بالقرب من دراغون مارت السيارة الدوحة</div>
-      </div>
+
+  /* ─── Bill Details ─── */
+  .bill-details { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 0 0 20px 0; }
+  .detail-field { font-size: 11px; }
+  .detail-label { font-weight: bold; color: #555; font-size: 10px; display: block; margin-bottom: 2px; text-transform: uppercase; }
+  .detail-value { border-bottom: 1px solid #ddd; padding-bottom: 3px; display: block; min-height: 18px; }
+
+  /* ─── Services Table ─── */
+  .services-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 11px; }
+  .services-table th { background: #e8e8e8; border: 1px solid #ccc; padding: 10px; text-align: center; font-weight: bold; }
+  .services-table td { border: 1px solid #ccc; padding: 10px; }
+  .no-col { text-align: center; width: 40px; }
+  .desc-col { text-align: left; }
+  .amount-col { text-align: right; width: 100px; }
+
+  /* ─── Summary ─── */
+  .summary-section { margin-top: 20px; }
+  .summary-row { display: grid; grid-template-columns: 1fr 150px; gap: 10px; margin-bottom: 8px; font-size: 12px; font-weight: bold; }
+  .total-amount-row { background: #e8e8e8; padding: 10px; display: grid; grid-template-columns: 1fr 150px; gap: 10px; margin: 10px 0; }
+  .total-amount-row span { font-size: 14px; font-weight: bold; }
+
+  /* ─── Bottom Fields ─── */
+  .bottom-fields { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin: 25px 0; font-size: 11px; }
+  .bottom-label { font-weight: bold; margin-bottom: 5px; }
+  .bottom-value { border-bottom: 1px solid #999; min-height: 25px; }
+
+  /* ─── Footer: EN left | QR center | AR right ─── */
+  .invoice-footer { border-top: 1.5px solid #000; padding-top: 12px; margin-top: auto; display: flex; align-items: flex-start; gap: 16px; }
+  .footer-col-en { flex: 1; font-size: 10px; line-height: 1.7; color: #222; }
+  .footer-col-en strong { font-size: 11px; font-weight: 900; text-transform: uppercase; display: block; margin-bottom: 2px; }
+  .footer-col-qr { flex: 0 0 82px; display: flex; justify-content: center; align-items: center; }
+  .qr-box { width: 78px; height: 78px; background: #e0e0e0; border: 1px solid #bbb; display: flex; align-items: center; justify-content: center; color: #888; font-size: 11px; font-family: Arial, sans-serif; }
+  .footer-col-ar { flex: 1; direction: rtl; text-align: right; font-size: 10px; line-height: 1.7; color: #222; }
+  .footer-col-ar strong { font-size: 11px; font-weight: 900; display: block; margin-bottom: 2px; }
+</style>
+</head>
+<body>
+<div class="invoice-container">
+
+  <!-- Header: EN left | Logo center | AR right -->
+  <div class="invoice-header">
+    <div class="co-en">
+      <div class="co-en-name">RODEO DRIVE</div>
+      <div class="co-en-tagline">Gloss Perfected</div>
+      <div class="co-en-addr">Block 2, Shop No. SYS 066, Block 21,</div>
+      <div class="co-en-addr">Near Dragon Mart Al Sayer, Doha.</div>
     </div>
-    <div class="invoice-title">
-      <h2>INVOICE</h2>
+    <div class="co-logo">
+      <div class="logo-box">[ LOGO ]</div>
     </div>
-    <div class="logo-area">
-      <div class="logo-placeholder">logo</div>
+    <div class="co-ar">
+      <div class="co-ar-name">رودیو درایف</div>
+      <div class="co-ar-tagline">اللمعات المثالي</div>
+      <div class="co-ar-addr">مبنى 2 ، محل رقم SYS 066 ، 21 ،</div>
+      <div class="co-ar-addr">بالقرب من دراجون مارت السایر ، الدوحة</div>
     </div>
   </div>
-  
+  <hr class="header-rule">
+
+  <!-- INVOICE stamp -->
+  <div class="invoice-title-row">
+    <div class="invoice-title-stamp">INVOICE</div>
+  </div>
+
   <!-- Bill Details -->
   <div class="bill-details">
     <div class="detail-field">
@@ -1476,7 +1478,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       <span class="detail-value">${currentDate}</span>
     </div>
     <div></div>
-    
+
     <div class="detail-field">
       <span class="detail-label">Order ID</span>
       <span class="detail-value">${String(order.id || "")}</span>
@@ -1486,7 +1488,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       <span class="detail-value">${currentDate}</span>
     </div>
     <div></div>
-    
+
     <div class="detail-field">
       <span class="detail-label">Customer Name</span>
       <span class="detail-value">${String(order.customerName || "")}</span>
@@ -1496,7 +1498,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       <span class="detail-value">${String(order.mobile || "")}</span>
     </div>
     <div></div>
-    
+
     <div class="detail-field">
       <span class="detail-label">Make</span>
       <span class="detail-value">${String(order.vehicleDetails?.make || "")}</span>
@@ -1509,7 +1511,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       <span class="detail-label">Plate Number</span>
       <span class="detail-value">${String(order.vehiclePlate || order.vehicleDetails?.plateNumber || "")}</span>
     </div>
-    
+
     <div class="detail-field">
       <span class="detail-label">Color</span>
       <span class="detail-value">${String(order.vehicleDetails?.color || "")}</span>
@@ -1523,7 +1525,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       <span class="detail-value">${String(order.vehicleDetails?.vin || "")}</span>
     </div>
   </div>
-  
+
   <!-- Services Table -->
   <table class="services-table">
     <thead>
@@ -1541,31 +1543,31 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       </tr>
     </tbody>
   </table>
-  
+
   <!-- Summary Section -->
   <div class="summary-section">
     <div class="summary-row">
       <div style="text-align: right;">Total Amount</div>
-      <div>${fmtQar(totalAmount)}</div>
+      <div style="text-align: right;">${fmtQar(totalAmount)}</div>
     </div>
     <div class="summary-row">
       <div style="text-align: right;">Discount</div>
-      <div>${fmtQar(discount)}</div>
+      <div style="text-align: right;">${fmtQar(discount)}</div>
     </div>
     <div class="summary-row">
       <div style="text-align: right;">Net Amount</div>
-      <div>${fmtQar(netAmount)}</div>
+      <div style="text-align: right;">${fmtQar(netAmount)}</div>
     </div>
     <div class="summary-row">
       <div style="text-align: right;">Amount Paid</div>
-      <div>${fmtQar(amountPaid)}</div>
+      <div style="text-align: right;">${fmtQar(amountPaid)}</div>
     </div>
     <div class="summary-row">
       <div style="text-align: right; font-weight: bold; font-size: 13px;">Balance Due</div>
-      <div style="font-weight: bold; font-size: 13px;">${fmtQar(balanceDue)}</div>
+      <div style="text-align: right; font-weight: bold; font-size: 13px;">${fmtQar(balanceDue)}</div>
     </div>
   </div>
-  
+
   <!-- Bottom Fields -->
   <div class="bottom-fields">
     <div class="bottom-field">
@@ -1577,28 +1579,32 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       <div class="bottom-value"></div>
     </div>
     <div class="bottom-field" style="grid-column: span 2;">
-      <div class="bottom-label">Date & Time</div>
+      <div class="bottom-label">Date &amp; Time</div>
       <div class="bottom-value"></div>
     </div>
   </div>
-  
-  <!-- Footer -->
+
+  <!-- Footer: EN left | QR center | AR right -->
   <div class="invoice-footer">
-    <div class="footer-text">
-      <strong>RODEO DRIVE TRADING & SERVICES</strong><br>
+    <div class="footer-col-en">
+      <strong>RODEO DRIVE TRADING &amp; SERVICES</strong>
       C.R. No: 122716<br>
-      Location: Al Sayer, Doha<br>
+      LLC &#x2013; capital QAR 200,000<br>
       T: +974 44311871 | M: +974 3320 2409<br>
       E: info@rodeodrive.me | W: www.rodeodrive.me
     </div>
-    <div class="footer-ar">
-      <strong>رودeo درايف للتجارة والخدمات</strong><br>
-      سجل تجاري: 122716<br>
-      الموقع: السيار الدوحة<br>
-      ت: +974 44311871 | م: +974 3320 2409<br>
-      البريد الإلكتروني: info@rodeodrive.me | الموقع الإلكتروني: www.rodeodrive.me
+    <div class="footer-col-qr">
+      <div class="qr-box">QR</div>
+    </div>
+    <div class="footer-col-ar">
+      <strong>رودیو درایف للتجارة والخدمات</strong>
+      س.ت: 122716<br>
+      شركة ذات مسؤولية محدودة برأس مال 200,000 رق<br>
+      T: +974 44311871 | M: +974 3320 2409<br>
+      E: info@rodeodrive.me | W: www.rodeodrive.me
     </div>
   </div>
+
 </div>
 </body>
 </html>`;

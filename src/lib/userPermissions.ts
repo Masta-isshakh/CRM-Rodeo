@@ -30,6 +30,8 @@ const FULL: Permission = {
 
 const ADMIN_GROUP_NAME = "Admins";
 const DEPT_PREFIX = "DEPT_";
+const PERMISSIONS_CACHE_KEY = "crm.permissionsCache.v1";
+const PERMISSIONS_CACHE_TTL_MS = 5 * 60 * 1000;
 
 export const POLICY_KEYS = [
   "DASHBOARD",
@@ -122,21 +124,84 @@ function optKey(moduleId: string, optionId: string) {
   return `${normalizeKey(moduleId)}::${normalizeKey(optionId)}`;
 }
 
+type PermissionsCacheShape = {
+  cachedAt: number;
+  email: string;
+  groups: string[];
+  departmentKey: string;
+  isAdminGroup: boolean;
+  permMap: Record<string, Permission>;
+  optionToggleMap: Record<string, boolean>;
+  optionNumberMap: Record<string, number>;
+};
+
+function readPermissionsCache(): PermissionsCacheShape | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const raw = window.localStorage.getItem(PERMISSIONS_CACHE_KEY);
+    if (!raw) return null;
+
+    const parsed = JSON.parse(raw) as Partial<PermissionsCacheShape>;
+    const cachedAt = Number(parsed.cachedAt ?? 0);
+    if (!Number.isFinite(cachedAt) || Date.now() - cachedAt > PERMISSIONS_CACHE_TTL_MS) return null;
+
+    return {
+      cachedAt,
+      email: String(parsed.email ?? ""),
+      groups: Array.isArray(parsed.groups) ? parsed.groups.map(String) : [],
+      departmentKey: String(parsed.departmentKey ?? ""),
+      isAdminGroup: Boolean(parsed.isAdminGroup),
+      permMap: (parsed.permMap as Record<string, Permission>) ?? {},
+      optionToggleMap: (parsed.optionToggleMap as Record<string, boolean>) ?? {},
+      optionNumberMap: (parsed.optionNumberMap as Record<string, number>) ?? {},
+    };
+  } catch {
+    return null;
+  }
+}
+
+function writePermissionsCache(value: Omit<PermissionsCacheShape, "cachedAt">) {
+  if (typeof window === "undefined") return;
+
+  try {
+    window.localStorage.setItem(
+      PERMISSIONS_CACHE_KEY,
+      JSON.stringify({
+        ...value,
+        cachedAt: Date.now(),
+      } satisfies PermissionsCacheShape)
+    );
+  } catch {
+    // ignore storage errors
+  }
+}
+
+function clearPermissionsCache() {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(PERMISSIONS_CACHE_KEY);
+  } catch {
+    // ignore storage errors
+  }
+}
+
 export function usePermissions() {
   const client = useMemo(() => getDataClient(), []);
+  const cached = useMemo(() => readPermissionsCache(), []);
 
-  const [loading, setLoading] = useState(true);
-  const [email, setEmail] = useState<string>("");
-  const [groups, setGroups] = useState<string[]>([]);
-  const [departmentKey, setDepartmentKey] = useState<string>("");
-  const [isAdminGroup, setIsAdminGroup] = useState(false);
+  const [loading, setLoading] = useState(!cached);
+  const [email, setEmail] = useState<string>(cached?.email ?? "");
+  const [groups, setGroups] = useState<string[]>(cached?.groups ?? []);
+  const [departmentKey, setDepartmentKey] = useState<string>(cached?.departmentKey ?? "");
+  const [isAdminGroup, setIsAdminGroup] = useState(cached?.isAdminGroup ?? false);
 
   // policy-level permissions
-  const [permMap, setPermMap] = useState<Record<string, Permission>>({});
+  const [permMap, setPermMap] = useState<Record<string, Permission>>(cached?.permMap ?? {});
 
   // option-level
-  const [optionToggleMap, setOptionToggleMap] = useState<Record<string, boolean>>({});
-  const [optionNumberMap, setOptionNumberMap] = useState<Record<string, number>>({});
+  const [optionToggleMap, setOptionToggleMap] = useState<Record<string, boolean>>(cached?.optionToggleMap ?? {});
+  const [optionNumberMap, setOptionNumberMap] = useState<Record<string, number>>(cached?.optionNumberMap ?? {});
 
   // refresh
   const [tick, setTick] = useState(0);
@@ -226,7 +291,7 @@ export function usePermissions() {
 
   useEffect(() => {
     (async () => {
-      setLoading(true);
+      if (!cached) setLoading(true);
 
       try {
         const session = await fetchAuthSession();
@@ -284,6 +349,15 @@ export function usePermissions() {
           setPermMap(fullMap);
           setOptionToggleMap({});
           setOptionNumberMap({});
+          writePermissionsCache({
+            email: resolvedEmail,
+            groups: resolvedGroups,
+            departmentKey: effectiveDept,
+            isAdminGroup: true,
+            permMap: fullMap,
+            optionToggleMap: {},
+            optionNumberMap: {},
+          });
           return;
         }
 
@@ -291,6 +365,7 @@ export function usePermissions() {
           setPermMap({});
           setOptionToggleMap({});
           setOptionNumberMap({});
+          clearPermissionsCache();
           return;
         }
 
@@ -363,60 +438,71 @@ export function usePermissions() {
         const mergedToggles: Record<string, boolean> = {};
         const mergedNums: Record<string, number> = {};
 
-        for (const rid of roleIds) {
-          // toggles
-          let toggleRows: any[] = [];
-          try {
-            const q = await (client.models as any).RoleOptionToggle.roleOptionTogglesByRole?.({
-              roleId: String(rid),
-              limit: 2000,
-            });
-            toggleRows = (q?.data ?? []) as any[];
-          } catch {
-            const res = await (client.models as any).RoleOptionToggle.list({
-              limit: 2000,
-              filter: { roleId: { eq: String(rid) } },
-            });
-            toggleRows = (res?.data ?? []) as any[];
-          }
+        await Promise.all(
+          roleIds.map(async (rid) => {
+            let toggleRows: any[] = [];
+            try {
+              const q = await (client.models as any).RoleOptionToggle.roleOptionTogglesByRole?.({
+                roleId: String(rid),
+                limit: 2000,
+              });
+              toggleRows = (q?.data ?? []) as any[];
+            } catch {
+              const res = await (client.models as any).RoleOptionToggle.list({
+                limit: 2000,
+                filter: { roleId: { eq: String(rid) } },
+              });
+              toggleRows = (res?.data ?? []) as any[];
+            }
 
-          for (const t of toggleRows ?? []) {
-            const k = normalizeKey(t.key);
-            if (!k) continue;
-            mergedToggles[k] = Boolean(mergedToggles[k] || Boolean(t.enabled));
-          }
+            for (const t of toggleRows ?? []) {
+              const k = normalizeKey(t.key);
+              if (!k) continue;
+              mergedToggles[k] = Boolean(mergedToggles[k] || Boolean(t.enabled));
+            }
 
-          // numbers
-          let numRows: any[] = [];
-          try {
-            const qn = await (client.models as any).RoleOptionNumber.roleOptionNumbersByRole?.({
-              roleId: String(rid),
-              limit: 2000,
-            });
-            numRows = (qn?.data ?? []) as any[];
-          } catch {
-            const resn = await (client.models as any).RoleOptionNumber.list({
-              limit: 2000,
-              filter: { roleId: { eq: String(rid) } },
-            });
-            numRows = (resn?.data ?? []) as any[];
-          }
+            let numRows: any[] = [];
+            try {
+              const qn = await (client.models as any).RoleOptionNumber.roleOptionNumbersByRole?.({
+                roleId: String(rid),
+                limit: 2000,
+              });
+              numRows = (qn?.data ?? []) as any[];
+            } catch {
+              const resn = await (client.models as any).RoleOptionNumber.list({
+                limit: 2000,
+                filter: { roleId: { eq: String(rid) } },
+              });
+              numRows = (resn?.data ?? []) as any[];
+            }
 
-          for (const n of numRows ?? []) {
-            const k = normalizeKey(n.key);
-            const v = Number(n.value);
-            if (!k || !Number.isFinite(v)) continue;
-            mergedNums[k] = Number.isFinite(mergedNums[k]) ? Math.max(mergedNums[k], v) : v;
-          }
-        }
+            for (const n of numRows ?? []) {
+              const k = normalizeKey(n.key);
+              const v = Number(n.value);
+              if (!k || !Number.isFinite(v)) continue;
+              mergedNums[k] = Number.isFinite(mergedNums[k]) ? Math.max(mergedNums[k], v) : v;
+            }
+          })
+        );
 
         setOptionToggleMap(mergedToggles);
         setOptionNumberMap(mergedNums);
+        writePermissionsCache({
+          email: resolvedEmail,
+          groups: resolvedGroups,
+          departmentKey: effectiveDept,
+          isAdminGroup: false,
+          permMap: nextPermMap,
+          optionToggleMap: mergedToggles,
+          optionNumberMap: mergedNums,
+        });
       } catch (e) {
         console.error("[PERMS] Failed to load permissions:", e);
-        setPermMap({});
-        setOptionToggleMap({});
-        setOptionNumberMap({});
+        if (!cached) {
+          setPermMap({});
+          setOptionToggleMap({});
+          setOptionNumberMap({});
+        }
       } finally {
         setLoading(false);
       }

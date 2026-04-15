@@ -19,6 +19,8 @@ const SESSION_CHECK_TIMEOUT_MS = (() => {
   return Number.isFinite(raw) && raw >= 1000 ? raw : SESSION_CHECK_TIMEOUT_DEFAULT_MS;
 })();
 const SESSION_DEBUG_LOCAL_STORAGE_KEY = "crm.debugSessionCheck";
+const SESSION_CACHE_KEY = "crm.sessionOk";
+const SESSION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 type FailedLoginTracker = Record<string, { count: number; lockedUntil: number }>;
 
@@ -59,6 +61,7 @@ type AppErrorBoundaryState = { hasError: boolean; message: string };
 
 class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorBoundaryState> {
   state: AppErrorBoundaryState = { hasError: false, message: "" };
+  private _retries = 0;
 
   static getDerivedStateFromError(error: unknown): AppErrorBoundaryState {
     return {
@@ -74,15 +77,17 @@ class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorBoundary
 
   render() {
     if (this.state.hasError) {
-      return (
-        <div className="crm-app-error-fallback" role="alert">
-          <h2>{tr("Application failed to load")}</h2>
-          <p>{this.state.message || tr("Unexpected error while rendering.")}</p>
-          <button type="button" onClick={() => window.location.reload()}>
-            {tr("Reload application")}
-          </button>
-        </div>
-      );
+        if (this._retries < 3) {
+          // Auto-reset on next tick to recover from transient render errors.
+          window.setTimeout(() => {
+            this._retries += 1;
+            this.setState({ hasError: false, message: "" });
+          }, 150);
+          return null;
+        }
+        // After 3 failed retries, force a full page reload as last resort.
+        window.location.reload();
+        return null;
     }
     return this.props.children;
   }
@@ -351,7 +356,18 @@ export default function App() {
 function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
   const client = useMemo(() => getDataClient(), []);
   const { signOut } = useAuthenticator((context) => [context.user]);
-  const [sessionChecked, setSessionChecked] = useState(false);
+    const [sessionChecked, setSessionChecked] = useState(() => {
+      try {
+        const raw = window.sessionStorage.getItem(SESSION_CACHE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { at: number };
+          if (Date.now() - parsed.at < SESSION_CACHE_TTL_MS) return true;
+        }
+      } catch {
+        // ignore storage errors
+      }
+      return false;
+    });
 
   const safeSignOut = () => {
     try {
@@ -408,12 +424,27 @@ function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
         onBlocked("");
       } catch (error) {
         debugLog("Session verification failed", error);
-        onBlocked("We could not verify your session. Please sign in again.");
-        safeSignOut();
+          // Only block the user if we don't already have a recent cached OK (avoid false-positives on network flakes)
+          try {
+            const raw = window.sessionStorage.getItem(SESSION_CACHE_KEY);
+            const cached = raw ? (JSON.parse(raw) as { at: number }) : null;
+            if (!cached || Date.now() - cached.at >= SESSION_CACHE_TTL_MS) {
+              onBlocked("We could not verify your session. Please sign in again.");
+              safeSignOut();
+            }
+          } catch {
+            onBlocked("We could not verify your session. Please sign in again.");
+            safeSignOut();
+          }
       } finally {
         debugLog("Session verification completed");
         if (!cancelled) setSessionChecked(true);
       }
+            try {
+              window.sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({ at: Date.now() }));
+            } catch {
+              // ignore storage errors
+            }
     })();
 
     return () => {
