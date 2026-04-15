@@ -521,3 +521,41 @@ body,
   border-radius: 8px !important;
   font-weight: 700 !important;
 }
+
+/* Icon and pagination polish for visual consistency */
+.layout-main :is(
+  .btn-action-dropdown,
+  .btn-action.btn-edit,
+  .pagination-btn,
+  .pim-pagination-btn,
+  .epm-pagination-btn
+) {
+  min-height: 38px !important;
+  min-width: 38px !important;
+  border-radius: 10px !important;
+  line-height: 1 !important;
+}
+
+.layout-main :is(
+  .pagination-btn,
+  .pim-pagination-btn,
+  .epm-pagination-btn
+) {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 12px !important;
+  font-weight: 700 !important;
+}
+
+.layout-main :is(
+  .btn-action-dropdown i,
+  .btn-action.btn-edit i,
+  .pagination-btn i,
+  .pim-pagination-btn i,
+  .epm-pagination-btn i
+) {
+  font-size: 14px !important;
+  line-height: 1 !important;
+  vertical-align: middle !important;
+}

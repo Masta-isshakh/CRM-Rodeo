@@ -2689,6 +2689,8 @@ function StepThreeServices({
   vehicleCompletedServices,
 }: any) {
   const [pendingSpecificationProduct, setPendingSpecificationProduct] = useState<any>(null);
+  const [pendingSelectionMode, setPendingSelectionMode] = useState<"paid" | "complimentary">("paid");
+  const [selectedCompletedOrderId, setSelectedCompletedOrderId] = useState("");
 
   // Unique services extracted from all completed orders (for "service" order type)
   const completedOrdersServices = useMemo(() => {
@@ -2717,19 +2719,72 @@ function StepThreeServices({
         orderId,
         workStatus: String(order?.workStatus || "Completed").trim() || "Completed",
         servicesCount: services.length,
+        services,
       };
     });
   }, [vehicleCompletedServices]);
 
+  const complimentaryServices = useMemo(
+    () => (selectedServices ?? []).filter((s: any) => Boolean(s?.isComplimentaryFromCompletedOrder)),
+    [selectedServices]
+  );
+
+  const paidSelectedServices = useMemo(
+    () => (selectedServices ?? []).filter((s: any) => !Boolean(s?.isComplimentaryFromCompletedOrder)),
+    [selectedServices]
+  );
+
+  const mapComplimentaryService = useCallback((svc: any, idx: number) => {
+    const svcKey = normalizeCatalogKey(svc?.serviceCode || svc?.catalogId || svc?.name || idx);
+    return {
+      name: svc?.name,
+      nameAr: svc?.nameAr,
+      price: 0,
+      serviceCode: svc?.serviceCode || undefined,
+      catalogId: svc?.catalogId || undefined,
+      specificationBrandId: svc?.specificationBrandId || undefined,
+      specificationBrandName: svc?.specificationBrandName || undefined,
+      specificationColorHex: svc?.specificationColorHex || undefined,
+      specificationProductId: svc?.specificationProductId || undefined,
+      specificationProductName: svc?.specificationProductName || undefined,
+      specificationMeasurement: svc?.specificationMeasurement || undefined,
+      isComplimentaryFromCompletedOrder: true,
+      complimentaryKey: svcKey,
+    };
+  }, []);
+
+  const selectCompletedOrderAndApply = useCallback((orderId: string) => {
+    const match = completedOrderHistory.find((o: any) => o.orderId === orderId);
+    if (!match) return;
+    setSelectedCompletedOrderId(orderId);
+    const complimentary = (match.services ?? []).map((svc: any, idx: number) => mapComplimentaryService(svc, idx));
+    setSelectedServices(dedupeSelectedServices([...complimentary, ...paidSelectedServices]));
+  }, [completedOrderHistory, mapComplimentaryService, paidSelectedServices, setSelectedServices]);
+
+  useEffect(() => {
+    if (!useCompletedPool) {
+      if (selectedCompletedOrderId) setSelectedCompletedOrderId("");
+      return;
+    }
+    if (selectedCompletedOrderId) return;
+    const first = completedOrderHistory[0]?.orderId;
+    if (!first) return;
+    selectCompletedOrderAndApply(first);
+  }, [completedOrderHistory, selectCompletedOrderAndApply, selectedCompletedOrderId, useCompletedPool]);
+
   const handleToggleCompletedService = (svc: any) => {
-    const svcKey = normalizeCatalogKey(svc?.serviceCode || svc?.catalogId || svc?.name);
-    const isSelected = selectedServices.some(
-      (s: any) => normalizeCatalogKey(s?.serviceCode || s?.catalogId || s?.name) === svcKey
+    const svcKey = normalizeCatalogKey(svc?.serviceCode || svc?.catalogId || svc?.name || "");
+    const isSelected = complimentaryServices.some(
+      (s: any) => normalizeCatalogKey(s?.complimentaryKey || s?.serviceCode || s?.catalogId || s?.name) === svcKey
     );
     if (isSelected) {
       setSelectedServices(
         selectedServices.filter(
-          (s: any) => normalizeCatalogKey(s?.serviceCode || s?.catalogId || s?.name) !== svcKey
+          (s: any) =>
+            !(
+              s?.isComplimentaryFromCompletedOrder &&
+              normalizeCatalogKey(s?.complimentaryKey || s?.serviceCode || s?.catalogId || s?.name) === svcKey
+            )
         )
       );
       return;
@@ -2741,19 +2796,18 @@ function StepThreeServices({
         normalizeCatalogKey(svc?.serviceCode || svc?.catalogId || svc?.name)
     );
     if (catalogProduct && hasServiceSpecifications(catalogProduct)) {
+      setPendingSelectionMode("complimentary");
       setPendingSpecificationProduct(catalogProduct);
       return;
     }
-    // No spec flow — add directly, preserving any previously saved specification
+    // No spec flow — add directly as complimentary (price 0)
     setSelectedServices(
       dedupeSelectedServices([
         ...selectedServices,
         {
           name: svc.name,
           nameAr: svc.nameAr,
-          price: catalogProduct
-            ? resolveServicePriceForVehicleType(catalogProduct, vehicleType)
-            : (svc.price || 0),
+          price: 0,
           serviceCode: svc.serviceCode || undefined,
           catalogId: svc.catalogId || undefined,
           specificationBrandId: svc.specificationBrandId || undefined,
@@ -2762,6 +2816,8 @@ function StepThreeServices({
           specificationProductId: svc.specificationProductId || undefined,
           specificationProductName: svc.specificationProductName || undefined,
           specificationMeasurement: svc.specificationMeasurement || undefined,
+          isComplimentaryFromCompletedOrder: true,
+          complimentaryKey: svcKey,
         },
       ])
     );
@@ -2769,25 +2825,43 @@ function StepThreeServices({
 
   const handleToggleService = (product: any) => {
     const productKey = normalizeCatalogKey(product.serviceCode || product.id || product.name);
-    const isSelected = isCatalogProductSelected(product, selectedServices);
+    const isSelected = useCompletedPool
+      ? isCatalogProductSelected(product, paidSelectedServices)
+      : isCatalogProductSelected(product, selectedServices);
     if (isSelected) {
-      const next = String(product?.type ?? "").toLowerCase() === "package"
-        ? selectedServices.filter((s: any) => normalizeCatalogKey(s.packageCode) !== productKey)
-        : selectedServices.filter((s: any) => normalizeCatalogKey(s.serviceCode || s.catalogId || s.name) !== productKey);
-      setSelectedServices(dedupeSelectedServices(next));
+      if (useCompletedPool) {
+        const nextPaid = String(product?.type ?? "").toLowerCase() === "package"
+          ? paidSelectedServices.filter((s: any) => normalizeCatalogKey(s.packageCode) !== productKey)
+          : paidSelectedServices.filter((s: any) => normalizeCatalogKey(s.serviceCode || s.catalogId || s.name) !== productKey);
+        setSelectedServices(dedupeSelectedServices([...complimentaryServices, ...nextPaid]));
+      } else {
+        const next = String(product?.type ?? "").toLowerCase() === "package"
+          ? selectedServices.filter((s: any) => normalizeCatalogKey(s.packageCode) !== productKey)
+          : selectedServices.filter((s: any) => normalizeCatalogKey(s.serviceCode || s.catalogId || s.name) !== productKey);
+        setSelectedServices(dedupeSelectedServices(next));
+      }
     } else {
       if (hasServiceSpecifications(product)) {
+        setPendingSelectionMode("paid");
         const configuredSpecification = getConfiguredSpecificationSelection(product);
         if (configuredSpecification) {
           const expanded = expandCatalogProductToServices(product, products, vehicleType, configuredSpecification);
-          setSelectedServices(dedupeSelectedServices([...selectedServices, ...expanded]));
+          if (useCompletedPool) {
+            setSelectedServices(dedupeSelectedServices([...complimentaryServices, ...paidSelectedServices, ...expanded]));
+          } else {
+            setSelectedServices(dedupeSelectedServices([...selectedServices, ...expanded]));
+          }
           return;
         }
         setPendingSpecificationProduct(product);
         return;
       }
       const expanded = expandCatalogProductToServices(product, products, vehicleType);
-      setSelectedServices(dedupeSelectedServices([...selectedServices, ...expanded]));
+      if (useCompletedPool) {
+        setSelectedServices(dedupeSelectedServices([...complimentaryServices, ...paidSelectedServices, ...expanded]));
+      } else {
+        setSelectedServices(dedupeSelectedServices([...selectedServices, ...expanded]));
+      }
     }
   };
 
@@ -2848,7 +2922,12 @@ function StepThreeServices({
               </div>
               <div className="jo-completed-orders-grid">
                 {completedOrderHistory.map((entry: any) => (
-                  <div key={entry.orderId} className="jo-completed-order-card">
+                  <button
+                    key={entry.orderId}
+                    type="button"
+                    className={`jo-completed-order-card${selectedCompletedOrderId === entry.orderId ? " selected" : ""}`}
+                    onClick={() => selectCompletedOrderAndApply(entry.orderId)}
+                  >
                     <div className="jo-completed-order-id">{entry.orderId}</div>
                     <div className="jo-completed-order-meta">
                       <span className="jo-completed-order-status">{entry.workStatus}</span>
@@ -2856,24 +2935,26 @@ function StepThreeServices({
                         {entry.servicesCount} service{entry.servicesCount === 1 ? "" : "s"}
                       </span>
                     </div>
-                  </div>
+                  </button>
                 ))}
               </div>
+            </div>
+
+            <div className="jo-completed-svc-banner" style={{ marginBottom: 10 }}>
+              <i className="fas fa-gift"></i>
+              <span>Services from the selected completed order are included for free (QAR 0)</span>
             </div>
 
             <div className="jo-completed-svc-grid">
               {completedOrdersServices.map((svc: any, idx: number) => {
                 const svcKey = normalizeCatalogKey(svc?.serviceCode || svc?.catalogId || svc?.name);
-                const isSelected = selectedServices.some(
-                  (s: any) => normalizeCatalogKey(s?.serviceCode || s?.catalogId || s?.name) === svcKey
+                const isSelected = complimentaryServices.some(
+                  (s: any) => normalizeCatalogKey(s?.complimentaryKey || s?.serviceCode || s?.catalogId || s?.name) === svcKey
                 );
                 const catalogProduct = products.find(
                   (p: any) =>
                     normalizeCatalogKey(p?.serviceCode || p?.id || p?.name) === svcKey
                 );
-                const currentPrice = catalogProduct
-                  ? resolveServicePriceForVehicleType(catalogProduct, vehicleType)
-                  : (svc.price || 0);
                 const selectedSpec = selectedServices.find(
                   (s: any) => normalizeCatalogKey(s?.serviceCode || s?.catalogId || s?.name) === svcKey
                 );
@@ -2921,11 +3002,73 @@ function StepThreeServices({
                       </div>
                     </div>
                     <div className="jo-completed-svc-price">
-                      QAR {Number(currentPrice || 0).toLocaleString()}
+                      QAR 0
                     </div>
                   </div>
                 );
               })}
+            </div>
+
+            <div className="jo-completed-orders-wrap" style={{ marginTop: 14 }}>
+              <div className="jo-completed-orders-title">
+                <i className="fas fa-plus-circle"></i> Add Other Paid Services
+              </div>
+              <div className="svc-filter-bar">
+                <div className="svc-filter-row">
+                  <span className="svc-filter-label"><i className="fas fa-tags"></i> Category</span>
+                  <select
+                    className="svc-filter-select"
+                    value={filterCategory}
+                    onChange={(e) => { setFilterCategory(e.target.value); }}
+                  >
+                    <option value="all">All Categories</option>
+                    {svcCategories.map((cat) => (
+                      <option key={cat.id} value={cat.id}>{cat.nameEn}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="svc-filter-row">
+                  <span className="svc-filter-label"><i className="fas fa-layer-group"></i> Type</span>
+                  <div className="svc-type-pills">
+                    <button type="button" className={`svc-type-pill${filterType === "all" ? " active" : ""}`} onClick={() => setFilterType("all")}>All</button>
+                    <button type="button" className={`svc-type-pill${filterType === "service" ? " active" : ""}`} onClick={() => setFilterType("service")}><i className="fas fa-wrench"></i> Services</button>
+                    <button type="button" className={`svc-type-pill${filterType === "package" ? " active" : ""}`} onClick={() => setFilterType("package")}><i className="fas fa-box-open"></i> Packages</button>
+                  </div>
+                  <span className="svc-filter-count">{filteredProducts.length} of {products.length}</span>
+                </div>
+              </div>
+
+              {filteredProducts.length === 0 ? (
+                <div className="empty-state" style={{ padding: "20px 12px" }}>
+                  <div className="empty-text">No services match your filter</div>
+                </div>
+              ) : (
+                <div className="services-grid" style={{ marginTop: 10 }}>
+                  {filteredProducts.map((product: any) => {
+                    const paidSelected = isCatalogProductSelected(product, paidSelectedServices);
+                    return (
+                      <div
+                        key={String(product.id || product.serviceCode || product.name)}
+                        className={`service-checkbox ${paidSelected ? "selected" : ""}`}
+                        onClick={() => handleToggleService(product)}
+                      >
+                        <div className="service-info">
+                          <div className="service-name-row">
+                            <div className="service-name" data-no-translate="true">{getServiceDisplayName(product)}</div>
+                            {String(product?.type ?? "").toLowerCase() === "package" && (
+                              <span className="jo-package-price-badge">
+                                <i className="fas fa-box-open" aria-hidden="true"></i>
+                                Package Price Applied
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </>
         ) : (
@@ -3139,8 +3282,21 @@ function StepThreeServices({
           onClose={() => setPendingSpecificationProduct(null)}
           onConfirm={(specification: any) => {
             const expanded = expandCatalogProductToServices(pendingSpecificationProduct, products, vehicleType, specification);
-            setSelectedServices(dedupeSelectedServices([...selectedServices, ...expanded]));
+            if (pendingSelectionMode === "complimentary") {
+              const complimentaryExpanded = expanded.map((item: any, idx: number) => ({
+                ...item,
+                price: 0,
+                isComplimentaryFromCompletedOrder: true,
+                complimentaryKey: normalizeCatalogKey(item?.serviceCode || item?.catalogId || item?.name || idx),
+              }));
+              setSelectedServices(dedupeSelectedServices([...selectedServices, ...complimentaryExpanded]));
+            } else if (useCompletedPool) {
+              setSelectedServices(dedupeSelectedServices([...complimentaryServices, ...paidSelectedServices, ...expanded]));
+            } else {
+              setSelectedServices(dedupeSelectedServices([...selectedServices, ...expanded]));
+            }
             setPendingSpecificationProduct(null);
+            setPendingSelectionMode("paid");
           }}
         />
       )}
