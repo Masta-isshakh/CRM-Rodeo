@@ -3,5 +3,8 @@
   "dependencies": {
     "@aws-amplify/backend": "^1.19.0",
     "@aws-sdk/client-cognito-identity-provider": "^3.965.0"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.4"
   }
 }

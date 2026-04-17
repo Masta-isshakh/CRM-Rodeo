@@ -38,6 +38,8 @@ const MODELS_TO_CLEAN = [
   "InventorySubcategory",
   "InventoryCategory",
   "ActivityLog",
+  "CampaignAudienceLead",
+  "CampaignAudienceImportBatch",
   "InternalChatMessage",
   "ChatReadReceipt",
 ] as const;

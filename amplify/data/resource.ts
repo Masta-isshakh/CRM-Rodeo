@@ -272,6 +272,63 @@ const schema = a
       })
       .authorization((allow) => [allow.authenticated()]),
 
+    CampaignAudienceImportBatch: a
+      .model({
+        batchId: a.string().required(),
+        fileName: a.string().required(),
+        sheetName: a.string().required(),
+        status: a.string().required(),
+        totalRows: a.integer().default(0),
+        validRows: a.integer().default(0),
+        importedRows: a.integer().default(0),
+        skippedRows: a.integer().default(0),
+        duplicateRows: a.integer().default(0),
+        mappingJson: a.string(),
+        notes: a.string(),
+        importedAt: a.datetime().required(),
+        completedAt: a.datetime(),
+        createdBy: a.string(),
+      })
+      .secondaryIndexes((index) => [
+        index("batchId").queryField("campaignImportBatchByBatchId"),
+        index("importedAt").queryField("campaignImportBatchesByImportedAt"),
+      ])
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update", "delete"])]),
+
+    CampaignAudienceLead: a
+      .model({
+        importBatchId: a.string().required(),
+        sourceFileName: a.string().required(),
+        sourceSheetName: a.string().required(),
+        sourceRowNumber: a.integer().required(),
+
+        dedupeKey: a.string().required(),
+
+        customerName: a.string(),
+        customerNameLower: a.string(),
+        mobileNumber: a.string().required(),
+        normalizedMobileNumber: a.string().required(),
+        serviceName: a.string().required(),
+        serviceNameLower: a.string().required(),
+        serviceDate: a.date().required(),
+
+        vehiclePlateNumber: a.string(),
+        vehicleMake: a.string(),
+        vehicleModel: a.string(),
+        notes: a.string(),
+
+        rawJson: a.string().required(),
+        importedAt: a.datetime().required(),
+      })
+      .secondaryIndexes((index) => [
+        index("importBatchId").queryField("campaignLeadsByBatchId"),
+        index("dedupeKey").queryField("campaignLeadsByDedupeKey"),
+        index("normalizedMobileNumber").queryField("campaignLeadsByMobileNumber"),
+        index("serviceNameLower").queryField("campaignLeadsByServiceName"),
+        index("serviceDate").queryField("campaignLeadsByServiceDate"),
+      ])
+      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update", "delete"])]),
+
     InternalChatMessage: a
       .model({
         messageOwner: a.string().required(),

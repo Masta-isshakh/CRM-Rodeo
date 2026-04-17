@@ -16,6 +16,7 @@ const loadUsers = () => import("../pages/UserAdmin");
 const loadDepartmentsAdmin = () => import("../pages/DepartmentsAdmin");
 const loadRolesPoliciesAdmin = () => import("../pages/RolesPoliciesAdmin");
 const loadInventoryManagement = () => import("../pages/InventoryManagement");
+const loadCampaignAudienceAdmin = () => import("../pages/CampaignAudienceAdmin.tsx");
 const loadInternalChat = () => import("../pages/InternalMessaging");
 const loadEmailInbox = () => import("../pages/EmailInboxPage");
 
@@ -42,6 +43,7 @@ const Users = lazy(loadUsers);
 const DepartmentsAdmin = lazy(loadDepartmentsAdmin);
 const RolesPoliciesAdmin = lazy(loadRolesPoliciesAdmin);
 const InventoryManagement = lazy(loadInventoryManagement);
+const CampaignAudienceAdmin = lazy(loadCampaignAudienceAdmin);
 const InternalChat = lazy(loadInternalChat);
 const EmailInbox = lazy(loadEmailInbox);
 
@@ -85,6 +87,7 @@ type Page =
   | "departments"
   | "rolespolicies"
     | "inventory"
+    | "campaignaudience"
     | "dbcleanup";
 
 const PAGE_LOADERS: Record<Page, () => Promise<unknown>> = {
@@ -109,6 +112,7 @@ const PAGE_LOADERS: Record<Page, () => Promise<unknown>> = {
   departments: loadDepartmentsAdmin,
   rolespolicies: loadRolesPoliciesAdmin,
   inventory: loadInventoryManagement,
+  campaignaudience: loadCampaignAudienceAdmin,
   dbcleanup: loadDatabaseCleanup,
 };
 
@@ -238,7 +242,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       users: usersRead,
       departments: departmentsRead,
       rolespolicies: rolesRead && listOn("rolespolicies", "rolespolicies_list"),
-     dbcleanup: isAdminGroup,
+      campaignaudience: isAdminGroup,
+      dbcleanup: isAdminGroup,
     };
   }, [isAdminGroup, can, canOption, isModuleEnabled]);
 
@@ -265,7 +270,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (showAdmin.users) pages.push("users");
     if (showAdmin.departments) pages.push("departments");
     if (showAdmin.rolespolicies) pages.push("rolespolicies");
-      if (showAdmin.dbcleanup) pages.push("dbcleanup");
+    if (showAdmin.campaignaudience) pages.push("campaignaudience");
+    if (showAdmin.dbcleanup) pages.push("dbcleanup");
     return pages;
   }, [show, showAdmin]);
 
@@ -331,8 +337,9 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !show.inventory &&
     !showAdmin.users &&
     !showAdmin.departments &&
-      !showAdmin.rolespolicies &&
-      !showAdmin.dbcleanup;
+    !showAdmin.rolespolicies &&
+    !showAdmin.campaignaudience &&
+    !showAdmin.dbcleanup;
 
   useEffect(() => {
     if (loading) return;
@@ -360,7 +367,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (showAdmin.users) allowedPages.push("users");
     if (showAdmin.departments) allowedPages.push("departments");
     if (showAdmin.rolespolicies) allowedPages.push("rolespolicies");
-      if (showAdmin.dbcleanup) allowedPages.push("dbcleanup");
+    if (showAdmin.campaignaudience) allowedPages.push("campaignaudience");
+    if (showAdmin.dbcleanup) allowedPages.push("dbcleanup");
 
     const isCurrentAllowed =
       (page === "dashboard" && show.dashboard) ||
@@ -384,6 +392,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       (page === "users" && showAdmin.users) ||
       (page === "departments" && showAdmin.departments) ||
       (page === "rolespolicies" && showAdmin.rolespolicies) ||
+      (page === "campaignaudience" && showAdmin.campaignaudience) ||
       (page === "dbcleanup" && showAdmin.dbcleanup);
 
     if (!isCurrentAllowed) {
@@ -546,6 +555,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     users: t("User Management"),
     departments: t("Departments"),
     rolespolicies: t("Roles & Policies"),
+    campaignaudience: t("Campaign Audience"),
     dbcleanup: t("Database Cleanup"),
   };
 
@@ -696,7 +706,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               </button>
             )}
 
-            {(showAdmin.users || showAdmin.departments || showAdmin.rolespolicies) && (
+            {(showAdmin.users || showAdmin.departments || showAdmin.rolespolicies || showAdmin.campaignaudience || showAdmin.dbcleanup) && (
               <div className="drawer-section">
                 <div className="drawer-section-label">{t("Admin")}</div>
 
@@ -715,11 +725,16 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
                     <i className="fas fa-shield-alt" aria-hidden="true" /> {t("Roles & Policies")}
                   </button>
                 )}
-                 {showAdmin.dbcleanup && (
-                   <button className={page === "dbcleanup" ? "active" : ""} onClick={() => go("dbcleanup")}>
-                     <i className="fas fa-trash-alt" aria-hidden="true" /> {t("Database Cleanup")}
-                   </button>
-                 )}
+                {showAdmin.campaignaudience && (
+                  <button className={page === "campaignaudience" ? "active" : ""} onClick={() => go("campaignaudience")}>
+                    <i className="fas fa-bullhorn" aria-hidden="true" /> {t("Campaign Audience")}
+                  </button>
+                )}
+                {showAdmin.dbcleanup && (
+                  <button className={page === "dbcleanup" ? "active" : ""} onClick={() => go("dbcleanup")}>
+                    <i className="fas fa-trash-alt" aria-hidden="true" /> {t("Database Cleanup")}
+                  </button>
+                )}
 
               </div>
             )}
@@ -920,9 +935,12 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
                 <RolesPoliciesAdmin />
               </PermissionGate>
             )}
-             {page === "dbcleanup" && showAdmin.dbcleanup && (
-               <DatabaseCleanupAdmin />
-             )}
+            {page === "campaignaudience" && showAdmin.campaignaudience && (
+              <CampaignAudienceAdmin />
+            )}
+            {page === "dbcleanup" && showAdmin.dbcleanup && (
+              <DatabaseCleanupAdmin />
+            )}
             </Suspense>
           </main>
         </div>
