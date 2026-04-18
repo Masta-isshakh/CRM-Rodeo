@@ -20,7 +20,7 @@ type MappingField =
   | "notes";
 
 type ColumnMapping = Record<MappingField, string>;
-type SheetData = { columns: string[]; rows: ParsedRow[] };
+type SheetData = { columns: string[]; rows: ParsedRow[]; totalColumns: number; removedEmptyColumns: number };
 type AgePreset = "any" | "3m" | "6m" | "12m";
 
 type PreparedLead = {
@@ -125,38 +125,59 @@ function toText(value: unknown): string {
   return String(value).trim();
 }
 
-function buildSheetColumns(worksheet: XLSX.WorkSheet, rows: ParsedRow[]): string[] {
-  const matrix = XLSX.utils.sheet_to_json<(string | number | null | undefined)[]>(worksheet, {
-    header: 1,
-    raw: false,
-    defval: "",
-  });
+function parseWorksheetData(worksheet: XLSX.WorkSheet): SheetData {
+  const ref = worksheet["!ref"];
+  if (!ref) return { columns: [], rows: [], totalColumns: 0, removedEmptyColumns: 0 };
 
-  const headerRow = (matrix[0] ?? []) as Array<string | number | null | undefined>;
-  const initialColumns = headerRow
-    .map((cell, idx) => {
-      const value = toText(cell);
-      return value || `Column ${idx + 1}`;
-    })
-    .filter(Boolean);
+  const range = XLSX.utils.decode_range(ref);
+  const matrix: string[][] = [];
 
-  const seen = new Set<string>();
-  const columns: string[] = [];
-  for (const col of initialColumns) {
-    if (seen.has(col)) continue;
-    seen.add(col);
-    columns.push(col);
-  }
-
-  for (const row of rows) {
-    for (const key of Object.keys(row ?? {})) {
-      if (seen.has(key)) continue;
-      seen.add(key);
-      columns.push(key);
+  for (let rowIndex = range.s.r; rowIndex <= range.e.r; rowIndex += 1) {
+    const row: string[] = [];
+    for (let colIndex = range.s.c; colIndex <= range.e.c; colIndex += 1) {
+      const addr = XLSX.utils.encode_cell({ r: rowIndex, c: colIndex });
+      const cell = worksheet[addr];
+      row.push(cell ? toText(XLSX.utils.format_cell(cell)) : "");
     }
+    matrix.push(row);
   }
 
-  return columns;
+  if (matrix.length === 0 || matrix[0].length === 0) {
+    return { columns: [], rows: [], totalColumns: 0, removedEmptyColumns: 0 };
+  }
+
+  const headerRow = matrix[0] ?? [];
+  const dataRows = matrix.slice(1);
+
+  const keepIndexes = headerRow
+    .map((_, index) => index)
+    .filter((index) => matrix.some((row) => toText(row[index]) !== ""));
+
+  const totalColumns = headerRow.length;
+  const removedEmptyColumns = Math.max(0, totalColumns - keepIndexes.length);
+
+  const uniqueColumns: string[] = [];
+  const seenColumns = new Map<string, number>();
+
+  for (const index of keepIndexes) {
+    const rawHeader = toText(headerRow[index]);
+    const baseHeader = rawHeader || `Column ${index + 1}`;
+    const seenCount = seenColumns.get(baseHeader) ?? 0;
+    seenColumns.set(baseHeader, seenCount + 1);
+    uniqueColumns.push(seenCount === 0 ? baseHeader : `${baseHeader} (${seenCount + 1})`);
+  }
+
+  const rows: ParsedRow[] = dataRows
+    .filter((row) => keepIndexes.some((index) => toText(row[index]) !== ""))
+    .map((row) => {
+      const parsed: ParsedRow = {};
+      uniqueColumns.forEach((column, idx) => {
+        parsed[column] = toText(row[keepIndexes[idx]]);
+      });
+      return parsed;
+    });
+
+  return { columns: uniqueColumns, rows, totalColumns, removedEmptyColumns };
 }
 
 function normalizePhone(value: unknown): { display: string; normalized: string } {
@@ -521,15 +542,12 @@ export default function CampaignAudienceAdmin() {
     });
 
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: "array", cellDates: false });
+    const workbook = XLSX.read(buffer, { type: "array", cellDates: true, cellNF: true, cellText: true });
     const nextSheets: Record<string, SheetData> = {};
 
     workbook.SheetNames.forEach((sheetName) => {
       const worksheet = workbook.Sheets[sheetName];
-      const rows = XLSX.utils.sheet_to_json<ParsedRow>(worksheet, { defval: "" });
-      const columns = buildSheetColumns(worksheet, rows);
-
-      nextSheets[sheetName] = { columns, rows };
+      nextSheets[sheetName] = parseWorksheetData(worksheet);
     });
 
     const firstSheet = workbook.SheetNames[0] ?? "";
@@ -942,7 +960,17 @@ export default function CampaignAudienceAdmin() {
               <div className="campaign-preview-wrap">
                 <div className="campaign-preview-head">
                   <h3>{t("Preview")}</h3>
-                  <span>{t("Rows are paginated in groups of 30")}</span>
+                  <span className="campaign-preview-metrics">
+                    {`${t("Rows are paginated in groups of 30")} • ${t("Visible columns")}: ${previewDisplayColumns.length.toLocaleString()} / ${t("Removed empty")}: ${(activeSheet?.removedEmptyColumns ?? 0).toLocaleString()}`}
+                    <span
+                      className="campaign-metric-tooltip"
+                      role="img"
+                      aria-label={t("Removed empty means columns with no values in all rows.")}
+                      title={t("Removed empty means columns with no values in all rows.")}
+                    >
+                      ⓘ
+                    </span>
+                  </span>
                 </div>
                 <div className="campaign-view-mode-toggle">
                   <button
@@ -969,7 +997,7 @@ export default function CampaignAudienceAdmin() {
                     <table className="campaign-table preview">
                       <thead>
                         <tr>
-                          {availableColumns.map((column) => (
+                          {previewDisplayColumns.map((column) => (
                             <th key={column}>{column}</th>
                           ))}
                         </tr>
@@ -977,14 +1005,14 @@ export default function CampaignAudienceAdmin() {
                       <tbody>
                         {previewPagedRows.map((row, index) => (
                           <tr key={`preview-${index}-${previewPage}`}>
-                            {availableColumns.map((column) => (
+                            {previewDisplayColumns.map((column) => (
                               <td key={`${index}-${column}`}>{toText(row[column]) || "—"}</td>
                             ))}
                           </tr>
                         ))}
                         {previewPagedRows.length === 0 && (
                           <tr>
-                            <td colSpan={Math.max(availableColumns.length, 1)} className="campaign-empty-cell">
+                            <td colSpan={Math.max(previewDisplayColumns.length, 1)} className="campaign-empty-cell">
                               {t("No rows found in this sheet.")}
                             </td>
                           </tr>
