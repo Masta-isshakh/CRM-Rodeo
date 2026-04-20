@@ -61,7 +61,6 @@ type AppErrorBoundaryState = { hasError: boolean; message: string };
 
 class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorBoundaryState> {
   state: AppErrorBoundaryState = { hasError: false, message: "" };
-  private _retries = 0;
 
   static getDerivedStateFromError(error: unknown): AppErrorBoundaryState {
     return {
@@ -75,19 +74,83 @@ class AppErrorBoundary extends Component<AppErrorBoundaryProps, AppErrorBoundary
     console.error("[app-error-boundary]", error, info);
   }
 
+  private resetBoundary = () => {
+    this.setState({ hasError: false, message: "" });
+  };
+
+  private hardReload = () => {
+    window.location.reload();
+  };
+
   render() {
     if (this.state.hasError) {
-        if (this._retries < 3) {
-          // Auto-reset on next tick to recover from transient render errors.
-          window.setTimeout(() => {
-            this._retries += 1;
-            this.setState({ hasError: false, message: "" });
-          }, 150);
-          return null;
-        }
-        // After 3 failed retries, force a full page reload as last resort.
-        window.location.reload();
-        return null;
+      return (
+        <div
+          role="alert"
+          style={{
+            minHeight: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: "24px",
+            background: "#0f172a",
+            color: "#f8fafc",
+            textAlign: "left",
+          }}
+        >
+          <div
+            style={{
+              width: "100%",
+              maxWidth: "640px",
+              border: "1px solid rgba(248,250,252,0.25)",
+              borderRadius: "14px",
+              padding: "20px",
+              background: "rgba(15,23,42,0.82)",
+              boxShadow: "0 10px 24px rgba(2,6,23,0.45)",
+            }}
+          >
+            <h2 style={{ margin: "0 0 8px", fontSize: "1.2rem", fontWeight: 700 }}>
+              Application Error
+            </h2>
+            <p style={{ margin: "0 0 10px", opacity: 0.9 }}>
+              A runtime error interrupted rendering. You can retry without reloading first.
+            </p>
+            <p style={{ margin: "0 0 14px", fontSize: "0.9rem", opacity: 0.85 }}>
+              {this.state.message || "Unknown runtime error"}
+            </p>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <button
+                type="button"
+                onClick={this.resetBoundary}
+                style={{
+                  borderRadius: "8px",
+                  border: "1px solid rgba(248,250,252,0.35)",
+                  background: "#1d4ed8",
+                  color: "#fff",
+                  padding: "8px 12px",
+                  cursor: "pointer",
+                }}
+              >
+                Retry Render
+              </button>
+              <button
+                type="button"
+                onClick={this.hardReload}
+                style={{
+                  borderRadius: "8px",
+                  border: "1px solid rgba(248,250,252,0.35)",
+                  background: "transparent",
+                  color: "#fff",
+                  padding: "8px 12px",
+                  cursor: "pointer",
+                }}
+              >
+                Reload Page
+              </button>
+            </div>
+          </div>
+        </div>
+      );
     }
     return this.props.children;
   }
