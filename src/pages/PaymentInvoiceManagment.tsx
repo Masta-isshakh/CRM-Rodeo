@@ -1342,7 +1342,10 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   const generateBillPdf = async (order: any): Promise<Blob> => {
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pageW = 210;
-    const marginX = 18;
+    const pageH = 297;
+    const marginX = 18; // 1.8cm from template
+    const pagePadTop = 8; // 0.8cm from template
+    const pagePadBottom = 8;
     const contentW = pageW - marginX * 2;
 
     const billing = order?.billing ?? {};
@@ -1408,49 +1411,61 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       return lines.length;
     };
 
-    const headerTop = 8;
-    const headerBottom = 40;
-    const footerTop = 258;
-    const footerBottom = 290;
-    const centerColW = 44;
-    const sideColW = (contentW - centerColW) / 2;
+    // Letterhead geometry copied from provided HTML template.
+    const mmPerPx = 25.4 / 96;
+    const gridGap = 32 * mmPerPx; // 2rem gap
+    const headerLogoW = 140 * mmPerPx;
+    const headerLogoH = 100 * mmPerPx;
+    const footerQrSize = 70 * mmPerPx;
+
+    const sideColW = (contentW - headerLogoW - gridGap * 2) / 2;
     const leftColX = marginX;
-    const centerColX = leftColX + sideColW;
+    const centerColX = leftColX + sideColW + gridGap;
+    const rightColRightX = pageW - marginX;
+
+    const headerPadY = 2.1; // ~0.5rem
+    const headerContentTop = pagePadTop + headerPadY;
+    const headerBottom = pagePadTop + headerPadY * 2 + headerLogoH + 1.1; // includes bottom spacing
+
+    const footerPadTop = 3.4; // 0.8rem
+    const footerBasePadY = 2.1; // 0.5rem
+    const footerTop = pageH - pagePadBottom - (footerPadTop + footerBasePadY + footerQrSize + 1.6);
+    const footerContentTop = footerTop + footerPadTop;
 
     doc.setDrawColor(44, 62, 80);
-    doc.setLineWidth(0.5);
+    doc.setLineWidth(0.53); // 2px equivalent
     doc.line(marginX, headerBottom, pageW - marginX, headerBottom);
     doc.line(marginX, footerTop, pageW - marginX, footerTop);
 
-    // Header: left English lines (style aligned with provided template)
+    // Header: left English lines
     doc.setTextColor(24, 24, 24);
     doc.setFont("helvetica", "bolditalic");
-    doc.setFontSize(11.5);
-    doc.text("RODEO DRIVE", leftColX, headerTop + 6);
+    doc.setFontSize(12); // 16px
+    doc.text("RODEO DRIVE", leftColX, headerContentTop + 4.8);
     doc.setFont("helvetica", "italic");
-    doc.setFontSize(8.6);
-    doc.text("Gloss Perfected", leftColX, headerTop + 10.7);
+    doc.setFontSize(9); // 12px
+    doc.text("Gloss Perfected", leftColX, headerContentTop + 8.7);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.2);
-    doc.text("Block 2, Shop No. SYS 066, Block 21,", leftColX, headerTop + 15.2);
-    doc.text("Near Dragon Mart Al Sayer, Doha.", leftColX, headerTop + 19.5);
+    doc.setFontSize(9); // 12px
+    doc.text("Block 2, Shop No. SYS 066, Block 21,", leftColX, headerContentTop + 12.6);
+    doc.text("Near Dragon Mart Al Sayer, Doha.", leftColX, headerContentTop + 16.5);
 
     // Header: center logo
     if (logoDataUrl) {
-      doc.addImage(logoDataUrl, "PNG", centerColX + 6, headerTop + 1, centerColW - 12, 24);
+      doc.addImage(logoDataUrl, "PNG", centerColX, headerContentTop, headerLogoW, headerLogoH);
     }
 
     // Header: right Arabic lines
     doc.setFont("helvetica", "bolditalic");
-    doc.setFontSize(11.5);
-    doc.text("روديو درايف", pageW - marginX, headerTop + 6, { align: "right" });
+    doc.setFontSize(12);
+    doc.text("روديو درايف", rightColRightX, headerContentTop + 4.8, { align: "right" });
     doc.setFont("helvetica", "italic");
-    doc.setFontSize(8.6);
-    doc.text("اللمعان المثالي", pageW - marginX, headerTop + 10.7, { align: "right" });
+    doc.setFontSize(9);
+    doc.text("اللمعان المثالي", rightColRightX, headerContentTop + 8.7, { align: "right" });
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.2);
-    doc.text("مبنى 2 ، محل رقم 066 SYS ، مبنى 21 ،", pageW - marginX, headerTop + 15.2, { align: "right" });
-    doc.text("بالقرب من دراجون مارت الساير ، الدوحة.", pageW - marginX, headerTop + 19.5, { align: "right" });
+    doc.setFontSize(9);
+    doc.text("مبنى 2 ، محل رقم 066 SYS ، مبنى 21 ،", rightColRightX, headerContentTop + 12.6, { align: "right" });
+    doc.text("بالقرب من دراجون مارت الساير ، الدوحة.", rightColRightX, headerContentTop + 16.5, { align: "right" });
 
     // Body title and meta
     const bodyTop = headerBottom + 8;
@@ -1585,30 +1600,26 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       doc.text(fmtQar(value), pageW - marginX - 2, y + 2.8, { align: "right" });
     });
 
-    // Footer: English + QR + Arabic with top border line style
+    // Footer: exact 3-column structure from template
     doc.setTextColor(24, 24, 24);
     doc.setFont("helvetica", "bolditalic");
-    doc.setFontSize(7.9);
-    doc.text("RODEO DRIVE TRADING & SERVICES", leftColX, footerTop + 5.8);
-    doc.text("C.R. No: 122716", leftColX, footerTop + 9.9);
-    doc.text("LLC - capital QAR 200,000", leftColX, footerTop + 14.0);
-    doc.text("T: +974 44311871 | M: +974 3320 2409", leftColX, footerTop + 18.1);
-    doc.text("E: info@rodeodrive.me | W: www.rodeodrive.me", leftColX, footerTop + 22.2);
+    doc.setFontSize(8); // 8pt equivalent in template
+    const footerLineH = 3.65;
+    doc.text("RODEO DRIVE TRADING & SERVICES", leftColX, footerContentTop + footerLineH * 1);
+    doc.text("C.R. No: 122716", leftColX, footerContentTop + footerLineH * 2);
+    doc.text("LLC - capital QAR 200,000", leftColX, footerContentTop + footerLineH * 3);
+    doc.text("T: +974 44311871 | M: +974 3320 2409", leftColX, footerContentTop + footerLineH * 4);
+    doc.text("E: info@rodeodrive.me | W: www.rodeodrive.me", leftColX, footerContentTop + footerLineH * 5);
 
-    const qrSize = 18;
-    doc.addImage(qrDataUrl, "PNG", centerColX + (centerColW - qrSize) / 2, footerTop + 4, qrSize, qrSize);
+    doc.addImage(qrDataUrl, "PNG", centerColX + (headerLogoW - footerQrSize) / 2, footerContentTop, footerQrSize, footerQrSize);
 
     doc.setFont("helvetica", "bolditalic");
-    doc.setFontSize(7.9);
-    doc.text("روديو درايف للتجارة والخدمات", pageW - marginX, footerTop + 5.8, { align: "right" });
-    doc.text("س.ت :122716", pageW - marginX, footerTop + 9.9, { align: "right" });
-    doc.text("شركة ذات مسؤولية محدودة برأس مال 200,000 رق", pageW - marginX, footerTop + 14.0, { align: "right" });
-    doc.text("T:+974 44311871 | M:+974 3320 2409", pageW - marginX, footerTop + 18.1, { align: "right" });
-    doc.text("E: info@rodeodrive.me | W: www.rodeodrive.me", pageW - marginX, footerTop + 22.2, { align: "right" });
-
-    // Safety one-page marker line to preserve print bounds.
-    doc.setDrawColor(255, 255, 255);
-    doc.line(0, footerBottom, 0, footerBottom);
+    doc.setFontSize(8);
+    doc.text("روديو درايف للتجارة والخدمات", rightColRightX, footerContentTop + footerLineH * 1, { align: "right" });
+    doc.text("س.ت :122716", rightColRightX, footerContentTop + footerLineH * 2, { align: "right" });
+    doc.text("شركة ذات مسؤولية محدودة برأس مال 200,000 رق", rightColRightX, footerContentTop + footerLineH * 3, { align: "right" });
+    doc.text("T:+974 44311871 | M:+974 3320 2409", rightColRightX, footerContentTop + footerLineH * 4, { align: "right" });
+    doc.text("E: info@rodeodrive.me W:wwwRodeodrive.me", rightColRightX, footerContentTop + footerLineH * 5, { align: "right" });
 
     return doc.output("blob") as Blob;
   };
