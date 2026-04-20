@@ -2,6 +2,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "re
 import { getCurrentUser } from "aws-amplify/auth";
 import type { PageProps } from "../lib/PageProps";
 import { getDataClient } from "../lib/amplifyClient";
+import { matchesSearchQuery } from "../lib/searchUtils";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./InternalChat.css";
 
@@ -236,12 +237,9 @@ export default function InternalChat({ permissions }: PageProps) {
   }, [selfEmail, t, users]);
 
   const sortedConversations = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const filtered = q
+    const filtered = query.trim()
       ? conversations.filter(
-          (c) =>
-            c.label.toLowerCase().includes(q) ||
-            c.subLabel.toLowerCase().includes(q)
+          (c) => matchesSearchQuery([c.label, c.subLabel], query)
         )
       : conversations;
     return [...filtered].sort(

@@ -4,6 +4,7 @@ import { getCurrentUser } from "aws-amplify/auth";
 import SuccessPopup from "./SuccessPopup";
 import "./RoleAccessControl.css";
 import { getDataClient } from "../lib/amplifyClient";
+import { matchesSearchQuery } from "../lib/searchUtils";
 import { resolveActorUsername } from "../utils/actorIdentity";
 import { resolvePolicyAndOp } from "./PermissionGate";
 
@@ -777,10 +778,9 @@ export default function RoleAccessControl() {
   }, []);
 
   const visibleModules = useMemo(() => {
-    const term = searchTerm.trim().toLowerCase();
     return modulesWithSearchIndex.filter((module: any) => {
       const matchesCategory = activeCategory === "all" || module.category === activeCategory;
-      const matchesSearch = term.length === 0 || module.searchIndex.some((label: string) => label.includes(term));
+      const matchesSearch = matchesSearchQuery(module.searchIndex, searchTerm);
       return matchesCategory && matchesSearch;
     });
   }, [activeCategory, searchTerm, modulesWithSearchIndex]);

@@ -11,6 +11,7 @@ import { resolveActorUsername } from "../utils/actorIdentity";
 import { normalizePaymentStatusLabel as normalizePaymentStatusLabelShared } from "../utils/paymentStatus";
 import { formatCustomerDisplayId } from "../utils/customerId";
 import { logActivity } from "../utils/activityLogger";
+import { matchesSearchQuery } from "../lib/searchUtils";
 import { QATAR_MANUFACTURERS, getModelsByManufacturer } from "../utils/vehicleCatalog";
 import { VEHICLE_COLORS } from "../utils/vehicleColors";
 import type { ReactNode } from "react";
@@ -700,24 +701,12 @@ export default function VehicleManagement({
   const performSmartSearch = useCallback(
     (query: string) => {
       if (!query.trim()) return vehicles;
-      const terms = query.toLowerCase().split(" ").filter(Boolean);
 
       return vehicles.filter((v) => {
-        const hay = [
-          resolveVehicleIdRaw(v),
-          v.ownedBy,
-          v.make,
-          v.model,
-          v.year,
-          v.color,
-          v.plateNumber,
-          v.vin,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-
-        return terms.every((t) => hay.includes(t));
+        return matchesSearchQuery(
+          [resolveVehicleIdRaw(v), v.ownedBy, v.make, v.model, v.year, v.color, v.plateNumber, v.vin],
+          query
+        );
       });
     },
     [vehicles]

@@ -8,6 +8,7 @@ import { getUrl } from "aws-amplify/storage";
 import { normalizeActorIdentity, resolveActorDisplay, resolveActorUsername } from "../utils/actorIdentity";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { getDataClient } from "../lib/amplifyClient";
+import { matchesSearchQuery } from "../lib/searchUtils";
 import { QATAR_MANUFACTURERS, getModelsByManufacturer } from "../utils/vehicleCatalog";
 import { VEHICLE_COLORS } from "../utils/vehicleColors";
 
@@ -721,6 +722,10 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screenState]);
 
+  useEffect(() => {
+    if (screenState !== "main" && searchQuery) setSearchQuery("");
+  }, [screenState, searchQuery]);
+
   useEffect(() => setCurrentPage(1), [searchQuery]);
   useEffect(() => setCurrentPage(1), [pageSize]);
 
@@ -925,14 +930,9 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
     const allowedStatuses = ["New Request", "Inspection", "Service_Operation", "Inprogress", "Quality Check", "Ready"];
     if (!allowedStatuses.includes(order.workStatus)) return false;
 
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      String(order.id || "").toLowerCase().includes(query) ||
-      String(order.customerName || "").toLowerCase().includes(query) ||
-      String(order.mobile || "").toLowerCase().includes(query) ||
-      String(order.vehiclePlate || "").toLowerCase().includes(query) ||
-      String(order.workStatus || "").toLowerCase().includes(query)
+    return matchesSearchQuery(
+      [order.id, order.customerName, order.mobile, order.vehiclePlate, order.workStatus],
+      searchQuery
     );
   });
 

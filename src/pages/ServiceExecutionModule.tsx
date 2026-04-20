@@ -12,6 +12,7 @@ import UnifiedJobOrderRoadmap from "../components/UnifiedJobOrderRoadmap";
 import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
 import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
 import UnifiedBillingInvoicesSection from "../components/UnifiedBillingInvoicesSection";
+import { matchesSearchQuery } from "../lib/searchUtils";
 
 import { getDataClient } from "../lib/amplifyClient";
 
@@ -670,7 +671,6 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
   // filter: must be Service_Operation step active
   const filteredJobs = useMemo(() => {
-    const q = currentSearch.trim().toLowerCase();
     let list = [...jobs];
 
     list = list.filter((job) => {
@@ -697,12 +697,12 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
       });
     }
 
-    if (q) {
+    if (currentSearch.trim()) {
       list = list.filter((j) => {
-        const hay = [j.id, j.customerName, j.vehiclePlate, j.mobile]
-          .map((x) => String(x || "").toLowerCase())
-          .join(" ");
-        return hay.includes(q);
+        return matchesSearchQuery(
+          [j.id, j.customerName, j.vehiclePlate, j.mobile, j.workStatus, j.orderType],
+          currentSearch
+        );
       });
     }
 

@@ -26,6 +26,7 @@ import {
 import { uploadData } from "aws-amplify/storage";
 
 import { getDataClient } from "../lib/amplifyClient";
+import { matchesSearchQuery, splitSearchTerms } from "../lib/searchUtils";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
 import {
@@ -547,23 +548,23 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
       return;
     }
 
-    const terms = q.split(" ").filter(Boolean);
+    const terms = splitSearchTerms(q);
     let res = [...allOrders];
 
     const matchesTerm = (order: any, term: string) => {
-      const hay = [
-        order.id,
-        order.orderType,
-        order.customerName,
-        order.mobile,
-        order.vehiclePlate,
-        order.workStatus,
-        order.paymentStatus,
-        order.createDate,
-      ]
-        .map((x) => safeLower(x))
-        .join(" ");
-      return hay.includes(term);
+      return matchesSearchQuery(
+        [
+          order.id,
+          order.orderType,
+          order.customerName,
+          order.mobile,
+          order.vehiclePlate,
+          order.workStatus,
+          order.paymentStatus,
+          order.createDate,
+        ],
+        term
+      );
     };
 
     terms.forEach((term) => {

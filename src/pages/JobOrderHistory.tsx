@@ -4,6 +4,7 @@ import "./JobOrderHistory.css";
 
 import PermissionGate from "./PermissionGate";
 import { getDataClient } from "../lib/amplifyClient";
+import { matchesSearchQuery } from "../lib/searchUtils";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { firstPreferredActorValue, resolveActorDisplay, resolveOrderCreatedBy, resolveOrderUpdatedBy } from "../utils/actorIdentity";
 import {
@@ -811,23 +812,13 @@ export default function JobOrderHistory({
 
   // -------------------- SEARCH --------------------
   const filtered = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return rows;
+    if (!searchQuery.trim()) return rows;
 
     return rows.filter((r) => {
-      const hay = [
-        r.orderNumber,
-        r.orderType,
-        r.customerName,
-        r.mobile,
-        r.vehiclePlate,
-        r.workStatus,
-        r.paymentStatus,
-        r.createDate,
-      ]
-        .map((x) => String(x || "").toLowerCase())
-        .join(" ");
-      return hay.includes(q);
+      return matchesSearchQuery(
+        [r.orderNumber, r.orderType, r.customerName, r.mobile, r.vehiclePlate, r.workStatus, r.paymentStatus, r.createDate],
+        searchQuery
+      );
     });
   }, [rows, searchQuery]);
 

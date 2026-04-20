@@ -5,6 +5,7 @@ import { createPortal, flushSync } from "react-dom";
 import SuccessPopup from "./SuccessPopup";
 import ConfirmationPopup from "./ConfirmationPopup";
 import UnifiedJobOrderRoadmap from "../components/UnifiedJobOrderRoadmap";
+import { matchesSearchQuery } from "../lib/searchUtils";
 
 import "./QualityCheckModule.css";
 import "./JobCards.css";
@@ -253,18 +254,10 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
     }
 
     const filtered = allOrders.filter((job) => {
-      const hay = [
-        job.id,
-        job.createDate,
-        job.orderType,
-        job.customerName,
-        job.mobile,
-        job.vehiclePlate,
-        job.workStatus,
-      ]
-        .map((x) => safeLower(x))
-        .join(" ");
-      return hay.includes(q);
+      return matchesSearchQuery(
+        [job.id, job.createDate, job.orderType, job.customerName, job.mobile, job.vehiclePlate, job.workStatus],
+        q
+      );
     });
 
     setFilteredJobs(filtered);

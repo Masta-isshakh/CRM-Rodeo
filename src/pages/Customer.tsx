@@ -8,6 +8,7 @@ import { formatCustomerDisplayId } from "../utils/customerId";
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
 import { logActivity } from "../utils/activityLogger";
+import { matchesSearchQuery, splitSearchTerms } from "../lib/searchUtils";
 import { usePermissions } from "../lib/userPermissions";
 import "./Customer.css";
 
@@ -294,11 +295,7 @@ function CustomersTable(props: {
     const safeText = escapeHtml(text ?? "");
     if (!query.trim()) return safeText;
 
-    const terms = query
-      .toLowerCase()
-      .split(" ")
-      .map((t) => t.trim())
-      .filter(Boolean);
+    const terms = splitSearchTerms(query);
 
     if (!terms.length) return safeText;
 
@@ -989,29 +986,24 @@ export default function Customers({ permissions }: PageProps) {
   const performSmartSearch = useCallback((query: string, list: CustomerRow[]) => {
     if (!query.trim()) return list;
 
-    const terms = query.toLowerCase().split(" ").filter((t) => t.trim());
-    let results = [...list];
-
-    for (const term of terms) {
-      results = results.filter((c) => {
-        const fullName = `${c.name ?? ""} ${c.lastname ?? ""}`.trim().toLowerCase();
-        const displayCustomerId = formatCustomerDisplayId(c.id).toLowerCase();
-        return (
-          String(c.id).toLowerCase().includes(term) ||
-          displayCustomerId.includes(term) ||
-          fullName.includes(term) ||
-          String(c.phone ?? "").toLowerCase().includes(term) ||
-          String(c.email ?? "").toLowerCase().includes(term) ||
-          String(c.company ?? "").toLowerCase().includes(term) ||
-          String((c as any).heardFrom ?? "").toLowerCase().includes(term) ||
-          String((c as any).socialPlatform ?? "").toLowerCase().includes(term) ||
-          String((c as any).referralPersonName ?? "").toLowerCase().includes(term) ||
-          String((c as any).referralPersonMobile ?? "").toLowerCase().includes(term)
-        );
-      });
-    }
-
-    return results;
+    return list.filter((c) => {
+      const fullName = `${c.name ?? ""} ${c.lastname ?? ""}`.trim();
+      return matchesSearchQuery(
+        [
+          c.id,
+          formatCustomerDisplayId(c.id),
+          fullName,
+          c.phone,
+          c.email,
+          c.company,
+          (c as any).heardFrom,
+          (c as any).socialPlatform,
+          (c as any).referralPersonName,
+          (c as any).referralPersonMobile,
+        ],
+        query
+      );
+    });
   }, []);
 
   const searchResults = useMemo(

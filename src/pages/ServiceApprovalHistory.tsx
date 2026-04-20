@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import "./ServiceApprovalHistory.css";
 import PermissionGate from "./PermissionGate";
 import { getDataClient } from "../lib/amplifyClient";
+import { matchesSearchQuery } from "../lib/searchUtils";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { resolveActorDisplay } from "../utils/actorIdentity";
 import {
@@ -237,20 +238,28 @@ const ServiceApprovalHistory: React.FC = () => {
   }, [client]);
 
   const filteredHistory = useMemo(() => {
-    const q = historySearch.trim().toLowerCase();
-
     const now = new Date();
     const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
     const daysAgo = (n: number) => new Date(now.getTime() - n * 24 * 60 * 60 * 1000);
 
     return rows.filter((h) => {
-      const matchesSearch =
-        !q ||
-        h.id.toLowerCase().includes(q) ||
-        h.customer.toLowerCase().includes(q) ||
-        h.vehicle.toLowerCase().includes(q) ||
-        h.requestId.toLowerCase().includes(q) ||
-        h.decision.toLowerCase().includes(q);
+      const matchesSearch = matchesSearchQuery(
+        [
+          h.id,
+          h.requestId,
+          h.customer,
+          h.contact,
+          h.vehicle,
+          h.vehicleDetails,
+          h.decision,
+          h.decisionBy,
+          h.requestedBy,
+          h.assignedTo,
+          h.paymentStatus,
+          h.notes,
+        ],
+        historySearch
+      );
 
       const matchesDecision = !decisionFilter || h.decision === decisionFilter;
 

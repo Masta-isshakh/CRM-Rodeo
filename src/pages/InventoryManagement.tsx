@@ -5,6 +5,7 @@ import "./InventoryManagement.css";
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
 import { getDataClient } from "../lib/amplifyClient";
+import { matchesSearchQuery } from "../lib/searchUtils";
 import { usePermissions } from "../lib/userPermissions";
 import ConfirmationPopup from "./ConfirmationPopup";
 
@@ -818,9 +819,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
     allSubcategories.filter((s) => s.categoryId === categoryId).length;
 
   const filteredProducts = products.filter((p) =>
-    (p.name ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (p.serialNumber ?? "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (p.barcode ?? "").toLowerCase().includes(searchQuery.toLowerCase())
+    matchesSearchQuery([p.name, p.serialNumber, p.barcode], searchQuery)
   );
 
   // ────────────────────────────────────────────────────────────────────────────

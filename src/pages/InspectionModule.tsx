@@ -7,6 +7,7 @@ import "./JobCards.css";
 import SuccessPopup from "./SuccessPopup";
 import PermissionGate from "./PermissionGate";
 import inspectionListConfig from "./inspectionConfig";
+import { matchesSearchQuery } from "../lib/searchUtils";
 import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
 import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
 import UnifiedBillingInvoicesSection from "../components/UnifiedBillingInvoicesSection";
@@ -314,16 +315,10 @@ function InspectionModule({ currentUser }: any) {
 
   const filteredRows = useMemo(() => {
     if (!searchQuery) return rows;
-    const q = searchQuery.toLowerCase();
     return rows.filter((job) => {
-      return (
-        String(job.id || "").toLowerCase().includes(q) ||
-        String(job.createDate || "").toLowerCase().includes(q) ||
-        String(job.orderType || "").toLowerCase().includes(q) ||
-        String(job.customerName || "").toLowerCase().includes(q) ||
-        String(job.mobile || "").toLowerCase().includes(q) ||
-        String(job.vehiclePlate || "").toLowerCase().includes(q) ||
-        String(job.workStatus || "").toLowerCase().includes(q)
+      return matchesSearchQuery(
+        [job.id, job.createDate, job.orderType, job.customerName, job.mobile, job.vehiclePlate, job.workStatus],
+        searchQuery
       );
     });
   }, [rows, searchQuery]);

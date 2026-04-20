@@ -8,6 +8,7 @@ import SuccessPopup from "./SuccessPopup";
 import ErrorPopup from "./ErrorPopup";
 import PermissionGate from "./PermissionGate";
 import { getDataClient } from "../lib/amplifyClient";
+import { matchesSearchQuery } from "../lib/searchUtils";
 import { usePermissions } from "../lib/userPermissions";
 import { useLanguage } from "../i18n/LanguageContext";
 import { getUserDirectory } from "../utils/userDirectoryCache";
@@ -42,6 +43,8 @@ import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/U
 import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
 
 import { getUrl, uploadData } from "aws-amplify/storage";
+import { jsPDF } from "jspdf";
+import QRCode from "qrcode";
 
 // -------------------- helpers --------------------
 function safeJsonParse<T>(raw: any, fallback: T): T {
@@ -582,19 +585,10 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     if (!q) return list;
 
     return list.filter((o) => {
-      const hay = [
-        o.id,
-        o.orderType,
-        o.customerName,
-        o.mobile,
-        o.vehiclePlate,
-        o.workStatus,
-        o.paymentStatus,
-        o.createDate,
-      ]
-        .map((x) => String(x || "").toLowerCase())
-        .join(" ");
-      return hay.includes(q);
+      return matchesSearchQuery(
+        [o.id, o.orderType, o.customerName, o.mobile, o.vehiclePlate, o.workStatus, o.paymentStatus, o.createDate],
+        q
+      );
     });
   }, [allOrders, searchQuery]);
 
@@ -1345,269 +1339,279 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     }
   };
 
-  // -------------------- generate bill --------------------
-  const generateBillHTML = (order: any) => {
-    const billing = order?.billing ?? {};
-    const billId = String(billing.billId || order?.id || "BILL");
-    const now = new Date();
-    const currentDate = now.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
-    
-    const services: any[] = Array.isArray(order?.services) ? order.services : [];
-    const totalAmount = toNum(billing.totalAmount || 0);
-    const discount = toNum(billing.discount || 0);
-    const netAmount = toNum(billing.netAmount || 0);
-    const amountPaid = toNum(billing.amountPaid || 0);
-    const balanceDue = toNum(billing.balanceDue || 0);
+  const generateBillPdf = async (order: any): Promise<Blob> => {
+    // ── constants ──────────────────────────────────────────────────────────
+    const NAVY   = [20,  31, 46]  as const;   // #141F2E
+    const SILVER = [238,243,248]  as const;   // light row fill
+    const BORDER = [200,208,218]  as const;   // table border / divider
+    const MUTED  = [120,133,148]  as const;   // muted text
+    const WHITE  = [255,255,255]  as const;
+    const ACCENT = [0,  122,204]  as const;   // #007ACC – "Balance Due" highlight
 
-    // Build service rows (max 15 rows like the template)
-    let serviceRowsHtml = "";
-    for (let i = 1; i <= 15; i++) {
-      const service = services[i - 1];
-      const description = service ? String(service?.name ?? service ?? "") : "";
-      const amount = service ? fmtQar(toNum(service?.price || 0)) : "";
-      
-      serviceRowsHtml += `
-        <tr>
-          <td style="text-align:center; padding:10px; border:1px solid #ccc;">${i}</td>
-          <td style="padding:10px; border:1px solid #ccc;">${description}</td>
-          <td style="text-align:right; padding:10px; border:1px solid #ccc;">${amount}</td>
-        </tr>
-      `;
+    const doc      = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageW    = 210;
+    const pageH    = 297;
+    const M        = 14;          // left / right margin
+    const cW       = pageW - M*2; // usable content width
+
+    // ── data ───────────────────────────────────────────────────────────────
+    const billing     = order?.billing ?? {};
+    const billId      = safeText(billing.billId || order?.id || "BILL");
+    const currentDate = new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" });
+    const statusLabel = (billing.paymentStatus || "UNPAID").toString().toUpperCase();
+
+    const services: Array<{ name: string; price: number }> = Array.isArray(order?.services)
+      ? order.services.map((s: any) => ({ name: safeText(s?.name ?? s), price: toNum(s?.price) }))
+      : [];
+
+    const totalAmount = toNum(billing.totalAmount || 0);
+    const discount    = toNum(billing.discount    || 0);
+    const netAmount   = toNum(billing.netAmount   || 0);
+    const amountPaid  = toNum(billing.amountPaid  || 0);
+    const balanceDue  = toNum(billing.balanceDue  || 0);
+
+    // ── assets ─────────────────────────────────────────────────────────────
+    const logoDataUrl = await (async () => {
+      try {
+        const r = await fetch("/vite.png");
+        return r.ok ? await blobToDataUrl(await r.blob()) : "";
+      } catch { return ""; }
+    })();
+
+    const qrPayload  = `Bill:${billId}|Order:${safeText(order?.id)}|Customer:${safeText(order?.customerName)}|Net:${netAmount.toFixed(2)}|Paid:${amountPaid.toFixed(2)}|Due:${balanceDue.toFixed(2)}`;
+    const qrDataUrl  = await QRCode.toDataURL(qrPayload, { errorCorrectionLevel: "M", margin: 1, width: 280 });
+
+    // ── helpers ────────────────────────────────────────────────────────────
+    const setColor  = (...rgb: readonly [number,number,number]) => { doc.setTextColor(...rgb);  };
+    const setFill   = (...rgb: readonly [number,number,number]) => { doc.setFillColor(...rgb);  };
+    const setDraw   = (...rgb: readonly [number,number,number]) => { doc.setDrawColor(...rgb);  };
+    const clipText  = (text: string, maxWidth: number): string => {
+      if (doc.getTextWidth(text) <= maxWidth) return text;
+      let t = text;
+      while (t.length > 1 && doc.getTextWidth(t + "…") > maxWidth) t = t.slice(0, -1);
+      return t + "…";
+    };
+
+    // ══════════════════════════════════════════════════════════════════════
+    // 1. HEADER BAND  (y 0 → 36)
+    // ══════════════════════════════════════════════════════════════════════
+    setFill(...NAVY);
+    doc.rect(0, 0, pageW, 36, "F");
+
+    // logo – centred vertically in band at left
+    if (logoDataUrl) {
+      doc.addImage(logoDataUrl, "PNG", M, 4, 22, 22);
     }
 
-    return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<title>Invoice_${billId}.html</title>
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body { font-family: Arial, sans-serif; background: #fff; }
-  @page { size: A4; margin: 0; }
-  .invoice-container { width: 210mm; min-height: 297mm; margin: 0 auto; padding: 15mm; background: #fff; color: #000; display: flex; flex-direction: column; }
+    // company name + sub-line
+    setColor(...WHITE);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(13);
+    doc.text("RODEO DRIVE TRADING & SERVICES", M + (logoDataUrl ? 26 : 0), 16);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text("Block 2, Shop SYS 066, Doha, Qatar  ·  T +974 4431 1871  ·  M +974 3320 2409", M + (logoDataUrl ? 26 : 0), 22);
+    doc.text("info@rodeodrive.me  ·  www.rodeodrive.me", M + (logoDataUrl ? 26 : 0), 27);
 
-  /* ─── Header ─── */
-  .invoice-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 20px; padding-bottom: 12px; }
-  .co-en { flex: 1; }
-  .co-en-name { font-size: 18px; font-weight: 900; text-transform: uppercase; letter-spacing: 0.5px; color: #000; margin-bottom: 2px; font-family: Arial, sans-serif; }
-  .co-en-tagline { font-size: 11px; font-style: italic; color: #333; margin-bottom: 5px; }
-  .co-en-addr { font-size: 11px; line-height: 1.65; color: #222; }
-  .co-logo { flex: 0 0 160px; display: flex; justify-content: center; align-items: center; }
-  .logo-box { width: 148px; height: 90px; background: #f0f0f0; border: 1px solid #ccc; display: flex; align-items: center; justify-content: center; color: #aaa; font-size: 12px; font-family: Arial, sans-serif; }
-  .co-ar { flex: 1; direction: rtl; text-align: right; }
-  .co-ar-name { font-size: 18px; font-weight: 900; color: #000; margin-bottom: 2px; font-family: Arial, sans-serif; }
-  .co-ar-tagline { font-size: 11px; font-style: italic; color: #333; margin-bottom: 5px; }
-  .co-ar-addr { font-size: 11px; line-height: 1.65; color: #222; }
-  .header-rule { border: none; border-top: 1.5px solid #000; margin: 0 0 16px 0; }
+    // INVOICE label – top-right
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(24);
+    doc.text("INVOICE", pageW - M, 22, { align: "right" });
 
-  /* ─── Invoice Title Stamp ─── */
-  .invoice-title-row { text-align: center; margin-bottom: 18px; }
-  .invoice-title-stamp { display: inline-block; font-size: 20px; font-weight: 900; letter-spacing: 4px; border: 2.5px solid #1a3a5c; padding: 7px 28px; color: #1a3a5c; }
+    // ══════════════════════════════════════════════════════════════════════
+    // 2. BILL META ROW  (y 40 → 54)
+    // ══════════════════════════════════════════════════════════════════════
+    setColor(...NAVY);
+    setFill(...SILVER);
+    doc.roundedRect(M, 40, cW, 14, 2, 2, "F");
 
-  /* ─── Bill Details ─── */
-  .bill-details { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 0 0 20px 0; }
-  .detail-field { font-size: 11px; }
-  .detail-label { font-weight: bold; color: #555; font-size: 10px; display: block; margin-bottom: 2px; text-transform: uppercase; }
-  .detail-value { border-bottom: 1px solid #ddd; padding-bottom: 3px; display: block; min-height: 18px; }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(9);
+    doc.text("BILL NO",   M + 4,       47);
+    doc.text("DATE",      M + 55,      47);
+    doc.text("STATUS",    M + 110,     47);
+    doc.text("ORDER ID",  pageW - M - 55, 47);
 
-  /* ─── Services Table ─── */
-  .services-table { width: 100%; border-collapse: collapse; margin-bottom: 15px; font-size: 11px; }
-  .services-table th { background: #e8e8e8; border: 1px solid #ccc; padding: 10px; text-align: center; font-weight: bold; }
-  .services-table td { border: 1px solid #ccc; padding: 10px; }
-  .no-col { text-align: center; width: 40px; }
-  .desc-col { text-align: left; }
-  .amount-col { text-align: right; width: 100px; }
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(billId,                    M + 4,       52);
+    doc.text(currentDate,               M + 55,      52);
 
-  /* ─── Summary ─── */
-  .summary-section { margin-top: 20px; }
-  .summary-row { display: grid; grid-template-columns: 1fr 150px; gap: 10px; margin-bottom: 8px; font-size: 12px; font-weight: bold; }
-  .total-amount-row { background: #e8e8e8; padding: 10px; display: grid; grid-template-columns: 1fr 150px; gap: 10px; margin: 10px 0; }
-  .total-amount-row span { font-size: 14px; font-weight: bold; }
+    // coloured status chip
+    const paidFull = balanceDue <= 0;
+    if (paidFull) {
+      doc.setFillColor(34, 139, 34);
+    } else {
+      doc.setFillColor(204, 60, 0);
+    }
+    doc.roundedRect(M + 108, 48, 26, 5.5, 1, 1, "F");
+    setColor(...WHITE);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.text(statusLabel, M + 121, 52.2, { align: "center" });
 
-  /* ─── Bottom Fields ─── */
-  .bottom-fields { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 15px; margin: 25px 0; font-size: 11px; }
-  .bottom-label { font-weight: bold; margin-bottom: 5px; }
-  .bottom-value { border-bottom: 1px solid #999; min-height: 25px; }
+    setColor(...NAVY);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text(safeText(order?.id) || "-", pageW - M - 55, 52);
 
-  /* ─── Footer: EN left | QR center | AR right ─── */
-  .invoice-footer { border-top: 1.5px solid #000; padding-top: 12px; margin-top: auto; display: flex; align-items: flex-start; gap: 16px; }
-  .footer-col-en { flex: 1; font-size: 10px; line-height: 1.7; color: #222; }
-  .footer-col-en strong { font-size: 11px; font-weight: 900; text-transform: uppercase; display: block; margin-bottom: 2px; }
-  .footer-col-qr { flex: 0 0 82px; display: flex; justify-content: center; align-items: center; }
-  .qr-box { width: 78px; height: 78px; background: #e0e0e0; border: 1px solid #bbb; display: flex; align-items: center; justify-content: center; color: #888; font-size: 11px; font-family: Arial, sans-serif; }
-  .footer-col-ar { flex: 1; direction: rtl; text-align: right; font-size: 10px; line-height: 1.7; color: #222; }
-  .footer-col-ar strong { font-size: 11px; font-weight: 900; display: block; margin-bottom: 2px; }
-</style>
-</head>
-<body>
-<div class="invoice-container">
+    // ══════════════════════════════════════════════════════════════════════
+    // 3. BILL TO + VEHICLE  (y 58 → 88)
+    // ══════════════════════════════════════════════════════════════════════
+    const infoTop = 59;
+    const halfW   = (cW - 4) / 2;
 
-  <!-- Header: EN left | Logo center | AR right -->
-  <div class="invoice-header">
-    <div class="co-en">
-      <div class="co-en-name">RODEO DRIVE</div>
-      <div class="co-en-tagline">Gloss Perfected</div>
-      <div class="co-en-addr">Block 2, Shop No. SYS 066, Block 21,</div>
-      <div class="co-en-addr">Near Dragon Mart Al Sayer, Doha.</div>
-    </div>
-    <div class="co-logo">
-      <div class="logo-box">[ LOGO ]</div>
-    </div>
-    <div class="co-ar">
-      <div class="co-ar-name">رودیو درایف</div>
-      <div class="co-ar-tagline">اللمعات المثالي</div>
-      <div class="co-ar-addr">مبنى 2 ، محل رقم SYS 066 ، 21 ،</div>
-      <div class="co-ar-addr">بالقرب من دراجون مارت السایر ، الدوحة</div>
-    </div>
-  </div>
-  <hr class="header-rule">
+    // left box – Bill To
+    setFill(...SILVER);
+    doc.roundedRect(M, infoTop, halfW, 27, 2, 2, "F");
+    setColor(...MUTED);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.text("BILL TO", M + 4, infoTop + 5);
+    setColor(...NAVY);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text(clipText(safeText(order?.customerName) || "—", halfW - 8), M + 4, infoTop + 11);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.text(`Mobile: ${safeText(order?.mobile) || "—"}`, M + 4, infoTop + 17);
+    doc.text(`Order ID: ${safeText(order?.id) || "—"}`, M + 4, infoTop + 22);
 
-  <!-- INVOICE stamp -->
-  <div class="invoice-title-row">
-    <div class="invoice-title-stamp">INVOICE</div>
-  </div>
+    // right box – Vehicle
+    const rx = M + halfW + 4;
+    setFill(...SILVER);
+    doc.roundedRect(rx, infoTop, halfW, 27, 2, 2, "F");
+    setColor(...MUTED);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(7.5);
+    doc.text("VEHICLE", rx + 4, infoTop + 5);
+    setColor(...NAVY);
+    const makeModel = `${safeText(order?.vehicleDetails?.make)} ${safeText(order?.vehicleDetails?.model)}`.trim() || "—";
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text(clipText(makeModel, halfW - 8), rx + 4, infoTop + 11);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.text(`Plate: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "—"}`, rx + 4, infoTop + 17);
+    doc.text(`VIN: ${safeText(order?.vehicleDetails?.vin) || "—"}`, rx + 4, infoTop + 22);
 
-  <!-- Bill Details -->
-  <div class="bill-details">
-    <div class="detail-field">
-      <span class="detail-label">Bill Number</span>
-      <span class="detail-value">${billId}</span>
-    </div>
-    <div class="detail-field">
-      <span class="detail-label">Bill Date</span>
-      <span class="detail-value">${currentDate}</span>
-    </div>
-    <div></div>
+    // ══════════════════════════════════════════════════════════════════════
+    // 4. SERVICES TABLE  (y ~91)
+    // ══════════════════════════════════════════════════════════════════════
+    const tblTop  = infoTop + 31;
+    const rowH    = 7;
+    const noW     = 12;
+    const amtW    = 36;
+    const descW   = cW - noW - amtW;
+    const footerY = pageH - 38;
+    const maxRows = Math.max(1, Math.floor((footerY - (tblTop + rowH * 2) - 42) / rowH));
 
-    <div class="detail-field">
-      <span class="detail-label">Order ID</span>
-      <span class="detail-value">${String(order.id || "")}</span>
-    </div>
-    <div class="detail-field">
-      <span class="detail-label">Order Date</span>
-      <span class="detail-value">${currentDate}</span>
-    </div>
-    <div></div>
+    // header row
+    setFill(...NAVY);
+    doc.roundedRect(M, tblTop, cW, rowH, 1.5, 1.5, "F");
+    setColor(...WHITE);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.text("#",           M + noW/2,          tblTop + 4.8, { align: "center" });
+    doc.text("DESCRIPTION", M + noW + 3,        tblTop + 4.8);
+    doc.text("AMOUNT",      pageW - M - 2,      tblTop + 4.8, { align: "right" });
 
-    <div class="detail-field">
-      <span class="detail-label">Customer Name</span>
-      <span class="detail-value">${String(order.customerName || "")}</span>
-    </div>
-    <div class="detail-field">
-      <span class="detail-label">Mobile</span>
-      <span class="detail-value">${String(order.mobile || "")}</span>
-    </div>
-    <div></div>
+    // data rows
+    const visibleServices = services.slice(0, maxRows);
+    visibleServices.forEach((svc: { name: string; price: number }, i: number) => {
+      const ry = tblTop + rowH * (i + 1);
+      if (i % 2 === 0) { setFill(246,248,251); doc.rect(M, ry, cW, rowH, "F"); }
+      setDraw(...BORDER);
+      doc.rect(M, ry, cW, rowH);
+      setColor(...NAVY);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.5);
+      doc.text(String(i + 1), M + noW/2, ry + 4.8, { align: "center" });
+      doc.text(clipText(safeText(svc.name) || "—", descW - 6), M + noW + 3, ry + 4.8);
+      doc.setFont("helvetica", "bold");
+      doc.text(fmtQar(toNum(svc.price)), pageW - M - 2, ry + 4.8, { align: "right" });
+    });
 
-    <div class="detail-field">
-      <span class="detail-label">Make</span>
-      <span class="detail-value">${String(order.vehicleDetails?.make || "")}</span>
-    </div>
-    <div class="detail-field">
-      <span class="detail-label">Model</span>
-      <span class="detail-value">${String(order.vehicleDetails?.model || "")}</span>
-    </div>
-    <div class="detail-field">
-      <span class="detail-label">Plate Number</span>
-      <span class="detail-value">${String(order.vehiclePlate || order.vehicleDetails?.plateNumber || "")}</span>
-    </div>
+    // overflow note
+    let afterTableY = tblTop + rowH * (visibleServices.length + 1) + 3;
+    if (services.length > visibleServices.length) {
+      setColor(...MUTED);
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(7.5);
+      doc.text(`+ ${services.length - visibleServices.length} additional service(s) not shown — single-page limit`, M, afterTableY);
+      setColor(...NAVY);
+      afterTableY += 5;
+    }
 
-    <div class="detail-field">
-      <span class="detail-label">Color</span>
-      <span class="detail-value">${String(order.vehicleDetails?.color || "")}</span>
-    </div>
-    <div class="detail-field">
-      <span class="detail-label">Year</span>
-      <span class="detail-value">${String(order.vehicleDetails?.year || "")}</span>
-    </div>
-    <div class="detail-field">
-      <span class="detail-label">VIN</span>
-      <span class="detail-value">${String(order.vehicleDetails?.vin || "")}</span>
-    </div>
-  </div>
+    // ══════════════════════════════════════════════════════════════════════
+    // 5. SUMMARY BOX  (right-aligned, below table)
+    // ══════════════════════════════════════════════════════════════════════
+    const summaryRows: Array<{ label: string; value: number; bold?: boolean; accent?: boolean }> = [
+      { label: "Subtotal",     value: totalAmount },
+      { label: "Discount",     value: discount    },
+      { label: "Net Amount",   value: netAmount,  bold: true },
+      { label: "Amount Paid",  value: amountPaid  },
+      { label: "Balance Due",  value: balanceDue, bold: true, accent: true },
+    ];
+    const sumBoxW = 80;
+    const sumRowH = 7;
+    const sumX    = pageW - M - sumBoxW;
+    const sumTop  = afterTableY;
 
-  <!-- Services Table -->
-  <table class="services-table">
-    <thead>
-      <tr>
-        <th class="no-col">No</th>
-        <th class="desc-col">Description</th>
-        <th class="amount-col">Amount</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${serviceRowsHtml}
-      <tr style="background: #e8e8e8;">
-        <td colspan="2" style="text-align: right; padding: 10px; font-weight: bold;">Total Amount</td>
-        <td style="text-align: right; padding: 10px; font-weight: bold;">${fmtQar(totalAmount)}</td>
-      </tr>
-    </tbody>
-  </table>
+    setFill(...SILVER);
+    doc.roundedRect(sumX, sumTop, sumBoxW, summaryRows.length * sumRowH + 2, 2, 2, "F");
 
-  <!-- Summary Section -->
-  <div class="summary-section">
-    <div class="summary-row">
-      <div style="text-align: right;">Total Amount</div>
-      <div style="text-align: right;">${fmtQar(totalAmount)}</div>
-    </div>
-    <div class="summary-row">
-      <div style="text-align: right;">Discount</div>
-      <div style="text-align: right;">${fmtQar(discount)}</div>
-    </div>
-    <div class="summary-row">
-      <div style="text-align: right;">Net Amount</div>
-      <div style="text-align: right;">${fmtQar(netAmount)}</div>
-    </div>
-    <div class="summary-row">
-      <div style="text-align: right;">Amount Paid</div>
-      <div style="text-align: right;">${fmtQar(amountPaid)}</div>
-    </div>
-    <div class="summary-row">
-      <div style="text-align: right; font-weight: bold; font-size: 13px;">Balance Due</div>
-      <div style="text-align: right; font-weight: bold; font-size: 13px;">${fmtQar(balanceDue)}</div>
-    </div>
-  </div>
+    summaryRows.forEach((row, i) => {
+      const ry = sumTop + 1 + i * sumRowH;
+      if (row.accent) {
+        setFill(...ACCENT);
+        doc.rect(sumX, ry, sumBoxW, sumRowH, "F");
+        setColor(...WHITE);
+      } else {
+        setColor(...NAVY);
+      }
+      doc.setFont("helvetica", row.bold ? "bold" : "normal");
+      doc.setFontSize(9);
+      doc.text(row.label, sumX + 4, ry + 5);
+      doc.text(fmtQar(row.value), pageW - M - 2, ry + 5, { align: "right" });
+    });
 
-  <!-- Bottom Fields -->
-  <div class="bottom-fields">
-    <div class="bottom-field">
-      <div class="bottom-label">Received By</div>
-      <div class="bottom-value"></div>
-    </div>
-    <div class="bottom-field">
-      <div class="bottom-label">Payment Method</div>
-      <div class="bottom-value"></div>
-    </div>
-    <div class="bottom-field" style="grid-column: span 2;">
-      <div class="bottom-label">Date &amp; Time</div>
-      <div class="bottom-value"></div>
-    </div>
-  </div>
+    // ══════════════════════════════════════════════════════════════════════
+    // 6. FOOTER BAND  (bottom 36 mm)
+    // ══════════════════════════════════════════════════════════════════════
+    setFill(...NAVY);
+    doc.rect(0, pageH - 36, pageW, 36, "F");
 
-  <!-- Footer: EN left | QR center | AR right -->
-  <div class="invoice-footer">
-    <div class="footer-col-en">
-      <strong>RODEO DRIVE TRADING &amp; SERVICES</strong>
-      C.R. No: 122716<br>
-      LLC &#x2013; capital QAR 200,000<br>
-      T: +974 44311871 | M: +974 3320 2409<br>
-      E: info@rodeodrive.me | W: www.rodeodrive.me
-    </div>
-    <div class="footer-col-qr">
-      <div class="qr-box">QR</div>
-    </div>
-    <div class="footer-col-ar">
-      <strong>رودیو درایف للتجارة والخدمات</strong>
-      س.ت: 122716<br>
-      شركة ذات مسؤولية محدودة برأس مال 200,000 رق<br>
-      T: +974 44311871 | M: +974 3320 2409<br>
-      E: info@rodeodrive.me | W: www.rodeodrive.me
-    </div>
-  </div>
+    // QR – centred
+    const qrSize = 22;
+    const qrX    = pageW / 2 - qrSize / 2;
+    const qrY    = pageH - 34;
+    doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
+    setColor(...WHITE);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(6.5);
+    doc.text("Scan for bill reference", pageW / 2, pageH - 10, { align: "center" });
 
-</div>
-</body>
-</html>`;
+    // left contact
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    setColor(180, 195, 210);
+    doc.text("RODEO DRIVE TRADING & SERVICES", M, pageH - 28);
+    doc.text("Block 2, Shop SYS 066, Doha, Qatar", M, pageH - 23);
+    doc.text("T: +974 4431 1871  ·  M: +974 3320 2409", M, pageH - 18);
+    doc.text("info@rodeodrive.me  ·  www.rodeodrive.me", M, pageH - 13);
+
+    // right – "thank you"
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(8.5);
+    setColor(...WHITE);
+    doc.text("Thank you for your business!", pageW - M, pageH - 18, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(7.5);
+    setColor(180, 195, 210);
+    doc.text(`Generated: ${currentDate}`, pageW - M, pageH - 13, { align: "right" });
+
+    return doc.output("blob") as Blob;
   };
 
   const generateBill = async () => {
@@ -1636,17 +1640,16 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         return;
       }
 
-      const html = generateBillHTML(selectedOrder);
-      const blob = new Blob([html], { type: "text/html" });
-      const key = `job-orders/${selectedOrder.id}/billing/Bill_${billId}_${Date.now()}.html`;
+      const pdfBlob = await generateBillPdf(selectedOrder);
+      const key = `job-orders/${selectedOrder.id}/billing/Bill_${billId}_${Date.now()}.pdf`;
 
-      await uploadData({ path: key, data: blob, options: { contentType: "text/html" } }).result;
+      await uploadData({ path: key, data: pdfBlob, options: { contentType: "application/pdf" } }).result;
 
       const actor = resolveActorUsername(currentUser, "user");
 
       const newDoc: DocItem = {
         id: `DOC-${Date.now()}`,
-        name: `Bill_${billId}.html`,
+        name: `Bill_${billId}.pdf`,
         type: "Invoice/Bill",
         category: "Billing",
         addedAt: new Date().toISOString(),
@@ -2445,4 +2448,17 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       </div>
     </div>
   );
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Failed to convert blob to data URL"));
+    reader.readAsDataURL(blob);
+  });
+}
+
+function safeText(value: unknown): string {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
 }

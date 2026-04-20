@@ -7,6 +7,7 @@ import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
 import { getDataClient } from "../lib/amplifyClient";
+import { matchesSearchQuery } from "../lib/searchUtils";
 import { usePermissions } from "../lib/userPermissions";
 import PermissionGate from "./PermissionGate";
 import ConfirmationPopup from "./ConfirmationPopup";
@@ -684,8 +685,7 @@ export default function Users(_: PageProps) {
       const role = String(row.roleName ?? "");
       const lineManager = String(row.lineManagerDisplay ?? "");
       const mobile = String(row.mobile ?? "");
-      const hay = `${row.empId} ${fullName} ${email} ${mobile} ${dept} ${role} ${lineManager}`.toLowerCase();
-      return hay.includes(q);
+      return matchesSearchQuery([row.empId, fullName, email, mobile, dept, role, lineManager], q);
     });
   }, [enriched, search]);
 
