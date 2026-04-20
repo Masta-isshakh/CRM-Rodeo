@@ -1411,6 +1411,51 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       return lines.length;
     };
 
+    const drawArabicLine = (
+      text: string,
+      xRightMm: number,
+      yTopMm: number,
+      maxWidthMm: number,
+      fontPx: number,
+      style: "normal" | "italic" | "bold" | "bolditalic",
+    ) => {
+      if (typeof document === "undefined") {
+        doc.setFont("helvetica", style === "bolditalic" ? "bold" : style === "bold" ? "bold" : "normal");
+        doc.setFontSize(style === "bolditalic" ? 12 : 9);
+        doc.text(text, xRightMm, yTopMm + 3.4, { align: "right" });
+        return;
+      }
+
+      const pxPerMm = 96 / 25.4;
+      const scale = 2;
+      const lineH = 4.4;
+      const widthPx = Math.max(1, Math.ceil(maxWidthMm * pxPerMm * scale));
+      const heightPx = Math.max(1, Math.ceil(lineH * pxPerMm * scale));
+      const canvas = document.createElement("canvas");
+      canvas.width = widthPx;
+      canvas.height = heightPx;
+
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        doc.setFont("helvetica", style === "bolditalic" ? "bold" : style === "bold" ? "bold" : "normal");
+        doc.setFontSize(style === "bolditalic" ? 12 : 9);
+        doc.text(text, xRightMm, yTopMm + 3.4, { align: "right" });
+        return;
+      }
+
+      const fontWeight = style.includes("bold") ? "700" : "400";
+      const fontStyle = style.includes("italic") ? "italic" : "normal";
+      ctx.clearRect(0, 0, widthPx, heightPx);
+      ctx.fillStyle = "#181818";
+      ctx.direction = "rtl";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      ctx.font = `${fontStyle} ${fontWeight} ${Math.round(fontPx * scale)}px Tahoma, Arial, "Segoe UI", sans-serif`;
+      ctx.fillText(text, widthPx - 2, heightPx / 2 + 0.5);
+
+      doc.addImage(canvas.toDataURL("image/png"), "PNG", xRightMm - maxWidthMm, yTopMm, maxWidthMm, lineH);
+    };
+
     // Letterhead geometry copied from provided HTML template.
     const mmPerPx = 25.4 / 96;
     const gridGap = 32 * mmPerPx; // 2rem gap
@@ -1422,6 +1467,12 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const leftColX = marginX;
     const centerColX = leftColX + sideColW + gridGap;
     const rightColRightX = pageW - marginX;
+
+    // Footer uses a smaller center item (QR), so side columns should be wider.
+    const footerSideColW = (contentW - footerQrSize - gridGap * 2) / 2;
+    const footerLeftColX = marginX;
+    const footerCenterColX = footerLeftColX + footerSideColW + gridGap;
+    const footerRightColRightX = pageW - marginX;
 
     const headerPadY = 2.1; // ~0.5rem
     const headerContentTop = pagePadTop + headerPadY;
@@ -1455,17 +1506,11 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       doc.addImage(logoDataUrl, "PNG", centerColX, headerContentTop, headerLogoW, headerLogoH);
     }
 
-    // Header: right Arabic lines
-    doc.setFont("helvetica", "bolditalic");
-    doc.setFontSize(12);
-    doc.text("روديو درايف", rightColRightX, headerContentTop + 4.8, { align: "right" });
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(9);
-    doc.text("اللمعان المثالي", rightColRightX, headerContentTop + 8.7, { align: "right" });
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.text("مبنى 2 ، محل رقم 066 SYS ، مبنى 21 ،", rightColRightX, headerContentTop + 12.6, { align: "right" });
-    doc.text("بالقرب من دراجون مارت الساير ، الدوحة.", rightColRightX, headerContentTop + 16.5, { align: "right" });
+    // Header: right Arabic lines (canvas rendering preserves Arabic shaping)
+    drawArabicLine("روديو درايف", rightColRightX, headerContentTop + 2.6, sideColW, 16, "bolditalic");
+    drawArabicLine("اللمعان المثالي", rightColRightX, headerContentTop + 6.8, sideColW, 12, "italic");
+    drawArabicLine("مبنى 2 ، محل رقم SYS 066 ، مبنى 21 ،", rightColRightX, headerContentTop + 11.0, sideColW, 12, "normal");
+    drawArabicLine("بالقرب من دراجون مارت ال ساير ، الدوحة.", rightColRightX, headerContentTop + 15.2, sideColW, 12, "normal");
 
     // Body title and meta
     const bodyTop = headerBottom + 8;
@@ -1605,21 +1650,19 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     doc.setFont("helvetica", "bolditalic");
     doc.setFontSize(8); // 8pt equivalent in template
     const footerLineH = 3.65;
-    doc.text("RODEO DRIVE TRADING & SERVICES", leftColX, footerContentTop + footerLineH * 1);
-    doc.text("C.R. No: 122716", leftColX, footerContentTop + footerLineH * 2);
-    doc.text("LLC - capital QAR 200,000", leftColX, footerContentTop + footerLineH * 3);
-    doc.text("T: +974 44311871 | M: +974 3320 2409", leftColX, footerContentTop + footerLineH * 4);
-    doc.text("E: info@rodeodrive.me | W: www.rodeodrive.me", leftColX, footerContentTop + footerLineH * 5);
+    doc.text("RODEO DRIVE TRADING & SERVICES", footerLeftColX, footerContentTop + footerLineH * 1);
+    doc.text("C.R. No: 122716", footerLeftColX, footerContentTop + footerLineH * 2);
+    doc.text("LLC - capital QAR 200,000", footerLeftColX, footerContentTop + footerLineH * 3);
+    doc.text("T: +974 44311871 | M: +974 3320 2409", footerLeftColX, footerContentTop + footerLineH * 4);
+    doc.text("E: info@rodeodrive.me | W: wwwrodeodrive.me", footerLeftColX, footerContentTop + footerLineH * 5);
 
-    doc.addImage(qrDataUrl, "PNG", centerColX + (headerLogoW - footerQrSize) / 2, footerContentTop, footerQrSize, footerQrSize);
+    doc.addImage(qrDataUrl, "PNG", footerCenterColX, footerContentTop, footerQrSize, footerQrSize);
 
-    doc.setFont("helvetica", "bolditalic");
-    doc.setFontSize(8);
-    doc.text("روديو درايف للتجارة والخدمات", rightColRightX, footerContentTop + footerLineH * 1, { align: "right" });
-    doc.text("س.ت :122716", rightColRightX, footerContentTop + footerLineH * 2, { align: "right" });
-    doc.text("شركة ذات مسؤولية محدودة برأس مال 200,000 رق", rightColRightX, footerContentTop + footerLineH * 3, { align: "right" });
-    doc.text("T:+974 44311871 | M:+974 3320 2409", rightColRightX, footerContentTop + footerLineH * 4, { align: "right" });
-    doc.text("E: info@rodeodrive.me W:wwwRodeodrive.me", rightColRightX, footerContentTop + footerLineH * 5, { align: "right" });
+    drawArabicLine("روديو درايف للتجارة والخدمات", footerRightColRightX, footerContentTop + footerLineH * 1 - 2.9, footerSideColW, 10, "bolditalic");
+    drawArabicLine("س.ت:122716", footerRightColRightX, footerContentTop + footerLineH * 2 - 2.9, footerSideColW, 10, "bolditalic");
+    drawArabicLine("شركة ذات مسؤلية محدودة برأس مال 200,000 رق", footerRightColRightX, footerContentTop + footerLineH * 3 - 2.9, footerSideColW, 10, "bolditalic");
+    drawArabicLine("T:+974 44311871 | M:+974 3320 2409", footerRightColRightX, footerContentTop + footerLineH * 4 - 2.9, footerSideColW, 10, "bolditalic");
+    drawArabicLine("E: info@rodeodrive.me W:wwwRodeodrive.me", footerRightColRightX, footerContentTop + footerLineH * 5 - 2.9, footerSideColW, 10, "bolditalic");
 
     return doc.output("blob") as Blob;
   };
