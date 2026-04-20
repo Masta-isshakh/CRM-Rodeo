@@ -1340,276 +1340,275 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   };
 
   const generateBillPdf = async (order: any): Promise<Blob> => {
-    // ── constants ──────────────────────────────────────────────────────────
-    const NAVY   = [20,  31, 46]  as const;   // #141F2E
-    const SILVER = [238,243,248]  as const;   // light row fill
-    const BORDER = [200,208,218]  as const;   // table border / divider
-    const MUTED  = [120,133,148]  as const;   // muted text
-    const WHITE  = [255,255,255]  as const;
-    const ACCENT = [0,  122,204]  as const;   // #007ACC – "Balance Due" highlight
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageW = 210;
+    const marginX = 18;
+    const contentW = pageW - marginX * 2;
 
-    const doc      = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const pageW    = 210;
-    const pageH    = 297;
-    const M        = 14;          // left / right margin
-    const cW       = pageW - M*2; // usable content width
-
-    // ── data ───────────────────────────────────────────────────────────────
-    const billing     = order?.billing ?? {};
-    const billId      = safeText(billing.billId || order?.id || "BILL");
-    const currentDate = new Date().toLocaleDateString("en-GB", { day:"2-digit", month:"short", year:"numeric" });
-    const statusLabel = (billing.paymentStatus || "UNPAID").toString().toUpperCase();
+    const billing = order?.billing ?? {};
+    const billId = safeText(billing.billId || order?.id || "BILL");
+    const currentDate = new Date().toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+    const paymentStatus = (billing.paymentStatus || (toNum(billing.balanceDue) <= 0 ? "PAID" : "UNPAID")).toString().toUpperCase();
 
     const services: Array<{ name: string; price: number }> = Array.isArray(order?.services)
-      ? order.services.map((s: any) => ({ name: safeText(s?.name ?? s), price: toNum(s?.price) }))
+      ? order.services.map((service: any) => ({
+          name: safeText(service?.name ?? service),
+          price: toNum(service?.price),
+        }))
       : [];
 
     const totalAmount = toNum(billing.totalAmount || 0);
-    const discount    = toNum(billing.discount    || 0);
-    const netAmount   = toNum(billing.netAmount   || 0);
-    const amountPaid  = toNum(billing.amountPaid  || 0);
-    const balanceDue  = toNum(billing.balanceDue  || 0);
+    const discount = toNum(billing.discount || 0);
+    const netAmount = toNum(billing.netAmount || 0);
+    const amountPaid = toNum(billing.amountPaid || 0);
+    const balanceDue = toNum(billing.balanceDue || 0);
 
-    // ── assets ─────────────────────────────────────────────────────────────
     const logoDataUrl = await (async () => {
       try {
-        const r = await fetch("/vite.png");
-        return r.ok ? await blobToDataUrl(await r.blob()) : "";
-      } catch { return ""; }
+        const logoRes = await fetch("/vite.png");
+        if (!logoRes.ok) return "";
+        return await blobToDataUrl(await logoRes.blob());
+      } catch {
+        return "";
+      }
     })();
 
-    const qrPayload  = `Bill:${billId}|Order:${safeText(order?.id)}|Customer:${safeText(order?.customerName)}|Net:${netAmount.toFixed(2)}|Paid:${amountPaid.toFixed(2)}|Due:${balanceDue.toFixed(2)}`;
-    const qrDataUrl  = await QRCode.toDataURL(qrPayload, { errorCorrectionLevel: "M", margin: 1, width: 280 });
+    const qrPayload = [
+      `Bill: ${billId}`,
+      `Order: ${safeText(order?.id)}`,
+      `Customer: ${safeText(order?.customerName)}`,
+      `Net: ${netAmount.toFixed(2)}`,
+      `Paid: ${amountPaid.toFixed(2)}`,
+      `Due: ${balanceDue.toFixed(2)}`,
+      `Date: ${currentDate}`,
+    ].join(" | ");
 
-    // ── helpers ────────────────────────────────────────────────────────────
-    const setColor  = (...rgb: readonly [number,number,number]) => { doc.setTextColor(...rgb);  };
-    const setFill   = (...rgb: readonly [number,number,number]) => { doc.setFillColor(...rgb);  };
-    const setDraw   = (...rgb: readonly [number,number,number]) => { doc.setDrawColor(...rgb);  };
-    const clipText  = (text: string, maxWidth: number): string => {
+    const qrDataUrl = await QRCode.toDataURL(qrPayload, {
+      errorCorrectionLevel: "M",
+      margin: 1,
+      width: 240,
+    });
+
+    const clipText = (text: string, maxWidth: number) => {
       if (doc.getTextWidth(text) <= maxWidth) return text;
-      let t = text;
-      while (t.length > 1 && doc.getTextWidth(t + "…") > maxWidth) t = t.slice(0, -1);
-      return t + "…";
+      let out = text;
+      while (out.length > 1 && doc.getTextWidth(`${out}...`) > maxWidth) out = out.slice(0, -1);
+      return `${out}...`;
     };
 
-    // ══════════════════════════════════════════════════════════════════════
-    // 1. HEADER BAND  (y 0 → 36)
-    // ══════════════════════════════════════════════════════════════════════
-    setFill(...NAVY);
-    doc.rect(0, 0, pageW, 36, "F");
+    const drawWrapped = (text: string, x: number, y: number, maxWidth: number, lineH: number, align: "left" | "right" = "left") => {
+      const lines = doc.splitTextToSize(text || "-", maxWidth) as string[];
+      lines.forEach((line, idx) => {
+        doc.text(line, x, y + idx * lineH, align === "right" ? { align: "right" } : undefined);
+      });
+      return lines.length;
+    };
 
-    // logo – centred vertically in band at left
-    if (logoDataUrl) {
-      doc.addImage(logoDataUrl, "PNG", M, 4, 22, 22);
-    }
+    const headerTop = 8;
+    const headerBottom = 40;
+    const footerTop = 258;
+    const footerBottom = 290;
+    const centerColW = 44;
+    const sideColW = (contentW - centerColW) / 2;
+    const leftColX = marginX;
+    const centerColX = leftColX + sideColW;
 
-    // company name + sub-line
-    setColor(...WHITE);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(13);
-    doc.text("RODEO DRIVE TRADING & SERVICES", M + (logoDataUrl ? 26 : 0), 16);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    doc.text("Block 2, Shop SYS 066, Doha, Qatar  ·  T +974 4431 1871  ·  M +974 3320 2409", M + (logoDataUrl ? 26 : 0), 22);
-    doc.text("info@rodeodrive.me  ·  www.rodeodrive.me", M + (logoDataUrl ? 26 : 0), 27);
+    doc.setDrawColor(44, 62, 80);
+    doc.setLineWidth(0.5);
+    doc.line(marginX, headerBottom, pageW - marginX, headerBottom);
+    doc.line(marginX, footerTop, pageW - marginX, footerTop);
 
-    // INVOICE label – top-right
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(24);
-    doc.text("INVOICE", pageW - M, 22, { align: "right" });
-
-    // ══════════════════════════════════════════════════════════════════════
-    // 2. BILL META ROW  (y 40 → 54)
-    // ══════════════════════════════════════════════════════════════════════
-    setColor(...NAVY);
-    setFill(...SILVER);
-    doc.roundedRect(M, 40, cW, 14, 2, 2, "F");
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9);
-    doc.text("BILL NO",   M + 4,       47);
-    doc.text("DATE",      M + 55,      47);
-    doc.text("STATUS",    M + 110,     47);
-    doc.text("ORDER ID",  pageW - M - 55, 47);
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.text(billId,                    M + 4,       52);
-    doc.text(currentDate,               M + 55,      52);
-
-    // coloured status chip
-    const paidFull = balanceDue <= 0;
-    if (paidFull) {
-      doc.setFillColor(34, 139, 34);
-    } else {
-      doc.setFillColor(204, 60, 0);
-    }
-    doc.roundedRect(M + 108, 48, 26, 5.5, 1, 1, "F");
-    setColor(...WHITE);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5);
-    doc.text(statusLabel, M + 121, 52.2, { align: "center" });
-
-    setColor(...NAVY);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.text(safeText(order?.id) || "-", pageW - M - 55, 52);
-
-    // ══════════════════════════════════════════════════════════════════════
-    // 3. BILL TO + VEHICLE  (y 58 → 88)
-    // ══════════════════════════════════════════════════════════════════════
-    const infoTop = 59;
-    const halfW   = (cW - 4) / 2;
-
-    // left box – Bill To
-    setFill(...SILVER);
-    doc.roundedRect(M, infoTop, halfW, 27, 2, 2, "F");
-    setColor(...MUTED);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5);
-    doc.text("BILL TO", M + 4, infoTop + 5);
-    setColor(...NAVY);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.text(clipText(safeText(order?.customerName) || "—", halfW - 8), M + 4, infoTop + 11);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
-    doc.text(`Mobile: ${safeText(order?.mobile) || "—"}`, M + 4, infoTop + 17);
-    doc.text(`Order ID: ${safeText(order?.id) || "—"}`, M + 4, infoTop + 22);
-
-    // right box – Vehicle
-    const rx = M + halfW + 4;
-    setFill(...SILVER);
-    doc.roundedRect(rx, infoTop, halfW, 27, 2, 2, "F");
-    setColor(...MUTED);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.5);
-    doc.text("VEHICLE", rx + 4, infoTop + 5);
-    setColor(...NAVY);
-    const makeModel = `${safeText(order?.vehicleDetails?.make)} ${safeText(order?.vehicleDetails?.model)}`.trim() || "—";
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.text(clipText(makeModel, halfW - 8), rx + 4, infoTop + 11);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.5);
-    doc.text(`Plate: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "—"}`, rx + 4, infoTop + 17);
-    doc.text(`VIN: ${safeText(order?.vehicleDetails?.vin) || "—"}`, rx + 4, infoTop + 22);
-
-    // ══════════════════════════════════════════════════════════════════════
-    // 4. SERVICES TABLE  (y ~91)
-    // ══════════════════════════════════════════════════════════════════════
-    const tblTop  = infoTop + 31;
-    const rowH    = 7;
-    const noW     = 12;
-    const amtW    = 36;
-    const descW   = cW - noW - amtW;
-    const footerY = pageH - 38;
-    const maxRows = Math.max(1, Math.floor((footerY - (tblTop + rowH * 2) - 42) / rowH));
-
-    // header row
-    setFill(...NAVY);
-    doc.roundedRect(M, tblTop, cW, rowH, 1.5, 1.5, "F");
-    setColor(...WHITE);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
-    doc.text("#",           M + noW/2,          tblTop + 4.8, { align: "center" });
-    doc.text("DESCRIPTION", M + noW + 3,        tblTop + 4.8);
-    doc.text("AMOUNT",      pageW - M - 2,      tblTop + 4.8, { align: "right" });
-
-    // data rows
-    const visibleServices = services.slice(0, maxRows);
-    visibleServices.forEach((svc: { name: string; price: number }, i: number) => {
-      const ry = tblTop + rowH * (i + 1);
-      if (i % 2 === 0) { setFill(246,248,251); doc.rect(M, ry, cW, rowH, "F"); }
-      setDraw(...BORDER);
-      doc.rect(M, ry, cW, rowH);
-      setColor(...NAVY);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8.5);
-      doc.text(String(i + 1), M + noW/2, ry + 4.8, { align: "center" });
-      doc.text(clipText(safeText(svc.name) || "—", descW - 6), M + noW + 3, ry + 4.8);
-      doc.setFont("helvetica", "bold");
-      doc.text(fmtQar(toNum(svc.price)), pageW - M - 2, ry + 4.8, { align: "right" });
-    });
-
-    // overflow note
-    let afterTableY = tblTop + rowH * (visibleServices.length + 1) + 3;
-    if (services.length > visibleServices.length) {
-      setColor(...MUTED);
-      doc.setFont("helvetica", "italic");
-      doc.setFontSize(7.5);
-      doc.text(`+ ${services.length - visibleServices.length} additional service(s) not shown — single-page limit`, M, afterTableY);
-      setColor(...NAVY);
-      afterTableY += 5;
-    }
-
-    // ══════════════════════════════════════════════════════════════════════
-    // 5. SUMMARY BOX  (right-aligned, below table)
-    // ══════════════════════════════════════════════════════════════════════
-    const summaryRows: Array<{ label: string; value: number; bold?: boolean; accent?: boolean }> = [
-      { label: "Subtotal",     value: totalAmount },
-      { label: "Discount",     value: discount    },
-      { label: "Net Amount",   value: netAmount,  bold: true },
-      { label: "Amount Paid",  value: amountPaid  },
-      { label: "Balance Due",  value: balanceDue, bold: true, accent: true },
-    ];
-    const sumBoxW = 80;
-    const sumRowH = 7;
-    const sumX    = pageW - M - sumBoxW;
-    const sumTop  = afterTableY;
-
-    setFill(...SILVER);
-    doc.roundedRect(sumX, sumTop, sumBoxW, summaryRows.length * sumRowH + 2, 2, 2, "F");
-
-    summaryRows.forEach((row, i) => {
-      const ry = sumTop + 1 + i * sumRowH;
-      if (row.accent) {
-        setFill(...ACCENT);
-        doc.rect(sumX, ry, sumBoxW, sumRowH, "F");
-        setColor(...WHITE);
-      } else {
-        setColor(...NAVY);
-      }
-      doc.setFont("helvetica", row.bold ? "bold" : "normal");
-      doc.setFontSize(9);
-      doc.text(row.label, sumX + 4, ry + 5);
-      doc.text(fmtQar(row.value), pageW - M - 2, ry + 5, { align: "right" });
-    });
-
-    // ══════════════════════════════════════════════════════════════════════
-    // 6. FOOTER BAND  (bottom 36 mm)
-    // ══════════════════════════════════════════════════════════════════════
-    setFill(...NAVY);
-    doc.rect(0, pageH - 36, pageW, 36, "F");
-
-    // QR – centred
-    const qrSize = 22;
-    const qrX    = pageW / 2 - qrSize / 2;
-    const qrY    = pageH - 34;
-    doc.addImage(qrDataUrl, "PNG", qrX, qrY, qrSize, qrSize);
-    setColor(...WHITE);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(6.5);
-    doc.text("Scan for bill reference", pageW / 2, pageH - 10, { align: "center" });
-
-    // left contact
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
-    setColor(180, 195, 210);
-    doc.text("RODEO DRIVE TRADING & SERVICES", M, pageH - 28);
-    doc.text("Block 2, Shop SYS 066, Doha, Qatar", M, pageH - 23);
-    doc.text("T: +974 4431 1871  ·  M: +974 3320 2409", M, pageH - 18);
-    doc.text("info@rodeodrive.me  ·  www.rodeodrive.me", M, pageH - 13);
-
-    // right – "thank you"
+    // Header: left English lines (style aligned with provided template)
+    doc.setTextColor(24, 24, 24);
+    doc.setFont("helvetica", "bolditalic");
+    doc.setFontSize(11.5);
+    doc.text("RODEO DRIVE", leftColX, headerTop + 6);
     doc.setFont("helvetica", "italic");
-    doc.setFontSize(8.5);
-    setColor(...WHITE);
-    doc.text("Thank you for your business!", pageW - M, pageH - 18, { align: "right" });
+    doc.setFontSize(8.6);
+    doc.text("Gloss Perfected", leftColX, headerTop + 10.7);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.5);
-    setColor(180, 195, 210);
-    doc.text(`Generated: ${currentDate}`, pageW - M, pageH - 13, { align: "right" });
+    doc.setFontSize(8.2);
+    doc.text("Block 2, Shop No. SYS 066, Block 21,", leftColX, headerTop + 15.2);
+    doc.text("Near Dragon Mart Al Sayer, Doha.", leftColX, headerTop + 19.5);
+
+    // Header: center logo
+    if (logoDataUrl) {
+      doc.addImage(logoDataUrl, "PNG", centerColX + 6, headerTop + 1, centerColW - 12, 24);
+    }
+
+    // Header: right Arabic lines
+    doc.setFont("helvetica", "bolditalic");
+    doc.setFontSize(11.5);
+    doc.text("روديو درايف", pageW - marginX, headerTop + 6, { align: "right" });
+    doc.setFont("helvetica", "italic");
+    doc.setFontSize(8.6);
+    doc.text("اللمعان المثالي", pageW - marginX, headerTop + 10.7, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.2);
+    doc.text("مبنى 2 ، محل رقم 066 SYS ، مبنى 21 ،", pageW - marginX, headerTop + 15.2, { align: "right" });
+    doc.text("بالقرب من دراجون مارت الساير ، الدوحة.", pageW - marginX, headerTop + 19.5, { align: "right" });
+
+    // Body title and meta
+    const bodyTop = headerBottom + 8;
+    doc.setTextColor(20, 31, 46);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(17);
+    doc.text("INVOICE", marginX, bodyTop);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9.5);
+    doc.text(`Bill #: ${billId}`, marginX, bodyTop + 6);
+    doc.text(`Date: ${currentDate}`, marginX + 45, bodyTop + 6);
+    doc.text(`Status: ${paymentStatus}`, marginX + 88, bodyTop + 6);
+    doc.text(`Order ID: ${safeText(order?.id) || "-"}`, pageW - marginX, bodyTop + 6, { align: "right" });
+
+    doc.setDrawColor(188, 196, 206);
+    doc.setLineWidth(0.3);
+    doc.line(marginX, bodyTop + 9, pageW - marginX, bodyTop + 9);
+
+    // Customer / vehicle section
+    const infoTop = bodyTop + 14;
+    const infoGap = 4;
+    const infoW = (contentW - infoGap) / 2;
+    doc.setFillColor(248, 250, 253);
+    doc.setDrawColor(220, 226, 234);
+    doc.roundedRect(marginX, infoTop, infoW, 24, 1.5, 1.5, "FD");
+    doc.roundedRect(marginX + infoW + infoGap, infoTop, infoW, 24, 1.5, 1.5, "FD");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.text("BILL TO", marginX + 3, infoTop + 5);
+    doc.text("VEHICLE", marginX + infoW + infoGap + 3, infoTop + 5);
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.3);
+    doc.text(clipText(safeText(order?.customerName) || "-", infoW - 6), marginX + 3, infoTop + 10);
+    doc.text(`Mobile: ${safeText(order?.mobile) || "-"}`, marginX + 3, infoTop + 14.5);
+    doc.text(`Order: ${safeText(order?.id) || "-"}`, marginX + 3, infoTop + 19);
+
+    const vehicleName = `${safeText(order?.vehicleDetails?.make)} ${safeText(order?.vehicleDetails?.model)}`.trim() || "-";
+    doc.text(clipText(vehicleName, infoW - 6), marginX + infoW + infoGap + 3, infoTop + 10);
+    doc.text(`Plate: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 14.5);
+    doc.text(`VIN: ${safeText(order?.vehicleDetails?.vin) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 19);
+
+    // Services table area
+    const tableTop = infoTop + 29;
+    const tableHeaderH = 7;
+    const rowH = 6.4;
+    const noW = 12;
+    const amountW = 36;
+    const descW = contentW - noW - amountW;
+    const summaryReserve = 43;
+    const maxRows = Math.max(1, Math.floor((footerTop - summaryReserve - (tableTop + tableHeaderH)) / rowH));
+
+    doc.setFillColor(44, 62, 80);
+    doc.setTextColor(255, 255, 255);
+    doc.rect(marginX, tableTop, contentW, tableHeaderH, "F");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.5);
+    doc.text("No", marginX + noW / 2, tableTop + 4.7, { align: "center" });
+    doc.text("Description", marginX + noW + 2, tableTop + 4.7);
+    doc.text("Amount", pageW - marginX - 2, tableTop + 4.7, { align: "right" });
+
+    const shownServices = services.slice(0, maxRows);
+    doc.setTextColor(20, 31, 46);
+    shownServices.forEach((service, idx) => {
+      const y = tableTop + tableHeaderH + idx * rowH;
+      if (idx % 2 === 0) {
+        doc.setFillColor(250, 252, 255);
+        doc.rect(marginX, y, contentW, rowH, "F");
+      }
+      doc.setDrawColor(220, 226, 234);
+      doc.setLineWidth(0.22);
+      doc.rect(marginX, y, contentW, rowH);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(8.3);
+      doc.text(String(idx + 1), marginX + noW / 2, y + 4.4, { align: "center" });
+      const wrappedLines = drawWrapped(
+        clipText(safeText(service.name) || "-", descW - 4),
+        marginX + noW + 2,
+        y + 4.4,
+        descW - 4,
+        3.8,
+      );
+      if (wrappedLines > 1) {
+        // Keep row compact and single-line visually for print consistency.
+        doc.setTextColor(95, 109, 123);
+        doc.setFontSize(7);
+        doc.text("...", marginX + noW + descW - 5, y + 4.4, { align: "right" });
+        doc.setTextColor(20, 31, 46);
+      }
+      doc.text(fmtQar(toNum(service.price)), pageW - marginX - 2, y + 4.4, { align: "right" });
+    });
+
+    let summaryTop = tableTop + tableHeaderH + shownServices.length * rowH + 4;
+    if (services.length > shownServices.length) {
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(7.3);
+      doc.setTextColor(110, 118, 128);
+      doc.text(`+ ${services.length - shownServices.length} additional service(s) omitted to keep one-page A4 print`, marginX, summaryTop);
+      summaryTop += 4.8;
+      doc.setTextColor(20, 31, 46);
+    }
+
+    const summaryX = pageW - marginX - 78;
+    const summaryW = 78;
+    const summaryRowH = 6.5;
+    const summaryRows = [
+      ["Total Amount", totalAmount],
+      ["Discount", discount],
+      ["Net Amount", netAmount],
+      ["Amount Paid", amountPaid],
+      ["Balance Due", balanceDue],
+    ] as const;
+
+    doc.setDrawColor(188, 196, 206);
+    doc.setFillColor(246, 249, 252);
+    doc.roundedRect(summaryX, summaryTop - 2, summaryW, summaryRows.length * summaryRowH + 3, 1.5, 1.5, "FD");
+    summaryRows.forEach(([label, value], idx) => {
+      const y = summaryTop + idx * summaryRowH;
+      if (idx === summaryRows.length - 1) {
+        doc.setFillColor(44, 62, 80);
+        doc.rect(summaryX, y - 1.6, summaryW, summaryRowH, "F");
+        doc.setTextColor(255, 255, 255);
+      } else {
+        doc.setTextColor(20, 31, 46);
+      }
+      doc.setFont("helvetica", idx >= 2 ? "bold" : "normal");
+      doc.setFontSize(8.8);
+      doc.text(label, summaryX + 3, y + 2.8);
+      doc.text(fmtQar(value), pageW - marginX - 2, y + 2.8, { align: "right" });
+    });
+
+    // Footer: English + QR + Arabic with top border line style
+    doc.setTextColor(24, 24, 24);
+    doc.setFont("helvetica", "bolditalic");
+    doc.setFontSize(7.9);
+    doc.text("RODEO DRIVE TRADING & SERVICES", leftColX, footerTop + 5.8);
+    doc.text("C.R. No: 122716", leftColX, footerTop + 9.9);
+    doc.text("LLC - capital QAR 200,000", leftColX, footerTop + 14.0);
+    doc.text("T: +974 44311871 | M: +974 3320 2409", leftColX, footerTop + 18.1);
+    doc.text("E: info@rodeodrive.me | W: www.rodeodrive.me", leftColX, footerTop + 22.2);
+
+    const qrSize = 18;
+    doc.addImage(qrDataUrl, "PNG", centerColX + (centerColW - qrSize) / 2, footerTop + 4, qrSize, qrSize);
+
+    doc.setFont("helvetica", "bolditalic");
+    doc.setFontSize(7.9);
+    doc.text("روديو درايف للتجارة والخدمات", pageW - marginX, footerTop + 5.8, { align: "right" });
+    doc.text("س.ت :122716", pageW - marginX, footerTop + 9.9, { align: "right" });
+    doc.text("شركة ذات مسؤولية محدودة برأس مال 200,000 رق", pageW - marginX, footerTop + 14.0, { align: "right" });
+    doc.text("T:+974 44311871 | M:+974 3320 2409", pageW - marginX, footerTop + 18.1, { align: "right" });
+    doc.text("E: info@rodeodrive.me | W: www.rodeodrive.me", pageW - marginX, footerTop + 22.2, { align: "right" });
+
+    // Safety one-page marker line to preserve print bounds.
+    doc.setDrawColor(255, 255, 255);
+    doc.line(0, footerBottom, 0, footerBottom);
 
     return doc.output("blob") as Blob;
   };
