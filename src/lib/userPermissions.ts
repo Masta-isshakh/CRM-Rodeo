@@ -124,6 +124,14 @@ function optKey(moduleId: string, optionId: string) {
   return `${normalizeKey(moduleId)}::${normalizeKey(optionId)}`;
 }
 
+function getRowTimestamp(row: any): number {
+  const updated = Date.parse(String(row?.updatedAt ?? ""));
+  if (Number.isFinite(updated)) return updated;
+  const created = Date.parse(String(row?.createdAt ?? ""));
+  if (Number.isFinite(created)) return created;
+  return 0;
+}
+
 type PermissionsCacheShape = {
   cachedAt: number;
   email: string;
@@ -455,10 +463,19 @@ export function usePermissions() {
               toggleRows = (res?.data ?? []) as any[];
             }
 
+            const roleToggleByKey = new Map<string, any>();
             for (const t of toggleRows ?? []) {
-              const k = normalizeKey(t.key);
+              const k = normalizeKey(t?.key);
               if (!k) continue;
-              mergedToggles[k] = Boolean(mergedToggles[k] || Boolean(t.enabled));
+
+              const prev = roleToggleByKey.get(k);
+              if (!prev || getRowTimestamp(t) >= getRowTimestamp(prev)) {
+                roleToggleByKey.set(k, t);
+              }
+            }
+
+            for (const [k, row] of roleToggleByKey.entries()) {
+              mergedToggles[k] = Boolean(mergedToggles[k] || Boolean(row?.enabled));
             }
 
             let numRows: any[] = [];
@@ -476,10 +493,20 @@ export function usePermissions() {
               numRows = (resn?.data ?? []) as any[];
             }
 
+            const roleNumByKey = new Map<string, any>();
             for (const n of numRows ?? []) {
-              const k = normalizeKey(n.key);
-              const v = Number(n.value);
-              if (!k || !Number.isFinite(v)) continue;
+              const k = normalizeKey(n?.key);
+              if (!k) continue;
+
+              const prev = roleNumByKey.get(k);
+              if (!prev || getRowTimestamp(n) >= getRowTimestamp(prev)) {
+                roleNumByKey.set(k, n);
+              }
+            }
+
+            for (const [k, row] of roleNumByKey.entries()) {
+              const v = Number(row?.value);
+              if (!Number.isFinite(v)) continue;
               mergedNums[k] = Number.isFinite(mergedNums[k]) ? Math.max(mergedNums[k], v) : v;
             }
           })

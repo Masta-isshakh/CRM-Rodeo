@@ -924,11 +924,23 @@ export default function RoleAccessControl() {
         ),
       ]);
 
-      const toggleByKey = new Map<string, any>();
-      for (const t of existingToggles ?? []) toggleByKey.set(normalizeKey(t.key), t);
+      const toggleByKey = new Map<string, any[]>();
+      for (const t of existingToggles ?? []) {
+        const k = normalizeKey(t?.key);
+        if (!k) continue;
+        const list = toggleByKey.get(k) ?? [];
+        list.push(t);
+        toggleByKey.set(k, list);
+      }
 
-      const numByKey = new Map<string, any>();
-      for (const n of existingNums ?? []) numByKey.set(normalizeKey(n.key), n);
+      const numByKey = new Map<string, any[]>();
+      for (const n of existingNums ?? []) {
+        const k = normalizeKey(n?.key);
+        if (!k) continue;
+        const list = numByKey.get(k) ?? [];
+        list.push(n);
+        numByKey.set(k, list);
+      }
 
       const now = new Date().toISOString();
       const me = await getCurrentUser().catch(() => null);
@@ -951,7 +963,15 @@ export default function RoleAccessControl() {
           desiredToggleKeys.add(k);
 
           const enabled = Boolean(permissions[mod.id]?.enabled);
-          const existing = toggleByKey.get(k);
+          const rowsForKey = toggleByKey.get(k) ?? [];
+          const existing = rowsForKey[0];
+          const duplicates = rowsForKey.slice(1);
+
+          for (const duplicate of duplicates) {
+            if (duplicate?.id) {
+              cleanupTasks.push(() => (client.models as any).RoleOptionToggle.delete({ id: duplicate.id }));
+            }
+          }
 
           if (existing?.id) {
             const oldEnabled = Boolean(existing?.enabled);
@@ -987,7 +1007,16 @@ export default function RoleAccessControl() {
             const fallback = Number(opt.defaultValue ?? 0);
             const v = clampPercent(percentValues[k], fallback);
 
-            const existing = numByKey.get(k);
+            const rowsForKey = numByKey.get(k) ?? [];
+            const existing = rowsForKey[0];
+            const duplicates = rowsForKey.slice(1);
+
+            for (const duplicate of duplicates) {
+              if (duplicate?.id) {
+                cleanupTasks.push(() => (client.models as any).RoleOptionNumber.delete({ id: duplicate.id }));
+              }
+            }
+
             if (existing?.id) {
               const oldValue = Number(existing?.value);
               if (!Number.isFinite(oldValue) || oldValue !== v) {
@@ -1019,7 +1048,15 @@ export default function RoleAccessControl() {
           desiredToggleKeys.add(k);
 
           const enabled = Boolean(permissions[mod.id]?.options?.[opt.id]);
-          const existing = toggleByKey.get(k);
+          const rowsForKey = toggleByKey.get(k) ?? [];
+          const existing = rowsForKey[0];
+          const duplicates = rowsForKey.slice(1);
+
+          for (const duplicate of duplicates) {
+            if (duplicate?.id) {
+              cleanupTasks.push(() => (client.models as any).RoleOptionToggle.delete({ id: duplicate.id }));
+            }
+          }
 
           if (existing?.id) {
             const oldEnabled = Boolean(existing?.enabled);
