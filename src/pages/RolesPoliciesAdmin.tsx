@@ -449,6 +449,20 @@ const EMPTY_CRUD: CrudPermission = {
   canApprove: false,
 };
 
+function flattenOptions(options: any[]): any[] {
+  const out: any[] = [];
+  const walk = (items: any[]) => {
+    for (const item of items ?? []) {
+      out.push(item);
+      if (Array.isArray(item?.children) && item.children.length > 0) {
+        walk(item.children);
+      }
+    }
+  };
+  walk(options ?? []);
+  return out;
+}
+
 function computeRolePoliciesFromOptions(state: PermissionsState): {
   computed: Record<string, CrudPermission>;
   managedPolicyKeys: Set<string>;
@@ -459,8 +473,9 @@ function computeRolePoliciesFromOptions(state: PermissionsState): {
   for (const mod of MODULE_DEFINITIONS as any) {
     const moduleId = String(mod.id);
     const moduleEnabled = Boolean(state[moduleId]?.enabled);
+    const options = flattenOptions(mod.options ?? []);
 
-    for (const opt of mod.options ?? []) {
+    for (const opt of options) {
       if (opt.kind === "percent") continue;
 
       const rule = resolvePolicyAndOp(moduleId, String(opt.id));
@@ -485,7 +500,7 @@ const buildDefaultPermissions = (): PermissionsState => {
   const base: PermissionsState = {};
   for (const mod of MODULE_DEFINITIONS as any) {
     base[mod.id] = { enabled: true, options: {} };
-    for (const opt of mod.options ?? []) {
+    for (const opt of flattenOptions(mod.options ?? [])) {
       if (opt.kind === "percent") continue;
       base[mod.id].options[opt.id] = true;
     }
@@ -497,7 +512,7 @@ const buildDefaultPermissions = (): PermissionsState => {
 const buildPercentDefaults = (): Record<string, number> => {
   const out: Record<string, number> = {};
   for (const mod of MODULE_DEFINITIONS as any) {
-    for (const opt of mod.options ?? []) {
+    for (const opt of flattenOptions(mod.options ?? [])) {
       if (opt.kind === "percent") out[optKey(mod.id, opt.id)] = Number(opt.defaultValue ?? 0);
     }
   }
@@ -727,10 +742,11 @@ export default function RoleAccessControl() {
         const nextPercents = buildPercentDefaults();
 
         for (const mod of MODULE_DEFINITIONS as any) {
+          const options = flattenOptions(mod.options ?? []);
           const modEnabledKey = optKey(mod.id, "__enabled");
           if (toggleMap.has(modEnabledKey)) nextPerms[mod.id].enabled = Boolean(toggleMap.get(modEnabledKey));
 
-          for (const opt of mod.options ?? []) {
+          for (const opt of options) {
             if (opt.kind === "percent") {
               const k = optKey(mod.id, opt.id);
               const fallback = Number(opt.defaultValue ?? 0);
@@ -928,6 +944,7 @@ export default function RoleAccessControl() {
       const { computed: computedPolicies, managedPolicyKeys } = computeRolePoliciesFromOptions(permissions);
 
       for (const mod of MODULE_DEFINITIONS as any) {
+        const options = flattenOptions(mod.options ?? []);
         // module enabled toggle
         {
           const k = optKey(mod.id, "__enabled");
@@ -962,7 +979,7 @@ export default function RoleAccessControl() {
           }
         }
 
-        for (const opt of mod.options ?? []) {
+        for (const opt of options) {
           if (opt.kind === "percent") {
             const k = optKey(mod.id, opt.id);
             desiredNumKeys.add(k);
@@ -1045,15 +1062,26 @@ export default function RoleAccessControl() {
         }
       }
 
-      const existingPolicyByKey = new Map<string, any>();
+      const existingPolicyByKey = new Map<string, any[]>();
       for (const row of existingPolicies ?? []) {
         const key = normalizeKey(row?.policyKey);
-        if (key) existingPolicyByKey.set(key, row);
+        if (!key) continue;
+        const list = existingPolicyByKey.get(key) ?? [];
+        list.push(row);
+        existingPolicyByKey.set(key, list);
       }
 
       for (const policyKey of managedPolicyKeys) {
         const target = computedPolicies[policyKey] ?? EMPTY_CRUD;
-        const existing = existingPolicyByKey.get(policyKey);
+        const rowsForKey = existingPolicyByKey.get(policyKey) ?? [];
+        const existing = rowsForKey[0];
+        const duplicates = rowsForKey.slice(1);
+
+        for (const duplicate of duplicates) {
+          if (duplicate?.id) {
+            cleanupTasks.push(() => (client.models as any).RolePolicy.delete({ id: duplicate.id }));
+          }
+        }
 
         if (existing?.id) {
           const nextRead = Boolean(target.canRead);
