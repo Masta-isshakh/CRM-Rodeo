@@ -173,12 +173,12 @@ export default function CallTracking({ permissions }: PageProps) {
   };
 
   return (
-    <div style={{ padding: 16 }}>
+    <div style={{ padding: 16, width: "min(100%, 1100px)", margin: "0 auto", boxSizing: "border-box" }}>
       <h2>Call Tracking</h2>
 
       {permissions.canCreate && (
         <PermissionGate moduleId="calltracking" optionId="calltracking_create">
-        <div style={{ display: "grid", gap: 12, maxWidth: 720, padding: 12, border: "1px solid #ddd", borderRadius: 8, background: "#fff" }}>
+        <div style={{ display: "grid", gap: 12, width: "min(100%, 880px)", padding: 12, border: "1px solid #ddd", borderRadius: 8, background: "#fff", boxSizing: "border-box" }}>
           <TextField label="Customer name" value={customerName} onChange={(e) => setCustomerName((e.target as HTMLInputElement).value)} />
           <TextField label="Phone" value={phone} onChange={(e) => setPhone((e.target as HTMLInputElement).value)} />
           <TextField label="Source (Instagram, WhatsApp, etc.)" value={source} onChange={(e) => setSource((e.target as HTMLInputElement).value)} />
@@ -208,7 +208,7 @@ export default function CallTracking({ permissions }: PageProps) {
       {/* Edit modal */}
       {editOpen && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "grid", placeItems: "center", zIndex: 50 }}>
-          <div style={{ width: "min(760px, 92vw)", background: "#fff", borderRadius: 10, padding: 16, border: "1px solid #eee" }}>
+          <div style={{ width: "min(760px, calc(100vw - 24px))", background: "#fff", borderRadius: 10, padding: 16, border: "1px solid #eee", maxHeight: "calc(100vh - 24px)", overflowY: "auto", boxSizing: "border-box" }}>
             <h3 style={{ marginTop: 0 }}>Edit call record</h3>
 
             <div style={{ display: "grid", gap: 12 }}>
@@ -240,7 +240,7 @@ export default function CallTracking({ permissions }: PageProps) {
 
       {/* List */}
       <div style={{ marginTop: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <h3 style={{ margin: 0 }}>Recent calls</h3>
           <PermissionGate moduleId="calltracking" optionId="calltracking_refresh">
             <Button onClick={load} isLoading={loading}>Refresh</Button>

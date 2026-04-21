@@ -134,7 +134,15 @@ export default function DatabaseCleanupAdmin() {
   const totalErrors = results.reduce((s, r) => s + r.errors, 0);
 
   return (
-    <div style={{ padding: "32px", maxWidth: "780px", margin: "0 auto", fontFamily: "Arial, sans-serif" }}>
+    <div
+      style={{
+        padding: "clamp(12px, 2.6vw, 32px)",
+        width: "min(100%, 980px)",
+        margin: "0 auto",
+        fontFamily: "Arial, sans-serif",
+        boxSizing: "border-box",
+      }}
+    >
       <h1 style={{ fontSize: "22px", fontWeight: 700, marginBottom: "8px", color: "#c0392b" }}>
         Database Cleanup
       </h1>
@@ -159,7 +167,7 @@ export default function DatabaseCleanupAdmin() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(3, 1fr)",
+            gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))",
             gap: "4px 16px",
             fontSize: "12px",
             color: "#444",
@@ -184,7 +192,7 @@ export default function DatabaseCleanupAdmin() {
             onChange={(e) => setConfirmText(e.target.value)}
             placeholder={CONFIRM_PHRASE}
             style={{
-              width: "300px",
+              width: "min(100%, 420px)",
               padding: "10px 12px",
               border: "1.5px solid #ccc",
               borderRadius: "6px",

@@ -1073,7 +1073,7 @@ export default function Users(_: PageProps) {
       <div
         className="ums-portal-menu"
         ref={portalMenuRef}
-        style={{ top: menu.top, left: menu.left, width: 168 }}
+        style={{ top: menu.top, left: menu.left, width: "min(168px, calc(100vw - 24px))", maxWidth: "calc(100vw - 24px)" }}
         data-ums-menu={menu.userId}
       >
         {(() => {

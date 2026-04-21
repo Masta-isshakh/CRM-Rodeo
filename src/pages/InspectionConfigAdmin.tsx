@@ -104,12 +104,12 @@ export default function InspectionConfigAdmin({ currentUser }: any) {
 
   return (
     <PermissionGate moduleId="admin" optionId="inspection_config_admin">
-      <div style={{ padding: 20, maxWidth: 1100, margin: "0 auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
+      <div style={{ padding: 16, width: "min(100%, 1200px)", margin: "0 auto", boxSizing: "border-box" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, gap: 10, flexWrap: "wrap" }}>
           <h2 style={{ margin: 0 }}>
             <i className="fas fa-tools"></i> Inspection Config Admin
           </h2>
-          <div style={{ display: "flex", gap: 10 }}>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <button className="btn btn-secondary" onClick={() => void load()} disabled={loading}>
               <i className="fas fa-sync"></i> {loading ? "Loading..." : "Reload"}
             </button>
@@ -142,13 +142,14 @@ export default function InspectionConfigAdmin({ currentUser }: any) {
           spellCheck={false}
           style={{
             width: "100%",
-            minHeight: 600,
+            minHeight: "clamp(360px, 60vh, 680px)",
             fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
             fontSize: 13,
             padding: 14,
             borderRadius: 10,
             border: "1px solid #e5e7eb",
             outline: "none",
+            boxSizing: "border-box",
           }}
         />
 

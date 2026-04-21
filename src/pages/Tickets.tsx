@@ -144,12 +144,12 @@ export default function Tickets({ permissions }: PageProps) {
   };
 
   return (
-    <div style={{ padding: 16 }}>
+    <div style={{ padding: 16, width: "min(100%, 1100px)", margin: "0 auto", boxSizing: "border-box" }}>
       <h2>Support Tickets</h2>
 
       {permissions.canCreate && (
         <PermissionGate moduleId="tickets" optionId="tickets_create">
-        <div style={{ display: "grid", gap: 12, maxWidth: 720, padding: 12, border: "1px solid #ddd", borderRadius: 8, background: "#fff" }}>
+        <div style={{ display: "grid", gap: 12, width: "min(100%, 880px)", padding: 12, border: "1px solid #ddd", borderRadius: 8, background: "#fff", boxSizing: "border-box" }}>
           <TextField label="Title" value={title} onChange={(e) => setTitle((e.target as HTMLInputElement).value)} />
           <SelectField label="Status" value={status} onChange={(e) => setStatus((e.target as HTMLSelectElement).value)}>
             {knownStatuses.map((s) => (
@@ -170,7 +170,7 @@ export default function Tickets({ permissions }: PageProps) {
       )}
 
       <div style={{ marginTop: 16 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <h3 style={{ margin: 0 }}>Tickets</h3>
           <PermissionGate moduleId="tickets" optionId="tickets_refresh">
             <Button onClick={load} isLoading={loading}>Refresh</Button>

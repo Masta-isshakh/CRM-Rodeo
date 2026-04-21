@@ -567,6 +567,7 @@
 @media (max-width: 880px) {
   .wa-shell {
     height: calc(100svh - 80px);
+    min-height: 0;
     border-radius: 0;
     border-left: none;
     border-right: none;
