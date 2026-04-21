@@ -53,6 +53,17 @@ type ImportSummary = {
   errors: string[];
 };
 
+type DynamicFilterOperator = "contains" | "equals" | "startsWith" | "empty" | "notEmpty";
+
+type DynamicFilterRule = {
+  id: string;
+  column: string;
+  operator: DynamicFilterOperator;
+  value: string;
+};
+
+type RelativeDateMode = "any" | "olderThan" | "newerThan" | "dateRange";
+
 type ResultsViewMode = "table" | "cards";
 type PreviewViewMode = "table" | "cards";
 
@@ -62,6 +73,10 @@ const MOBILE_BREAKPOINT = 900;
 const PREVIEW_PAGE_SIZE = 30;
 const RESULTS_VIEW_STORAGE_KEY = "crm.campaignAudience.resultsViewMode";
 const PREVIEW_VIEW_STORAGE_KEY = "crm.campaignAudience.previewViewMode";
+const AUDIENCE_COLUMN_STORAGE_KEY = "audienceColumn";
+const RELATIVE_DATE_MODE_STORAGE_KEY = "crm.campaignAudience.relativeDateMode";
+const DATE_FROM_STORAGE_KEY = "crm.campaignAudience.dateFrom";
+const DATE_TO_STORAGE_KEY = "crm.campaignAudience.dateTo";
 
 function readStoredViewMode<T extends "table" | "cards">(storageKey: string): T | null {
   try {
@@ -137,7 +152,19 @@ function parseWorksheetData(worksheet: XLSX.WorkSheet): SheetData {
     for (let colIndex = range.s.c; colIndex <= range.e.c; colIndex += 1) {
       const addr = XLSX.utils.encode_cell({ r: rowIndex, c: colIndex });
       const cell = worksheet[addr];
-      row.push(cell ? toText(XLSX.utils.format_cell(cell)) : "");
+      if (!cell) {
+        row.push("");
+        continue;
+      }
+
+      const formatted = toText(XLSX.utils.format_cell(cell));
+      if (/^#+$/.test(formatted)) {
+        const recoveredDate = parseExcelDate((cell as { v?: unknown }).v);
+        row.push(recoveredDate ?? toText((cell as { v?: unknown }).v));
+        continue;
+      }
+
+      row.push(formatted);
     }
     matrix.push(row);
   }
@@ -288,8 +315,9 @@ function csvEscape(value: unknown): string {
   return `"${text}"`;
 }
 
-function downloadTextFile(fileName: string, content: string, mimeType: string) {
-  const blob = new Blob([content], { type: mimeType });
+function downloadTextFile(fileName: string, content: string, mimeType: string, withBom = false) {
+  const data = withBom ? `\uFEFF${content}` : content;
+  const blob = new Blob([data], { type: mimeType });
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
@@ -318,11 +346,81 @@ function formatDateForUi(value: string | null | undefined): string {
   return date.toLocaleDateString();
 }
 
+function isDateColumnName(column: string): boolean {
+  const normalized = normalizeHeader(column);
+  return (
+    normalized.includes("date") ||
+    normalized.includes("created") ||
+    normalized.includes("visit") ||
+    normalized.includes("invoice") ||
+    normalized.includes("service date") ||
+    normalized.includes("تاريخ") ||
+    normalized.includes("موعد") ||
+    normalized.includes("اليوم")
+  );
+}
+
+function isServiceDateColumnName(column: string): boolean {
+  const normalized = normalizeHeader(column);
+  return (
+    normalized.includes("service date") ||
+    normalized.includes("job date") ||
+    normalized.includes("invoice date") ||
+    normalized.includes("visit date") ||
+    normalized === "date" ||
+    normalized.includes("تاريخ الخدمة") ||
+    normalized.includes("تاريخ الزيارة") ||
+    normalized.includes("تاريخ الفاتورة")
+  );
+}
+
+function normalizeDateForExport(rawValue: unknown, fallback?: unknown): string {
+  const parsed = parseExcelDate(rawValue) ?? parseExcelDate(fallback);
+  return parsed ?? toText(rawValue);
+}
+
 function getAgeInDays(serviceDate: string): number | null {
   const date = new Date(serviceDate);
   if (Number.isNaN(date.getTime())) return null;
   const now = new Date();
   return Math.floor((now.getTime() - date.getTime()) / 86400000);
+}
+
+function parseRawRowJson(rawJson: unknown): ParsedRow {
+  const rawText = toText(rawJson);
+  if (!rawText) return {};
+
+  try {
+    const parsed = JSON.parse(rawText);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as ParsedRow;
+    }
+  } catch {
+    // ignore malformed legacy rows
+  }
+
+  return {};
+}
+
+function dynamicRuleMatches(value: string, operator: DynamicFilterOperator, needle: string): boolean {
+  const raw = toText(value);
+  const left = normalizeHeader(raw);
+  const right = normalizeHeader(needle);
+
+  switch (operator) {
+    case "contains":
+      return !right || left.includes(right);
+    case "equals":
+      return !right || left === right;
+    case "startsWith":
+      return !right || left.startsWith(right);
+    case "empty":
+      return raw === "";
+    case "notEmpty":
+      return raw !== "";
+    default:
+      return true;
+  }
 }
 
 export default function CampaignAudienceAdmin() {
@@ -366,14 +464,25 @@ export default function CampaignAudienceAdmin() {
     })()
   );
 
-  const [searchText, setSearchText] = useState("");
-  const [nameFilter, setNameFilter] = useState("");
-  const [mobileFilter, setMobileFilter] = useState("");
-  const [serviceFilter, setServiceFilter] = useState("all");
-  const [batchFilter, setBatchFilter] = useState("all");
-  const [agePreset, setAgePreset] = useState<AgePreset>("any");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
+  const [searchText] = useState("");
+  const [audienceColumn, setAudienceColumn] = useState(() => localStorage.getItem(AUDIENCE_COLUMN_STORAGE_KEY) ?? "");
+  const [serviceKeywordFilter, setServiceKeywordFilter] = useState("");
+  const [relativeDateMode, setRelativeDateMode] = useState<RelativeDateMode>(() => {
+    const saved = localStorage.getItem(RELATIVE_DATE_MODE_STORAGE_KEY);
+    if (saved === "any" || saved === "olderThan" || saved === "newerThan" || saved === "dateRange") return saved;
+    return "any";
+  });
+  const [relativeDateMonths, setRelativeDateMonths] = useState(3);
+  const [nameFilter] = useState("");
+  const [mobileFilter] = useState("");
+  const [serviceFilter] = useState("all");
+  const [batchFilter] = useState("all");
+  const [dynamicFilters] = useState<DynamicFilterRule[]>([
+    { id: `rule-${Date.now()}`, column: "", operator: "contains", value: "" },
+  ]);
+  const [agePreset] = useState<AgePreset>("any");
+  const [dateFrom, setDateFrom] = useState(() => localStorage.getItem(DATE_FROM_STORAGE_KEY) ?? "");
+  const [dateTo, setDateTo] = useState(() => localStorage.getItem(DATE_TO_STORAGE_KEY) ?? "");
   const [uniqueByMobile, setUniqueByMobile] = useState(true);
   const [page, setPage] = useState(1);
 
@@ -393,6 +502,72 @@ export default function CampaignAudienceAdmin() {
     () => previewRows.slice((previewPage - 1) * PREVIEW_PAGE_SIZE, previewPage * PREVIEW_PAGE_SIZE),
     [previewPage, previewRows]
   );
+
+  const rawRowByLeadId = useMemo(() => {
+    const map = new Map<string, ParsedRow>();
+    leads.forEach((lead) => {
+      const id = toText(lead.id);
+      if (!id) return;
+      map.set(id, parseRawRowJson(lead.rawJson));
+    });
+    return map;
+  }, [leads]);
+
+  const uploadedColumns = useMemo(() => {
+    const columns: string[] = [];
+    const seen = new Set<string>();
+
+    for (const row of rawRowByLeadId.values()) {
+      Object.keys(row).forEach((key) => {
+        const column = toText(key);
+        if (!column || seen.has(column)) return;
+        seen.add(column);
+        columns.push(column);
+      });
+    }
+
+    return columns;
+  }, [rawRowByLeadId]);
+
+  const activeDynamicFilters = useMemo(
+    () =>
+      dynamicFilters.filter(
+        (rule) => rule.column && (rule.operator === "empty" || rule.operator === "notEmpty" || toText(rule.value) !== "")
+      ),
+    [dynamicFilters]
+  );
+
+  useEffect(() => {
+    localStorage.setItem(RELATIVE_DATE_MODE_STORAGE_KEY, relativeDateMode);
+  }, [relativeDateMode]);
+
+  useEffect(() => {
+    localStorage.setItem(DATE_FROM_STORAGE_KEY, dateFrom);
+  }, [dateFrom]);
+
+  useEffect(() => {
+    localStorage.setItem(DATE_TO_STORAGE_KEY, dateTo);
+  }, [dateTo]);
+
+  useEffect(() => {
+    if (uploadedColumns.length === 0) {
+      setAudienceColumn("");
+      return;
+    }
+
+    const saved = localStorage.getItem(AUDIENCE_COLUMN_STORAGE_KEY);
+    if (saved && uploadedColumns.includes(saved)) {
+      if (audienceColumn !== saved) setAudienceColumn(saved);
+      return;
+    }
+    if (audienceColumn && uploadedColumns.includes(audienceColumn)) return;
+
+    const mobileRegex = /mobile|phone|whatsapp|telephone|موبايل|جوال|هاتف|واتساب|رقم/i;
+    const preferred =
+      uploadedColumns.find((column) => mobileRegex.test(column)) ?? uploadedColumns[0] ?? "";
+    if (preferred) localStorage.setItem(AUDIENCE_COLUMN_STORAGE_KEY, preferred);
+    setAudienceColumn(preferred);
+  }, [audienceColumn, uploadedColumns]);
 
   useEffect(() => {
     const onResize = () => {
@@ -467,11 +642,22 @@ export default function CampaignAudienceAdmin() {
 
   useEffect(() => {
     setPage(1);
-  }, [searchText, nameFilter, mobileFilter, serviceFilter, batchFilter, agePreset, dateFrom, dateTo, uniqueByMobile]);
-
-  const serviceOptions = useMemo(() => {
-    return Array.from(new Set(leads.map((lead) => toText(lead.serviceName)).filter(Boolean))).sort((a, b) => a.localeCompare(b));
-  }, [leads]);
+  }, [
+    audienceColumn,
+    serviceKeywordFilter,
+    relativeDateMode,
+    relativeDateMonths,
+    searchText,
+    nameFilter,
+    mobileFilter,
+    serviceFilter,
+    batchFilter,
+    dynamicFilters,
+    agePreset,
+    dateFrom,
+    dateTo,
+    uniqueByMobile,
+  ]);
 
   const activeBatchMeta = useMemo(() => {
     return batches.find((batch) => String(batch.batchId ?? "") === batchFilter) ?? null;
@@ -479,10 +665,15 @@ export default function CampaignAudienceAdmin() {
 
   const filteredRows = useMemo(() => {
     const keyword = normalizeHeader(searchText);
+    const serviceKeyword = normalizeHeader(serviceKeywordFilter);
     const nameNeedle = normalizeHeader(nameFilter);
     const mobileDigits = mobileFilter.replace(/[^\d]/g, "");
+    const thresholdDays = Math.max(1, relativeDateMonths) * 30;
 
     let result = leads.filter((lead) => {
+      const leadId = toText(lead.id);
+      const rawRow = rawRowByLeadId.get(leadId) ?? {};
+      const rawValues = Object.values(rawRow).map((value) => toText(value));
       const serviceDate = toText(lead.serviceDate);
       const ageDays = getAgeInDays(serviceDate);
       const matchesBatch = batchFilter === "all" || String(lead.importBatchId ?? "") === batchFilter;
@@ -490,13 +681,18 @@ export default function CampaignAudienceAdmin() {
       const matchesName = !nameNeedle || normalizeHeader(lead.customerName ?? "").includes(nameNeedle);
       const matchesMobile = !mobileDigits || toText(lead.normalizedMobileNumber).includes(mobileDigits);
       const haystack = normalizeHeader(
-        [lead.customerName, lead.mobileNumber, lead.serviceName, lead.vehiclePlateNumber, lead.vehicleMake, lead.vehicleModel, lead.notes]
+        [lead.customerName, lead.mobileNumber, lead.serviceName, lead.vehiclePlateNumber, lead.vehicleMake, lead.vehicleModel, lead.notes, ...rawValues]
           .filter(Boolean)
           .join(" ")
       );
       const matchesKeyword = !keyword || haystack.includes(keyword);
-      const matchesFrom = !dateFrom || serviceDate >= dateFrom;
-      const matchesTo = !dateTo || serviceDate <= dateTo;
+      const matchesServiceKeyword =
+        !serviceKeyword ||
+        normalizeHeader(lead.serviceName ?? "").includes(serviceKeyword) ||
+        normalizeHeader(rawValues.join(" ")).includes(serviceKeyword);
+      const matchesDateRange =
+        relativeDateMode !== "dateRange" ||
+        ((!dateFrom || serviceDate >= dateFrom) && (!dateTo || serviceDate <= dateTo));
 
       let matchesAgePreset = true;
       if (agePreset !== "any") {
@@ -504,7 +700,34 @@ export default function CampaignAudienceAdmin() {
         matchesAgePreset = ageDays != null && ageDays >= range.minDays && ageDays <= range.maxDays;
       }
 
-      return matchesBatch && matchesService && matchesName && matchesMobile && matchesKeyword && matchesFrom && matchesTo && matchesAgePreset;
+      let matchesRelativeDate = true;
+      if (relativeDateMode === "olderThan" || relativeDateMode === "newerThan") {
+        if (ageDays == null) {
+          matchesRelativeDate = false;
+        } else if (relativeDateMode === "olderThan") {
+          matchesRelativeDate = ageDays >= thresholdDays;
+        } else {
+          matchesRelativeDate = ageDays <= thresholdDays;
+        }
+      }
+
+      const matchesDynamicFilters = activeDynamicFilters.every((rule) => {
+        const value = toText(rawRow[rule.column]);
+        return dynamicRuleMatches(value, rule.operator, rule.value);
+      });
+
+      return (
+        matchesBatch &&
+        matchesService &&
+        matchesName &&
+        matchesMobile &&
+        matchesKeyword &&
+        matchesServiceKeyword &&
+        matchesDateRange &&
+        matchesAgePreset &&
+        matchesRelativeDate &&
+        matchesDynamicFilters
+      );
     });
 
     result = [...result].sort(
@@ -521,7 +744,37 @@ export default function CampaignAudienceAdmin() {
       seen.add(key);
       return true;
     });
-  }, [agePreset, batchFilter, dateFrom, dateTo, leads, mobileFilter, nameFilter, searchText, serviceFilter, uniqueByMobile]);
+  }, [
+    activeDynamicFilters,
+    agePreset,
+    batchFilter,
+    dateFrom,
+    dateTo,
+    leads,
+    mobileFilter,
+    nameFilter,
+    rawRowByLeadId,
+    searchText,
+    serviceFilter,
+    serviceKeywordFilter,
+    uniqueByMobile,
+    relativeDateMode,
+    relativeDateMonths,
+  ]);
+
+  const selectedColumnValues = useMemo(() => {
+    if (!audienceColumn) return [] as string[];
+
+    const values = filteredRows
+      .map((lead) => {
+        const leadId = toText(lead.id);
+        const rawRow = rawRowByLeadId.get(leadId) ?? {};
+        return toText(rawRow[audienceColumn]);
+      })
+      .filter(Boolean);
+
+    return Array.from(new Set(values));
+  }, [audienceColumn, filteredRows, rawRowByLeadId]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const pagedRows = useMemo(() => filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filteredRows, page]);
@@ -533,6 +786,20 @@ export default function CampaignAudienceAdmin() {
   const uniqueMobileCount = useMemo(() => {
     return new Set(filteredRows.map((lead) => toText(lead.normalizedMobileNumber)).filter(Boolean)).size;
   }, [filteredRows]);
+
+  const resultDisplayColumns = useMemo(() => {
+    if (uploadedColumns.length > 0) return uploadedColumns;
+    return [
+      "Customer Name",
+      "Mobile Number",
+      "Service Name",
+      "Service Date",
+      "Plate Number",
+      "Vehicle Make",
+      "Vehicle Model",
+      "Notes",
+    ];
+  }, [uploadedColumns]);
 
   const latestBatch = batches[0] ?? null;
 
@@ -830,38 +1097,37 @@ export default function CampaignAudienceAdmin() {
   };
 
   const handleCopyMobiles = async () => {
-    const mobiles = Array.from(
-      new Set(filteredRows.map((lead) => toText(lead.mobileNumber)).filter(Boolean))
-    ).join("\n");
+    const values = selectedColumnValues;
 
-    if (!mobiles) return;
+    if (values.length === 0) return;
     if (!navigator.clipboard?.writeText) {
       window.alert("Clipboard access is not available in this browser.");
       return;
     }
 
-    await navigator.clipboard.writeText(mobiles);
-    window.alert("Filtered mobile numbers copied to the clipboard.");
+    await navigator.clipboard.writeText(values.join("\n"));
+    window.alert("Filtered values copied to the clipboard.");
   };
 
   const handleExportCsv = () => {
+    const columns = resultDisplayColumns;
     const lines = [
-      ["Customer Name", "Mobile Number", "Service Name", "Service Date", "Plate Number", "Vehicle Make", "Vehicle Model", "Import Batch"].join(","),
-      ...filteredRows.map((lead) =>
-        [
-          csvEscape(lead.customerName),
-          csvEscape(lead.mobileNumber),
-          csvEscape(lead.serviceName),
-          csvEscape(lead.serviceDate),
-          csvEscape(lead.vehiclePlateNumber),
-          csvEscape(lead.vehicleMake),
-          csvEscape(lead.vehicleModel),
-          csvEscape(lead.importBatchId),
-        ].join(",")
-      ),
+      columns.map((column) => csvEscape(column)).join(","),
+      ...filteredRows.map((lead) => {
+        const leadId = toText(lead.id);
+        const rawRow = rawRowByLeadId.get(leadId) ?? {};
+        return columns
+          .map((column) => {
+            const rawValue = rawRow[column];
+            if (!isDateColumnName(column)) return csvEscape(rawValue);
+            const fallback = isServiceDateColumnName(column) ? lead.serviceDate : undefined;
+            return csvEscape(normalizeDateForExport(rawValue, fallback));
+          })
+          .join(",");
+      }),
     ];
 
-    downloadTextFile(`campaign-audience-${Date.now()}.csv`, lines.join("\n"), "text/csv;charset=utf-8");
+    downloadTextFile(`campaign-audience-${Date.now()}.csv`, lines.join("\r\n"), "text/csv;charset=utf-8", true);
   };
 
   return (
@@ -1177,52 +1443,72 @@ export default function CampaignAudienceAdmin() {
             <>
               <div className="campaign-filter-grid">
                 <label>
-                  <span>{t("Global search")}</span>
-                  <input value={searchText} onChange={(e) => setSearchText(e.target.value)} placeholder={t("Search name, mobile, service, plate...")} />
-                </label>
-                <label>
-                  <span>{t("Customer name")}</span>
-                  <input value={nameFilter} onChange={(e) => setNameFilter(e.target.value)} placeholder={t("Contains name")} />
-                </label>
-                <label>
-                  <span>{t("Mobile number")}</span>
-                  <input value={mobileFilter} onChange={(e) => setMobileFilter(e.target.value)} placeholder={t("Contains digits")} />
-                </label>
-                <label>
-                  <span>{t("Service")}</span>
-                  <select value={serviceFilter} onChange={(e) => setServiceFilter(e.target.value)}>
-                    <option value="all">{t("All services")}</option>
-                    {serviceOptions.map((service) => (
-                      <option key={service} value={service}>{service}</option>
+                  <span>{t("Result column")}</span>
+                  <select value={audienceColumn} onChange={(e) => { setAudienceColumn(e.target.value); localStorage.setItem(AUDIENCE_COLUMN_STORAGE_KEY, e.target.value); }}>
+                    <option value="">{t("Select column")}</option>
+                    {uploadedColumns.map((column) => (
+                      <option key={`audience-col-${column}`} value={column}>{column}</option>
                     ))}
                   </select>
                 </label>
                 <label>
-                  <span>{t("Import batch")}</span>
-                  <select value={batchFilter} onChange={(e) => setBatchFilter(e.target.value)}>
-                    <option value="all">{t("All batches")}</option>
-                    {batches.map((batch) => (
-                      <option key={batch.id} value={String(batch.batchId ?? "")}>{`${batch.fileName} • ${formatDateForUi(toText(batch.importedAt))}`}</option>
-                    ))}
-                  </select>
+                  <span>{t("Service contains")}</span>
+                  <input
+                    value={serviceKeywordFilter}
+                    onChange={(e) => setServiceKeywordFilter(e.target.value)}
+                    placeholder={t("e.g. polish, full ppf")}
+                  />
                 </label>
                 <label>
                   <span>{t("Service age")}</span>
-                  <select value={agePreset} onChange={(e) => setAgePreset(e.target.value as AgePreset)}>
-                    <option value="any">{t("Any time")}</option>
-                    {Object.entries(AGE_PRESET_RANGES).map(([key, preset]) => (
-                      <option key={key} value={key}>{t(preset.label)}</option>
-                    ))}
-                  </select>
+                  <div className="campaign-relative-date-controls">
+                    <select value={relativeDateMode} onChange={(e) => setRelativeDateMode(e.target.value as RelativeDateMode)}>
+                      <option value="any">{t("Any")}</option>
+                      <option value="olderThan">{t("Older than")}</option>
+                      <option value="newerThan">{t("Newer than")}</option>
+                      <option value="dateRange">{t("Date range")}</option>
+                    </select>
+                    <select
+                      value={relativeDateMonths}
+                      onChange={(e) => setRelativeDateMonths(Math.max(1, Number.parseInt(e.target.value, 10) || 1))}
+                      disabled={relativeDateMode === "any" || relativeDateMode === "dateRange"}
+                    >
+                      {Array.from({ length: 48 }, (_, idx) => idx + 1).map((month) => (
+                        <option key={`month-${month}`} value={month}>{`${month} ${month === 1 ? t("month") : t("months")}`}</option>
+                      ))}
+                    </select>
+                    {relativeDateMode === "dateRange" && (
+                      <>
+                        <input
+                          type="date"
+                          value={dateFrom}
+                          onChange={(e) => setDateFrom(e.target.value)}
+                          aria-label={t("Service date from")}
+                        />
+                        <input
+                          type="date"
+                          value={dateTo}
+                          onChange={(e) => setDateTo(e.target.value)}
+                          aria-label={t("Service date to")}
+                        />
+                      </>
+                    )}
+                  </div>
                 </label>
-                <label>
-                  <span>{t("Service date from")}</span>
-                  <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
-                </label>
-                <label>
-                  <span>{t("Service date to")}</span>
-                  <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
-                </label>
+
+              </div>
+
+              <div className="campaign-column-preview-panel">
+                <div className="campaign-column-preview-head">
+                  <strong>{audienceColumn || t("Selected column values")}</strong>
+                  <span>{`${selectedColumnValues.length.toLocaleString()} ${t("unique values")}`}</span>
+                </div>
+                <div className="campaign-column-preview-values">
+                  {selectedColumnValues.slice(0, 400).map((value) => (
+                    <span key={`value-${value}`} className="campaign-column-chip">{value}</span>
+                  ))}
+                  {selectedColumnValues.length === 0 && <div className="campaign-empty-cell">{t("No values match the current real-time filters.")}</div>}
+                </div>
               </div>
 
               <div className="campaign-toggle-row">
@@ -1250,34 +1536,30 @@ export default function CampaignAudienceAdmin() {
                   <table className="campaign-table main">
                     <thead>
                       <tr>
-                        <th>{t("Customer")}</th>
-                        <th>{t("Mobile")}</th>
-                        <th>{t("Service")}</th>
-                        <th>{t("Service Date")}</th>
-                        <th>{t("Vehicle")}</th>
-                        <th>{t("Batch")}</th>
+                        {resultDisplayColumns.map((column) => (
+                          <th key={`col-${column}`}>{column}</th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {pagedRows.map((lead) => (
+                      {pagedRows.map((lead) => {
+                        const leadId = toText(lead.id);
+                        const rawRow = rawRowByLeadId.get(leadId) ?? {};
+                        return (
                         <tr key={String(lead.id)}>
-                          <td>
-                            <div className="campaign-cell-title">{toText(lead.customerName) || "—"}</div>
-                            {lead.notes ? <div className="campaign-cell-sub">{toText(lead.notes)}</div> : null}
-                          </td>
-                          <td>{toText(lead.mobileNumber) || "—"}</td>
-                          <td>{toText(lead.serviceName) || "—"}</td>
-                          <td>{formatDateForUi(toText(lead.serviceDate))}</td>
-                          <td>
-                            <div className="campaign-cell-title">{[lead.vehicleMake, lead.vehicleModel].map((value) => toText(value)).filter(Boolean).join(" ") || "—"}</div>
-                            {lead.vehiclePlateNumber ? <div className="campaign-cell-sub">{toText(lead.vehiclePlateNumber)}</div> : null}
-                          </td>
-                          <td>{toText(lead.importBatchId)}</td>
+                          {resultDisplayColumns.map((column) => {
+                            const rawValue = toText(rawRow[column]);
+                            const isDateLike = isDateColumnName(column);
+                            const fallback = isServiceDateColumnName(column) ? lead.serviceDate : undefined;
+                            const value = isDateLike ? formatDateForUi(normalizeDateForExport(rawValue, fallback)) : rawValue;
+                            return <td key={`${String(lead.id)}-${column}`}>{value || "—"}</td>;
+                          })}
                         </tr>
-                      ))}
+                        );
+                      })}
                       {pagedRows.length === 0 && (
                         <tr>
-                          <td colSpan={6} className="campaign-empty-cell">{t("No rows match the current filters.")}</td>
+                          <td colSpan={Math.max(1, resultDisplayColumns.length)} className="campaign-empty-cell">{t("No rows match the current filters.")}</td>
                         </tr>
                       )}
                     </tbody>
@@ -1285,42 +1567,41 @@ export default function CampaignAudienceAdmin() {
                 </div>
               ) : (
                 <div className="campaign-cards-list">
-                  {pagedRows.map((lead) => (
+                  {pagedRows.map((lead) => {
+                    const leadId = toText(lead.id);
+                    const rawRow = rawRowByLeadId.get(leadId) ?? {};
+                    const cardTitle =
+                      toText(rawRow["Customer Name"]) ||
+                      toText(rawRow["customerName"]) ||
+                      toText(lead.customerName) ||
+                      "—";
+                    const cardDate =
+                      toText(rawRow["Service Date"]) ||
+                      toText(rawRow["serviceDate"]) ||
+                      toText(lead.serviceDate);
+                    return (
                     <article key={String(lead.id)} className="campaign-data-card">
                       <header>
-                        <strong>{toText(lead.customerName) || "—"}</strong>
-                        <span>{formatDateForUi(toText(lead.serviceDate))}</span>
+                        <strong>{cardTitle}</strong>
+                        <span>{formatDateForUi(cardDate)}</span>
                       </header>
                       <div className="campaign-data-grid">
-                        <div>
-                          <span>{t("Mobile")}</span>
-                          <strong>{toText(lead.mobileNumber) || "—"}</strong>
-                        </div>
-                        <div>
-                          <span>{t("Service")}</span>
-                          <strong>{toText(lead.serviceName) || "—"}</strong>
-                        </div>
-                        <div>
-                          <span>{t("Vehicle")}</span>
-                          <strong>{[lead.vehicleMake, lead.vehicleModel].map((value) => toText(value)).filter(Boolean).join(" ") || "—"}</strong>
-                        </div>
-                        <div>
-                          <span>{t("Plate")}</span>
-                          <strong>{toText(lead.vehiclePlateNumber) || "—"}</strong>
-                        </div>
-                        <div className="full-width">
-                          <span>{t("Batch")}</span>
-                          <strong>{toText(lead.importBatchId)}</strong>
-                        </div>
-                        {lead.notes ? (
-                          <div className="full-width">
-                            <span>{t("Notes")}</span>
-                            <strong>{toText(lead.notes)}</strong>
-                          </div>
-                        ) : null}
+                        {resultDisplayColumns.map((column) => {
+                          const rawValue = toText(rawRow[column]);
+                          const isDateLike = isDateColumnName(column);
+                          const fallback = isServiceDateColumnName(column) ? lead.serviceDate : undefined;
+                          const value = isDateLike ? formatDateForUi(normalizeDateForExport(rawValue, fallback)) : rawValue;
+                          return (
+                            <div key={`${String(lead.id)}-card-${column}`}>
+                              <span>{column}</span>
+                              <strong>{value || "—"}</strong>
+                            </div>
+                          );
+                        })}
                       </div>
                     </article>
-                  ))}
+                    );
+                  })}
                   {pagedRows.length === 0 && <div className="campaign-empty-cell">{t("No rows match the current filters.")}</div>}
                 </div>
               )}
