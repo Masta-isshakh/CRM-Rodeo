@@ -1592,17 +1592,13 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8.3);
     doc.text(clipText(safeText(order?.customerName) || "-", infoW - 6), marginX + 3, infoTop + 10);
-    doc.text(`Mobile: ${safeText(order?.mobile) || "-"}`, marginX + 3, infoTop + 14.5);
-    doc.text(`Order: ${safeText(order?.id) || "-"}`, marginX + 3, infoTop + 19);
-    drawArabicLine(`الجوال: ${safeText(order?.mobile) || "-"}`, marginX + infoW - 3, infoTop + 11.1, infoW - 8, 9, "normal");
-    drawArabicLine(`رقم الطلب: ${safeText(order?.id) || "-"}`, marginX + infoW - 3, infoTop + 15.4, infoW - 8, 9, "normal");
+    doc.text(`Mobile | الجوال: ${safeText(order?.mobile) || "-"}`, marginX + 3, infoTop + 14.5);
+    doc.text(`Order | رقم الطلب: ${safeText(order?.id) || "-"}`, marginX + 3, infoTop + 19);
 
     const vehicleName = `${safeText(order?.vehicleDetails?.make)} ${safeText(order?.vehicleDetails?.model)}`.trim() || "-";
     doc.text(clipText(vehicleName, infoW - 6), marginX + infoW + infoGap + 3, infoTop + 10);
-    doc.text(`Plate: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 14.5);
-    doc.text(`VIN: ${safeText(order?.vehicleDetails?.vin) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 19);
-    drawArabicLine(`رقم اللوحة: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "-"}`, pageW - marginX - 3, infoTop + 11.1, infoW - 8, 9, "normal");
-    drawArabicLine(`الرقم التعريفي: ${safeText(order?.vehicleDetails?.vin) || "-"}`, pageW - marginX - 3, infoTop + 15.4, infoW - 8, 9, "normal");
+    doc.text(`Plate | رقم اللوحة: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 14.5);
+    doc.text(`VIN | الرقم التعريفي: ${safeText(order?.vehicleDetails?.vin) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 19);
 
     // Job-order metadata block
     const metaTop = infoTop + 30.8;
@@ -1616,14 +1612,11 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     drawArabicLine("تفاصيل أمر العمل", pageW - marginX - 2.5, metaTop + 0.9, 42, 10, "bolditalic");
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    doc.text(`Type: ${orderTypeLabel || "-"}`, marginX + 2.5, metaTop + 8.6);
-    doc.text(`Work Status: ${workStatusLabel || "-"}`, marginX + 55, metaTop + 8.6);
-    doc.text(`Payment Method: ${paymentMethodLabel || "-"}`, marginX + 114, metaTop + 8.6);
-    doc.text(`Opened: ${jobCreatedAtDisplay}`, marginX + 2.5, metaTop + 11.9);
-    doc.text(`Last Update: ${jobUpdatedAtDisplay}`, marginX + 96, metaTop + 11.9);
-    drawArabicLine(`نوع الطلب: ${orderTypeLabel || "-"}`, pageW - marginX - 2.5, metaTop + 14.8, contentW - 8, 9, "normal");
-    drawArabicLine(`حالة العمل: ${workStatusLabel || "-"} | طريقة الدفع: ${paymentMethodLabel || "-"}`, pageW - marginX - 2.5, metaTop + 18.9, contentW - 8, 9, "normal");
-    drawArabicLine(`تاريخ فتح الطلب: ${jobCreatedAtDisplay}`, pageW - marginX - 2.5, metaTop + 23.0, contentW - 8, 9, "normal");
+    doc.text(`Type | نوع الطلب: ${orderTypeLabel || "-"}`, marginX + 2.5, metaTop + 8.6);
+    doc.text(`Work Status | حالة العمل: ${workStatusLabel || "-"}`, marginX + 72, metaTop + 8.6);
+    doc.text(`Payment Method | طريقة الدفع: ${paymentMethodLabel || "-"}`, marginX + 2.5, metaTop + 11.9);
+    doc.text(`Opened | تاريخ الفتح: ${jobCreatedAtDisplay}`, marginX + 2.5, metaTop + 15.2);
+    doc.text(`Last Update | آخر تحديث: ${jobUpdatedAtDisplay}`, marginX + 2.5, metaTop + 18.5);
 
     // Services table area
     const tableTop = metaTop + metaH + 3;

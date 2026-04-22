@@ -53,6 +53,27 @@ body {
   border-bottom: 1px solid var(--rd-section-title-border);
 }
 
+.layout-main :is(
+  [class*="detail-card"] > h1,
+  [class*="detail-card"] > h2,
+  [class*="detail-card"] > h3,
+  [class*="details-screen"] > h1,
+  [class*="details-screen"] > h2,
+  [class*="details-screen"] > h3,
+  [class*="details"] > h2,
+  [class*="details"] > h3,
+  [class*="card-head"],
+  [class*="card-title"],
+  [class*="subtitle"],
+  .ums-edit-card-head,
+  .pim-subtitle
+) {
+  color: color-mix(in srgb, var(--rd-section-title-color) 84%, #133f7a 16%);
+  font-size: clamp(1.04rem, 0.94rem + 0.62vw, 1.42rem);
+  font-weight: 900;
+  letter-spacing: 0.015em;
+}
+
 html[dir="rtl"] body {
   direction: rtl;
 }

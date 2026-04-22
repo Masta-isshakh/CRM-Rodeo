@@ -998,14 +998,70 @@ export default function Users(_: PageProps) {
       return;
     }
 
-    const fullName = String(u.fullName ?? "").trim();
-    const deptKey = String(u.departmentKey ?? "").trim();
-    const roleId = String((u as any).roleId ?? "").trim();
-    const roleName = String((u as any).roleName ?? "").trim();
-    const employeeIdValue = normalizeEmployeeId(String((u as any).employeeId ?? ""));
+    const loadedUser = users.find(
+      (x) => String((x as any)?.email ?? "").trim().toLowerCase() === targetEmail
+    );
+    const isDetailsTarget =
+      detailsOpen &&
+      String((detailsUser as any)?.email ?? "").trim().toLowerCase() === targetEmail;
+
+    const fullName = String(u.fullName ?? (loadedUser as any)?.fullName ?? "").trim();
+
+    let deptKey = String(
+      u.departmentKey ??
+      (loadedUser as any)?.departmentKey ??
+      (isDetailsTarget ? editDepartmentKey : "")
+    ).trim();
+    const deptNameHint = String(
+      u.departmentName ?? (loadedUser as any)?.departmentName ?? ""
+    ).trim();
+    if (!deptKey && deptNameHint) {
+      const fromName = departments.find(
+        (d) => String(d.name ?? "").trim().toLowerCase() === deptNameHint.toLowerCase()
+      );
+      deptKey = String(fromName?.key ?? "").trim();
+    }
+
+    let roleId = String(
+      (u as any).roleId ??
+      (loadedUser as any)?.roleId ??
+      (isDetailsTarget ? editRoleKey : "")
+    ).trim();
+    const roleName = String((u as any).roleName ?? (loadedUser as any)?.roleName ?? "").trim();
+    if (!roleId && roleName) {
+      const roleByName = roles.find(
+        (r: any) => String(r?.name ?? "").trim().toLowerCase() === roleName.toLowerCase()
+      );
+      roleId = String(roleByName?.id ?? "").trim();
+    }
+    if (!roleId && deptKey) {
+      const link = deptRoleLinks.find((l: any) => String(l?.departmentKey ?? "") === deptKey);
+      roleId = String(link?.roleId ?? "").trim();
+    }
+
+    const employeeIdValue = normalizeEmployeeId(
+      String(
+        (u as any).employeeId ??
+        (loadedUser as any)?.employeeId ??
+        (isDetailsTarget ? editEmployeeId : "")
+      )
+    );
+    const mobileValue = String(
+      (u as any).mobileNumber ??
+      (loadedUser as any)?.mobileNumber ??
+      (isDetailsTarget ? editMobileNumber : "")
+    ).trim();
 
     if (!deptKey) {
       setDetailsStatus(t("departmentRequiredForReset"));
+      return;
+    }
+    if (!employeeIdValue) {
+      setDetailsStatus(t("employeeIdIsRequired"));
+      return;
+    }
+    if (!roleId) {
+      setDetailsStatus(t("roleRequired"));
       return;
     }
 
@@ -1018,13 +1074,13 @@ export default function Users(_: PageProps) {
         "";
 
       const res = await client.mutations.inviteUser({
-        employeeId: employeeIdValue || undefined,
+        employeeId: employeeIdValue,
         email: targetEmail,
         fullName: fullName || targetEmail,
-        mobileNumber: String((u as any).mobileNumber ?? "").trim() || undefined,
+        mobileNumber: mobileValue || undefined,
         departmentKey: deptKey,
         departmentName: deptName,
-        roleId: roleId || undefined,
+        roleId,
       } as any);
 
       const errs = (res as any)?.errors;
