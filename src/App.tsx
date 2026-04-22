@@ -237,6 +237,50 @@ const authComponents = {
     },
     FormFields() {
       const [password, setPassword] = useState("");
+      const [showPassword, setShowPassword] = useState(false);
+
+      const PasswordVisibilityIcon = ({ visible }: { visible: boolean }) => {
+        if (visible) {
+          return (
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+              <path
+                d="M3 3L21 21"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M10.58 10.58a2 2 0 102.84 2.84"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+              <path
+                d="M9.88 4.24A10.94 10.94 0 0112 4c5.52 0 10 4.48 10 8a7.87 7.87 0 01-2.04 4.95M6.1 6.1A11.4 11.4 0 002 12c0 3.52 4.48 8 10 8a11.4 11.4 0 005.9-1.9"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              />
+            </svg>
+          );
+        }
+
+        return (
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path
+              d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"
+              stroke="currentColor"
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+            <circle cx="12" cy="12" r="3" stroke="currentColor" strokeWidth="1.8" />
+          </svg>
+        );
+      };
 
       const rules = [
         {
@@ -273,15 +317,30 @@ const authComponents = {
             required
           />
 
-          <TextField
-            name="password"
-            type="password"
-            autoComplete="current-password"
-              label={tr("Password")}
-            placeholder={tr("Enter your password")}
-            onChange={(e) => setPassword((e.target as HTMLInputElement).value)}
-            required
-          />
+          <div className="amplify-field crm-auth-password-field">
+            <label className="amplify-label" htmlFor="crm-login-password">{tr("Password")}</label>
+            <div className="crm-auth-password-input-wrap">
+              <input
+                id="crm-login-password"
+                name="password"
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                className="amplify-input"
+                placeholder={tr("Enter your password")}
+                onChange={(e) => setPassword((e.target as HTMLInputElement).value)}
+                required
+              />
+              <button
+                type="button"
+                className="crm-auth-password-toggle"
+                aria-label={showPassword ? tr("Hide password") : tr("Show password")}
+                title={showPassword ? tr("Hide password") : tr("Show password")}
+                onClick={() => setShowPassword((prev) => !prev)}
+              >
+                <PasswordVisibilityIcon visible={showPassword} />
+              </button>
+            </div>
+          </div>
 
           {!allRulesMet && (
             <div className="crm-auth-password-rules" aria-live="polite">

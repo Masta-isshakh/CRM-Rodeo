@@ -155,6 +155,58 @@ body,
 .crm-authenticator .amplify-field__show-password {
   display: none;
 }
+.crm-auth-password-toggle {
+  border: 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.92);
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.crm-auth-password-toggle:hover,
+.crm-auth-password-toggle:focus-visible {
+  background: rgba(255, 255, 255, 0.14);
+  color: #ffffff;
+  outline: none;
+}
+
+.crm-auth-password-toggle svg {
+  width: 18px;
+  height: 18px;
+  display: block;
+}
+
+.crm-auth-password-field {
+  margin-bottom: 18px;
+}
+
+.crm-auth-password-input-wrap {
+  position: relative;
+}
+
+.crm-auth-password-input-wrap .amplify-input {
+  padding-right: 44px;
+}
+
+.crm-auth-password-input-wrap .crm-auth-password-toggle {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 2;
+}
+
+.crm-authenticator input[type="password"]::-ms-reveal,
+.crm-authenticator input[type="password"]::-ms-clear {
+  display: none;
+}
 
 .crm-authenticator .amplify-label {
   color: rgba(255, 255, 255, 0.95);
