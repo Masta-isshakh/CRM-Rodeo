@@ -1,6 +1,7 @@
 // src/pages/RoleAccessControl.tsx
 import { useEffect, useMemo, useState } from "react";
 import { getCurrentUser } from "aws-amplify/auth";
+import { useLanguage } from "../i18n/LanguageContext";
 import SuccessPopup from "./SuccessPopup";
 import "./RoleAccessControl.css";
 import { getDataClient } from "../lib/amplifyClient";
@@ -635,6 +636,7 @@ const OptionNode = ({
 };
 
 export default function RoleAccessControl() {
+  const { t } = useLanguage();
   const client = useMemo(() => getDataClient(), []);
   const [loading, setLoading] = useState(false);
 
@@ -676,7 +678,7 @@ export default function RoleAccessControl() {
         await loadRoles();
       } catch (e: any) {
         console.error(e);
-        showMsg(`Failed to load roles: ${e?.message ?? "Unknown error"}`);
+        showMsg(`${t("failedToLoadRoles")}: ${e?.message ?? "Unknown error"}`);
       } finally {
         setLoading(false);
       }
@@ -765,7 +767,7 @@ export default function RoleAccessControl() {
         setExpandedModules({});
       } catch (e: any) {
         console.error(e);
-        showMsg(`Failed to load role settings: ${e?.message ?? "Unknown error"}`);
+        showMsg(`${t("failedToLoadRoleSettings")}: ${e?.message ?? "Unknown error"}`);
       } finally {
         setLoading(false);
       }
@@ -838,7 +840,7 @@ export default function RoleAccessControl() {
     const description = String(newRoleDesc || "").trim();
 
     if (!name) {
-      showMsg("Role name is required.");
+      showMsg(t("roleNameIsRequired"));
       return;
     }
 
@@ -857,10 +859,10 @@ export default function RoleAccessControl() {
       setNewRoleDesc("");
 
       await loadRoles();
-      showMsg(`Role created: ${name}`);
+      showMsg(`${t("roleCreated")}: ${name}`);
     } catch (e: any) {
       console.error(e);
-      showMsg(`Create role failed: ${e?.message ?? "Unknown error"}`);
+      showMsg(`${t("createRoleFailed")}: ${e?.message ?? "Unknown error"}`);
     } finally {
       setLoading(false);
     }
@@ -1180,10 +1182,10 @@ export default function RoleAccessControl() {
       window.dispatchEvent(new Event("rbac:refresh"));
       const elapsedMs = Date.now() - startedAt;
       const elapsedSec = (elapsedMs / 1000).toFixed(1);
-      showMsg(`Saved role permissions for: ${selectedRole?.name ?? currentRoleId} (${elapsedSec}s)`);
+      showMsg(`${t("savedRolePermissions")}: ${selectedRole?.name ?? currentRoleId} (${elapsedSec}s)`);
     } catch (e: any) {
       console.error(e);
-      showMsg(`Save failed: ${e?.message ?? "Unknown error"}`);
+      showMsg(`${t("saveFailed")}: ${e?.message ?? "Unknown error"}`);
     } finally {
       setLoading(false);
       setSaveProgress((prev) => ({ ...prev, active: false }));
@@ -1193,7 +1195,7 @@ export default function RoleAccessControl() {
   // ✅ Reset: delete all role option rows
   const handleReset = async () => {
     if (!currentRoleId) return;
-    const ok = window.confirm("Reset option permissions for this role (delete stored settings)?");
+    const ok = window.confirm(t("resetOptionPermissionsConfirm"));
     if (!ok) return;
 
     setLoading(true);
@@ -1231,10 +1233,10 @@ export default function RoleAccessControl() {
       setExpandedModules({});
 
       window.dispatchEvent(new Event("rbac:refresh"));
-      showMsg("Option permissions reset to defaults (backend rows removed).");
+      showMsg(t("optionPermissionsResetToDefaults"));
     } catch (e: any) {
       console.error(e);
-      showMsg(`Reset failed: ${e?.message ?? "Unknown error"}`);
+      showMsg(`${t("resetFailed")}: ${e?.message ?? "Unknown error"}`);
     } finally {
       setLoading(false);
     }
@@ -1254,15 +1256,15 @@ export default function RoleAccessControl() {
       <div className="rac-container">
         <header className="rac-header">
           <div>
-            <h1>Role Access Control</h1>
-            <p>Manage option-level permissions stored in backend (RoleOptionToggle / RoleOptionNumber)</p>
+            <h1>{t("roleAccessControl")}</h1>
+            <p>{t("manageOptionLevelPermissions")}</p>
           </div>
         </header>
 
         <section className="rac-role-section">
           <div className="rac-role-selector">
             <div>
-              <label htmlFor="rac-role-select">Select Role to Modify:</label>
+              <label htmlFor="rac-role-select">{t("selectRoleToModify")}</label>
               <select
                 id="rac-role-select"
                 value={currentRoleId}
@@ -1279,7 +1281,7 @@ export default function RoleAccessControl() {
 
             <div className="rac-current-role">
               <i className="fas fa-user-shield" />
-              Currently editing: <span>{selectedRole?.name ?? "—"}</span>
+              {t("currentlyEditing")}<span>{selectedRole?.name ?? "—"}</span>
             </div>
 
           </div>
@@ -1289,7 +1291,7 @@ export default function RoleAccessControl() {
           <i className="fas fa-search" />
           <input
             type="text"
-            placeholder="Search permissions... (discount, view details, create, cancel...)"
+            placeholder={t("searchPermissionsPlaceholder")}
             value={searchTerm}
             onChange={(event) => setSearchTerm(event.target.value)}
           />
@@ -1297,9 +1299,9 @@ export default function RoleAccessControl() {
 
         <div className="rac-tabs">
           {[
-            { id: "all", label: "All Modules" },
-            { id: "core", label: "Core Operations" },
-            { id: "financial", label: "Financial" },
+            { id: "all", label: t("allModules") },
+            { id: "core", label: t("coreOperations") },
+            { id: "financial", label: t("financial") },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -1336,12 +1338,12 @@ export default function RoleAccessControl() {
                 >
                   <div className="rac-module-title">
                     <i className={module.icon} />
-                    <span>{module.title}</span>
+                    <span>{t(module.title)}</span>
                     <span className={`rac-status-indicator ${moduleState.enabled ? "enabled" : "disabled"}`} />
                   </div>
 
                   <div className="rac-module-toggle" onClick={(e) => e.stopPropagation()}>
-                    <span className="rac-toggle-label">Enable/Disable</span>
+                    <span className="rac-toggle-label">{t("enableDisable")}</span>
                     <label className="rac-toggle">
                       <input
                         type="checkbox"
@@ -1377,20 +1379,20 @@ export default function RoleAccessControl() {
 
         <section className="rac-actions">
           <button type="button" className="rac-btn rac-btn-ghost" onClick={handleReset} disabled={loading}>
-            <i className="fas fa-undo" /> Reset (delete backend rows)
+            <i className="fas fa-undo" /> {t("resetDeleteBackendRows")}
           </button>
 
           <div className="rac-save-wrap">
             <button type="button" className="rac-btn rac-btn-primary" onClick={handleSave} disabled={loading}>
               <i className="fas fa-save" /> {loading
-                ? `Saving changes... (${saveProgress.completed}/${saveProgress.total || "?"})`
-                : "Save to Backend"}
+                ? `${t("savingChanges")}... (${saveProgress.completed}/${saveProgress.total || "?"})`
+                : t("saveToBackend")}
             </button>
 
             {loading && saveProgress.active && saveProgress.total > 0 && (
               <div className="rac-save-progress" aria-live="polite">
                 <div className="rac-save-progress-text">
-                  Saving changes... ({saveProgress.completed}/{saveProgress.total})
+                  {t("savingChanges")}... ({saveProgress.completed}/{saveProgress.total})
                 </div>
                 <div className="rac-save-progress-bar" role="progressbar" aria-valuemin={0} aria-valuemax={saveProgress.total} aria-valuenow={saveProgress.completed}>
                   <div
@@ -1432,7 +1434,7 @@ export default function RoleAccessControl() {
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-              <div style={{ fontWeight: 800, fontSize: 16 }}>Create New Role</div>
+              <div style={{ fontWeight: 800, fontSize: 16 }}>{t("createNewRole")}</div>
               <button
                 type="button"
                 onClick={() => setShowCreateRole(false)}
@@ -1450,11 +1452,11 @@ export default function RoleAccessControl() {
 
             <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
               <div>
-                <div style={{ fontSize: 12, color: "rgba(15,23,42,0.65)", marginBottom: 6 }}>Role Name *</div>
+                <div style={{ fontSize: 12, color: "rgba(15,23,42,0.65)", marginBottom: 6 }}>{t("roleName")} *</div>
                 <input
                   value={newRoleName}
                   onChange={(e) => setNewRoleName(e.target.value)}
-                  placeholder="e.g. Cashier"
+                  placeholder={t("egCashier")}
                   style={{
                     width: "100%",
                     padding: "12px",
@@ -1467,11 +1469,11 @@ export default function RoleAccessControl() {
               </div>
 
               <div>
-                <div style={{ fontSize: 12, color: "rgba(15,23,42,0.65)", marginBottom: 6 }}>Description</div>
+                <div style={{ fontSize: 12, color: "rgba(15,23,42,0.65)", marginBottom: 6 }}>{t("description")}</div>
                 <input
                   value={newRoleDesc}
                   onChange={(e) => setNewRoleDesc(e.target.value)}
-                  placeholder="Optional"
+                  placeholder={t("optional")}
                   style={{
                     width: "100%",
                     padding: "12px",
@@ -1490,7 +1492,7 @@ export default function RoleAccessControl() {
                   onClick={() => setShowCreateRole(false)}
                   disabled={loading}
                 >
-                  Cancel
+                  {t("cancel")}
                 </button>
                 <button
                   type="button"
@@ -1498,7 +1500,7 @@ export default function RoleAccessControl() {
                   onClick={() => void createRole()}
                   disabled={loading}
                 >
-                  <i className="fas fa-plus" /> {loading ? "Creating..." : "Create Role"}
+                  <i className="fas fa-plus" /> {loading ? t("creating") : t("createRole")}
                 </button>
               </div>
             </div>

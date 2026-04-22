@@ -22,6 +22,7 @@ import UnifiedBillingInvoicesSection from "../components/UnifiedBillingInvoicesS
 
 import { getJobOrderByOrderNumber } from "./jobOrderRepo";
 import { getUrl } from "aws-amplify/storage";
+import { useLanguage } from "../i18n/LanguageContext";
 
 // -------------------- helpers --------------------
 function safeJsonParse<T>(raw: any, fallback: T): T {
@@ -671,6 +672,7 @@ export default function JobOrderHistory({
   onNavigateBack?: (source: string, vehicleId?: string | null) => void;
 }) {
   const client = useMemo(() => getDataClient(), []);
+  const { t } = useLanguage();
 
   const [loading, setLoading] = useState(false);
 
@@ -1123,7 +1125,7 @@ export default function JobOrderHistory({
       detailsCacheRef.current.set(orderKey, merged);
       setSelectedOrder(merged);
     } catch (e) {
-      alert(`Load failed: ${errMsg(e)}`);
+      alert(`${t("Load failed:")} ${errMsg(e)}`);
     } finally {
       setLoading(false);
     }
@@ -1161,10 +1163,10 @@ export default function JobOrderHistory({
       <header className="jh-header crm-unified-header">
         <div className="jh-header-left">
           <h1>
-            <i className="fas fa-history" /> Job Order History
+            <i className="fas fa-history" /> {t("Job Order History")}
           </h1>
           <div className="jh-sub">
-            Cancelled + Unpaid and Completed + Fully Paid job orders (live from backend)
+            {t("Cancelled + Unpaid and Completed + Fully Paid job orders (live from backend)")}
           </div>
         </div>
       </header>
@@ -1176,19 +1178,19 @@ export default function JobOrderHistory({
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search by Job ID, Customer, Plate, Status..."
+              placeholder={t("Search by Job ID, Customer, Plate, Status...")}
               autoComplete="off"
             />
           </div>
 
           <div className="jh-search-meta">
             {filtered.length === 0 ? (
-              <span>No job orders found</span>
+              <span>{t("No job orders found")}</span>
             ) : (
               <span>
-                Showing {Math.min(startIndex + 1, filtered.length)}-
-                {Math.min(startIndex + pageSize, filtered.length)} of {filtered.length}
-                {searchQuery ? <span className="jh-filtered"> (Filtered)</span> : null}
+                {t("Showing")} {Math.min(startIndex + 1, filtered.length)}-
+                {Math.min(startIndex + pageSize, filtered.length)} {t("of")} {filtered.length}
+                {searchQuery ? <span className="jh-filtered"> {t("(Filtered)")}</span> : null}
               </span>
             )}
           </div>
@@ -1197,12 +1199,12 @@ export default function JobOrderHistory({
         <section className="jh-section">
           <div className="jh-section-head">
             <h2>
-              <i className="fas fa-list" /> Job Order Records
+              <i className="fas fa-list" /> {t("Job Order Records")}
             </h2>
 
             <div className="jh-controls">
               <div className="jh-pagesize">
-                <label>Records per page</label>
+                <label>{t("Records per page")}</label>
                 <select
                   value={pageSize}
                   onChange={(e) => {
@@ -1218,7 +1220,7 @@ export default function JobOrderHistory({
 
               <PermissionGate moduleId="jobhistory" optionId="jobhistory_export">
                 <button className="jh-btn jh-btn-secondary" type="button" onClick={() => setShowExportModal(true)}>
-                  <i className="fas fa-file-export" /> Export
+                  <i className="fas fa-file-export" /> {t("Export")}
                 </button>
               </PermissionGate>
             </div>
@@ -1229,8 +1231,8 @@ export default function JobOrderHistory({
               <div className="jh-empty-ic">
                 <i className="fas fa-search" />
               </div>
-              <div className="jh-empty-title">{loading ? "Loading..." : "No matching job orders found"}</div>
-              <div className="jh-empty-sub">Try adjusting your search terms.</div>
+              <div className="jh-empty-title">{loading ? t("Loading...") : t("No matching job orders found")}</div>
+              <div className="jh-empty-sub">{t("Try adjusting your search terms.")}</div>
             </div>
           ) : (
             <>
@@ -1238,15 +1240,15 @@ export default function JobOrderHistory({
                 <table className="jh-table">
                   <thead>
                     <tr>
-                      <th>Create Date</th>
-                      <th>Job Card ID</th>
-                      <th>Order Type</th>
-                      <th>Customer</th>
-                      <th>Mobile</th>
-                      <th>Plate</th>
-                      <th>Work Status</th>
-                      <th>Payment Status</th>
-                      <th>Actions</th>
+                      <th>{t("Create Date")}</th>
+                      <th>{t("Job Card ID")}</th>
+                      <th>{t("Order Type")}</th>
+                      <th>{t("Customer")}</th>
+                      <th>{t("Mobile")}</th>
+                      <th>{t("Plate")}</th>
+                      <th>{t("Work Status")}</th>
+                      <th>{t("Payment Status")}</th>
+                      <th>{t("Actions")}</th>
                     </tr>
                   </thead>
 
@@ -1274,7 +1276,7 @@ export default function JobOrderHistory({
                               type="button"
                               onClick={() => void openDetails(r.orderNumber)}
                             >
-                              <i className="fas fa-eye" /> View Details
+                              <i className="fas fa-eye" /> {t("View Details")}
                             </button>
                           </PermissionGate>
                         </td>
@@ -1334,7 +1336,7 @@ export default function JobOrderHistory({
       </main>
 
       <footer className="jh-footer">
-        <p>Service Management System © 2023 | Job Order History Module</p>
+        <p>{t("Service Management System © 2023 | Job Order History Module")}</p>
       </footer>
 
       {/* Export Modal */}
@@ -1343,9 +1345,9 @@ export default function JobOrderHistory({
           <div className="jh-modal">
             <div className="jh-modal-head">
               <h3>
-                <i className="fas fa-file-export" /> Export Data
+                <i className="fas fa-file-export" /> {t("Export Data")}
               </h3>
-              <button className="jh-x" type="button" onClick={() => setShowExportModal(false)} aria-label="Close">
+              <button className="jh-x" type="button" onClick={() => setShowExportModal(false)} aria-label={t("Close")}>
                 ✕
               </button>
             </div>
@@ -1353,7 +1355,7 @@ export default function JobOrderHistory({
             <div className="jh-modal-body">
               <div className="jh-grid2">
                 <div className="jh-field">
-                  <label>From Date</label>
+                  <label>{t("From Date")}</label>
                   <input
                     type="date"
                     value={exportDates.startDate}
@@ -1362,7 +1364,7 @@ export default function JobOrderHistory({
                 </div>
 
                 <div className="jh-field">
-                  <label>To Date</label>
+                  <label>{t("To Date")}</label>
                   <input
                     type="date"
                     value={exportDates.endDate}
@@ -1372,16 +1374,16 @@ export default function JobOrderHistory({
               </div>
 
               <div className="jh-hint">
-                Export downloads a CSV file (Excel-compatible).
+                {t("Export downloads a CSV file (Excel-compatible).")}
               </div>
             </div>
 
             <div className="jh-modal-actions">
               <button className="jh-btn jh-btn-ghost" type="button" onClick={() => setShowExportModal(false)}>
-                Cancel
+                {t("Cancel")}
               </button>
               <button className="jh-btn jh-btn-primary" type="button" onClick={handleExport}>
-                Export
+                {t("Export")}
               </button>
             </div>
           </div>
@@ -1405,12 +1407,13 @@ function JobHistoryDetails({
   displayUser: (value: any) => string;
   actorMap: Record<string, string>;
 }) {
+  const { t } = useLanguage();
   const roadmap: RoadmapStepUi[] = Array.isArray(order?.roadmap) ? order.roadmap : [];
   const docs: DocUi[] = Array.isArray(order?.documents) ? order.documents : [];
   const services: any[] = Array.isArray(order?.services) ? order.services : [];
   const servicesCompleted = services.filter((service: any) => String(service?.status ?? "").trim().toLowerCase() === "completed").length;
   const servicesProgressPercent = services.length ? Math.round((servicesCompleted / services.length) * 100) : 0;
-  const servicesProgressLabel = services.length ? `${servicesCompleted}/${services.length} completed` : "0/0 completed";
+  const servicesProgressLabel = services.length ? `${servicesCompleted}/${services.length} ${t("completed")}` : `0/0 ${t("completed")}`;
   const createdByDisplay = resolveOrderCreatedBy(order, {
     identityToUsernameMap: actorMap,
     fallback: "—",
@@ -1421,13 +1424,13 @@ function JobHistoryDetails({
       <div className="jh-details-head">
         <div className="jh-details-title">
           <h2>
-            <i className="fas fa-clipboard-list" /> Job Order Details - <span>{order.id}</span>
+            <i className="fas fa-clipboard-list" /> {t("Job Order Details")} - <span>{order.id}</span>
           </h2>
-          {loading ? <span className="jh-loading">Loading…</span> : null}
+          {loading ? <span className="jh-loading">{t("Loading...")}</span> : null}
         </div>
 
         <button className="jh-btn jh-btn-ghost" type="button" onClick={onClose}>
-          <i className="fas fa-times" /> Close
+          <i className="fas fa-times" /> {t("Close")}
         </button>
       </div>
 
@@ -1454,7 +1457,7 @@ function JobHistoryDetails({
           <PermissionGate moduleId="jobhistory" optionId="jobhistory_roadmap">
             <div className="jh-card jh-span-2">
               {roadmap.length === 0 ? (
-                <div className="jh-empty-inline">No roadmap data.</div>
+                <div className="jh-empty-inline">{t("No roadmap data.")}</div>
               ) : (
                 <UnifiedJobOrderRoadmap order={{ ...order, roadmap }} />
               )}
@@ -1466,7 +1469,7 @@ function JobHistoryDetails({
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
                 <div style={{ flex: 1 }}>
                   <h3 style={{ margin: "0 0 12px 0" }}>
-                    <i className="fas fa-tasks" /> Services Summary ({services.length})
+                    <i className="fas fa-tasks" /> {t("Services Summary")} ({services.length})
                   </h3>
                   {services.length ? (
                     <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
@@ -1488,14 +1491,14 @@ function JobHistoryDetails({
                   services.map((svc: any, idx: number) => (
                     <div key={svc?.id ?? idx} className="pim-service-item">
                       <div className="pim-service-header">
-                        <span className="pim-service-name">{String(svc?.name ?? "Service")}</span>
-                        <span className="pim-service-price">{svc?.price != null ? fmtQar(toNum(svc.price)) : "N/A"}</span>
+                        <span className="pim-service-name">{String(svc?.name ?? t("Service"))}</span>
+                        <span className="pim-service-price">{svc?.price != null ? fmtQar(toNum(svc.price)) : t("N/A")}</span>
                       </div>
 
                       <div className="pim-service-meta">
                         {getServiceSpecificationLabel(svc) ? (
                           <div className="pim-service-meta-row" style={{ gridColumn: "span 2" }}>
-                            <span className="pim-service-meta-label">Specification:</span>
+                            <span className="pim-service-meta-label">{t("Specification:")}</span>
                             <span className="pim-service-meta-value" data-no-translate="true" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                               {getServiceSpecificationColor(svc) ? (
                                 <span
@@ -1515,32 +1518,32 @@ function JobHistoryDetails({
                           </div>
                         ) : null}
                         <div className="pim-service-meta-row">
-                          <span className="pim-service-meta-label">Status:</span>
+                          <span className="pim-service-meta-label">{t("Status:")}</span>
                           <span className="pim-service-meta-value">{String(svc?.status ?? "N/A")}</span>
                         </div>
                         <div className="pim-service-meta-row">
-                          <span className="pim-service-meta-label">Technician:</span>
+                          <span className="pim-service-meta-label">{t("Technician:")}</span>
                           <span className="pim-service-meta-value">{resolveHistoryServiceActor(svc, displayUser)}</span>
                         </div>
                         {svc?.started ? (
                           <div className="pim-service-meta-row">
-                            <span className="pim-service-meta-label">Started:</span>
+                            <span className="pim-service-meta-label">{t("Started:")}</span>
                             <span className="pim-service-meta-value">{String(svc.started)}</span>
                           </div>
                         ) : null}
                         {svc?.ended ? (
                           <div className="pim-service-meta-row">
-                            <span className="pim-service-meta-label">Ended:</span>
+                            <span className="pim-service-meta-label">{t("Ended:")}</span>
                             <span className="pim-service-meta-value">{String(svc.ended)}</span>
                           </div>
                         ) : null}
                         <div className="pim-service-meta-row">
-                          <span className="pim-service-meta-label">Duration:</span>
+                          <span className="pim-service-meta-label">{t("Duration:")}</span>
                           <span className="pim-service-meta-value">{formatHistoryServiceDuration(svc?.started, svc?.ended)}</span>
                         </div>
                         {svc?.notes ? (
                           <div className="pim-service-meta-row" style={{ gridColumn: "span 2" }}>
-                            <span className="pim-service-meta-label">Notes:</span>
+                            <span className="pim-service-meta-label">{t("Notes:")}</span>
                             <span className="pim-service-meta-value">{String(svc.notes)}</span>
                           </div>
                         ) : null}
@@ -1548,7 +1551,7 @@ function JobHistoryDetails({
                     </div>
                   ))
                 ) : (
-                  <div className="jh-empty-inline">No services in this order.</div>
+                  <div className="jh-empty-inline">{t("No services in this order.")}</div>
                 )}
               </div>
             </div>
@@ -1557,7 +1560,7 @@ function JobHistoryDetails({
           <PermissionGate moduleId="jobhistory" optionId="jobhistory_notes">
             {order.customerNotes ? (
               <div className="jh-card jh-span-2">
-                <h3><i className="fas fa-sticky-note" /> Customer Notes</h3>
+                <h3><i className="fas fa-sticky-note" /> {t("Customer Notes")}</h3>
                 <div className="jh-notebox">{String(order.customerNotes)}</div>
               </div>
             ) : null}
@@ -1570,28 +1573,28 @@ function JobHistoryDetails({
           <PermissionGate moduleId="jobhistory" optionId="jobhistory_exitpermit">
             {order.exitPermit ? (
               <div className="jh-card ex-unified-card">
-                <h3><i className="fas fa-id-card" /> Exit Permit</h3>
+                <h3><i className="fas fa-id-card" /> {t("Exit Permit")}</h3>
                 <div className="jh-kv ex-unified-grid">
-                  <div><span>Status</span><strong className={permitStatusClass(toSummaryStatus(order?.exitPermitStatus ?? order?.exitPermit?.status, "Not Created", Boolean(order?.exitPermit?.permitId)))}>{toSummaryStatus(order?.exitPermitStatus ?? order?.exitPermit?.status, "Not Created", Boolean(order?.exitPermit?.permitId))}</strong></div>
-                  <div><span>Permit ID</span><strong>{order.exitPermit?.permitId || "—"}</strong></div>
-                  <div><span>Create Date</span><strong>{order.exitPermit?.createDate || "—"}</strong></div>
-                  <div><span>Next Service</span><strong>{order.exitPermit?.nextServiceDate || "—"}</strong></div>
-                  <div><span>Created By</span><strong>{displayUser(resolveExitPermitActor(order, roadmap))}</strong></div>
-                  <div><span>Collected By</span><strong>{order.exitPermit?.collectedBy || "—"}</strong></div>
-                  <div><span>Mobile</span><strong>{order.exitPermit?.collectedByMobile || "—"}</strong></div>
+                  <div><span>{t("Status")}</span><strong className={permitStatusClass(toSummaryStatus(order?.exitPermitStatus ?? order?.exitPermit?.status, "Not Created", Boolean(order?.exitPermit?.permitId)))}>{toSummaryStatus(order?.exitPermitStatus ?? order?.exitPermit?.status, "Not Created", Boolean(order?.exitPermit?.permitId))}</strong></div>
+                  <div><span>{t("Permit ID")}</span><strong>{order.exitPermit?.permitId || "—"}</strong></div>
+                  <div><span>{t("Create Date")}</span><strong>{order.exitPermit?.createDate || "—"}</strong></div>
+                  <div><span>{t("Next Service")}</span><strong>{order.exitPermit?.nextServiceDate || "—"}</strong></div>
+                  <div><span>{t("Created By")}</span><strong>{displayUser(resolveExitPermitActor(order, roadmap))}</strong></div>
+                  <div><span>{t("Collected By")}</span><strong>{order.exitPermit?.collectedBy || "—"}</strong></div>
+                  <div><span>{t("Mobile")}</span><strong>{order.exitPermit?.collectedByMobile || "—"}</strong></div>
                 </div>
               </div>
             ) : (
               <div className="jh-card">
-                <h3><i className="fas fa-id-card" /> Exit Permit</h3>
-                <div className="jh-empty-inline">No exit permit data found.</div>
+                <h3><i className="fas fa-id-card" /> {t("Exit Permit")}</h3>
+                <div className="jh-empty-inline">{t("No exit permit data found.")}</div>
               </div>
             )}
           </PermissionGate>
 
           <PermissionGate moduleId="jobhistory" optionId="jobhistory_documents">
             <div className="jh-card jh-span-2">
-              <h3><i className="fas fa-folder-open" /> Documents</h3>
+              <h3><i className="fas fa-folder-open" /> {t("Documents")}</h3>
               {docs.length ? (
                 <div className="jh-docs">
                   {docs.map((d, idx) => (
@@ -1604,7 +1607,7 @@ function JobHistoryDetails({
                             d.category,
                             d.paymentReference,
                             String((d as any)?.addedAt ?? (d as any)?.generatedAt ?? (d as any)?.createdAt ?? (d as any)?.uploadedAt ?? (d as any)?.timestamp ?? "").trim()
-                              ? `Generated: ${String((d as any)?.addedAt ?? (d as any)?.generatedAt ?? (d as any)?.createdAt ?? (d as any)?.uploadedAt ?? (d as any)?.timestamp ?? "").trim()}`
+                              ? `${t("Generated:")} ${String((d as any)?.addedAt ?? (d as any)?.generatedAt ?? (d as any)?.createdAt ?? (d as any)?.uploadedAt ?? (d as any)?.timestamp ?? "").trim()}`
                               : "",
                           ]
                             .filter(Boolean)
@@ -1623,14 +1626,14 @@ function JobHistoryDetails({
                             window.open(linkUrl, "_blank", "noopener,noreferrer");
                           }}
                         >
-                          <i className="fas fa-download" /> Download
+                          <i className="fas fa-download" /> {t("Download")}
                         </button>
                       </PermissionGate>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="jh-empty-inline">No documents available.</div>
+                <div className="jh-empty-inline">{t("No documents available.")}</div>
               )}
             </div>
           </PermissionGate>

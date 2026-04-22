@@ -7,6 +7,7 @@ import "./employees.css";
 import { logActivity } from "../utils/activityLogger";
 import type { PageProps } from "../lib/PageProps";
 import PermissionGate from "./PermissionGate";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const client = generateClient<Schema>();
 
@@ -22,8 +23,9 @@ type EmployeeForm = {
 };
 
 export default function Employees({ permissions }: PageProps) {
+  const { t } = useLanguage();
   if (!permissions.canRead) {
-    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+    return <div style={{ padding: 24 }}>{t("You don’t have access to this page.")}</div>;
   }
 
   const [employees, setEmployees] = useState<EmployeeRow[]>([]);
@@ -64,7 +66,7 @@ export default function Employees({ permissions }: PageProps) {
     if (!isEdit && !permissions.canCreate) return;
 
     if (!formData.firstName || !formData.lastName || !formData.email) {
-      alert("First name, last name and email are required.");
+      alert(t("First name, last name and email are required."));
       return;
     }
 
@@ -102,7 +104,7 @@ export default function Employees({ permissions }: PageProps) {
       await fetchEmployees();
     } catch (error) {
       console.error("Employee operation failed:", error);
-      alert("Operation failed. Check console for details.");
+      alert(t("Operation failed. Check console for details."));
     }
   };
 
@@ -123,7 +125,7 @@ export default function Employees({ permissions }: PageProps) {
 
   const handleDelete = async (employee: EmployeeRow) => {
     if (!permissions.canDelete) return;
-    if (!confirm(`Delete ${employee.firstName} ${employee.lastName}?`)) return;
+    if (!confirm(`${t("Delete")} ${employee.firstName} ${employee.lastName}?`)) return;
 
     try {
       await client.models.Employee.delete({ id: employee.id });
@@ -131,23 +133,23 @@ export default function Employees({ permissions }: PageProps) {
       await fetchEmployees();
     } catch (error) {
       console.error("Delete failed:", error);
-      alert("Failed to delete employee.");
+      alert(t("Failed to delete employee."));
     }
   };
 
   return (
     <div className="employees-page">
       <div className="employees-header">
-        <h2>Employees</h2>
+        <h2>{t("Employees")}</h2>
         <PermissionGate moduleId="employees" optionId="employees_refresh">
           <Button onClick={() => void fetchEmployees()}>
-            Refresh
+            {t("Refresh")}
           </Button>
         </PermissionGate>
         {permissions.canCreate && (
           <PermissionGate moduleId="employees" optionId="employees_add">
             <Button variation="primary" onClick={() => setShowModal(true)}>
-              Add Employee
+              {t("Add Employee")}
             </Button>
           </PermissionGate>
         )}
@@ -156,31 +158,31 @@ export default function Employees({ permissions }: PageProps) {
       {showModal && (
         <div className="modal-overlay">
           <div className="modal">
-            <h3>{editingEmployee ? "Edit Employee" : "New Employee"}</h3>
+            <h3>{editingEmployee ? t("Edit Employee") : t("New Employee")}</h3>
 
             <div className="form-grid">
-              <TextField label="First Name" name="firstName" value={formData.firstName} onChange={handleChange} />
-              <TextField label="Last Name" name="lastName" value={formData.lastName} onChange={handleChange} />
-              <TextField label="Position" name="position" value={formData.position} onChange={handleChange} />
-              <TextField label="Email" name="email" type="email" value={formData.email} onChange={handleChange} />
-              <TextField label="Phone" name="phone" value={formData.phone} onChange={handleChange} />
-              <TextField label="Salary" name="salary" type="number" value={formData.salary} onChange={handleChange} />
+              <TextField label={t("First Name")} name="firstName" value={formData.firstName} onChange={handleChange} />
+              <TextField label={t("Last Name")} name="lastName" value={formData.lastName} onChange={handleChange} />
+              <TextField label={t("Position")} name="position" value={formData.position} onChange={handleChange} />
+              <TextField label={t("Email")} name="email" type="email" value={formData.email} onChange={handleChange} />
+              <TextField label={t("Phone")} name="phone" value={formData.phone} onChange={handleChange} />
+              <TextField label={t("Salary")} name="salary" type="number" value={formData.salary} onChange={handleChange} />
             </div>
 
             <div className="modal-actions">
               <Button variation="link" onClick={() => { setShowModal(false); resetForm(); }}>
-                Cancel
+                {t("Cancel")}
               </Button>
               {editingEmployee ? (
                 <PermissionGate moduleId="employees" optionId="employees_edit">
                   <Button variation="primary" onClick={handleSubmit} isDisabled={!permissions.canUpdate}>
-                    Update
+                    {t("Update")}
                   </Button>
                 </PermissionGate>
               ) : (
                 <PermissionGate moduleId="employees" optionId="employees_add">
                   <Button variation="primary" onClick={handleSubmit} isDisabled={!permissions.canCreate}>
-                    Create
+                    {t("Create")}
                   </Button>
                 </PermissionGate>
               )}
@@ -193,28 +195,28 @@ export default function Employees({ permissions }: PageProps) {
         {employees.map((e) => (
           <div className="employee-card" key={e.id}>
             <h4>{e.firstName} {e.lastName}</h4>
-            <p className="position">{e.position || "Employee"}</p>
-            <p>Email: {e.email}</p>
-            <p>Phone: {e.phone || "N/A"}</p>
-            <p>Salary: {e.salary ?? "N/A"}</p>
+            <p className="position">{e.position || t("Employee")}</p>
+            <p>{t("Email:")} {e.email}</p>
+            <p>{t("Phone:")} {e.phone || "N/A"}</p>
+            <p>{t("Salary:")} {e.salary ?? "N/A"}</p>
 
             <div className="card-actions">
               {permissions.canUpdate && (
                 <PermissionGate moduleId="employees" optionId="employees_edit">
-                  <Button size="small" onClick={() => handleEdit(e)}>Edit</Button>
+                  <Button size="small" onClick={() => handleEdit(e)}>{t("Edit")}</Button>
                 </PermissionGate>
               )}
               {permissions.canDelete && (
                 <PermissionGate moduleId="employees" optionId="employees_delete">
                   <Button size="small" variation="destructive" onClick={() => handleDelete(e)}>
-                    Delete
+                    {t("Delete")}
                   </Button>
                 </PermissionGate>
               )}
             </div>
           </div>
         ))}
-        {!employees.length && <div style={{ opacity: 0.8 }}>No employees yet.</div>}
+        {!employees.length && <div style={{ opacity: 0.8 }}>{t("No employees yet.")}</div>}
       </div>
     </div>
   );

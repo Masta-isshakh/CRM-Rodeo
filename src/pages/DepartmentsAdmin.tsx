@@ -8,6 +8,7 @@ import { getDataClient } from "../lib/amplifyClient";
 import { usePermissions } from "../lib/userPermissions";
 import PermissionGate from "./PermissionGate";
 import ConfirmationPopup from "./ConfirmationPopup";
+import { useLanguage } from "../i18n/LanguageContext";
 
 type Dept = { key: string; name: string };
 
@@ -48,8 +49,9 @@ function parseAWSJSON<T>(raw: unknown): T | null {
 }
 
 export default function DepartmentsAdmin({ permissions }: PageProps) {
+  const { t } = useLanguage();
   if (!permissions.canRead) {
-    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+    return <div style={{ padding: 24 }}>{t("You don’t have access to this page.")}</div>;
   }
 
   const client = getDataClient();
@@ -82,7 +84,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
 
   const load = async () => {
     setLoading(true);
-    setStatus("Loading...");
+    setStatus(t("Loading..."));
     try {
       const [deptRes, rolesRes, linksRes] = await Promise.all([
         client.queries.adminListDepartments().catch(() => null),
@@ -131,7 +133,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
       console.error(e);
       setDepartments([]);
       setDeptUserCounts({});
-      setStatus(e?.message ?? "Load failed");
+      setStatus(e?.message ?? t("Load failed"));
     } finally {
       setLoading(false);
     }
@@ -160,14 +162,14 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     setLoading(true);
     try {
       const name = newDept.trim();
-      if (!name) throw new Error("Department name required");
+      if (!name) throw new Error(t("Department name required"));
       await client.mutations.adminCreateDepartment({ departmentName: name });
       setNewDept("");
       setShowCreateRow(false);
       await load();
     } catch (e: any) {
       console.error(e);
-      setStatus(e?.message ?? "Create failed");
+      setStatus(e?.message ?? t("Create failed"));
     } finally {
       setLoading(false);
     }
@@ -180,12 +182,12 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     try {
       const oldKeyTrimmed = String(oldKey ?? "").trim();
       const newNameTrimmed = String(newName ?? "").trim();
-      if (!oldKey || !newName) throw new Error("Select old and enter new name");
+      if (!oldKey || !newName) throw new Error(t("Select old and enter new name"));
       await client.mutations.adminRenameDepartment({ oldKey: oldKeyTrimmed, newName: newNameTrimmed });
       await load();
     } catch (e: any) {
       console.error(e);
-      setStatus(e?.message ?? "Rename failed");
+      setStatus(e?.message ?? t("Rename failed"));
     } finally {
       setLoading(false);
     }
@@ -203,7 +205,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
       setDeleteTargetDept(null);
     } catch (e: any) {
       console.error(e);
-      setStatus(e?.message ?? "Delete failed");
+      setStatus(e?.message ?? t("Delete failed"));
     } finally {
       setLoading(false);
     }
@@ -245,7 +247,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
         targetRoleId = String((created as any)?.data?.id ?? "").trim();
       }
 
-      if (!targetRoleId) throw new Error("Role creation failed.");
+      if (!targetRoleId) throw new Error(t("Role creation failed."));
 
       const exists = links.some(
         (l) => String(l.departmentKey ?? "") === String(department.key ?? "") && String(l.roleId ?? "") === targetRoleId
@@ -265,7 +267,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
       setModalRoleDescription("");
     } catch (e: any) {
       console.error(e);
-      setStatus(e?.message ?? "Add role failed");
+      setStatus(e?.message ?? t("Add role failed"));
     } finally {
       setLoading(false);
     }
@@ -328,7 +330,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
           String(r.name ?? "").trim().toLowerCase() === nextName.toLowerCase()
       );
       if (duplicate) {
-        throw new Error("Role name already exists.");
+        throw new Error(t("Role name already exists."));
       }
 
       await client.models.AppRole.update({
@@ -345,7 +347,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
       setEditRoleDescription("");
     } catch (e: any) {
       console.error(e);
-      setStatus(e?.message ?? "Role update failed");
+      setStatus(e?.message ?? t("Role update failed"));
     } finally {
       setLoading(false);
     }
@@ -385,22 +387,22 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
   return (
     <div className="dep-page">
       <div className="dep-page-title">
-        <h1><i className="fas fa-sitemap"></i> Department &amp; Role Management</h1>
-        <p>Create departments, add roles, and manage your organizational structure with full-width department and role cards.</p>
+        <h1><i className="fas fa-sitemap"></i> {t("Department & Role Management")}</h1>
+        <p>{t("Create departments, add roles, and manage your organizational structure with full-width department and role cards.")}</p>
       </div>
 
       <section className="dep-panel">
         <div className="dep-panel-head">
-          <h2><i className="fas fa-list"></i> Departments &amp; Roles</h2>
+          <h2><i className="fas fa-list"></i> {t("Departments & Roles")}</h2>
           <div className="dep-head-actions">
-            <Button onClick={load} isLoading={loading} className="dep-btn dep-btn-muted">Refresh</Button>
+            <Button onClick={load} isLoading={loading} className="dep-btn dep-btn-muted">{t("Refresh")}</Button>
             <PermissionGate moduleId="departments" optionId="departments_create">
               <Button
                 className="dep-btn dep-btn-primary"
                 onClick={() => setShowCreateRow((prev) => !prev)}
                 isDisabled={!permissions.canCreate || loading}
               >
-                <i className="fas fa-plus"></i> Add New Department
+                <i className="fas fa-plus"></i> {t("Add New Department")}
               </Button>
             </PermissionGate>
           </div>
@@ -409,7 +411,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
         {showCreateRow && (
           <div className="dep-create-row">
             <TextField
-              label="Department name"
+              label={t("Department name")}
               value={newDept}
               onChange={(e) => setNewDept((e.target as HTMLInputElement).value)}
             />
@@ -420,7 +422,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                 isLoading={loading}
                 isDisabled={!permissions.canCreate || loading}
               >
-                Create
+                {t("Create")}
               </Button>
             </PermissionGate>
           </div>
@@ -429,15 +431,15 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
         <div className="dep-stats">
           <div className="dep-stat-card">
             <strong>{departments.length}</strong>
-            <span>Departments</span>
+            <span>{t("Departments")}</span>
           </div>
           <div className="dep-stat-card">
             <strong>{totalRoleAssignments}</strong>
-            <span>Total Roles</span>
+            <span>{t("Total Roles")}</span>
           </div>
           <div className="dep-stat-card">
             <strong>{avgRolesPerDept}</strong>
-            <span>Avg Roles/Dept</span>
+            <span>{t("Avg Roles/Dept")}</span>
           </div>
         </div>
 
@@ -455,7 +457,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                 <header className="dep-card-head">
                   <div className="dep-card-title">
                     <h3>{d.name}</h3>
-                    <span>{currentRoleIds.length} roles</span>
+                    <span>{currentRoleIds.length} {t("roles")}</span>
                   </div>
 
                   <div className="dep-card-actions">
@@ -465,7 +467,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                         onClick={() => openRoleModal(d)}
                         isDisabled={!permissions.canUpdate || loading}
                       >
-                        <i className="fas fa-plus"></i> Add Role
+                        <i className="fas fa-plus"></i> {t("Add Role")}
                       </Button>
                     </PermissionGate>
 
@@ -475,7 +477,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                         onClick={() => void onClickEditDepartment(d)}
                         isDisabled={!permissions.canUpdate || loading}
                       >
-                        <i className="fas fa-edit"></i> Edit
+                        <i className="fas fa-edit"></i> {t("Edit")}
                       </Button>
                     </PermissionGate>
 
@@ -485,7 +487,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                         onClick={() => openDeletePopup(d)}
                         isDisabled={!permissions.canDelete || loading}
                       >
-                        <i className="fas fa-trash"></i> Delete
+                        <i className="fas fa-trash"></i> {t("Delete")}
                       </Button>
                     </PermissionGate>
                   </div>
@@ -493,12 +495,12 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
 
                 <div className="dep-card-body">
                   <p className="dep-card-desc">
-                    Department key: <strong>{d.key}</strong>. Users in this department: <strong>{deptUserCounts[d.key] ?? 0}</strong>.
+                    {t("Department key:")} <strong>{d.key}</strong>. {t("Users in this department:")} <strong>{deptUserCounts[d.key] ?? 0}</strong>.
                   </p>
 
                   <div className="dep-roles-title">
                     <i className="fas fa-user-shield"></i>
-                    <span>Department Roles ({currentRoleIds.length})</span>
+                    <span>{t("Department Roles")} ({currentRoleIds.length})</span>
                   </div>
 
                   <div className="dep-roles-list">
@@ -507,7 +509,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                         <div key={role.id} className="dep-role-item">
                           <div className="dep-role-main">
                             <div className="dep-role-name"><i className="fas fa-user"></i> {role.name}</div>
-                            <div className="dep-role-desc">{String(role.description ?? "Role assigned to this department")}</div>
+                            <div className="dep-role-desc">{String(role.description ?? t("Role assigned to this department"))}</div>
                           </div>
 
                           <div className="dep-role-actions">
@@ -517,7 +519,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                                 onClick={() => openEditRoleModal(d, role)}
                                 isDisabled={!permissions.canUpdate || loading}
                               >
-                                <i className="fas fa-edit"></i> Edit
+                                <i className="fas fa-edit"></i> {t("Edit")}
                               </Button>
                             </PermissionGate>
                             <PermissionGate moduleId="departments" optionId="departments_assignrole">
@@ -526,14 +528,14 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                                 onClick={() => void removeRole(d.key, String(role.id))}
                                 isDisabled={!permissions.canUpdate || loading}
                               >
-                                <i className="fas fa-trash"></i> Delete
+                                <i className="fas fa-trash"></i> {t("Delete")}
                               </Button>
                             </PermissionGate>
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="dep-empty-roles">No roles assigned yet.</div>
+                      <div className="dep-empty-roles">{t("No roles assigned yet.")}</div>
                     )}
                   </div>
                 </div>
@@ -541,7 +543,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
             );
           })}
 
-          {!departments.length && <div className="dep-empty">No departments yet.</div>}
+          {!departments.length && <div className="dep-empty">{t("No departments yet.")}</div>}
         </div>
       </section>
 
@@ -549,7 +551,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
         <div className="dep-modal-backdrop" role="dialog" aria-modal="true" aria-label="Create role">
           <div className="dep-modal-card">
             <div className="dep-modal-head">
-              <h3>Create Role</h3>
+              <h3>{t("Create Role")}</h3>
               <button
                 type="button"
                 className="dep-modal-close"
@@ -563,16 +565,16 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
               </button>
             </div>
 
-            <p className="dep-modal-subtitle">Department: <strong>{roleModalDept.name}</strong></p>
+            <p className="dep-modal-subtitle">{t("Department:")} <strong>{roleModalDept.name}</strong></p>
 
             <div className="dep-modal-body">
               <TextField
-                label="Role name"
+                label={t("Role name")}
                 value={modalRoleName}
                 onChange={(e) => setModalRoleName((e.target as HTMLInputElement).value)}
               />
               <TextField
-                label="Role description (optional)"
+                label={t("Role description (optional)")}
                 value={modalRoleDescription}
                 onChange={(e) => setModalRoleDescription((e.target as HTMLInputElement).value)}
               />
@@ -588,7 +590,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                 }}
                 isDisabled={loading}
               >
-                Cancel
+                {t("Cancel")}
               </Button>
               <Button
                 className="dep-btn dep-btn-success"
@@ -596,7 +598,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                 isLoading={loading}
                 isDisabled={loading || !modalRoleName.trim()}
               >
-                Create & Add
+                {t("Create & Add")}
               </Button>
             </div>
           </div>
@@ -607,7 +609,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
         <div className="dep-modal-backdrop" role="dialog" aria-modal="true" aria-label="Edit role">
           <div className="dep-modal-card">
             <div className="dep-modal-head">
-              <h3>Edit Role</h3>
+              <h3>{t("Edit Role")}</h3>
               <button
                 type="button"
                 className="dep-modal-close"
@@ -622,16 +624,16 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
               </button>
             </div>
 
-            <p className="dep-modal-subtitle">Department: <strong>{editRoleDept.name}</strong></p>
+            <p className="dep-modal-subtitle">{t("Department:")} <strong>{editRoleDept.name}</strong></p>
 
             <div className="dep-modal-body">
               <TextField
-                label="Role name"
+                label={t("Role name")}
                 value={editRoleName}
                 onChange={(e) => setEditRoleName((e.target as HTMLInputElement).value)}
               />
               <TextField
-                label="Role description (optional)"
+                label={t("Role description (optional)")}
                 value={editRoleDescription}
                 onChange={(e) => setEditRoleDescription((e.target as HTMLInputElement).value)}
               />
@@ -648,7 +650,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                 }}
                 isDisabled={loading}
               >
-                Cancel
+                {t("Cancel")}
               </Button>
               <Button
                 className="dep-btn dep-btn-success"
@@ -656,7 +658,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                 isLoading={loading}
                 isDisabled={loading || !editRoleName.trim()}
               >
-                Save Changes
+                {t("Save Changes")}
               </Button>
             </div>
           </div>
@@ -667,7 +669,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
         <div className="dep-modal-backdrop" role="dialog" aria-modal="true" aria-label="Edit department">
           <div className="dep-modal-card">
             <div className="dep-modal-head">
-              <h3>Edit Department</h3>
+              <h3>{t("Edit Department")}</h3>
               <button
                 type="button"
                 className="dep-modal-close"
@@ -678,12 +680,12 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
             </div>
 
             <p className="dep-modal-subtitle">
-              Department key: <strong>{editDeptTarget.key}</strong>
+              {t("Department key:")} <strong>{editDeptTarget.key}</strong>
             </p>
 
             <div className="dep-modal-body">
               <TextField
-                label="Department name"
+                label={t("Department name")}
                 value={editDeptName}
                 onChange={(e) => setEditDeptName((e.target as HTMLInputElement).value)}
               />
@@ -695,7 +697,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                 onClick={closeEditDeptModal}
                 isDisabled={loading}
               >
-                Cancel
+                {t("Cancel")}
               </Button>
               <Button
                 className="dep-btn dep-btn-success"
@@ -703,7 +705,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
                 isLoading={loading}
                 isDisabled={loading || !editDeptName.trim()}
               >
-                Save Changes
+                {t("Save Changes")}
               </Button>
             </div>
           </div>
@@ -712,16 +714,16 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
 
       <ConfirmationPopup
         open={showDeletePopup && !!deleteTargetDept}
-        title="Delete Department"
+        title={t("Delete Department")}
         message={
           <>
-            Are you sure you want to delete <strong>{deleteTargetDept?.name}</strong>?
+            {t("Are you sure you want to delete")} <strong>{deleteTargetDept?.name}</strong>?
             <br />
-            This department must have no users before deletion.
+            {t("This department must have no users before deletion.")}
           </>
         }
-        confirmText="Delete Department"
-        cancelText="Keep Department"
+        confirmText={t("Delete Department")}
+        cancelText={t("Keep Department")}
         tone="danger"
         loading={loading}
         onCancel={closeDeletePopup}
@@ -729,7 +731,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
           if (!deleteTargetDept) return;
           void deleteDept(deleteTargetDept.key);
         }}
-        footerNote="This action cannot be undone."
+        footerNote={t("This action cannot be undone.")}
       />
     </div>
   );

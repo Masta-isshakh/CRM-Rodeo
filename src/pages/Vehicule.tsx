@@ -17,6 +17,7 @@ import { VEHICLE_COLORS } from "../utils/vehicleColors";
 import type { ReactNode } from "react";
 import { usePermissions } from "../lib/userPermissions";
 import PermissionGate from "./PermissionGate";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const client = generateClient<Schema>();
 
@@ -468,6 +469,7 @@ export default function VehicleManagement({
   onNavigate,
   onNavigateBack,
 }: VehiclePageProps) {
+  const { t } = useLanguage();
   const { canOption } = usePermissions();
 
   const canSearch = canOption("vehicles", "vehicles_search", true);
@@ -478,7 +480,7 @@ export default function VehicleManagement({
   const canVerifyCustomer = permissions.canUpdate && canOption("vehicles", "vehicles_verifycustomer", true);
 
   if (!permissions.canRead) {
-    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+    return <div style={{ padding: 24 }}>{t("You don’t have access to this page.")}</div>;
   }
 
   const [vehicles, setVehicles] = useState<VehicleRow[]>([]);
@@ -615,7 +617,7 @@ export default function VehicleManagement({
       setVehicles(nextVehicles);
     } catch (e) {
       console.error(e);
-      await showAlert("Error", "Failed to load vehicles. Check console.", "error");
+      await showAlert(t("Error"), t("Failed to load vehicles. Check console."), "error");
     } finally {
       setLoading(false);
     }
@@ -802,31 +804,31 @@ export default function VehicleManagement({
     if (!canVerifyCustomer) return;
     if (!customerId.trim()) {
       setVerifiedCustomer(null);
-      await showAlert("Missing", "Please enter a Customer ID.", "warning");
+      await showAlert(t("Missing"), t("Please enter a Customer ID."), "warning");
       return;
     }
     const c = await ensureVerifiedCustomer(customerId);
     if (!c) {
       setVerifiedCustomer(null);
-      await showAlert("Not Found", "Customer not found. Please use a valid Customer ID.", "error");
+      await showAlert(t("Not Found"), t("Customer not found. Please use a valid Customer ID."), "error");
       return;
     }
     setForm((prev) => ({ ...prev, customerId: String(c.id ?? "").trim() }));
-    await showAlert("Verified", `Customer verified: ${c.name} ${c.lastname}`, "success");
+    await showAlert(t("Verified"), `${t("Customer verified:")} ${c.name} ${c.lastname}`, "success");
   };
 
   const validateVehicleForm = (isEdit: boolean) => {
     const next: Record<string, string> = {};
 
-    if (!form.customerId.trim()) next.customerId = "Customer ID required";
-    if (!form.make.trim()) next.make = "Make required";
-    if (!form.model.trim()) next.model = "Model required";
-    if (!form.year.trim()) next.year = "Year required";
-    if (!form.vehicleType.trim()) next.vehicleType = "Type required";
-    if (!form.color.trim()) next.color = "Color required";
-    if (!form.plateNumber.trim()) next.plateNumber = "Plate number required";
+    if (!form.customerId.trim()) next.customerId = t("Customer ID required");
+    if (!form.make.trim()) next.make = t("Make required");
+    if (!form.model.trim()) next.model = t("Model required");
+    if (!form.year.trim()) next.year = t("Year required");
+    if (!form.vehicleType.trim()) next.vehicleType = t("Type required");
+    if (!form.color.trim()) next.color = t("Color required");
+    if (!form.plateNumber.trim()) next.plateNumber = t("Plate number required");
 
-    if (!isEdit && !form.vehicleId.trim()) next.vehicleId = "Vehicle ID required";
+    if (!isEdit && !form.vehicleId.trim()) next.vehicleId = t("Vehicle ID required");
 
     setErrors(next);
     return Object.keys(next).length === 0;
@@ -875,12 +877,12 @@ export default function VehicleManagement({
     // ✅ Auto verify on save
     const customer = await ensureVerifiedCustomer(form.customerId);
     if (!customer) {
-      await showAlert("Customer missing", "Customer ID is invalid. Please verify a valid customer.", "error");
+      await showAlert(t("Customer missing"), t("Customer ID is invalid. Please verify a valid customer."), "error");
       return;
     }
     const resolvedCustomerId = String(customer.id ?? "").trim();
     if (!resolvedCustomerId) {
-      await showAlert("Customer missing", "Customer ID is invalid. Please verify a valid customer.", "error");
+      await showAlert(t("Customer missing"), t("Customer ID is invalid. Please verify a valid customer."), "error");
       return;
     }
 
@@ -922,10 +924,10 @@ export default function VehicleManagement({
       resetForm();
       await loadVehicles();
       await loadCompletedServicesByPlate();
-      await showAlert("Success", "Vehicle created successfully!", "success");
+      await showAlert(t("Success"), t("Vehicle created successfully!"), "success");
     } catch (e) {
       console.error(e);
-      await showAlert("Error", "Create failed. Check console.", "error");
+      await showAlert(t("Error"), t("Create failed. Check console."), "error");
     } finally {
       setSaving(false);
     }
@@ -941,12 +943,12 @@ export default function VehicleManagement({
     // ✅ Auto verify on save
     const customer = await ensureVerifiedCustomer(form.customerId);
     if (!customer) {
-      await showAlert("Customer missing", "Customer ID is invalid. Please verify a valid customer.", "error");
+      await showAlert(t("Customer missing"), t("Customer ID is invalid. Please verify a valid customer."), "error");
       return;
     }
     const resolvedCustomerId = String(customer.id ?? "").trim();
     if (!resolvedCustomerId) {
-      await showAlert("Customer missing", "Customer ID is invalid. Please verify a valid customer.", "error");
+      await showAlert(t("Customer missing"), t("Customer ID is invalid. Please verify a valid customer."), "error");
       return;
     }
 
@@ -981,10 +983,10 @@ export default function VehicleManagement({
       setSelectedVehicleId(null);
       await loadVehicles();
       await loadCompletedServicesByPlate();
-      await showAlert("Success", "Vehicle updated successfully!", "success");
+      await showAlert(t("Success"), t("Vehicle updated successfully!"), "success");
     } catch (e) {
       console.error(e);
-      await showAlert("Error", "Update failed. Check console.", "error");
+      await showAlert(t("Error"), t("Update failed. Check console."), "error");
     } finally {
       setSaving(false);
     }
@@ -1017,10 +1019,10 @@ export default function VehicleManagement({
 
       await loadVehicles();
       await loadCompletedServicesByPlate();
-      await showAlert("Success", "Vehicle deleted successfully!", "success");
+      await showAlert(t("Success"), t("Vehicle deleted successfully!"), "success");
     } catch (e) {
       console.error(e);
-      await showAlert("Error", "Delete failed. Check console.", "error");
+      await showAlert(t("Error"), t("Delete failed. Check console."), "error");
     } finally {
       setSaving(false);
     }
@@ -1511,7 +1513,7 @@ export default function VehicleManagement({
       <header className="app-header crm-unified-header">
         <div className="header-left">
           <h1>
-            <i className="fas fa-car"></i> Vehicle Management
+            <i className="fas fa-car"></i> {t("Vehicle Management")}
           </h1>
         </div>
       </header>
@@ -1523,7 +1525,7 @@ export default function VehicleManagement({
             <input
               type="text"
               className="smart-search-input"
-              placeholder="Search by any vehicle details"
+              placeholder={t("Search by any vehicle details")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               disabled={!canSearch}
@@ -1533,25 +1535,25 @@ export default function VehicleManagement({
 
           <div className="search-stats">
             {loading
-              ? "Loading vehicles..."
+              ? t("Loading vehicles...")
               : searchResults.length === 0
-              ? "No vehicles found"
-              : `Showing ${Math.min((currentPage - 1) * pageSize + 1, searchResults.length)}-${Math.min(
+              ? t("No vehicles found")
+              : `${t("Showing")} ${Math.min((currentPage - 1) * pageSize + 1, searchResults.length)}-${Math.min(
                   currentPage * pageSize,
                   searchResults.length
-                )} of ${searchResults.length} vehicles`}
+                )} ${t("of")} ${searchResults.length} ${t("vehicles")}`}
           </div>
         </section>
 
         <section className="results-section">
           <div className="section-header">
             <h2>
-              <i className="fas fa-list"></i> Vehicle Records
+              <i className="fas fa-list"></i> {t("Vehicle Records")}
             </h2>
 
             <div className="pagination-controls">
               <div className="records-per-page">
-                <label htmlFor="pageSizeSelect">Records per page:</label>
+                <label htmlFor="pageSizeSelect">{t("Records per page:")}</label>
                 <select
                   id="pageSizeSelect"
                   className="page-size-select"
@@ -1567,7 +1569,7 @@ export default function VehicleManagement({
               <PermissionGate moduleId="vehicles" optionId="vehicles_add" fallback={null}>
                 {canAdd && (
                   <button className="btn-new-customer" onClick={openAddModal}>
-                    <i className="fas fa-plus-circle"></i> Add New Vehicle
+                    <i className="fas fa-plus-circle"></i> {t("Add New Vehicle")}
                   </button>
                 )}
               </PermissionGate>
@@ -1629,13 +1631,13 @@ export default function VehicleManagement({
       </main>
 
       <footer className="app-footer">
-        <p>Service Management System © {new Date().getFullYear()} | Vehicle Management Module</p>
+        <p>{t("Service Management System ©")} {new Date().getFullYear()} | {t("Vehicle Management Module")}</p>
       </footer>
 
       {/* Add Modal */}
       <Modal
         isOpen={showAddModal}
-        title="Add New Vehicle"
+        title={t("Add New Vehicle")}
         icon="fas fa-car"
         className="vehicle-create-modal"
         onClose={() => {
@@ -1644,7 +1646,7 @@ export default function VehicleManagement({
         }}
         onSave={handleCreateVehicle}
         saving={saving}
-        saveLabel="Add Vehicle"
+        saveLabel={t("Add Vehicle")}
       >
         <div className="modal-form vehicle-create-form">
           <div className="verify-row vehicle-create-verify-row">

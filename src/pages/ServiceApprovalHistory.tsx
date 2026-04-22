@@ -6,6 +6,7 @@ import { getDataClient } from "../lib/amplifyClient";
 import { matchesSearchQuery } from "../lib/searchUtils";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { resolveActorDisplay } from "../utils/actorIdentity";
+import { useLanguage } from "../i18n/LanguageContext";
 import {
   derivePaymentStatusFromFinancials,
   pickBillingFirstValue,
@@ -89,6 +90,7 @@ function parseServicesFromJob(job: any): { name: string; amount: string }[] {
 
 const ServiceApprovalHistory: React.FC = () => {
   const client = useMemo(() => getDataClient(), []);
+  const { t } = useLanguage();
 
   const [showHistoryDetails, setShowHistoryDetails] = useState(false);
   const [currentRequestId, setCurrentRequestId] = useState<string | null>(null);
@@ -299,26 +301,26 @@ const ServiceApprovalHistory: React.FC = () => {
     return (
       <div className="sah-details-page">
         <div className="sah-details-header">
-          <h1>Request History Details</h1>
+          <h1>{t("Request History Details")}</h1>
           <button className="sah-back-btn" onClick={backToDashboard}>
-            <i className="fas fa-arrow-left"></i> Back to History
+            <i className="fas fa-arrow-left"></i> {t("Back to History")}
           </button>
         </div>
 
         <div className="sah-details-container">
           <div className="sah-details-section">
-            <h2 className="sah-section-title">Request Summary</h2>
+            <h2 className="sah-section-title">{t("Request Summary")}</h2>
             <div className="sah-details-grid">
               <div className="sah-detail-item">
-                <div className="sah-detail-label">Request ID</div>
+                <div className="sah-detail-label">{t("Request ID")}</div>
                 <div className="sah-detail-value">{history.requestId}</div>
               </div>
               <div className="sah-detail-item">
-                <div className="sah-detail-label">Job Card ID</div>
+                <div className="sah-detail-label">{t("Job Card ID")}</div>
                 <div className="sah-detail-value">{history.id}</div>
               </div>
               <div className="sah-detail-item">
-                <div className="sah-detail-label">Status</div>
+                <div className="sah-detail-label">{t("Status")}</div>
                 <div className="sah-detail-value">
                   <span
                     className={`sah-status-badge ${
@@ -329,56 +331,56 @@ const ServiceApprovalHistory: React.FC = () => {
                         : "sah-status-pending"
                     }`}
                   >
-                    {history.decision === "approved" ? "Approved" : history.decision === "declined" ? "Declined" : "Pending"}
+                    {history.decision === "approved" ? t("Approved") : history.decision === "declined" ? t("Declined") : t("Pending")}
                   </span>
                 </div>
               </div>
               <div className="sah-detail-item">
-                <div className="sah-detail-label">Decision By</div>
+                <div className="sah-detail-label">{t("Decision By")}</div>
                 <div className="sah-detail-value">{displayUser(history.decisionBy)}</div>
               </div>
               <div className="sah-detail-item">
-                <div className="sah-detail-label">Decision Date</div>
+                <div className="sah-detail-label">{t("Decision Date")}</div>
                 <div className="sah-detail-value">{history.decisionDate}</div>
               </div>
               <div className="sah-detail-item">
-                <div className="sah-detail-label">Requested By</div>
+                <div className="sah-detail-label">{t("Requested By")}</div>
                 <div className="sah-detail-value">{displayUser(history.requestedBy)}</div>
               </div>
               <div className="sah-detail-item">
-                <div className="sah-detail-label">Request Date</div>
+                <div className="sah-detail-label">{t("Request Date")}</div>
                 <div className="sah-detail-value">{history.requestDateTime}</div>
               </div>
               <div className="sah-detail-item">
-                <div className="sah-detail-label">Customer Name</div>
+                <div className="sah-detail-label">{t("Customer Name")}</div>
                 <div className="sah-detail-value">{history.customer}</div>
               </div>
               <div className="sah-detail-item">
-                <div className="sah-detail-label">Mobile Number</div>
+                <div className="sah-detail-label">{t("Mobile Number")}</div>
                 <div className="sah-detail-value">{history.contact}</div>
               </div>
               <div className="sah-detail-item">
-                <div className="sah-detail-label">Vehicle Plate</div>
+                <div className="sah-detail-label">{t("Vehicle Plate")}</div>
                 <div className="sah-detail-value">
                   {history.vehicle} ({history.vehicleDetails})
                 </div>
               </div>
               <div className="sah-detail-item">
-                <div className="sah-detail-label">Assigned To</div>
+                <div className="sah-detail-label">{t("Assigned To")}</div>
                 <div className="sah-detail-value">{displayUser(history.assignedTo)}</div>
               </div>
             </div>
           </div>
 
           <div className="sah-details-section">
-            <h2 className="sah-section-title">Financial Overview</h2>
+            <h2 className="sah-section-title">{t("Financial Overview")}</h2>
             <div className="sah-financial-cards">
               <div className="sah-financial-card sah-current">
                 <div className="sah-financial-card-header">
-                  <div className="sah-financial-card-title">Current Job Total</div>
+                  <div className="sah-financial-card-title">{t("Current Job Total")}</div>
                   <div className="sah-financial-card-amount">{history.currentAmount}</div>
                 </div>
-                <div className="sah-detail-label">Bill ID: <span>{history.invoice}</span></div>
+                <div className="sah-detail-label">{t("Bill ID:")} <span>{history.invoice}</span></div>
                 <ul className="sah-service-list">
                   {history.currentServices.map((service, idx) => (
                     <li key={idx}>
@@ -388,13 +390,13 @@ const ServiceApprovalHistory: React.FC = () => {
                   ))}
                 </ul>
                 <div className="sah-detail-label" style={{ marginTop: 12 }}>
-                  Payment Status: <strong>{history.paymentStatus}</strong>
+                  {t("Payment Status:")} <strong>{history.paymentStatus}</strong>
                 </div>
               </div>
 
               <div className="sah-financial-card sah-proposed">
                 <div className="sah-financial-card-header">
-                  <div className="sah-financial-card-title">Requested Service</div>
+                  <div className="sah-financial-card-title">{t("Requested Service")}</div>
                   <div className="sah-financial-card-amount">{history.proposedAmount}</div>
                 </div>
                 <ul className="sah-service-list">
@@ -409,21 +411,21 @@ const ServiceApprovalHistory: React.FC = () => {
 
               <div className="sah-financial-card sah-combined">
                 <div className="sah-financial-card-header">
-                  <div className="sah-financial-card-title">Combined Total (estimate)</div>
+                  <div className="sah-financial-card-title">{t("Combined Total (estimate)")}</div>
                   <div className="sah-financial-card-amount">{history.combinedAmount}</div>
                 </div>
                 <div className="sah-service-breakdown">
                   <div className="sah-breakdown-item">
-                    <span>Current total:</span>
+                    <span>{t("Current total:")}</span>
                     <span>{history.currentAmount}</span>
                   </div>
                   <div className="sah-breakdown-item">
-                    <span>Requested:</span>
+                    <span>{t("Requested:")}</span>
                     <span>{history.proposedAmount}</span>
                   </div>
                   <div className="sah-breakdown-divider"></div>
                   <div className="sah-breakdown-item sah-total">
-                    <span><strong>Estimate:</strong></span>
+                    <span><strong>{t("Estimate:")}</strong></span>
                     <span><strong>{history.combinedAmount}</strong></span>
                   </div>
                 </div>
@@ -433,7 +435,7 @@ const ServiceApprovalHistory: React.FC = () => {
 
           {history.notes ? (
             <div className="sah-details-section">
-              <h2 className="sah-section-title">Decision Note</h2>
+              <h2 className="sah-section-title">{t("Decision Note")}</h2>
               <div className="sah-notes-content">{history.notes}</div>
             </div>
           ) : null}
@@ -446,60 +448,60 @@ const ServiceApprovalHistory: React.FC = () => {
     <div className="sah-container">
       <header className="sah-header">
         <div className="sah-header-title">
-          <h1>Service Approval History</h1>
-          <p>View all past service approval decisions and details</p>
+          <h1>{t("Service Approval History")}</h1>
+          <p>{t("View all past service approval decisions and details")}</p>
         </div>
       </header>
 
       <div className="sah-content">
         <section className="sah-filter-section">
           <div className="sah-filter-header">
-            <div className="sah-filter-title">Filter History</div>
+            <div className="sah-filter-title">{t("Filter History")}</div>
           </div>
 
           <div className="sah-filter-controls">
             <div className="sah-filter-group sah-search-box">
-              <label className="sah-filter-label">Search</label>
+              <label className="sah-filter-label">{t("Search")}</label>
               <input
                 type="text"
                 className="sah-filter-input"
-                placeholder="Job Card ID, Customer, Decision..."
+                placeholder={t("Job Card ID, Customer, Decision...")}
                 value={historySearch}
                 onChange={(e) => setHistorySearch(e.target.value)}
               />
             </div>
 
             <div className="sah-filter-group">
-              <label className="sah-filter-label">Decision</label>
+              <label className="sah-filter-label">{t("Decision")}</label>
               <select
                 className="sah-filter-select"
                 value={decisionFilter}
                 onChange={(e) => setDecisionFilter(e.target.value as any)}
               >
-                <option value="">All</option>
-                <option value="approved">Approved</option>
-                <option value="declined">Declined</option>
-                <option value="pending">Pending</option>
+                <option value="">{t("All")}</option>
+                <option value="approved">{t("Approved")}</option>
+                <option value="declined">{t("Declined")}</option>
+                <option value="pending">{t("Pending")}</option>
               </select>
             </div>
 
             <div className="sah-filter-group">
-              <label className="sah-filter-label">Date Range</label>
+              <label className="sah-filter-label">{t("Date Range")}</label>
               <select
                 className="sah-filter-select"
                 value={dateRangeFilter}
                 onChange={(e) => setDateRangeFilter(e.target.value as any)}
               >
-                <option value="">All Time</option>
-                <option value="today">Today</option>
-                <option value="week">This Week</option>
-                <option value="month">This Month</option>
+                <option value="">{t("All Time")}</option>
+                <option value="today">{t("Today")}</option>
+                <option value="week">{t("This Week")}</option>
+                <option value="month">{t("This Month")}</option>
               </select>
             </div>
 
             <div className="sah-filter-actions">
               <button className="sah-btn sah-btn-secondary" onClick={clearHistoryFilters}>
-                Clear
+                {t("Clear")}
               </button>
             </div>
           </div>
@@ -507,31 +509,31 @@ const ServiceApprovalHistory: React.FC = () => {
 
         <section className="sah-table-section">
           <div className="sah-table-header">
-            <div className="sah-table-title">Request History</div>
+            <div className="sah-table-title">{t("Request History")}</div>
             <div className="sah-table-info">
-              {loading ? "Loading..." : <>Displaying <span>{filteredHistory.length}</span> requests</>}
+              {loading ? t("Loading...") : <>{t("Displaying")} <span>{filteredHistory.length}</span> {t("requests")}</>}
             </div>
           </div>
 
           {!loading && filteredHistory.length === 0 ? (
             <div className="sah-empty-state">
               <div className="sah-empty-state-icon"><i className="fas fa-history"></i></div>
-              <h3>No History Available</h3>
-              <p>No request history found for the selected filters.</p>
+              <h3>{t("No History Available")}</h3>
+              <p>{t("No request history found for the selected filters.")}</p>
             </div>
           ) : (
             <div className="sah-table-wrapper">
               <table className="sah-history-table">
                 <thead>
                   <tr>
-                    <th>Job Card ID</th>
-                    <th>Customer</th>
-                    <th>Plate</th>
-                    <th>Request Date</th>
-                    <th>Status</th>
-                    <th>Decision By</th>
-                    <th>Added</th>
-                    <th>Actions</th>
+                    <th>{t("Job Card ID")}</th>
+                    <th>{t("Customer")}</th>
+                    <th>{t("Plate")}</th>
+                    <th>{t("Request Date")}</th>
+                    <th>{t("Status")}</th>
+                    <th>{t("Decision By")}</th>
+                    <th>{t("Added")}</th>
+                    <th>{t("Actions")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -551,7 +553,7 @@ const ServiceApprovalHistory: React.FC = () => {
                               : "sah-status-pending"
                           }`}
                         >
-                          {h.decision === "approved" ? "Approved" : h.decision === "declined" ? "Declined" : "Pending"}
+                          {h.decision === "approved" ? t("Approved") : h.decision === "declined" ? t("Declined") : t("Pending")}
                         </span>
                       </td>
                       <td>{displayUser(h.decisionBy)}</td>
@@ -559,7 +561,7 @@ const ServiceApprovalHistory: React.FC = () => {
                       <td>
                         <PermissionGate moduleId="approvalhistory" optionId="approvalhistory_view">
                           <button className="sah-action-btn sah-view" onClick={() => viewHistoryDetails(h.id)}>
-                            View Details
+                            {t("View Details")}
                           </button>
                         </PermissionGate>
                       </td>

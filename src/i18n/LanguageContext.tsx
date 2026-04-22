@@ -1,9 +1,9 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { LANGUAGE_STORAGE_KEY, type LanguageCode, t as tHelper, translateTextValue } from "./translations";
 
-// Disabled by default because DOM-wide translation and MutationObserver work can noticeably slow startup.
-// Set VITE_I18N_DOM_TRANSLATE=true only when full automatic translation is explicitly needed.
-const ENABLE_DOM_AUTO_TRANSLATION = import.meta.env.VITE_I18N_DOM_TRANSLATE === "true";
+// Enabled by default to guarantee full-page EN/AR coverage.
+// Set VITE_I18N_DOM_TRANSLATE=false to disable if performance tuning is needed.
+const ENABLE_DOM_AUTO_TRANSLATION = import.meta.env.VITE_I18N_DOM_TRANSLATE !== "false";
 
 type LanguageContextValue = {
   language: LanguageCode;

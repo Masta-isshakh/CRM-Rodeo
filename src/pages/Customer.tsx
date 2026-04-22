@@ -10,6 +10,7 @@ import type { PageProps } from "../lib/PageProps";
 import { logActivity } from "../utils/activityLogger";
 import { matchesSearchQuery, splitSearchTerms } from "../lib/searchUtils";
 import { usePermissions } from "../lib/userPermissions";
+import { useLanguage } from "../i18n/LanguageContext";
 import "./Customer.css";
 
 const client = generateClient<Schema>();
@@ -736,6 +737,7 @@ function DetailsView(props: {
 // Main Page
 // -----------------------------
 export default function Customers({ permissions }: PageProps) {
+  const { t } = useLanguage();
   const {
     can: rbacCan,
     canOption,
@@ -745,7 +747,7 @@ export default function Customers({ permissions }: PageProps) {
   } = usePermissions();
 
   if (!permissions.canRead) {
-    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+    return <div style={{ padding: 24 }}>{t("You don’t have access to this page.")}</div>;
   }
 
   // ✅ Same concept as PermissionGate (option-level + explicit toggle override + policy fallback)
@@ -837,7 +839,7 @@ export default function Customers({ permissions }: PageProps) {
   const canCustomersRelatedTickets = allowCustomersOption("customers_related_tickets");
 
   if (!canCustomersList) {
-    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+    return <div style={{ padding: 24 }}>{t("You don’t have access to this page.")}</div>;
   }
 
   const [customers, setCustomers] = useState<CustomerRow[]>([]);
@@ -973,7 +975,7 @@ export default function Customers({ permissions }: PageProps) {
       })();
     } catch (err) {
       console.error(err);
-      await showAlert("Error", "Failed to load customers from Amplify.", "error");
+      await showAlert(t("Error"), t("Failed to load customers from Amplify."), "error");
     } finally {
       if (countsRequestRef.current === requestId) setLoading(false);
     }
@@ -1191,7 +1193,7 @@ export default function Customers({ permissions }: PageProps) {
       setTickets(nextEntry.tickets);
     } catch (err) {
       console.error(err);
-      await showAlert("Warning", "Could not load related records.", "warning");
+      await showAlert(t("Warning"), t("Could not load related records."), "warning");
     } finally {
       setLoadingRelations(false);
     }
@@ -1205,21 +1207,21 @@ export default function Customers({ permissions }: PageProps) {
 
   const validate = (): boolean => {
     const e: FormErrors = {};
-    if (!formData.name.trim()) e.name = "First name is required";
-    if (!formData.lastname.trim()) e.lastname = "Last name is required";
-    if (!formData.heardFrom.trim()) e.heardFrom = "Please select how customer heard about us";
+    if (!formData.name.trim()) e.name = t("First name is required");
+    if (!formData.lastname.trim()) e.lastname = t("Last name is required");
+    if (!formData.heardFrom.trim()) e.heardFrom = t("Please select how customer heard about us");
 
     if (formData.heardFrom === "refer_person") {
-      if (!formData.referralPersonName.trim()) e.referralPersonName = "Referred person name is required";
-      if (!formData.referralPersonMobile.trim()) e.referralPersonMobile = "Referred person mobile is required";
+      if (!formData.referralPersonName.trim()) e.referralPersonName = t("Referred person name is required");
+      if (!formData.referralPersonMobile.trim()) e.referralPersonMobile = t("Referred person mobile is required");
     }
 
     if (formData.heardFrom === "social_media") {
-      if (!formData.socialPlatform.trim()) e.socialPlatform = "Please select social media platform";
+      if (!formData.socialPlatform.trim()) e.socialPlatform = t("Please select social media platform");
     }
 
     if (formData.heardFrom === "other") {
-      if (!formData.heardFromOtherNote.trim()) e.heardFromOtherNote = "Please enter note for Other";
+      if (!formData.heardFromOtherNote.trim()) e.heardFromOtherNote = t("Please enter note for Other");
     }
 
     setFormErrors(e);
@@ -1261,10 +1263,10 @@ export default function Customers({ permissions }: PageProps) {
 
       setShowAddCustomerModal(false);
       resetForm();
-      await showAlert("Success", `Customer "${created.data.name} ${created.data.lastname}" added successfully!`, "success");
+      await showAlert(t("Success"), `Customer "${created.data.name} ${created.data.lastname}" added successfully!`, "success");
     } catch (err) {
       console.error(err);
-      await showAlert("Error", "Failed to create customer. Check console.", "error");
+      await showAlert(t("Error"), t("Failed to create customer. Check console."), "error");
     } finally {
       setSaving(false);
     }
@@ -1318,10 +1320,10 @@ export default function Customers({ permissions }: PageProps) {
 
       setShowEditCustomerModal(false);
       resetForm();
-      await showAlert("Success", "Customer updated successfully!", "success");
+      await showAlert(t("Success"), t("Customer updated successfully!"), "success");
     } catch (err) {
       console.error(err);
-      await showAlert("Error", "Failed to update customer. Check console.", "error");
+      await showAlert(t("Error"), t("Failed to update customer. Check console."), "error");
     } finally {
       setSaving(false);
     }
@@ -1350,10 +1352,10 @@ export default function Customers({ permissions }: PageProps) {
       if (selectedCustomerId === deleteCustomerId) closeDetailsView();
 
       setDeleteCustomerId(null);
-      await showAlert("Success", "Customer deleted successfully!", "success");
+      await showAlert(t("Success"), t("Customer deleted successfully!"), "success");
     } catch (err) {
       console.error(err);
-      await showAlert("Error", "Delete failed. Check console.", "error");
+      await showAlert(t("Error"), t("Delete failed. Check console."), "error");
     } finally {
       setSaving(false);
     }
@@ -1390,7 +1392,7 @@ export default function Customers({ permissions }: PageProps) {
           isEdit
           saving={saving}
           saveDisabled={!canCustomersEdit}
-          saveLabel="Save Changes"
+          saveLabel={t("Save Changes")}
         >
           <form className="modal-form" onSubmit={(e) => e.preventDefault()}>
             <FormField
@@ -1562,13 +1564,13 @@ export default function Customers({ permissions }: PageProps) {
       <header className="app-header crm-unified-header">
         <div className="header-left">
           <h1>
-            <i className="fas fa-users" /> Customers Management
+            <i className="fas fa-users" /> {t("Customers Management")}
           </h1>
         </div>
         <div className="header-right">
           {canCustomersRefresh && (
             <button className="btn-refresh" onClick={() => void load()} disabled={loading}>
-              <i className="fas fa-sync" /> {loading ? "Loading..." : "Refresh"}
+              <i className="fas fa-sync" /> {loading ? t("Loading...") : t("Refresh")}
             </button>
           )}
         </div>
@@ -1582,7 +1584,7 @@ export default function Customers({ permissions }: PageProps) {
               <input
                 type="text"
                 className="smart-search-input"
-                placeholder="Search by any customer details"
+                placeholder={t("Search by any customer details")}
                 value={searchQuery}
                 onChange={(e) => {
                   setSearchQuery(e.target.value);
@@ -1597,7 +1599,7 @@ export default function Customers({ permissions }: PageProps) {
               <input
                 type="text"
                 className="smart-search-input"
-                placeholder="Search is disabled for your role"
+                placeholder={t("Search is disabled for your role")}
                 value=""
                 disabled
                 readOnly
@@ -1607,15 +1609,15 @@ export default function Customers({ permissions }: PageProps) {
 
           <div className="search-stats">
             {loading ? (
-              "Loading customers…"
+              t("Loading customers…")
             ) : searchResults.length === 0 ? (
-              "No customers found"
+              t("No customers found")
             ) : (
               <>
-                Showing {Math.min((currentPage - 1) * pageSize + 1, searchResults.length)}-
-                {Math.min(currentPage * pageSize, searchResults.length)} of {searchResults.length} customers
+                {t("Showing")} {Math.min((currentPage - 1) * pageSize + 1, searchResults.length)}-
+                {Math.min(currentPage * pageSize, searchResults.length)} {t("of")} {searchResults.length} {t("customers")}
                 {canCustomersSearch && searchQuery && (
-                  <span style={{ color: "var(--secondary-color)" }}> (Filtered by: "{searchQuery}")</span>
+                  <span style={{ color: "var(--secondary-color)" }}> {`${t("(Filtered by: \"")}${searchQuery}")`}</span>
                 )}
               </>
             )}
@@ -1625,12 +1627,12 @@ export default function Customers({ permissions }: PageProps) {
         <section className="results-section">
           <div className="section-header">
             <h2>
-              <i className="fas fa-list" /> Customers Records
+              <i className="fas fa-list" /> {t("Customers Records")}
             </h2>
 
             <div className="pagination-controls">
               <div className="records-per-page">
-                <label htmlFor="pageSizeSelect">Records per page:</label>
+                <label htmlFor="pageSizeSelect">{t("Records per page:")}</label>
                 <select
                   id="pageSizeSelect"
                   className="page-size-select"
@@ -1648,7 +1650,7 @@ export default function Customers({ permissions }: PageProps) {
 
               {canCustomersAdd && (
                 <button className="btn-new-customer" onClick={openAddModal} type="button">
-                  <i className="fas fa-plus-circle" /> Add New Customer
+                  <i className="fas fa-plus-circle" /> {t("Add New Customer")}
                 </button>
               )}
             </div>
@@ -1715,18 +1717,18 @@ export default function Customers({ permissions }: PageProps) {
       </main>
 
       <footer className="app-footer">
-        <p>Service Management System © {new Date().getFullYear()} | Customers Management Module</p>
+        <p>{t("Service Management System ©")} {new Date().getFullYear()} {t("| Customers Management Module")}</p>
       </footer>
 
       <Modal
         isOpen={showAddCustomerModal}
-        title="Add New Customer"
+        title={t("Add New Customer")}
         icon="fas fa-user-plus"
         onClose={() => setShowAddCustomerModal(false)}
         onSave={handleAddCustomer}
         saving={saving}
         saveDisabled={!canCustomersAdd}
-        saveLabel="Add Customer"
+        saveLabel={t("Add Customer")}
       >
         <form className="modal-form" onSubmit={(e) => e.preventDefault()}>
           <FormField
@@ -1882,14 +1884,14 @@ export default function Customers({ permissions }: PageProps) {
 
       <Modal
         isOpen={showEditCustomerModal}
-        title="Edit Customer"
+        title={t("Edit Customer")}
         icon="fas fa-user-edit"
         onClose={() => setShowEditCustomerModal(false)}
         onSave={handleSaveCustomer}
         isEdit
         saving={saving}
         saveDisabled={!canCustomersEdit}
-        saveLabel="Save Changes"
+        saveLabel={t("Save Changes")}
       >
         <form className="modal-form" onSubmit={(e) => e.preventDefault()}>
           <FormField

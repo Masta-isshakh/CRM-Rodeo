@@ -6,6 +6,7 @@ import type { PageProps } from "../lib/PageProps";
 import { getCurrentUser } from "aws-amplify/auth";
 import { resolveActorUsername } from "../utils/actorIdentity";
 import PermissionGate from "./PermissionGate";
+import { useLanguage } from "../i18n/LanguageContext";
 
 import { getDataClient } from "../lib/amplifyClient";
 const client = getDataClient();
@@ -13,8 +14,9 @@ const client = getDataClient();
 type TicketRow = Schema["Ticket"]["type"];
 
 export default function Tickets({ permissions }: PageProps) {
+  const { t } = useLanguage();
   if (!permissions.canRead) {
-    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+    return <div style={{ padding: 24 }}>{t("You don’t have access to this page.")}</div>;
   }
 
   const [tickets, setTickets] = useState<TicketRow[]>([]);
@@ -41,7 +43,7 @@ export default function Tickets({ permissions }: PageProps) {
       setTickets(sorted);
     } catch (e: any) {
       console.error(e);
-      setStatusMsg(e?.message || "Failed to load tickets.");
+      setStatusMsg(e?.message || t("Failed to load tickets."));
     } finally {
       setLoading(false);
     }
@@ -64,15 +66,15 @@ export default function Tickets({ permissions }: PageProps) {
 
     setStatusMsg("");
     try {
-      const t = title.trim();
-      if (!t) throw new Error("Title is required.");
+      const titleValue = title.trim();
+      if (!titleValue) throw new Error(t("Title is required."));
 
       // Only include fields that are very likely in your model: title/status/createdAt/createdBy
       const u = await getCurrentUser();
         const createdBy = resolveActorUsername(u, "system");
 
       await client.models.Ticket.create({
-        title: t,
+        title: titleValue,
         status,
         createdBy,
         createdAt: new Date().toISOString(),
@@ -81,10 +83,10 @@ export default function Tickets({ permissions }: PageProps) {
       setTitle("");
       setStatus("OPEN");
       await load();
-      setStatusMsg("Ticket created.");
+      setStatusMsg(t("Ticket created."));
     } catch (e: any) {
       console.error(e);
-      setStatusMsg(e?.message || "Failed to create ticket.");
+      setStatusMsg(e?.message || t("Failed to create ticket."));
     }
   };
 
@@ -108,56 +110,56 @@ export default function Tickets({ permissions }: PageProps) {
 
     setStatusMsg("");
     try {
-      const t = editTitle.trim();
-      if (!t) throw new Error("Title is required.");
+      const titleValue = editTitle.trim();
+      if (!titleValue) throw new Error(t("Title is required."));
 
       await client.models.Ticket.update({
         id: editingId,
-        title: t,
+        title: titleValue,
         status: editStatus || "OPEN",
       } as any);
 
       cancelEdit();
       await load();
-      setStatusMsg("Ticket updated.");
+      setStatusMsg(t("Ticket updated."));
     } catch (e: any) {
       console.error(e);
-      setStatusMsg(e?.message || "Update failed.");
+      setStatusMsg(e?.message || t("Update failed."));
     }
   };
 
   const remove = async (id: string) => {
     if (!permissions.canDelete) return;
 
-    const ok = confirm("Delete this ticket?");
+    const ok = confirm(t("Delete this ticket?"));
     if (!ok) return;
 
     setStatusMsg("");
     try {
       await client.models.Ticket.delete({ id });
       await load();
-      setStatusMsg("Ticket deleted.");
+      setStatusMsg(t("Ticket deleted."));
     } catch (e: any) {
       console.error(e);
-      setStatusMsg(e?.message || "Delete failed.");
+      setStatusMsg(e?.message || t("Delete failed."));
     }
   };
 
   return (
     <div style={{ padding: 16, width: "min(100%, 1100px)", margin: "0 auto", boxSizing: "border-box" }}>
-      <h2>Support Tickets</h2>
+      <h2>{t("Support Tickets")}</h2>
 
       {permissions.canCreate && (
         <PermissionGate moduleId="tickets" optionId="tickets_create">
         <div style={{ display: "grid", gap: 12, width: "min(100%, 880px)", padding: 12, border: "1px solid #ddd", borderRadius: 8, background: "#fff", boxSizing: "border-box" }}>
-          <TextField label="Title" value={title} onChange={(e) => setTitle((e.target as HTMLInputElement).value)} />
-          <SelectField label="Status" value={status} onChange={(e) => setStatus((e.target as HTMLSelectElement).value)}>
+          <TextField label={t("Title")} value={title} onChange={(e) => setTitle((e.target as HTMLInputElement).value)} />
+          <SelectField label={t("Status")} value={status} onChange={(e) => setStatus((e.target as HTMLSelectElement).value)}>
             {knownStatuses.map((s) => (
               <option key={s} value={s}>{s}</option>
             ))}
           </SelectField>
           <Button variation="primary" onClick={create}>
-            Create ticket
+            {t("Create ticket")}
           </Button>
         </div>
         </PermissionGate>
@@ -171,19 +173,19 @@ export default function Tickets({ permissions }: PageProps) {
 
       <div style={{ marginTop: 16 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-          <h3 style={{ margin: 0 }}>Tickets</h3>
+          <h3 style={{ margin: 0 }}>{t("Tickets")}</h3>
           <PermissionGate moduleId="tickets" optionId="tickets_refresh">
-            <Button onClick={load} isLoading={loading}>Refresh</Button>
+            <Button onClick={load} isLoading={loading}>{t("Refresh")}</Button>
           </PermissionGate>
         </div>
 
         <div style={{ marginTop: 10, display: "grid", gap: 10 }}>
-          {tickets.map((t) => (
-            <div key={t.id} style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8, background: "#fff" }}>
-              {editingId === t.id ? (
+          {tickets.map((ticket) => (
+            <div key={ticket.id} style={{ padding: 12, border: "1px solid #ddd", borderRadius: 8, background: "#fff" }}>
+              {editingId === ticket.id ? (
                 <div style={{ display: "grid", gap: 10 }}>
-                  <TextField label="Title" value={editTitle} onChange={(e) => setEditTitle((e.target as HTMLInputElement).value)} />
-                  <SelectField label="Status" value={editStatus} onChange={(e) => setEditStatus((e.target as HTMLSelectElement).value)}>
+                  <TextField label={t("Title")} value={editTitle} onChange={(e) => setEditTitle((e.target as HTMLInputElement).value)} />
+                  <SelectField label={t("Status")} value={editStatus} onChange={(e) => setEditStatus((e.target as HTMLSelectElement).value)}>
                     {knownStatuses.map((s) => (
                       <option key={s} value={s}>{s}</option>
                     ))}
@@ -191,28 +193,28 @@ export default function Tickets({ permissions }: PageProps) {
 
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <PermissionGate moduleId="tickets" optionId="tickets_edit">
-                      <Button variation="primary" onClick={saveEdit} isDisabled={!permissions.canUpdate}>Save</Button>
+                      <Button variation="primary" onClick={saveEdit} isDisabled={!permissions.canUpdate}>{t("Save")}</Button>
                     </PermissionGate>
-                    <Button onClick={cancelEdit}>Cancel</Button>
+                    <Button onClick={cancelEdit}>{t("Cancel")}</Button>
                   </div>
                 </div>
               ) : (
                 <>
-                  <div style={{ fontWeight: 700 }}>{String(t.title ?? "")}</div>
+                  <div style={{ fontWeight: 700 }}>{String(ticket.title ?? "")}</div>
                   <div style={{ opacity: 0.85 }}>
-                    Status: <b>{String(t.status ?? "")}</b>
+                    {t("Status:")} <b>{String(ticket.status ?? "")}</b>
                   </div>
 
                   <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
                     {permissions.canUpdate && (
                       <PermissionGate moduleId="tickets" optionId="tickets_edit">
-                        <Button onClick={() => startEdit(t)}>Edit</Button>
+                        <Button onClick={() => startEdit(ticket)}>{t("Edit")}</Button>
                       </PermissionGate>
                     )}
                     {permissions.canDelete && (
                       <PermissionGate moduleId="tickets" optionId="tickets_delete">
-                        <Button variation="destructive" onClick={() => remove(t.id)}>
-                          Delete
+                        <Button variation="destructive" onClick={() => remove(ticket.id)}>
+                          {t("Delete")}
                         </Button>
                       </PermissionGate>
                     )}
@@ -222,7 +224,7 @@ export default function Tickets({ permissions }: PageProps) {
             </div>
           ))}
 
-          {!tickets.length && <div style={{ opacity: 0.8 }}>No tickets yet.</div>}
+          {!tickets.length && <div style={{ opacity: 0.8 }}>{t("No tickets yet.")}</div>}
         </div>
       </div>
     </div>

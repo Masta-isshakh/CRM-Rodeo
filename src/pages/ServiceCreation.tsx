@@ -19,6 +19,7 @@ import {
   type ServiceCategoryItem,
   type ServiceSpecificationBrand,
 } from "./serviceCatalogRepo";
+import { useLanguage } from "../i18n/LanguageContext";
 
 type Tab = "services" | "packages" | "specifications";
 type ModalType = "none" | "category" | "service" | "package" | "specification";
@@ -259,6 +260,7 @@ function resolveServiceSpecificationIds(
 }
 
 export default function ServiceCreation() {
+  const { t } = useLanguage();
   const [activeTab, setActiveTab] = useState<Tab>("services");
   const [modalType, setModalType] = useState<ModalType>("none");
   const [saving, setSaving] = useState(false);
@@ -301,7 +303,7 @@ export default function ServiceCreation() {
       setCatalog(items);
       setBrandSpecifications(specifications);
     } catch (e: any) {
-      setBanner({ message: String(e?.message || "Failed to load service data"), isError: true });
+      setBanner({ message: String(e?.message || t("Failed to load service data")), isError: true });
     } finally {
       setLoading(false);
     }
@@ -482,28 +484,28 @@ export default function ServiceCreation() {
   };
 
   const validateCategory = () => {
-    if (!categoryForm.nameEn.trim()) return "English category name is required.";
-    if (!categoryForm.nameAr.trim()) return "Arabic category name is required.";
+    if (!categoryForm.nameEn.trim()) return t("English category name is required.");
+    if (!categoryForm.nameAr.trim()) return t("Arabic category name is required.");
     return "";
   };
 
   const validateService = () => {
-    if (!serviceForm.categoryId.trim()) return "Please select a category.";
-    if (!serviceForm.serviceCode.trim()) return "Service ID is required.";
-    if (!serviceForm.nameEn.trim()) return "English service name is required.";
-    if (!serviceForm.nameAr.trim()) return "Arabic service name is required.";
-    if (!serviceForm.suvPrice.trim() || Number(serviceForm.suvPrice) < 0) return "SUV price is required and must be valid.";
-    if (!serviceForm.sedanPrice.trim() || Number(serviceForm.sedanPrice) < 0) return "Sedan price is required and must be valid.";
+    if (!serviceForm.categoryId.trim()) return t("Please select a category.");
+    if (!serviceForm.serviceCode.trim()) return t("Service ID is required.");
+    if (!serviceForm.nameEn.trim()) return t("English service name is required.");
+    if (!serviceForm.nameAr.trim()) return t("Arabic service name is required.");
+    if (!serviceForm.suvPrice.trim() || Number(serviceForm.suvPrice) < 0) return t("SUV price is required and must be valid.");
+    if (!serviceForm.sedanPrice.trim() || Number(serviceForm.sedanPrice) < 0) return t("Sedan price is required and must be valid.");
     return "";
   };
 
   const validatePackage = () => {
-    if (!packageForm.packageCode.trim()) return "Package ID is required.";
-    if (!packageForm.nameEn.trim()) return "English package name is required.";
-    if (!packageForm.nameAr.trim()) return "Arabic package name is required.";
-    if (!packageForm.suvPrice.trim() || Number(packageForm.suvPrice) < 0) return "SUV price is required and must be valid.";
-    if (!packageForm.sedanPrice.trim() || Number(packageForm.sedanPrice) < 0) return "Sedan price is required and must be valid.";
-    if (packageForm.includedServiceCodes.length < 1) return "Please include at least one service in the package.";
+    if (!packageForm.packageCode.trim()) return t("Package ID is required.");
+    if (!packageForm.nameEn.trim()) return t("English package name is required.");
+    if (!packageForm.nameAr.trim()) return t("Arabic package name is required.");
+    if (!packageForm.suvPrice.trim() || Number(packageForm.suvPrice) < 0) return t("SUV price is required and must be valid.");
+    if (!packageForm.sedanPrice.trim() || Number(packageForm.sedanPrice) < 0) return t("Sedan price is required and must be valid.");
+    if (packageForm.includedServiceCodes.length < 1) return t("Please include at least one service in the package.");
     return "";
   };
 
@@ -552,7 +554,7 @@ export default function ServiceCreation() {
 
     const selectedCategory = categories.find((c) => c.id === serviceForm.categoryId);
     if (!selectedCategory) {
-      setError("Selected category does not exist.");
+      setError(t("Selected category does not exist."));
       return;
     }
 
@@ -683,7 +685,7 @@ export default function ServiceCreation() {
         const hasServices = services.some((s) => s.categoryId === pendingDelete.item.id);
         if (hasServices) {
           setBanner({
-            message: "Cannot delete category that still has services. Move or delete services first.",
+            message: t("Cannot delete category that still has services. Move or delete services first."),
             isError: true,
           });
           setPendingDelete(null);
@@ -696,7 +698,7 @@ export default function ServiceCreation() {
         const isAssigned = services.some((service) => service.specificationId === pendingDelete.item.id);
         if (isAssigned) {
           setBanner({
-            message: "Cannot delete a brand specification that is still assigned to services.",
+            message: t("Cannot delete a brand specification that is still assigned to services."),
             isError: true,
           });
           setPendingDelete(null);
@@ -713,7 +715,7 @@ export default function ServiceCreation() {
       setPendingDelete(null);
       await loadData();
     } catch (e: any) {
-      setBanner({ message: String(e?.message || "Delete failed"), isError: true });
+      setBanner({ message: String(e?.message || t("Delete failed")), isError: true });
     } finally {
       setSaving(false);
     }
@@ -730,11 +732,11 @@ export default function ServiceCreation() {
     ]);
 
     if (!brandSpecificationForm.brandName.trim()) {
-      setError("Brand name is required.");
+      setError(t("Brand name is required."));
       return;
     }
     if ((primaryBrand.products || []).every((product) => !product.name.trim())) {
-      setError("Brand must include at least one product.");
+      setError(t("Brand must include at least one product."));
       return;
     }
     if (
@@ -742,7 +744,7 @@ export default function ServiceCreation() {
         (product) => product.name.trim() && (product.measurements || []).every((measurement) => !String(measurement || "").trim())
       )
     ) {
-      setError("Each product must include at least one measurement.");
+      setError(t("Each product must include at least one measurement."));
       return;
     }
 
@@ -780,12 +782,12 @@ export default function ServiceCreation() {
 
   const renderPriceChips = (item: ServiceCatalogItem) => (
     <div className="sc-price-chips">
-      <span><strong>SUV:</strong> {formatQar(item.suvPrice)}</span>
-      <span><strong>Sedan:</strong> {formatQar(item.sedanPrice)}</span>
-      <span><strong>Hatchback:</strong> {formatQar(item.hatchbackPrice ?? item.sedanPrice)}</span>
-      <span><strong>Truck:</strong> {formatQar(item.truckPrice ?? item.suvPrice)}</span>
-      <span><strong>Coupe:</strong> {formatQar(item.coupePrice ?? item.sedanPrice)}</span>
-      <span><strong>Other:</strong> {formatQar(item.otherPrice ?? item.sedanPrice)}</span>
+      <span><strong>{t("SUV:")}</strong> {formatQar(item.suvPrice)}</span>
+      <span><strong>{t("Sedan:")}</strong> {formatQar(item.sedanPrice)}</span>
+      <span><strong>{t("Hatchback:")}</strong> {formatQar(item.hatchbackPrice ?? item.sedanPrice)}</span>
+      <span><strong>{t("Truck:")}</strong> {formatQar(item.truckPrice ?? item.suvPrice)}</span>
+      <span><strong>{t("Coupe:")}</strong> {formatQar(item.coupePrice ?? item.sedanPrice)}</span>
+      <span><strong>{t("Other:")}</strong> {formatQar(item.otherPrice ?? item.sedanPrice)}</span>
     </div>
   );
 
@@ -793,13 +795,13 @@ export default function ServiceCreation() {
     <div className="sc2-page">
       <div className="sc2-tabs">
         <button className={activeTab === "services" ? "active" : ""} onClick={() => setActiveTab("services")}>
-          <i className="fas fa-cog"></i> Services
+          <i className="fas fa-cog"></i> {t("Services")}
         </button>
         <button className={activeTab === "packages" ? "active" : ""} onClick={() => setActiveTab("packages")}>
-          <i className="fas fa-suitcase"></i> Packages
+          <i className="fas fa-suitcase"></i> {t("Packages")}
         </button>
         <button className={activeTab === "specifications" ? "active" : ""} onClick={() => setActiveTab("specifications")}>
-          <i className="fas fa-palette"></i> Service Specification
+          <i className="fas fa-palette"></i> {t("Service Specification")}
         </button>
       </div>
 
@@ -810,29 +812,29 @@ export default function ServiceCreation() {
       {activeTab === "services" && (
         <section className="sc2-section">
           <div className="sc2-section-header">
-            <h2><i className="fas fa-cog"></i> Services by Category</h2>
+            <h2><i className="fas fa-cog"></i> {t("Services by Category")}</h2>
             <div className="sc2-actions-row">
               <PermissionGate moduleId="joborder" optionId="joborder_create">
                 <button className="sc2-btn green" onClick={() => openCategoryModal()}>
-                  <i className="fas fa-folder-plus"></i> Add Category
+                  <i className="fas fa-folder-plus"></i> {t("Add Category")}
                 </button>
               </PermissionGate>
               <PermissionGate moduleId="joborder" optionId="joborder_create">
                 <button className="sc2-btn blue" onClick={() => openServiceModal()}>
-                  <i className="fas fa-plus-circle"></i> Add Service
+                  <i className="fas fa-plus-circle"></i> {t("Add Service")}
                 </button>
               </PermissionGate>
             </div>
           </div>
 
           <div className="sc2-stats-grid">
-            <div className="sc2-stat-card"><strong>{categories.length}</strong><span>Categories</span></div>
-            <div className="sc2-stat-card"><strong>{services.length}</strong><span>Total Services</span></div>
-            <div className="sc2-stat-card"><strong>{avgServicesPerCategory}</strong><span>Avg Services/Cat</span></div>
+            <div className="sc2-stat-card"><strong>{categories.length}</strong><span>{t("Categories")}</span></div>
+            <div className="sc2-stat-card"><strong>{services.length}</strong><span>{t("Total Services")}</span></div>
+            <div className="sc2-stat-card"><strong>{avgServicesPerCategory}</strong><span>{t("Avg Services/Cat")}</span></div>
           </div>
 
-          {loading && <div className="sc2-empty">Loading services...</div>}
-          {!loading && categoryRows.length === 0 && <div className="sc2-empty">No service categories found.</div>}
+          {loading && <div className="sc2-empty">{t("Loading services...")}</div>}
+          {!loading && categoryRows.length === 0 && <div className="sc2-empty">{t("No service categories found.")}</div>}
 
           {!loading && categoryRows.map((row) => (
             <article className="sc2-category-card" key={row.category.id}>
@@ -845,10 +847,10 @@ export default function ServiceCreation() {
                 {row.category.id !== "uncategorized" && (
                   <div className="sc2-inline-actions">
                     <PermissionGate moduleId="joborder" optionId="joborder_create">
-                      <button className="sc2-mini-btn warn" onClick={() => openCategoryModal(row.category)}>Edit</button>
+                      <button className="sc2-mini-btn warn" onClick={() => openCategoryModal(row.category)}>{t("Edit")}</button>
                     </PermissionGate>
                     <PermissionGate moduleId="joborder" optionId="joborder_create">
-                      <button className="sc2-mini-btn danger" onClick={() => setPendingDelete({ type: "category", item: row.category })}>Delete</button>
+                      <button className="sc2-mini-btn danger" onClick={() => setPendingDelete({ type: "category", item: row.category })}>{t("Delete")}</button>
                     </PermissionGate>
                   </div>
                 )}
@@ -856,8 +858,8 @@ export default function ServiceCreation() {
 
               {(row.category.descriptionEn || row.category.descriptionAr) && (
                 <div className="sc2-category-desc" data-no-translate="true">
-                  <div><strong>EN:</strong> {row.category.descriptionEn || "-"}</div>
-                  <div><strong>AR:</strong> {row.category.descriptionAr || "-"}</div>
+                  <div><strong>{t("EN:")}</strong> {row.category.descriptionEn || "-"}</div>
+                  <div><strong>{t("AR:")}</strong> {row.category.descriptionAr || "-"}</div>
                 </div>
               )}
 
@@ -871,7 +873,7 @@ export default function ServiceCreation() {
                       </div>
                       <div className="sc2-inline-actions">
                         <PermissionGate moduleId="joborder" optionId="joborder_create">
-                          <button className="sc2-mini-btn" onClick={() => openServiceModal(service)}>Edit</button>
+                          <button className="sc2-mini-btn" onClick={() => openServiceModal(service)}>{t("Edit")}</button>
                         </PermissionGate>
                         <PermissionGate moduleId="joborder" optionId="joborder_create">
                           <button className="sc2-mini-btn warn" onClick={() => openServiceModal(service)}>
@@ -879,14 +881,14 @@ export default function ServiceCreation() {
                           </button>
                         </PermissionGate>
                         <PermissionGate moduleId="joborder" optionId="joborder_create">
-                          <button className="sc2-mini-btn danger" onClick={() => setPendingDelete({ type: "catalog", item: service })}>Delete</button>
+                          <button className="sc2-mini-btn danger" onClick={() => setPendingDelete({ type: "catalog", item: service })}>{t("Delete")}</button>
                         </PermissionGate>
                       </div>
                     </div>
 
                     <div className="sc2-dual-desc" data-no-translate="true">
-                      <div><strong>EN:</strong> {service.descriptionEn || "-"}</div>
-                      <div><strong>AR:</strong> {service.descriptionAr || "-"}</div>
+                      <div><strong>{t("EN:")}</strong> {service.descriptionEn || "-"}</div>
+                      <div><strong>{t("AR:")}</strong> {service.descriptionAr || "-"}</div>
                     </div>
 
                     <div data-no-translate="true">{renderPriceChips(service)}</div>
@@ -916,22 +918,22 @@ export default function ServiceCreation() {
       {activeTab === "packages" && (
         <section className="sc2-section">
           <div className="sc2-section-header">
-            <h2><i className="fas fa-suitcase"></i> Service Packages</h2>
+            <h2><i className="fas fa-suitcase"></i> {t("Service Packages")}</h2>
             <PermissionGate moduleId="joborder" optionId="joborder_create">
               <button className="sc2-btn blue" onClick={() => openPackageModal()}>
-                <i className="fas fa-plus-circle"></i> Add Package
+                <i className="fas fa-plus-circle"></i> {t("Add Package")}
               </button>
             </PermissionGate>
           </div>
 
           <div className="sc2-stats-grid">
-            <div className="sc2-stat-card"><strong>{packages.length}</strong><span>Total Packages</span></div>
-            <div className="sc2-stat-card"><strong>{formatQar(avgPackagePrice)}</strong><span>Avg SUV Price</span></div>
-            <div className="sc2-stat-card"><strong>{formatQar(packages.reduce((s, p) => s + Number(p.sedanPrice || 0), 0) / Math.max(packages.length, 1))}</strong><span>Avg Sedan Price</span></div>
+            <div className="sc2-stat-card"><strong>{packages.length}</strong><span>{t("Total Packages")}</span></div>
+            <div className="sc2-stat-card"><strong>{formatQar(avgPackagePrice)}</strong><span>{t("Avg SUV Price")}</span></div>
+            <div className="sc2-stat-card"><strong>{formatQar(packages.reduce((s, p) => s + Number(p.sedanPrice || 0), 0) / Math.max(packages.length, 1))}</strong><span>{t("Avg Sedan Price")}</span></div>
           </div>
 
-          {loading && <div className="sc2-empty">Loading packages...</div>}
-          {!loading && packages.length === 0 && <div className="sc2-empty">No packages found.</div>}
+          {loading && <div className="sc2-empty">{t("Loading packages...")}</div>}
+          {!loading && packages.length === 0 && <div className="sc2-empty">{t("No packages found.")}</div>}
 
           {!loading && packages.map((pkg) => (
             <article className="sc2-package-card" key={pkg.id}>
@@ -942,17 +944,17 @@ export default function ServiceCreation() {
                 </div>
                 <div className="sc2-inline-actions">
                   <PermissionGate moduleId="joborder" optionId="joborder_create">
-                    <button className="sc2-mini-btn" onClick={() => openPackageModal(pkg)}>Edit</button>
+                    <button className="sc2-mini-btn" onClick={() => openPackageModal(pkg)}>{t("Edit")}</button>
                   </PermissionGate>
                   <PermissionGate moduleId="joborder" optionId="joborder_create">
-                    <button className="sc2-mini-btn danger" onClick={() => setPendingDelete({ type: "catalog", item: pkg })}>Delete</button>
+                    <button className="sc2-mini-btn danger" onClick={() => setPendingDelete({ type: "catalog", item: pkg })}>{t("Delete")}</button>
                   </PermissionGate>
                 </div>
               </header>
 
               <div className="sc2-dual-desc" data-no-translate="true">
-                <div><strong>EN:</strong> {pkg.descriptionEn || "-"}</div>
-                <div><strong>AR:</strong> {pkg.descriptionAr || "-"}</div>
+                <div><strong>{t("EN:")}</strong> {pkg.descriptionEn || "-"}</div>
+                <div><strong>{t("AR:")}</strong> {pkg.descriptionAr || "-"}</div>
               </div>
 
               <div data-no-translate="true">{renderPriceChips(pkg)}</div>
@@ -975,21 +977,21 @@ export default function ServiceCreation() {
       {activeTab === "specifications" && (
         <section className="sc2-section">
           <div className="sc2-section-header">
-            <h2><i className="fas fa-clipboard-list"></i> Brand &amp; Product Specifications</h2>
+            <h2><i className="fas fa-clipboard-list"></i> {t("Brand & Product Specifications")}</h2>
             <PermissionGate moduleId="joborder" optionId="joborder_create">
               <button className="sc2-btn green" onClick={() => openSpecificationModal()}>
-                <i className="fas fa-plus-circle"></i> Add New Brand
+                <i className="fas fa-plus-circle"></i> {t("Add New Brand")}
               </button>
             </PermissionGate>
           </div>
 
           <div className="sc2-stats-grid">
-            <div className="sc2-stat-card"><strong>{specificationBrandsCount}</strong><span>Brands</span></div>
-            <div className="sc2-stat-card"><strong>{servicesWithSpecifications.length}</strong><span>Services with Specs</span></div>
+            <div className="sc2-stat-card"><strong>{specificationBrandsCount}</strong><span>{t("Brands")}</span></div>
+            <div className="sc2-stat-card"><strong>{servicesWithSpecifications.length}</strong><span>{t("Services with Specs")}</span></div>
           </div>
 
-          {loading && <div className="sc2-empty">Loading specifications...</div>}
-          {!loading && brandSpecifications.length === 0 && <div className="sc2-empty">No brand specifications available yet.</div>}
+          {loading && <div className="sc2-empty">{t("Loading specifications...")}</div>}
+          {!loading && brandSpecifications.length === 0 && <div className="sc2-empty">{t("No brand specifications available yet.")}</div>}
 
           {!loading && brandSpecifications.map((specification) => (
             <article className="sc2-spec-card" key={`spec-${specification.id}`}>
@@ -1013,7 +1015,7 @@ export default function ServiceCreation() {
               </header>
 
               <div className="sc2-spec-card-body" data-no-translate="true">
-                <div className="sc2-spec-section-title">Products &amp; Sizes</div>
+                <div className="sc2-spec-section-title">{t("Products & Sizes")}</div>
               {specification.specifications.length > 0 ? (
                 <div className="sc2-spec-products" data-no-translate="true">
                   {specification.specifications.map((brand) => (
@@ -1032,7 +1034,7 @@ export default function ServiceCreation() {
                   ))}
                 </div>
               ) : (
-                <div className="sc2-empty">No products configured for this brand yet.</div>
+                <div className="sc2-empty">{t("No products configured for this brand yet.")}</div>
               )}
               </div>
             </article>
@@ -1052,7 +1054,7 @@ export default function ServiceCreation() {
                 <div className="sc2-modal-body">
                   <div className="sc2-grid-2">
                     <label>
-                      <span>English Name *</span>
+                      <span>{t("English Name *")}</span>
                       <input value={categoryForm.nameEn} onChange={(e) => setCategoryForm((p) => ({ ...p, nameEn: e.target.value }))} placeholder="Category name in English" />
                     </label>
                     <label>
@@ -1060,7 +1062,7 @@ export default function ServiceCreation() {
                       <input value={categoryForm.nameAr} onChange={(e) => setCategoryForm((p) => ({ ...p, nameAr: e.target.value }))} placeholder="اسم الفئة بالعربية" />
                     </label>
                     <label>
-                      <span>English Description</span>
+                      <span>{t("English Description")}</span>
                       <textarea value={categoryForm.descriptionEn} onChange={(e) => setCategoryForm((p) => ({ ...p, descriptionEn: e.target.value }))} placeholder="Category description in English" />
                     </label>
                     <label>
@@ -1081,7 +1083,7 @@ export default function ServiceCreation() {
                 <div className="sc2-modal-body">
                   <div className="sc2-grid-1">
                     <label>
-                      <span>Service Category *</span>
+                      <span>{t("Service Category *")}</span>
                       <select
                         value={serviceForm.categoryId}
                         onChange={(e) => setServiceForm((p) => ({ ...p, categoryId: e.target.value }))}
@@ -1094,15 +1096,15 @@ export default function ServiceCreation() {
                     </label>
 
                     <label>
-                      <span>Service ID *</span>
+                      <span>{t("Service ID *")}</span>
                       <input value={serviceForm.serviceCode} onChange={(e) => setServiceForm((p) => ({ ...p, serviceCode: e.target.value.toUpperCase() }))} placeholder="e.g. SVC001" />
-                      <small>Auto-generated if left empty</small>
+                      <small>{t("Auto-generated if left empty")}</small>
                     </label>
 
                     <label>
-                      <span>Brand Specifications</span>
+                      <span>{t("Brand Specifications")}</span>
                       <div className="sc2-checklist" data-no-translate="true">
-                        {brandSpecifications.length === 0 && <div className="sc2-empty">No brand specifications available.</div>}
+                        {brandSpecifications.length === 0 && <div className="sc2-empty">{t("No brand specifications available.")}</div>}
                         {brandSpecifications.map((specification) => {
                           const checked = selectedServiceSpecificationIds.includes(specification.id);
                           return (
@@ -1132,7 +1134,7 @@ export default function ServiceCreation() {
 
                   <div className="sc2-grid-2">
                     <label>
-                      <span>English Name *</span>
+                      <span>{t("English Name *")}</span>
                       <input value={serviceForm.nameEn} onChange={(e) => setServiceForm((p) => ({ ...p, nameEn: e.target.value }))} placeholder="Service name in English" />
                     </label>
                     <label>
@@ -1140,7 +1142,7 @@ export default function ServiceCreation() {
                       <input value={serviceForm.nameAr} onChange={(e) => setServiceForm((p) => ({ ...p, nameAr: e.target.value }))} placeholder="اسم الخدمة بالعربية" />
                     </label>
                     <label>
-                      <span>English Description</span>
+                      <span>{t("English Description")}</span>
                       <textarea value={serviceForm.descriptionEn} onChange={(e) => setServiceForm((p) => ({ ...p, descriptionEn: e.target.value }))} placeholder="Service description in English" />
                     </label>
                     <label>
@@ -1149,14 +1151,14 @@ export default function ServiceCreation() {
                     </label>
                   </div>
 
-                  <h4>Pricing by Vehicle Type</h4>
+                  <h4>{t("Pricing by Vehicle Type")}</h4>
                   <div className="sc2-grid-3">
-                    <label><span>SUV Price (QAR) *</span><input type="number" min={0} step="0.01" value={serviceForm.suvPrice} onChange={(e) => setServiceForm((p) => ({ ...p, suvPrice: e.target.value }))} /></label>
-                    <label><span>Sedan Price (QAR) *</span><input type="number" min={0} step="0.01" value={serviceForm.sedanPrice} onChange={(e) => setServiceForm((p) => ({ ...p, sedanPrice: e.target.value }))} /></label>
-                    <label><span>Hatchback Price (QAR)</span><input type="number" min={0} step="0.01" value={serviceForm.hatchbackPrice} onChange={(e) => setServiceForm((p) => ({ ...p, hatchbackPrice: e.target.value }))} /></label>
-                    <label><span>Truck Price (QAR)</span><input type="number" min={0} step="0.01" value={serviceForm.truckPrice} onChange={(e) => setServiceForm((p) => ({ ...p, truckPrice: e.target.value }))} /></label>
-                    <label><span>Coupe Price (QAR)</span><input type="number" min={0} step="0.01" value={serviceForm.coupePrice} onChange={(e) => setServiceForm((p) => ({ ...p, coupePrice: e.target.value }))} /></label>
-                    <label><span>Other Price (QAR)</span><input type="number" min={0} step="0.01" value={serviceForm.otherPrice} onChange={(e) => setServiceForm((p) => ({ ...p, otherPrice: e.target.value }))} /></label>
+                    <label><span>{t("SUV Price (QAR) *")}</span><input type="number" min={0} step="0.01" value={serviceForm.suvPrice} onChange={(e) => setServiceForm((p) => ({ ...p, suvPrice: e.target.value }))} /></label>
+                    <label><span>{t("Sedan Price (QAR) *")}</span><input type="number" min={0} step="0.01" value={serviceForm.sedanPrice} onChange={(e) => setServiceForm((p) => ({ ...p, sedanPrice: e.target.value }))} /></label>
+                    <label><span>{t("Hatchback Price (QAR)")}</span><input type="number" min={0} step="0.01" value={serviceForm.hatchbackPrice} onChange={(e) => setServiceForm((p) => ({ ...p, hatchbackPrice: e.target.value }))} /></label>
+                    <label><span>{t("Truck Price (QAR)")}</span><input type="number" min={0} step="0.01" value={serviceForm.truckPrice} onChange={(e) => setServiceForm((p) => ({ ...p, truckPrice: e.target.value }))} /></label>
+                    <label><span>{t("Coupe Price (QAR)")}</span><input type="number" min={0} step="0.01" value={serviceForm.coupePrice} onChange={(e) => setServiceForm((p) => ({ ...p, coupePrice: e.target.value }))} /></label>
+                    <label><span>{t("Other Price (QAR)")}</span><input type="number" min={0} step="0.01" value={serviceForm.otherPrice} onChange={(e) => setServiceForm((p) => ({ ...p, otherPrice: e.target.value }))} /></label>
                   </div>
                 </div>
               </>
@@ -1171,7 +1173,7 @@ export default function ServiceCreation() {
                 <div className="sc2-modal-body">
                   <div className="sc2-grid-2">
                     <label>
-                      <span>English Name *</span>
+                      <span>{t("English Name *")}</span>
                       <input value={packageForm.nameEn} onChange={(e) => setPackageForm((p) => ({ ...p, nameEn: e.target.value }))} placeholder="Package name in English" />
                     </label>
                     <label>
@@ -1179,7 +1181,7 @@ export default function ServiceCreation() {
                       <input value={packageForm.nameAr} onChange={(e) => setPackageForm((p) => ({ ...p, nameAr: e.target.value }))} placeholder="اسم الباقة بالعربية" />
                     </label>
                     <label>
-                      <span>English Description</span>
+                      <span>{t("English Description")}</span>
                       <textarea value={packageForm.descriptionEn} onChange={(e) => setPackageForm((p) => ({ ...p, descriptionEn: e.target.value }))} placeholder="Package description in English" />
                     </label>
                     <label>
@@ -1190,22 +1192,22 @@ export default function ServiceCreation() {
 
                   <div className="sc2-grid-1">
                     <label>
-                      <span>Package ID *</span>
+                      <span>{t("Package ID *")}</span>
                       <input value={packageForm.packageCode} onChange={(e) => setPackageForm((p) => ({ ...p, packageCode: e.target.value.toUpperCase() }))} placeholder="e.g. PKG001" />
                     </label>
                   </div>
 
-                  <h4>Package Pricing</h4>
+                  <h4>{t("Package Pricing")}</h4>
                   <div className="sc2-grid-3">
-                    <label><span>SUV Price (QAR) *</span><input type="number" min={0} step="0.01" value={packageForm.suvPrice} onChange={(e) => setPackageForm((p) => ({ ...p, suvPrice: e.target.value }))} /></label>
-                    <label><span>Sedan Price (QAR) *</span><input type="number" min={0} step="0.01" value={packageForm.sedanPrice} onChange={(e) => setPackageForm((p) => ({ ...p, sedanPrice: e.target.value }))} /></label>
-                    <label><span>Hatchback Price (QAR)</span><input type="number" min={0} step="0.01" value={packageForm.hatchbackPrice} onChange={(e) => setPackageForm((p) => ({ ...p, hatchbackPrice: e.target.value }))} /></label>
-                    <label><span>Truck Price (QAR)</span><input type="number" min={0} step="0.01" value={packageForm.truckPrice} onChange={(e) => setPackageForm((p) => ({ ...p, truckPrice: e.target.value }))} /></label>
-                    <label><span>Coupe Price (QAR)</span><input type="number" min={0} step="0.01" value={packageForm.coupePrice} onChange={(e) => setPackageForm((p) => ({ ...p, coupePrice: e.target.value }))} /></label>
-                    <label><span>Other Price (QAR)</span><input type="number" min={0} step="0.01" value={packageForm.otherPrice} onChange={(e) => setPackageForm((p) => ({ ...p, otherPrice: e.target.value }))} /></label>
+                    <label><span>{t("SUV Price (QAR) *")}</span><input type="number" min={0} step="0.01" value={packageForm.suvPrice} onChange={(e) => setPackageForm((p) => ({ ...p, suvPrice: e.target.value }))} /></label>
+                    <label><span>{t("Sedan Price (QAR) *")}</span><input type="number" min={0} step="0.01" value={packageForm.sedanPrice} onChange={(e) => setPackageForm((p) => ({ ...p, sedanPrice: e.target.value }))} /></label>
+                    <label><span>{t("Hatchback Price (QAR)")}</span><input type="number" min={0} step="0.01" value={packageForm.hatchbackPrice} onChange={(e) => setPackageForm((p) => ({ ...p, hatchbackPrice: e.target.value }))} /></label>
+                    <label><span>{t("Truck Price (QAR)")}</span><input type="number" min={0} step="0.01" value={packageForm.truckPrice} onChange={(e) => setPackageForm((p) => ({ ...p, truckPrice: e.target.value }))} /></label>
+                    <label><span>{t("Coupe Price (QAR)")}</span><input type="number" min={0} step="0.01" value={packageForm.coupePrice} onChange={(e) => setPackageForm((p) => ({ ...p, coupePrice: e.target.value }))} /></label>
+                    <label><span>{t("Other Price (QAR)")}</span><input type="number" min={0} step="0.01" value={packageForm.otherPrice} onChange={(e) => setPackageForm((p) => ({ ...p, otherPrice: e.target.value }))} /></label>
                   </div>
 
-                  <h4>Select Services to Include *</h4>
+                  <h4>{t("Select Services to Include *")}</h4>
                   <div className="sc2-checklist" data-no-translate="true">
                     {categoryRows.map((row) => (
                       <div key={`pkg-${row.category.id}`} className="sc2-checklist-group">
@@ -1239,17 +1241,17 @@ export default function ServiceCreation() {
             {modalType === "specification" && (
               <>
                 <div className="sc2-modal-header">
-                  <h3>{editingBrandSpecification ? "TM Edit Brand" : "TM Add Brand"}</h3>
+                  <h3>{editingBrandSpecification ? t("TM Edit Brand") : t("TM Add Brand")}</h3>
                   <button onClick={closeModal}>✕</button>
                 </div>
                 <div className="sc2-modal-body sc2-brand-modal-body">
                   <div className="sc2-grid-2">
                     <label>
-                      <span>Brand Name</span>
+                      <span>{t("Brand Name")}</span>
                       <input value={brandSpecificationForm.brandName} onChange={(e) => setBrandSpecificationForm((p) => ({ ...p, brandName: e.target.value }))} placeholder="Brand name" />
                     </label>
                     <label>
-                      <span>Brand Color</span>
+                      <span>{t("Brand Color")}</span>
                       <div className="sc2-color-picker-wrap">
                         <input type="color" value={brandSpecificationForm.colorHex} onChange={(e) => setBrandSpecificationForm((p) => ({ ...p, colorHex: e.target.value }))} />
                         <span className="sc2-color-badge">
@@ -1261,7 +1263,7 @@ export default function ServiceCreation() {
                   </div>
 
                   <div className="sc2-brand-products-head">
-                    <h4>Products &amp; Measurements</h4>
+                    <h4>{t("Products & Measurements")}</h4>
                     <button
                       className="sc2-btn ghost sc2-brand-add-btn"
                       type="button"
@@ -1277,7 +1279,7 @@ export default function ServiceCreation() {
                         });
                       }}
                     >
-                      <i className="fas fa-plus"></i> Add Product
+                      <i className="fas fa-plus"></i> {t("Add Product")}
                     </button>
                   </div>
 
@@ -1301,7 +1303,7 @@ export default function ServiceCreation() {
                                 ];
                               });
                             }}
-                            placeholder="Product Name (e.g., Ceramic Coating)"
+                            placeholder={t("Product Name (e.g., Ceramic Coating)")}
                           />
                           <button
                             className="sc2-mini-btn danger"
@@ -1321,7 +1323,7 @@ export default function ServiceCreation() {
                               });
                             }}
                           >
-                            <i className="fas fa-trash"></i> Remove
+                            <i className="fas fa-trash"></i> {t("Remove")}
                           </button>
                         </div>
 
@@ -1351,7 +1353,7 @@ export default function ServiceCreation() {
                                       ];
                                     });
                                   }}
-                                  placeholder={productIndex === 0 && measurementIndex === 0 ? "Standard" : `Size/Measure ${measurementIndex + 1}`}
+                                  placeholder={productIndex === 0 && measurementIndex === 0 ? t("Standard") : `${t("Size/Measure")} ${measurementIndex + 1}`}
                                 />
                                 <button
                                   className="sc2-mini-btn danger"
@@ -1378,7 +1380,7 @@ export default function ServiceCreation() {
                                     });
                                   }}
                                 >
-                                  <i className="fas fa-minus-circle"></i> Remove
+                                  <i className="fas fa-minus-circle"></i> {t("Remove")}
                                 </button>
                             </div>
                           ))}
@@ -1404,7 +1406,7 @@ export default function ServiceCreation() {
                               });
                             }}
                           >
-                            <i className="fas fa-plus"></i> Add Size/Measure
+                            <i className="fas fa-plus"></i> {t("Add Size/Measure")}
                           </button>
                         </div>
                       </div>
@@ -1417,16 +1419,16 @@ export default function ServiceCreation() {
             {error && <div className="sc2-form-error">{error}</div>}
 
             <div className="sc2-modal-actions">
-              {modalType === "category" && <button className="sc2-btn green" disabled={saving} onClick={() => void saveCategory()}>{saving ? "Saving..." : editingCategory ? "Update Category" : "Add Category"}</button>}
-              {modalType === "service" && <button className="sc2-btn blue" disabled={saving} onClick={() => void saveService()}>{saving ? "Saving..." : editingService ? "Update Service" : "Add Service"}</button>}
-              {modalType === "package" && <button className="sc2-btn blue" disabled={saving} onClick={() => void savePackage()}>{saving ? "Saving..." : editingPackage ? "Update Package" : "Add Package"}</button>}
+              {modalType === "category" && <button className="sc2-btn green" disabled={saving} onClick={() => void saveCategory()}>{saving ? t("Saving...") : editingCategory ? t("Update Category") : t("Add Category")}</button>}
+              {modalType === "service" && <button className="sc2-btn blue" disabled={saving} onClick={() => void saveService()}>{saving ? t("Saving...") : editingService ? t("Update Service") : t("Add Service")}</button>}
+              {modalType === "package" && <button className="sc2-btn blue" disabled={saving} onClick={() => void savePackage()}>{saving ? t("Saving...") : editingPackage ? t("Update Package") : t("Add Package")}</button>}
               {modalType === "specification" ? (
                 <>
-                  <button className="sc2-btn blue" disabled={saving} onClick={() => void saveSpecifications()}>{saving ? "Saving..." : "Save Brand"}</button>
-                  <button className="sc2-btn ghost" onClick={closeModal}>Cancel</button>
+                  <button className="sc2-btn blue" disabled={saving} onClick={() => void saveSpecifications()}>{saving ? t("Saving...") : t("Save Brand")}</button>
+                  <button className="sc2-btn ghost" onClick={closeModal}>{t("Cancel")}</button>
                 </>
               ) : (
-                <button className="sc2-btn ghost" onClick={closeModal}>Cancel</button>
+                <button className="sc2-btn ghost" onClick={closeModal}>{t("Cancel")}</button>
               )}
             </div>
           </div>
@@ -1437,19 +1439,19 @@ export default function ServiceCreation() {
         <div className="sc2-overlay" onClick={() => setPendingDelete(null)}>
           <div className="sc2-modal sc2-delete" onClick={(e) => e.stopPropagation()}>
             <div className="sc2-modal-header">
-              <h3>Confirm Deletion</h3>
+              <h3>{t("Confirm Deletion")}</h3>
               <button onClick={() => setPendingDelete(null)}>✕</button>
             </div>
             <div className="sc2-modal-body">
               <p>
-                You are about to delete <strong data-no-translate="true">{pendingDelete.type === "category" ? displayBilingual(pendingDelete.item.nameEn, pendingDelete.item.nameAr) : pendingDelete.type === "specification" ? pendingDelete.item.brandName : displayBilingual(pendingDelete.item.name, pendingDelete.item.nameAr)}</strong>.
-                This action cannot be undone.
+                {t("You are about to delete")} <strong data-no-translate="true">{pendingDelete.type === "category" ? displayBilingual(pendingDelete.item.nameEn, pendingDelete.item.nameAr) : pendingDelete.type === "specification" ? pendingDelete.item.brandName : displayBilingual(pendingDelete.item.name, pendingDelete.item.nameAr)}</strong>.
+                {t("This action cannot be undone.")}
               </p>
             </div>
             <div className="sc2-modal-actions">
-              <button className="sc2-btn ghost" onClick={() => setPendingDelete(null)}>Cancel</button>
+              <button className="sc2-btn ghost" onClick={() => setPendingDelete(null)}>{t("Cancel")}</button>
               <button className="sc2-btn danger" disabled={saving} onClick={() => void confirmDelete()}>
-                {saving ? "Deleting..." : "Delete"}
+                {saving ? t("Deleting...") : t("Delete")}
               </button>
             </div>
           </div>

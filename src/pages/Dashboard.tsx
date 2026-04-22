@@ -3,6 +3,7 @@ import "./dashboard.css";
 import type { PageProps } from "../lib/PageProps";
 import { getDataClient } from "../lib/amplifyClient";
 import { usePermissions } from "../lib/userPermissions";
+import { useLanguage } from "../i18n/LanguageContext";
 
 type Visibility = {
   dashboard: boolean;
@@ -174,8 +175,9 @@ function buildLinePath(values: number[], width: number, height: number, padding 
 }
 
 export default function Dashboard({ permissions, email, visibility, onNavigate }: DashboardProps) {
+  const { t } = useLanguage();
   if (!permissions.canRead) {
-    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+    return <div style={{ padding: 24 }}>{t("You don’t have access to this page.")}</div>;
   }
 
   const client = getDataClient();
@@ -361,27 +363,27 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
 
     return [
       {
-        title: `${inspectionQueue} vehicles awaiting inspection`,
-        subtitle: "Next in line: by created date",
-        tag: "Urgent",
+        title: `${inspectionQueue} ${t("vehicles awaiting inspection")}`,
+        subtitle: t("Next in line: by created date"),
+        tag: t("Urgent"),
       },
       {
-        title: `${pendingApprovals} approvals pending decision`,
-        subtitle: "Finance and service review",
-        tag: "Review",
+        title: `${pendingApprovals} ${t("approvals pending decision")}`,
+        subtitle: t("Finance and service review"),
+        tag: t("Review"),
       },
       {
-        title: `${stalePending} service approvals aging >24h`,
-        subtitle: "Escalate decision queue",
-        tag: "Attention",
+        title: `${stalePending} ${t("service approvals aging >24h")}`,
+        subtitle: t("Escalate decision queue"),
+        tag: t("Attention"),
       },
       {
-        title: `${qcMisses} delivery QC misses`,
-        subtitle: "Re-check and close quality gaps",
-        tag: "Flag",
+        title: `${qcMisses} ${t("delivery QC misses")}`,
+        subtitle: t("Re-check and close quality gaps"),
+        tag: t("Flag"),
       },
     ];
-  }, [summaryOrders, approvals]);
+  }, [summaryOrders, approvals, t]);
 
   const recentActivity = useMemo(() => {
     const fromActivity = [...activityRows]
@@ -389,7 +391,7 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
       .slice(0, 4)
       .map((a) => ({
         title: a.message || a.action || "Activity update",
-        actor: a.action || "System",
+        actor: a.action || t("System"),
         when: compactTimeAgo(a.createdAt),
       }));
 
@@ -400,10 +402,10 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
       .slice(0, 4)
       .map((o) => ({
         title: `Job order ${o.orderNumber ?? o.id ?? "—"} updated`,
-        actor: o.workStatusLabel || o.status || "Job order",
+          actor: o.workStatusLabel || o.status || t("Job order"),
         when: compactTimeAgo(o.updatedAt ?? o.createdAt),
       }));
-  }, [activityRows, summaryOrders]);
+        }, [activityRows, summaryOrders, t]);
 
 
   const chartLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"];
@@ -453,14 +455,14 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
         <div className="od-left-stack">
           <article className="od-welcome-card">
             <div className="od-welcome-content">
-              <div className="od-welcome-title">Welcome Back, {displayName}</div>
+              <div className="od-welcome-title">{t("Welcome Back")}, {displayName}</div>
               <div className="od-welcome-meta">
                 <div>
-                  <span>Budget</span>
+                  <span>{t("Budget")}</span>
                   <b>QAR {Math.round(totalRevenue || 98450).toLocaleString("en-US")}</b>
                 </div>
                 <div>
-                  <span>Expense</span>
+                  <span>{t("Expense")}</span>
                   <b>QAR {Math.round((openApprovals || 8) * 305).toLocaleString("en-US")}</b>
                 </div>
               </div>
@@ -471,13 +473,13 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
           {canShowKpis && (
             <div className="od-mini-cards">
               <article className="od-mini od-mini-cyan">
-                <div className="od-mini-title">Customers</div>
+                <div className="od-mini-title">{t("Customers")}</div>
                 <div className="od-mini-value">{loading ? "—" : uniqueCustomers || summaryOrders.length}</div>
                 <div className="od-mini-change">+{Math.max(3, Math.round(onTimeDelivery / 8))}%</div>
               </article>
 
               <article className="od-mini od-mini-pink">
-                <div className="od-mini-title">Projects</div>
+                <div className="od-mini-title">{t("Projects")}</div>
                 <div className="od-mini-value">{loading ? "—" : summaryOrders.length}</div>
                 <div className="od-mini-change">-{Math.max(1, Math.round(openApprovals / 2))}%</div>
               </article>
@@ -488,8 +490,8 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
         <article className="od-forecast-card">
           <div className="od-forecast-head">
             <div>
-              <h3>Revenue Forecast</h3>
-              <p>Overview of Profit</p>
+              <h3>{t("Revenue Forecast")}</h3>
+              <p>{t("Overview of Profit")}</p>
             </div>
             <div className="od-forecast-legend">
               <span><i className="dot y1" />2024</span>
@@ -516,14 +518,14 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
       <section className="od-bottom-grid">
         <article className="od-panel">
           <div className="od-panel-head">
-            <h4>Your Performance</h4>
-            <p>Live check on operations</p>
+            <h4>{t("Your Performance")}</h4>
+            <p>{t("Live check on operations")}</p>
           </div>
 
           <div className="od-performance-list">
-            <div><span>New orders</span><b>{loading ? "—" : activeJobOrders}</b></div>
-            <div><span>Orders on hold</span><b>{loading ? "—" : openApprovals}</b></div>
-            <div><span>Orders delivered</span><b>{loading ? "—" : completedOrders}</b></div>
+            <div><span>{t("New orders")}</span><b>{loading ? "—" : activeJobOrders}</b></div>
+            <div><span>{t("Orders on hold")}</span><b>{loading ? "—" : openApprovals}</b></div>
+            <div><span>{t("Orders delivered")}</span><b>{loading ? "—" : completedOrders}</b></div>
           </div>
 
           <div className="od-gauge-wrap">
@@ -535,7 +537,7 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
 
         <article className="od-panel">
           <div className="od-panel-head">
-            <h4>Customers</h4>
+            <h4>{t("Customers")}</h4>
             <p>{rangeLabel(momentumRangeDays)}</p>
           </div>
 
@@ -547,14 +549,14 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
           </div>
 
           <div className="od-stat-lines">
-            <div><span>This week</span><b>{Math.max(1, Math.round(uniqueCustomers / 2))}</b></div>
-            <div><span>Last week</span><b>{Math.max(1, Math.round(uniqueCustomers / 3))}</b></div>
+            <div><span>{t("This week")}</span><b>{Math.max(1, Math.round(uniqueCustomers / 2))}</b></div>
+            <div><span>{t("Last week")}</span><b>{Math.max(1, Math.round(uniqueCustomers / 3))}</b></div>
           </div>
         </article>
 
         <article className="od-panel">
           <div className="od-panel-head">
-            <h4>Sales Overview</h4>
+            <h4>{t("Sales Overview")}</h4>
             <p>{rangeLabel(revenueMixRangeDays)}</p>
           </div>
 
@@ -578,17 +580,17 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
             <article className="od-card">
               <div className="od-card-head simple">
                 <div>
-                  <h3>Quick Actions</h3>
-                  <p>Jump straight to high impact tasks.</p>
+                  <h3>{t("Quick Actions")}</h3>
+                  <p>{t("Jump straight to high impact tasks.")}</p>
                 </div>
               </div>
               <div className="od-quick-grid">
-                <button type="button" onClick={() => go("jobcards")}>New Job Order</button>
-                <button type="button" onClick={() => go("paymentinvoices")}>Create Invoice</button>
-                <button type="button" onClick={() => go("inspection")}>Start Inspection</button>
-                <button type="button" onClick={() => go("exitpermit")}>Prepare Exit Permit</button>
-                <button type="button" onClick={() => go("customers")}>Add Customer</button>
-                <button type="button" onClick={() => go("serviceexecution")}>Service Execution</button>
+                <button type="button" onClick={() => go("jobcards")}>{t("New Job Order")}</button>
+                <button type="button" onClick={() => go("paymentinvoices")}>{t("Create Invoice")}</button>
+                <button type="button" onClick={() => go("inspection")}>{t("Start Inspection")}</button>
+                <button type="button" onClick={() => go("exitpermit")}>{t("Prepare Exit Permit")}</button>
+                <button type="button" onClick={() => go("customers")}>{t("Add Customer")}</button>
+                <button type="button" onClick={() => go("serviceexecution")}>{t("Service Execution")}</button>
               </div>
             </article>
           )}
@@ -597,8 +599,8 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
             <article className="od-card">
               <div className="od-card-head simple">
                 <div>
-                  <h3>Priority List</h3>
-                  <p>Keep urgent tasks visible to the team.</p>
+                  <h3>{t("Priority List")}</h3>
+                  <p>{t("Keep urgent tasks visible to the team.")}</p>
                 </div>
               </div>
               <div className="od-priority-list">
@@ -619,8 +621,8 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
             <article className="od-card">
               <div className="od-card-head simple">
                 <div>
-                  <h3>Recent Activity</h3>
-                  <p>Latest team movements in real-time.</p>
+                  <h3>{t("Recent Activity")}</h3>
+                  <p>{t("Latest team movements in real-time.")}</p>
                 </div>
               </div>
               <div className="od-activity-list">

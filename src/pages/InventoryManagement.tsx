@@ -1,6 +1,7 @@
 // src/pages/InventoryManagement.tsx
 import { useEffect, useRef, useState } from "react";
 import { getCurrentUser } from "aws-amplify/auth";
+import { useLanguage } from "../i18n/LanguageContext";
 import "./InventoryManagement.css";
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
@@ -70,6 +71,7 @@ function fmtDate(iso: string | null | undefined): string {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 export default function InventoryManagement({ permissions }: PageProps) {
+  const { t } = useLanguage();
   if (!permissions.canRead) {
     return <div className="inv-page"><p style={{ padding: 24 }}>You do not have access to this page.</p></div>;
   }
@@ -835,7 +837,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
           onClick={() => setActiveTab("products")}
           type="button"
         >
-          <i className="fas fa-boxes-stacked" aria-hidden="true" /> Products
+          <i className="fas fa-boxes-stacked" aria-hidden="true" /> {t("products")}
         </button>
         {canStoreCheckout && (
           <button
@@ -843,7 +845,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
             onClick={() => setActiveTab("store")}
             type="button"
           >
-            <i className="fas fa-cart-arrow-down" aria-hidden="true" /> Store
+            <i className="fas fa-cart-arrow-down" aria-hidden="true" /> {t("store")}
           </button>
         )}
       </div>

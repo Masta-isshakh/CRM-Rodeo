@@ -29,6 +29,7 @@ import {
 import { getUrl, uploadData } from "aws-amplify/storage";
 
 import PermissionGate from "./PermissionGate";
+import { useLanguage } from "../i18n/LanguageContext";
 
 /* -------------------- helpers -------------------- */
 function safeJsonParse<T>(raw: any, fallback: T): T {
@@ -141,6 +142,7 @@ type DocItem = {
 /* -------------------- component -------------------- */
 export default function QualityCheckModule({ currentUser }: { currentUser: any }) {
   const client = useMemo(() => getDataClient(), []);
+  const { t } = useLanguage();
 
   const [loading, setLoading] = useState(false);
 
@@ -311,7 +313,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
     setLoading(true);
     try {
       const detailed = await getJobOrderByOrderNumber(job.id);
-      if (!detailed?._backendId) throw new Error("Order not found in backend.");
+      if (!detailed?._backendId) throw new Error(t("Order not found in backend."));
 
       // refresh the actual row too (for labels if needed)
       const rowRes = await client.models.JobOrder.get({ id: String(detailed._backendId) } as any);
@@ -521,7 +523,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   const handleFinishQC = () => {
     if (!canFinishQCAction) return;
     if (!canApproveQCAction && !canRejectQCAction) {
-      setPopupMessage("You don’t have permission to approve or reject Quality Check.");
+      setPopupMessage(t("You don’t have permission to approve or reject Quality Check."));
       setShowPopup(true);
       return;
     }
@@ -662,7 +664,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
           <header className="app-header crm-unified-header">
             <div className="header-left">
               <h1>
-                <i className="fas fa-check-double"></i> Quality Check Module
+                <i className="fas fa-check-double"></i> {t("Quality Check Module")}
               </h1>
             </div>
           </header>
@@ -674,7 +676,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                 <input
                   type="text"
                   className="smart-search-input"
-                  placeholder="Search by any details"
+                  placeholder={t("Search by any details")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   autoComplete="off"
@@ -685,23 +687,23 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                 {filteredJobs.length === 0
                   ? loading
                     ? "Loading..."
-                    : "No jobs found"
-                  : `Showing ${Math.min((currentPage - 1) * pageSize + 1, filteredJobs.length)}-${Math.min(
+                    : t("No jobs found")
+                  : `${t("Showing")} ${Math.min((currentPage - 1) * pageSize + 1, filteredJobs.length)}-${Math.min(
                       currentPage * pageSize,
                       filteredJobs.length
-                    )} of ${filteredJobs.length} quality check jobs`}
+                    )} ${t("of")} ${filteredJobs.length} ${t("quality check jobs")}`}
               </div>
             </section>
 
             <section className="results-section">
               <div className="section-header">
                 <h2>
-                  <i className="fas fa-list"></i> Quality Check Records
+                  <i className="fas fa-list"></i> {t("Quality Check Records")}
                 </h2>
 
                 <div className="pagination-controls">
                   <div className="records-per-page">
-                    <label htmlFor="qcPageSize">Records per page:</label>
+                    <label htmlFor="qcPageSize">{t("Records per page:")}</label>
                     <select
                       id="qcPageSize"
                       className="page-size-select"
@@ -724,14 +726,14 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                   <table className="job-order-table">
                     <thead>
                       <tr>
-                        <th>Create Date</th>
-                        <th>Job Card ID</th>
-                        <th>Order Type</th>
-                        <th>Customer Name</th>
-                        <th>Mobile Number</th>
-                        <th>Vehicle Plate</th>
-                        <th>Work Status</th>
-                        <th>Actions</th>
+                        <th>{t("Create Date")}</th>
+                        <th>{t("Job Card ID")}</th>
+                        <th>{t("Order Type")}</th>
+                        <th>{t("Customer Name")}</th>
+                        <th>{t("Mobile Number")}</th>
+                        <th>{t("Vehicle Plate")}</th>
+                        <th>{t("Work Status")}</th>
+                        <th>{t("Actions")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -758,7 +760,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                                   className={`btn-action-dropdown ${activeDropdown === job.id ? "active" : ""}`}
                                   onClick={(e) => handleOpenDropdown(e.currentTarget as HTMLElement, job.id)}
                                 >
-                                  <i className="fas fa-cogs"></i> Actions <i className="fas fa-chevron-down"></i>
+                                  <i className="fas fa-cogs"></i> {t("Actions")} <i className="fas fa-chevron-down"></i>
                                 </button>
                               </div>
                             </PermissionGate>
@@ -771,7 +773,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
               ) : (
                 <div className="qc-empty">
                   <i className="fas fa-inbox"></i>
-                  <p>No quality check jobs found</p>
+                  <p>{t("No quality check jobs found")}</p>
                 </div>
               )}
 
@@ -822,7 +824,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
             </section>
 
             <div className="quality-footer">
-              <p>Service Management System © 2023 | Quality Check Module</p>
+              <p>{t("Service Management System © 2023 | Quality Check Module")}</p>
             </div>
           </main>
         </div>
@@ -847,7 +849,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                     if (job) void viewDetails(job);
                   }}
                 >
-                  <i className="fas fa-eye"></i> View Details
+                  <i className="fas fa-eye"></i> {t("View Details")}
                 </button>
               </PermissionGate>
 
@@ -865,7 +867,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                       handleShowCancelConfirmation(target);
                     }}
                   >
-                    <i className="fas fa-times-circle"></i> Cancel Order
+                    <i className="fas fa-times-circle"></i> {t("Cancel Order")}
                   </button>
                 </>
               </PermissionGate>
@@ -878,7 +880,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
           <div className="cancel-modal">
             <div className="cancel-modal-header">
               <h3>
-                <i className="fas fa-exclamation-triangle"></i> Confirm Cancellation
+                <i className="fas fa-exclamation-triangle"></i> {t("Confirm Cancellation")}
               </h3>
             </div>
             <div className="cancel-modal-body">
@@ -886,9 +888,9 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                 <i className="fas fa-exclamation-circle"></i>
                 <div className="cancel-warning-text">
                   <p>
-                    You are about to cancel order <strong>{cancelOrderId}</strong>.
+                    {t("You are about to cancel order")} <strong>{cancelOrderId}</strong>.
                   </p>
-                  <p>This action cannot be undone.</p>
+                  <p>{t("This action cannot be undone.")}</p>
                 </div>
               </div>
               <div className="cancel-modal-actions">
@@ -900,10 +902,10 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                     setCancelOrderId(null);
                   }}
                 >
-                  <i className="fas fa-times"></i> Keep Order
+                  <i className="fas fa-times"></i> {t("Keep Order")}
                 </button>
                 <button className="btn-confirm-cancel" type="button" onClick={() => void handleCancelOrder()} disabled={loading}>
-                  <i className="fas fa-ban"></i> {loading ? "Cancelling..." : "Cancel Order"}
+                  <i className="fas fa-ban"></i> {loading ? t("Cancelling...") : t("Cancel Order")}
                 </button>
               </div>
             </div>
@@ -931,11 +933,11 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
           <div className="detail-header pim-details-header">
             <div className="pim-details-title-container">
               <h2>
-                Quality Check Details - Job Order #<span id="detailJobIdHeader">{selectedOrder.id}</span>
+                {t("Quality Check Details")} - {t("Job Order")} #<span id="detailJobIdHeader">{selectedOrder.id}</span>
               </h2>
             </div>
             <button className="close-detail pim-btn-close-details" type="button" onClick={closeDetailView}>
-              <i className="fas fa-times"></i> Close Details
+              <i className="fas fa-times"></i> {t("Close Details")}
             </button>
           </div>
 
@@ -977,7 +979,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
               <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_services">
                 <div className="pim-detail-card">
                   <h3>
-                    <i className="fas fa-tasks"></i> Services Summary ({servicesForQc.length || 0})
+                    <i className="fas fa-tasks"></i> {t("Services Summary")} ({servicesForQc.length || 0})
                   </h3>
 
                   <div className="pim-services-list">
@@ -1016,7 +1018,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                         </div>
                       ))
                     ) : (
-                      <div className="qc-empty-inline">No services added yet</div>
+                      <div className="qc-empty-inline">{t("No services added yet")}</div>
                     )}
                   </div>
                 </div>
@@ -1027,7 +1029,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                 <div className="qc-detail-card qc-quality-card pim-detail-card">
                   <div className="qc-quality-head">
                     <h3>
-                      <i className="fas fa-clipboard-check"></i> Quality Check List
+                      <i className="fas fa-clipboard-check"></i> {t("Quality Check List")}
                     </h3>
                   </div>
 
@@ -1043,10 +1045,10 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                               value={serviceQCResults[idx] || ""}
                               onChange={(e) => handleServiceQCChange(idx, e.target.value)}
                             >
-                              <option value="">-- Select Result --</option>
-                              <option value="Pass">✓ Pass</option>
-                              <option value="Failed">✗ Failed</option>
-                              <option value="Acceptable">~ Acceptable</option>
+                              <option value="">{t("-- Select Result --")}</option>
+                              <option value="Pass">✓ {t("Pass")}</option>
+                              <option value="Failed">✗ {t("Failed")}</option>
+                              <option value="Acceptable">~ {t("Acceptable")}</option>
                             </select>
 
                             {serviceQCResults[idx] ? (
@@ -1058,7 +1060,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                         </div>
                       ))
                     ) : (
-                      <div className="qc-empty-inline">No services to evaluate</div>
+                      <div className="qc-empty-inline">{t("No services to evaluate")}</div>
                     )}
                   </div>
 
@@ -1070,7 +1072,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                         onClick={handleFinishQC}
                         disabled={!allServicesEvaluated() || loading}
                       >
-                        <i className="fas fa-flag-checkered"></i> {loading ? "Saving..." : "Finish"}
+                        <i className="fas fa-flag-checkered"></i> {loading ? t("Saving...") : t("Finish")}
                       </button>
                     </PermissionGate>
                   </div>
@@ -1086,7 +1088,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                 <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_documents">
                   <div className="qc-detail-card pim-detail-card">
                     <h3>
-                      <i className="fas fa-folder-open"></i> Documents
+                      <i className="fas fa-folder-open"></i> {t("Documents")}
                     </h3>
 
                     <div className="pim-docs">
@@ -1100,9 +1102,9 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                           <div className="pim-doc-left">
                             <div className="pim-doc-name">{doc.name}</div>
                             <div className="pim-doc-meta">
-                              {doc.type}
+                              {doc.type ? t(String(doc.type)) : ""}
                               {doc.category ? ` • ${doc.category}` : ""}
-                              {generatedAt ? ` • Generated: ${generatedAt}` : ""}
+                              {generatedAt ? ` • ${t("Generated:")} ${generatedAt}` : ""}
                             </div>
                           </div>
 
@@ -1117,7 +1119,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                                 window.open(linkUrl, "_blank", "noopener,noreferrer");
                               }}
                             >
-                              <i className="fas fa-download"></i> Download
+                              <i className="fas fa-download"></i> {t("Download")}
                             </button>
                           </PermissionGate>
                         </div>
@@ -1133,9 +1135,9 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
               {showQCConfirmation && (
                 <ConfirmationPopup
                   open={showQCConfirmation}
-                  message="Quality Check Evaluation Complete. Please select an action:"
-                  confirmText={canApproveQCAction ? "Approve Quality Check" : "Close"}
-                  cancelText={canRejectQCAction ? "Reject Quality Check" : "Cancel"}
+                  message={t("Quality Check Evaluation Complete. Please select an action:")}
+                  confirmText={canApproveQCAction ? t("Approve Quality Check") : t("Close")}
+                  cancelText={canRejectQCAction ? t("Reject Quality Check") : t("Cancel")}
                   disableConfirm={!canApproveQCAction}
                   onConfirm={() => {
                     if (canApproveQCAction) {

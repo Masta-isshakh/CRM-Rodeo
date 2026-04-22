@@ -158,6 +158,7 @@ type DocItem = {
   url?: string;
   paymentReference?: string;
   billReference?: string;
+  billIssuedAt?: string;
   billDetails?: any;
 };
 
@@ -1350,12 +1351,46 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     const billing = order?.billing ?? {};
     const billId = safeText(billing.billId || order?.id || "BILL");
-    const currentDate = new Date().toLocaleDateString("en-GB", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-    });
+    const formatDateOnly = (raw: unknown) => {
+      const iso = safeText(raw);
+      if (!iso) return "-";
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "-";
+      return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+    };
+    const formatDateTime = (raw: unknown) => {
+      const iso = safeText(raw);
+      if (!iso) return "-";
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "-";
+      return d.toLocaleString("en-GB", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      });
+    };
+
+    const billIssuedAt = safeText(billing.billIssuedAt || new Date().toISOString());
+    const billDateOnly = formatDateOnly(billIssuedAt);
+    const billIssuedAtDisplay = formatDateTime(billIssuedAt);
+    const jobCreatedAtDisplay = formatDateTime(order?._row?.createdAt || order?._parsed?.createdAt || order?.createdAt);
+    const jobUpdatedAtDisplay = formatDateTime(order?._row?.updatedAt || order?._parsed?.updatedAt || order?.updatedAt);
+    const billGeneratedBy = safeText(billing.billGeneratedBy || order?.createdBy || order?._row?.createdBy || "System");
+    const orderTypeLabel = safeText(order?.orderType || order?._row?.orderType || "Job Order");
+    const workStatusLabel = safeText(order?.workStatus || order?._row?.workStatusLabel || order?._row?.status || "-");
+    const paymentMethodLabel = safeText(billing.paymentMethod || "-");
     const paymentStatus = (billing.paymentStatus || (toNum(billing.balanceDue) <= 0 ? "PAID" : "UNPAID")).toString().toUpperCase();
+    const paymentStatusArabic =
+      paymentStatus === "PAID"
+        ? "مدفوع"
+        : paymentStatus === "UNPAID"
+          ? "غير مدفوع"
+          : paymentStatus === "PARTIAL" || paymentStatus === "PARTIALLY_PAID"
+            ? "مدفوع جزئيا"
+            : paymentStatus;
 
     const services: Array<{ name: string; price: number }> = Array.isArray(order?.services)
       ? order.services.map((service: any) => ({
@@ -1387,7 +1422,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       `Net: ${netAmount.toFixed(2)}`,
       `Paid: ${amountPaid.toFixed(2)}`,
       `Due: ${balanceDue.toFixed(2)}`,
-      `Date: ${currentDate}`,
+      `Issued: ${billIssuedAtDisplay}`,
     ].join(" | ");
 
     const qrDataUrl = await QRCode.toDataURL(qrPayload, {
@@ -1518,45 +1553,79 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     doc.setFont("helvetica", "bold");
     doc.setFontSize(17);
     doc.text("INVOICE", marginX, bodyTop);
+    drawArabicLine("فاتورة", pageW - marginX, bodyTop - 3.1, 30, 16, "bolditalic");
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9.5);
     doc.text(`Bill #: ${billId}`, marginX, bodyTop + 6);
-    doc.text(`Date: ${currentDate}`, marginX + 45, bodyTop + 6);
+    doc.text(`Date: ${billDateOnly}`, marginX + 45, bodyTop + 6);
     doc.text(`Status: ${paymentStatus}`, marginX + 88, bodyTop + 6);
     doc.text(`Order ID: ${safeText(order?.id) || "-"}`, pageW - marginX, bodyTop + 6, { align: "right" });
+    doc.setFontSize(8.6);
+    doc.text(`Issued At: ${billIssuedAtDisplay}`, marginX, bodyTop + 10.5);
+    doc.text(`Issued By: ${billGeneratedBy}`, pageW - marginX, bodyTop + 10.5, { align: "right" });
+    drawArabicLine(`رقم الفاتورة: ${billId} | التاريخ: ${billDateOnly}`, pageW - marginX, bodyTop + 11.9, 95, 10, "normal");
+    drawArabicLine(`الحالة: ${paymentStatusArabic} | رقم الطلب: ${safeText(order?.id) || "-"}`, pageW - marginX, bodyTop + 16.2, 95, 10, "normal");
+    drawArabicLine(`وقت الإصدار: ${billIssuedAtDisplay} | أنشأ الفاتورة: ${billGeneratedBy}`, pageW - marginX, bodyTop + 20.5, 120, 10, "normal");
 
     doc.setDrawColor(188, 196, 206);
     doc.setLineWidth(0.3);
-    doc.line(marginX, bodyTop + 9, pageW - marginX, bodyTop + 9);
+    doc.line(marginX, bodyTop + 25.2, pageW - marginX, bodyTop + 25.2);
 
     // Customer / vehicle section
-    const infoTop = bodyTop + 14;
+    const infoTop = bodyTop + 30;
     const infoGap = 4;
     const infoW = (contentW - infoGap) / 2;
     doc.setFillColor(248, 250, 253);
     doc.setDrawColor(220, 226, 234);
-    doc.roundedRect(marginX, infoTop, infoW, 24, 1.5, 1.5, "FD");
-    doc.roundedRect(marginX + infoW + infoGap, infoTop, infoW, 24, 1.5, 1.5, "FD");
+    doc.roundedRect(marginX, infoTop, infoW, 28, 1.5, 1.5, "FD");
+    doc.roundedRect(marginX + infoW + infoGap, infoTop, infoW, 28, 1.5, 1.5, "FD");
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.5);
     doc.text("BILL TO", marginX + 3, infoTop + 5);
     doc.text("VEHICLE", marginX + infoW + infoGap + 3, infoTop + 5);
+    drawArabicLine("العميل", marginX + infoW - 3, infoTop + 1.8, 22, 10, "bolditalic");
+    drawArabicLine("المركبة", marginX + infoW + infoGap + infoW - 3, infoTop + 1.8, 24, 10, "bolditalic");
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8.3);
     doc.text(clipText(safeText(order?.customerName) || "-", infoW - 6), marginX + 3, infoTop + 10);
     doc.text(`Mobile: ${safeText(order?.mobile) || "-"}`, marginX + 3, infoTop + 14.5);
     doc.text(`Order: ${safeText(order?.id) || "-"}`, marginX + 3, infoTop + 19);
+    drawArabicLine(`الجوال: ${safeText(order?.mobile) || "-"}`, marginX + infoW - 3, infoTop + 11.1, infoW - 8, 9, "normal");
+    drawArabicLine(`رقم الطلب: ${safeText(order?.id) || "-"}`, marginX + infoW - 3, infoTop + 15.4, infoW - 8, 9, "normal");
 
     const vehicleName = `${safeText(order?.vehicleDetails?.make)} ${safeText(order?.vehicleDetails?.model)}`.trim() || "-";
     doc.text(clipText(vehicleName, infoW - 6), marginX + infoW + infoGap + 3, infoTop + 10);
     doc.text(`Plate: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 14.5);
     doc.text(`VIN: ${safeText(order?.vehicleDetails?.vin) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 19);
+    drawArabicLine(`رقم اللوحة: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "-"}`, pageW - marginX - 3, infoTop + 11.1, infoW - 8, 9, "normal");
+    drawArabicLine(`الرقم التعريفي: ${safeText(order?.vehicleDetails?.vin) || "-"}`, pageW - marginX - 3, infoTop + 15.4, infoW - 8, 9, "normal");
+
+    // Job-order metadata block
+    const metaTop = infoTop + 30.8;
+    const metaH = 24;
+    doc.setFillColor(248, 250, 253);
+    doc.setDrawColor(220, 226, 234);
+    doc.roundedRect(marginX, metaTop, contentW, metaH, 1.5, 1.5, "FD");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.2);
+    doc.text("JOB ORDER DETAILS", marginX + 2.5, metaTop + 4.2);
+    drawArabicLine("تفاصيل أمر العمل", pageW - marginX - 2.5, metaTop + 0.9, 42, 10, "bolditalic");
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8);
+    doc.text(`Type: ${orderTypeLabel || "-"}`, marginX + 2.5, metaTop + 8.6);
+    doc.text(`Work Status: ${workStatusLabel || "-"}`, marginX + 55, metaTop + 8.6);
+    doc.text(`Payment Method: ${paymentMethodLabel || "-"}`, marginX + 114, metaTop + 8.6);
+    doc.text(`Opened: ${jobCreatedAtDisplay}`, marginX + 2.5, metaTop + 11.9);
+    doc.text(`Last Update: ${jobUpdatedAtDisplay}`, marginX + 96, metaTop + 11.9);
+    drawArabicLine(`نوع الطلب: ${orderTypeLabel || "-"}`, pageW - marginX - 2.5, metaTop + 14.8, contentW - 8, 9, "normal");
+    drawArabicLine(`حالة العمل: ${workStatusLabel || "-"} | طريقة الدفع: ${paymentMethodLabel || "-"}`, pageW - marginX - 2.5, metaTop + 18.9, contentW - 8, 9, "normal");
+    drawArabicLine(`تاريخ فتح الطلب: ${jobCreatedAtDisplay}`, pageW - marginX - 2.5, metaTop + 23.0, contentW - 8, 9, "normal");
 
     // Services table area
-    const tableTop = infoTop + 29;
+    const tableTop = metaTop + metaH + 3;
     const tableHeaderH = 7;
     const rowH = 6.4;
     const noW = 12;
@@ -1620,11 +1689,11 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const summaryW = 78;
     const summaryRowH = 6.5;
     const summaryRows = [
-      ["Total Amount", totalAmount],
-      ["Discount", discount],
-      ["Net Amount", netAmount],
-      ["Amount Paid", amountPaid],
-      ["Balance Due", balanceDue],
+      ["Total Amount | إجمالي المبلغ", totalAmount],
+      ["Discount | الخصم", discount],
+      ["Net Amount | الصافي", netAmount],
+      ["Amount Paid | المدفوع", amountPaid],
+      ["Balance Due | المتبقي", balanceDue],
     ] as const;
 
     doc.setDrawColor(188, 196, 206);
@@ -1675,6 +1744,8 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     try {
       const billing = selectedOrder?.billing ?? {};
       const billId = String(billing.billId || selectedOrder.id || "BILL");
+      const actor = resolveActorUsername(currentUser, "user");
+      const billIssuedAt = new Date().toISOString();
 
       const docs: DocItem[] = Array.isArray(selectedOrder.documents) ? selectedOrder.documents : [];
       const existingBills = docs.filter((d) => String(d.type).toLowerCase() === "invoice/bill");
@@ -1693,12 +1764,17 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         return;
       }
 
-      const pdfBlob = await generateBillPdf(selectedOrder);
+      const pdfBlob = await generateBillPdf({
+        ...selectedOrder,
+        billing: {
+          ...billing,
+          billIssuedAt,
+          billGeneratedBy: actor,
+        },
+      });
       const key = `job-orders/${selectedOrder.id}/billing/Bill_${billId}_${Date.now()}.pdf`;
 
       await uploadData({ path: key, data: pdfBlob, options: { contentType: "application/pdf" } }).result;
-
-      const actor = resolveActorUsername(currentUser, "user");
 
       const newDoc: DocItem = {
         id: `DOC-${Date.now()}`,
@@ -1709,6 +1785,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         uploadedBy: actor,
         storagePath: key,
         billReference: billId,
+        billIssuedAt,
         billDetails: currDetails,
       };
 

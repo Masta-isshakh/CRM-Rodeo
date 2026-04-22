@@ -37,6 +37,7 @@ import {
   pickPaymentLabel,
   normalizePaymentStatusLabel as normalizePaymentStatusLabelShared,
 } from "../utils/paymentStatus";
+import { useLanguage } from "../i18n/LanguageContext";
 
 // -------------------- helpers --------------------
 function safeJsonParse<T>(raw: any, fallback: T): T {
@@ -307,6 +308,7 @@ async function resolveMaybeStorageUrl(urlOrPath: string): Promise<string> {
 const ServiceExecutionModule = ({ currentUser }: any) => {
   const client = useMemo(() => getDataClient(), []);
   const { isAdminGroup, canOption } = usePermissions();
+  const { t } = useLanguage();
 
   // live list from backend
   const [jobs, setJobs] = useState<any[]>([]);
@@ -756,7 +758,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     setLoading(true);
     try {
       const detailed = await getJobOrderByOrderNumber(orderKey);
-      if (!detailed?._backendId) throw new Error("Order not found in backend.");
+      if (!detailed?._backendId) throw new Error(t("Order not found in backend."));
 
       const backendId = String(detailed._backendId);
 
@@ -942,7 +944,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
       setDetailsEditMode(false); // reset each time you open
       setShowDetails(true);
     } catch (e) {
-      setSuccessMessage(`Load failed: ${errMsg(e)}`);
+      setSuccessMessage(`${t("Load failed:")} ${errMsg(e)}`);
       setShowSuccessPopup(true);
     } finally {
       setLoading(false);
@@ -992,7 +994,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
       }
     } catch (e) {
       if (showErrorPopup) {
-        setSuccessMessage(`Save failed: ${errMsg(e)}`);
+        setSuccessMessage(`${t("Save failed:")} ${errMsg(e)}`);
         setShowSuccessPopup(true);
       }
     } finally {
@@ -1107,7 +1109,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
       // if schema not deployed yet, you’ll see it in console; UI still works
     }
 
-    setSuccessMessage(`Approval request created for "${serviceName}".`);
+    setSuccessMessage(`${t("Approval request created for")} "${serviceName}".`);
     setShowSuccessPopup(true);
     return true;
   };
@@ -1145,7 +1147,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     updated.updatedBy = actorEmail;
 
     setCurrentDetailsJob(updated);
-    await persistJob(updated, "Work finished! Status changed to Quality Check.");
+    await persistJob(updated, t("Work finished! Status changed to Quality Check."));
   };
 
   const handleShowCancelConfirmation = (orderId: string) => {
@@ -1159,11 +1161,11 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     setLoading(true);
     try {
       await cancelJobOrderByOrderNumber(cancelOrderId);
-      setSuccessMessage(`Order ${cancelOrderId} cancelled successfully.`);
+      setSuccessMessage(`${t("Order")} ${cancelOrderId} ${t("cancelled successfully.")}`);
       setShowSuccessPopup(true);
       closeDetails();
     } catch (e) {
-      setSuccessMessage(`Cancel failed: ${errMsg(e)}`);
+      setSuccessMessage(`${t("Cancel failed:")} ${errMsg(e)}`);
       setShowSuccessPopup(true);
     } finally {
       setLoading(false);
@@ -1182,11 +1184,11 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
           <div className="service-details-header">
             <div className="service-details-title-container">
               <h2>
-                <i className="fas fa-clipboard-list"></i> Job Order Details - {currentDetailsJob.id}
+                <i className="fas fa-clipboard-list"></i> {t("Job Order Details")} - {currentDetailsJob.id}
               </h2>
             </div>
             <button className="service-btn-close-details" onClick={closeDetails}>
-              <i className="fas fa-times"></i> Close Details
+              <i className="fas fa-times"></i> {t("Close Details")}
             </button>
           </div>
 
@@ -1266,7 +1268,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
   // ---------------- LIST SCREEN ----------------
   const tabTitle =
-    currentTab === "unassigned" ? "Unassigned tasks" : currentTab === "team" ? "Team tasks" : "Assigned to me";
+    currentTab === "unassigned" ? t("Unassigned tasks") : currentTab === "team" ? t("Team tasks") : t("Assigned to me");
 
   return (
     <div className="service-execution-wrapper">
@@ -1274,23 +1276,23 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
         <header className="app-header crm-unified-header">
           <div className="header-left">
             <h1>
-              <i className="fas fa-clipboard-check"></i> Services & Work Management
+              <i className="fas fa-clipboard-check"></i> {t("Services & Work Management")}
             </h1>
           </div>
         </header>
 
         <div className="task-tabs">
           <div className={`task-tab ${currentTab === "assigned" ? "active" : ""}`} onClick={() => setCurrentTab("assigned")}>
-            <i className="fas fa-user-check"></i> Assign to me ({counts.assigned})
+            <i className="fas fa-user-check"></i> {t("Assign to me")} ({counts.assigned})
           </div>
           {canViewUnassignedTab && (
             <div className={`task-tab ${currentTab === "unassigned" ? "active" : ""}`} onClick={() => setCurrentTab("unassigned")}>
-              <i className="fas fa-user-slash"></i> Unassigned tasks ({counts.unassigned})
+              <i className="fas fa-user-slash"></i> {t("Unassigned tasks")} ({counts.unassigned})
             </div>
           )}
           {canViewTeamTab && (
             <div className={`task-tab ${currentTab === "team" ? "active" : ""}`} onClick={() => setCurrentTab("team")}>
-              <i className="fas fa-users"></i> Team tasks ({counts.team})
+              <i className="fas fa-users"></i> {t("Team tasks")} ({counts.team})
             </div>
           )}
         </div>
@@ -1301,7 +1303,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
             <input
               type="text"
               className="smart-search-input"
-              placeholder="Search by Job ID, Customer, Plate..."
+              placeholder={t("Search by Job ID, Customer, Plate...")}
               value={currentSearch}
               onChange={(e) => setCurrentSearch(e.target.value)}
             />
@@ -1314,7 +1316,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
               <i className="fas fa-tasks"></i> {tabTitle}
             </h2>
             <div className="pim-pagination-controls">
-              <label htmlFor="pageSizeSelect">Records per page:</label>
+              <label htmlFor="pageSizeSelect">{t("Records per page:")}</label>
               <select
                 id="pageSizeSelect"
                 className="pim-page-size-select"
@@ -1330,7 +1332,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
           {filteredJobs.length === 0 ? (
             <div className="empty-state">
-              <div className="empty-text">{loading ? "Loading..." : "No tasks in this view"}</div>
+              <div className="empty-text">{loading ? t("Loading...") : t("No tasks in this view")}</div>
             </div>
           ) : (
             <>
@@ -1338,14 +1340,14 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                 <table className="job-order-table">
                   <thead>
                     <tr>
-                      <th>Create Date</th>
-                      <th>Job Card ID</th>
-                      <th>Order Type</th>
-                      <th>Customer Name</th>
-                      <th>Vehicle Plate</th>
-                      <th>Assigned To</th>
-                      <th>Assigned Service</th>
-                      <th>Actions</th>
+                      <th>{t("Create Date")}</th>
+                      <th>{t("Job Card ID")}</th>
+                      <th>{t("Order Type")}</th>
+                      <th>{t("Customer Name")}</th>
+                      <th>{t("Vehicle Plate")}</th>
+                      <th>{t("Assigned To")}</th>
+                      <th>{t("Assigned Service")}</th>
+                      <th>{t("Actions")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1353,7 +1355,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                       const currentService = pickNextActiveService(job.services);
                       const serviceDisplay = currentService
                         ? `${toBilingualName(currentService.name, (currentService as any).nameAr)} (${currentService.status})`
-                        : "No active services";
+                        : t("No active services");
                       const assignedToDisplay = currentService?.assignedTo
                         ? getAssigneeDisplayName(currentService.assignedTo)
                         : "—";
@@ -1374,7 +1376,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                                   className={`btn-action-dropdown ${activeDropdown === job.id ? "active" : ""}`}
                                   onClick={(e) => toggleActionDropdown(job.id, e.currentTarget as HTMLElement)}
                                 >
-                                  <i className="fas fa-cogs"></i> Actions <i className="fas fa-chevron-down"></i>
+                                  <i className="fas fa-cogs"></i> {t("Actions")} <i className="fas fa-chevron-down"></i>
                                 </button>
                               </div>
                             </PermissionGate>
@@ -1402,7 +1404,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                             void openDetailsView(target);
                           }}
                         >
-                          <i className="fas fa-eye"></i> View Details
+                          <i className="fas fa-eye"></i> {t("View Details")}
                         </button>
                         <div className="dropdown-divider"></div>
                         <button className="dropdown-item delete" onClick={() => {
@@ -1412,7 +1414,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                           setActiveDropdown(null);
                           handleShowCancelConfirmation(target);
                         }}>
-                          <i className="fas fa-times-circle"></i> Cancel Order
+                          <i className="fas fa-times-circle"></i> {t("Cancel Order")}
                         </button>
                       </div>
                     </PermissionGate>,
@@ -1458,7 +1460,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
         </section>
 
         <div className="service-footer">
-          <p>Service Management System © 2023 | Service Execution Module</p>
+          <p>{t("Service Management System © 2023 | Service Execution Module")}</p>
         </div>
       </div>
 
@@ -1468,7 +1470,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
           <div className="cancel-modal">
             <div className="cancel-modal-header">
               <h3>
-                <i className="fas fa-exclamation-triangle"></i> Confirm Cancellation
+                <i className="fas fa-exclamation-triangle"></i> {t("Confirm Cancellation")}
               </h3>
             </div>
             <div className="cancel-modal-body">
@@ -1476,9 +1478,9 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                 <i className="fas fa-exclamation-circle"></i>
                 <div className="cancel-warning-text">
                   <p>
-                    You are about to cancel order <strong>{cancelOrderId}</strong>.
+                    {t("You are about to cancel order")} <strong>{cancelOrderId}</strong>.
                   </p>
-                  <p>This action cannot be undone.</p>
+                  <p>{t("This action cannot be undone.")}</p>
                 </div>
               </div>
               <div className="cancel-modal-actions">
@@ -1489,10 +1491,10 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                     setCancelOrderId(null);
                   }}
                 >
-                  <i className="fas fa-times"></i> Keep Order
+                  <i className="fas fa-times"></i> {t("Keep Order")}
                 </button>
                 <button className="btn-confirm-cancel" onClick={() => void handleCancelOrder()} disabled={loading}>
-                  <i className="fas fa-ban"></i> {loading ? "Cancelling..." : "Cancel Order"}
+                  <i className="fas fa-ban"></i> {loading ? t("Cancelling...") : t("Cancel Order")}
                 </button>
               </div>
             </div>
@@ -1535,9 +1537,10 @@ function JobOrderSummaryCard({ order, identityToUsernameMap }: any) {
 }
 
 function CustomerNotesCard({ order }: any) {
+  const { t } = useLanguage();
   return (
     <div className="epm-detail-card sem-highlight-card">
-      <h3><i className="fas fa-comment-dots"></i> Customer Notes</h3>
+      <h3><i className="fas fa-comment-dots"></i> {t("Customer Notes")}</h3>
       <div className="sem-highlight-content">
         {order.customerNotes}
       </div>
@@ -1546,12 +1549,13 @@ function CustomerNotesCard({ order }: any) {
 }
 
 function DocumentsCard({ order, resolveUrl }: any) {
+  const { t } = useLanguage();
   const documents = Array.isArray(order.documents) ? order.documents : [];
   if (documents.length === 0) return null;
 
   return (
     <div className="pim-detail-card">
-      <h3><i className="fas fa-folder-open"></i> Documents</h3>
+      <h3><i className="fas fa-folder-open"></i> {t("Documents")}</h3>
       <div className="sem-docs-list">
         {documents.map((doc: any, idx: number) => (
           <div key={idx} className="sem-doc-item">
@@ -1564,7 +1568,7 @@ function DocumentsCard({ order, resolveUrl }: any) {
                     {doc.type} {doc.category ? `• ${doc.category}` : ""}
                     {doc.paymentReference ? ` • ${doc.paymentReference}` : ""}
                     {String(doc?.addedAt ?? doc?.generatedAt ?? doc?.createdAt ?? doc?.uploadedAt ?? doc?.timestamp ?? "").trim()
-                      ? ` • Generated: ${String(doc?.addedAt ?? doc?.generatedAt ?? doc?.createdAt ?? doc?.uploadedAt ?? doc?.timestamp ?? "").trim()}`
+                      ? ` • ${t("Generated:")} ${String(doc?.addedAt ?? doc?.generatedAt ?? doc?.createdAt ?? doc?.uploadedAt ?? doc?.timestamp ?? "").trim()}`
                       : ""}
                   </div>
                 </div>
@@ -1580,7 +1584,7 @@ function DocumentsCard({ order, resolveUrl }: any) {
               }}
               className="sem-doc-download-btn"
             >
-              <i className="fas fa-download"></i> Download
+              <i className="fas fa-download"></i> {t("Download")}
             </button>
           </div>
         ))}
@@ -1590,15 +1594,16 @@ function DocumentsCard({ order, resolveUrl }: any) {
 }
 
 function QualityCheckListCard({ order }: any) {
+  const { t } = useLanguage();
   const services = Array.isArray(order.services) ? order.services : [];
   return (
     <div className="pim-detail-card sem-highlight-card">
-      <h3><i className="fas fa-clipboard-check"></i> Quality Check List</h3>
+      <h3><i className="fas fa-clipboard-check"></i> {t("Quality Check List")}</h3>
       <div className="sem-qc-list">
         {services.length > 0 ? (
           services.map((service: any, idx: number) => {
             const serviceName = service?.name || `Service ${idx + 1}`;
-            const result = service?.qualityCheckResult || service?.qcResult || "Not Evaluated";
+            const result = service?.qualityCheckResult || service?.qcResult || t("Not Evaluated");
             return (
               <div key={`${serviceName}-${idx}`} className="sem-qc-item">
                 <span className="sem-qc-service">{serviceName}</span>
@@ -1609,7 +1614,7 @@ function QualityCheckListCard({ order }: any) {
             );
           })
         ) : (
-          <div className="sem-empty-inline">No services to evaluate</div>
+          <div className="sem-empty-inline">{t("No services to evaluate")}</div>
         )}
       </div>
     </div>
@@ -1621,6 +1626,7 @@ function BillingCard({ order }: any) {
 }
 
 function ExitPermitDetailsCard({ order }: any) {
+  const { t } = useLanguage();
   const permit = order?.exitPermit ?? {};
   const permitInfo = order?.exitPermitInfo ?? {};
 
@@ -1645,15 +1651,15 @@ function ExitPermitDetailsCard({ order }: any) {
 
   return (
     <div className="epm-detail-card ex-unified-card">
-      <h3><i className="fas fa-id-card"></i> Exit Permit</h3>
+      <h3><i className="fas fa-id-card"></i> {t("Exit Permit")}</h3>
       <div className="epm-card-content ex-unified-grid">
-        <div className="epm-info-item"><span className="epm-info-label">Status</span><span className="epm-info-value"><span className={`epm-status-badge status-badge ${permitStatusClass(status)}`}>{status}</span></span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Permit ID</span><span className="epm-info-value">{permitId}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Create Date</span><span className="epm-info-value">{createDate}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Next Service</span><span className="epm-info-value">{nextServiceDate}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Created By</span><span className="epm-info-value">{createdBy}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Collected By</span><span className="epm-info-value">{collectedBy}</span></div>
-        <div className="epm-info-item"><span className="epm-info-label">Mobile</span><span className="epm-info-value">{collectedByMobile}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">{t("Status")}</span><span className="epm-info-value"><span className={`epm-status-badge status-badge ${permitStatusClass(status)}`}>{status}</span></span></div>
+        <div className="epm-info-item"><span className="epm-info-label">{t("Permit ID")}</span><span className="epm-info-value">{permitId}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">{t("Create Date")}</span><span className="epm-info-value">{createDate}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">{t("Next Service")}</span><span className="epm-info-value">{nextServiceDate}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">{t("Created By")}</span><span className="epm-info-value">{createdBy}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">{t("Collected By")}</span><span className="epm-info-value">{collectedBy}</span></div>
+        <div className="epm-info-item"><span className="epm-info-label">{t("Mobile")}</span><span className="epm-info-value">{collectedByMobile}</span></div>
       </div>
     </div>
   );

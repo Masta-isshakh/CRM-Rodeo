@@ -35,6 +35,7 @@ import {
   pickPaymentEnum,
   pickPaymentLabel,
 } from "../utils/paymentStatus";
+import { useLanguage } from "../i18n/LanguageContext";
 
 function safeLower(v: any) {
   return String(v ?? "").trim().toLowerCase();
@@ -388,6 +389,7 @@ function getServiceSpecificationColor(service: any) {
 // Exit Permit Management Component
 const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
   const client = useMemo(() => getDataClient(), []);
+  const { t } = useLanguage();
 
   const [loading, setLoading] = useState(false);
 
@@ -589,7 +591,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
     setLoading(true);
     try {
       const order = await getJobOrderByOrderNumber(orderId);
-      if (!order) throw new Error("Order not found");
+      if (!order) throw new Error(t("Order not found"));
 
       // ✅ FIX: normalize payment status for details view too
       order.paymentStatus = derivePaymentStatusFromUiOrder(order);
@@ -613,16 +615,16 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
     setLoading(true);
     try {
       const order = await getJobOrderByOrderNumber(orderId);
-      if (!order) throw new Error("Order not found");
+      if (!order) throw new Error(t("Order not found"));
 
       // ✅ FIX: normalize payment status before eligibility check
       order.paymentStatus = derivePaymentStatusFromUiOrder(order);
 
       const created = isExitPermitCreatedFromOrder(order);
-      if (created) throw new Error("Exit permit already exists for this order.");
+      if (created) throw new Error(t("Exit permit already exists for this order."));
 
       const eligible = isEligibleForExitPermit(order.workStatus, order.paymentStatus, false);
-      if (!eligible) throw new Error("This order is not eligible for Exit Permit.");
+      if (!eligible) throw new Error(t("This order is not eligible for Exit Permit."));
 
       const nextServiceDate = new Date();
       nextServiceDate.setMonth(nextServiceDate.getMonth() + 3);
@@ -676,7 +678,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
   const handleCreateExitPermit = async (e: any) => {
     e.preventDefault();
     if (!currentOrderForPermit) {
-      setErrorMessage("No order selected for exit permit creation.");
+      setErrorMessage(t("No order selected for exit permit creation."));
       setShowErrorPopup(true);
       return;
     }
@@ -684,13 +686,13 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
     const { collectedBy, mobileNumber, nextServiceDate } = exitPermitForm;
 
     if (!collectedBy.trim() || !mobileNumber.trim()) {
-      setErrorMessage("Please fill in all required fields.");
+      setErrorMessage(t("Please fill in all required fields."));
       setShowErrorPopup(true);
       return;
     }
 
     if (safeLower(currentOrderForPermit.workStatus) !== "cancelled" && !nextServiceDate) {
-      setErrorMessage("Please select a next service date.");
+      setErrorMessage(t("Please select a next service date."));
       setShowErrorPopup(true);
       return;
     }
@@ -790,7 +792,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
           <div className="epm-header crm-unified-header">
             <div className="epm-header-left">
               <h1>
-                <i className="fas fa-id-card"></i> Exit Permit Management
+                <i className="fas fa-id-card"></i> {t("Exit Permit Management")}
               </h1>
             </div>
           </div>
@@ -802,7 +804,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
                 <input
                   type="text"
                   className="epm-smart-search-input"
-                  placeholder="Search by job order ID, customer name, vehicle plate, etc."
+                  placeholder={t("Search by job order ID, customer name, vehicle plate, etc.")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   autoComplete="off"
@@ -812,21 +814,21 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
                 {searchResults.length === 0
                   ? loading
                     ? "Loading..."
-                    : "No eligible job orders found"
-                  : `Showing ${startIndex + 1}-${endIndex} of ${searchResults.length} job orders`}
+                    : t("No eligible job orders found")
+                  : `${t("Showing")} ${startIndex + 1}-${endIndex} ${t("of")} ${searchResults.length} ${t("job orders")}`}
               </div>
             </section>
 
             <section className="epm-results-section">
               <div className="epm-section-header">
                 <h2>
-                  <i className="fas fa-list"></i> Exit Permit Management
+                  <i className="fas fa-list"></i> {t("Exit Permit Management")}
                 </h2>
                 <div className="epm-section-header-controls">
                   <select className="epm-pagination-select" value={pageSize} onChange={handlePageSizeChange}>
-                    <option value="20">20 per page</option>
-                    <option value="50">50 per page</option>
-                    <option value="100">100 per page</option>
+                    <option value="20">20 {t("per page")}</option>
+                    <option value="50">50 {t("per page")}</option>
+                    <option value="100">100 {t("per page")}</option>
                   </select>
                 </div>
               </div>
@@ -836,9 +838,9 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
                   <div className="epm-empty-icon">
                     <i className="fas fa-search"></i>
                   </div>
-                  <div className="epm-empty-text">No eligible job orders found</div>
+                  <div className="epm-empty-text">{t("No eligible job orders found")}</div>
                   <div className="epm-empty-subtext">
-                    This screen displays only orders eligible for exit permit creation
+                    {t("This screen displays only orders eligible for exit permit creation")}
                   </div>
                 </div>
               ) : (
@@ -847,15 +849,15 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
                     <table className="epm-job-order-table">
                       <thead>
                         <tr>
-                          <th>Create Date</th>
-                          <th>Job Card ID</th>
-                          <th>Order Type</th>
-                          <th>Customer Name</th>
-                          <th>Mobile Number</th>
-                          <th>Vehicle Plate</th>
-                          <th>Work Status</th>
-                          <th>Payment Status</th>
-                          <th>Actions</th>
+                          <th>{t("Create Date")}</th>
+                          <th>{t("Job Card ID")}</th>
+                          <th>{t("Order Type")}</th>
+                          <th>{t("Customer Name")}</th>
+                          <th>{t("Mobile Number")}</th>
+                          <th>{t("Vehicle Plate")}</th>
+                          <th>{t("Work Status")}</th>
+                          <th>{t("Payment Status")}</th>
+                          <th>{t("Actions")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -898,7 +900,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
                                     }}
                                     disabled={loading}
                                   >
-                                    <i className="fas fa-cogs"></i> Actions <i className="fas fa-chevron-down"></i>
+                                    <i className="fas fa-cogs"></i> {t("Actions")} <i className="fas fa-chevron-down"></i>
                                   </button>
                                 </div>
                               </PermissionGate>
@@ -955,7 +957,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
           </div>
 
           <div className="epm-footer">
-            <p>Service Management System © 2023 | Exit Permit Management Module</p>
+            <p>{t("Service Management System © 2023 | Exit Permit Management Module")}</p>
           </div>
         </>
       ) : (
@@ -963,7 +965,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
           <div className="epm-details-header pim-details-header">
             <div className="epm-details-title-container pim-details-title-container">
               <h2>
-                <i className="fas fa-clipboard-list"></i> Job Order Details - <span>{selectedOrder?.id}</span>
+                <i className="fas fa-clipboard-list"></i> {t("Job Order Details")} - <span>{selectedOrder?.id}</span>
               </h2>
               <div className="pim-details-header-badges">
                 {selectedOrder?.technicianAssignment?.name && (
@@ -974,7 +976,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
               </div>
             </div>
             <button className="epm-btn-close-details pim-btn-close-details" onClick={closeDetailsView} type="button">
-              <i className="fas fa-times"></i> Close Details
+              <i className="fas fa-times"></i> {t("Close Details")}
             </button>
           </div>
 
@@ -1050,36 +1052,36 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
         <div className="epm-exit-permit-modal">
           <div className="epm-exit-permit-modal-content">
             <h3>
-              <i className="fas fa-id-card"></i> Create Exit Permit
+              <i className="fas fa-id-card"></i> {t("Create Exit Permit")}
             </h3>
             <form onSubmit={handleCreateExitPermit}>
               <div className="epm-form-group">
                 <label>
-                  Collected By <span className="epm-required">*</span>
+                  {t("Collected By")} <span className="epm-required">*</span>
                 </label>
                 <input
                   type="text"
                   value={exitPermitForm.collectedBy}
                   onChange={(e) => setExitPermitForm({ ...exitPermitForm, collectedBy: e.target.value })}
-                  placeholder="Enter name of person collecting the vehicle"
+                  placeholder={t("Enter name of person collecting the vehicle")}
                   required
                 />
               </div>
               <div className="epm-form-group">
                 <label>
-                  Mobile Number <span className="epm-required">*</span>
+                  {t("Mobile Number")} <span className="epm-required">*</span>
                 </label>
                 <input
                   type="tel"
                   value={exitPermitForm.mobileNumber}
                   onChange={(e) => setExitPermitForm({ ...exitPermitForm, mobileNumber: e.target.value })}
-                  placeholder="Enter mobile number"
+                  placeholder={t("Enter mobile number")}
                   required
                 />
               </div>
               <div className="epm-form-group">
                 <label>
-                  Next Service Date{" "}
+                  {t("Next Service Date")}{" "}
                   {safeLower(currentOrderForPermit?.workStatus) !== "cancelled" && <span className="epm-required">*</span>}
                 </label>
                 <input
@@ -1093,10 +1095,10 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
 
               <div className="epm-exit-permit-modal-actions">
                 <button type="button" className="epm-btn-cancel-permit" onClick={closeExitPermitModal} disabled={loading}>
-                  Cancel
+                  {t("Cancel")}
                 </button>
                 <button type="submit" className="epm-btn-create-permit" disabled={loading}>
-                  <i className="fas fa-check-circle"></i> {loading ? "Creating..." : "Create Exit Permit"}
+                  <i className="fas fa-check-circle"></i> {loading ? t("Creating...") : t("Create Exit Permit")}
                 </button>
               </div>
             </form>
@@ -1127,7 +1129,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
                 }}
                 disabled={loading}
               >
-                <i className="fas fa-eye"></i> View Details
+                <i className="fas fa-eye"></i> {t("View Details")}
               </button>
             </PermissionGate>
 
@@ -1145,7 +1147,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
                   }}
                   disabled={loading}
                 >
-                  <i className="fas fa-id-card"></i> Create Exit Permit
+                  <i className="fas fa-id-card"></i> {t("Create Exit Permit")}
                 </button>
               </>
             </PermissionGate>
@@ -1165,7 +1167,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
                   }}
                   disabled={loading}
                 >
-                  <i className="fas fa-times-circle"></i> Cancel Order
+                  <i className="fas fa-times-circle"></i> {t("Cancel Order")}
                 </button>
               </>
             </PermissionGate>
@@ -1178,7 +1180,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
         <div className="cancel-modal">
           <div className="cancel-modal-header">
             <h3>
-              <i className="fas fa-exclamation-triangle"></i> Confirm Cancellation
+                <i className="fas fa-exclamation-triangle"></i> {t("Confirm Cancellation")}
             </h3>
           </div>
           <div className="cancel-modal-body">
@@ -1186,9 +1188,9 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
               <i className="fas fa-exclamation-circle"></i>
               <div className="cancel-warning-text">
                 <p>
-                  You are about to cancel order <strong>{cancelOrderId}</strong>.
+                  {t("You are about to cancel order")} <strong>{cancelOrderId}</strong>.
                 </p>
-                <p>This action cannot be undone.</p>
+                <p>{t("This action cannot be undone.")}</p>
               </div>
             </div>
             <div className="cancel-modal-actions">
@@ -1201,10 +1203,10 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
                 }}
                 disabled={loading}
               >
-                <i className="fas fa-times"></i> Keep Order
+                <i className="fas fa-times"></i> {t("Keep Order")}
               </button>
               <button className="btn-confirm-cancel" type="button" onClick={() => void handleCancelOrder()} disabled={loading}>
-                <i className="fas fa-ban"></i> {loading ? "Cancelling..." : "Cancel Order"}
+                <i className="fas fa-ban"></i> {loading ? t("Cancelling...") : t("Cancel Order")}
               </button>
             </div>
           </div>
@@ -1222,10 +1224,10 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
           message={
             <>
               <span className="epm-popup-title">
-                <i className="fas fa-check-circle"></i> Order Cancelled Successfully!
+                <i className="fas fa-check-circle"></i> {t("Order Cancelled Successfully!")}
               </span>
               <span className="epm-popup-line">
-                <strong>Job Order ID:</strong> <span className="epm-popup-id">{cancelOrderId}</span>
+                <strong>{t("Job Order ID:")}</strong> <span className="epm-popup-id">{cancelOrderId}</span>
               </span>
             </>
           }
@@ -1244,13 +1246,13 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
           message={
             <>
               <span className="epm-popup-title">
-                <i className="fas fa-check-circle"></i> Exit Permit Created Successfully!
+                <i className="fas fa-check-circle"></i> {t("Exit Permit Created Successfully!")}
               </span>
               <span className="epm-popup-line">
-                <strong>Permit ID:</strong> <span className="epm-popup-id">{successPermitId}</span>
+                <strong>{t("Permit ID:")}</strong> <span className="epm-popup-id">{successPermitId}</span>
               </span>
               <span className="epm-popup-line">
-                <strong>Job Order ID:</strong> <span className="epm-popup-id">{successOrderId}</span>
+                <strong>{t("Job Order ID:")}</strong> <span className="epm-popup-id">{successOrderId}</span>
               </span>
             </>
           }
@@ -1278,23 +1280,24 @@ const CustomerDetailsCard = ({ order }: any) => <UnifiedCustomerInfoCard order={
 const VehicleDetailsCard = ({ order }: any) => <UnifiedVehicleInfoCard order={order} className="cv-unified-card" />;
 
 const DocumentsCard = ({ order }: any) => {
+  const { t } = useLanguage();
   const documents = Array.isArray(order.documents) ? order.documents : [];
   if (documents.length === 0) return null;
 
   return (
     <div className="epm-detail-card pim-detail-card">
       <h3>
-        <i className="fas fa-folder-open"></i> Documents
+        <i className="fas fa-folder-open"></i> {t("Documents")}
       </h3>
       <div className="epm-docs">
         {documents.map((doc: any, idx: number) => (
           <div key={doc.id || idx} className="epm-doc-item">
             <div className="epm-doc-left">
-              <div className="epm-doc-name">{doc.name || doc.title || `Document ${idx + 1}`}</div>
+              <div className="epm-doc-name">{doc.name || doc.title || `${t("Document")} ${idx + 1}`}</div>
               <div className="epm-doc-meta">
                 {doc.type || ""} {doc.category ? `• ${doc.category}` : ""}
                 {String(doc?.addedAt ?? doc?.generatedAt ?? doc?.createdAt ?? doc?.uploadedAt ?? doc?.timestamp ?? "").trim()
-                  ? ` • Generated: ${String(doc?.addedAt ?? doc?.generatedAt ?? doc?.createdAt ?? doc?.uploadedAt ?? doc?.timestamp ?? "").trim()}`
+                  ? ` • ${t("Generated:")} ${String(doc?.addedAt ?? doc?.generatedAt ?? doc?.createdAt ?? doc?.uploadedAt ?? doc?.timestamp ?? "").trim()}`
                   : ""}
               </div>
             </div>
@@ -1310,7 +1313,7 @@ const DocumentsCard = ({ order }: any) => {
                   window.open(url, "_blank", "noopener,noreferrer");
                 }}
               >
-                <i className="fas fa-download"></i> Download
+                <i className="fas fa-download"></i> {t("Download")}
               </button>
             </PermissionGate>
           </div>
@@ -1320,69 +1323,73 @@ const DocumentsCard = ({ order }: any) => {
   );
 };
 
-const ServicesCard = ({ order }: any) => (
-  <div className="epm-detail-card pim-detail-card">
-    <h3>
-      <i className="fas fa-tasks"></i> Services Summary ({order.services?.length || 0})
-    </h3>
-    <div className="epm-services-list pim-services-list">
-      {order.services && order.services.length > 0 ? (
-        order.services.map((service: any, idx: number) => (
-          <div key={idx} className="epm-service-item pim-service-item">
-            <div className="epm-service-header pim-service-header">
-              <span className="epm-service-name pim-service-name">{service.name}</span>
-              <span className={`epm-status-badge status-badge ${getServiceStatusClass(service.status)}`}>{service.status}</span>
-            </div>
-            {getServiceSpecificationLabel(service) ? (
-              <div className="pim-service-meta" style={{ marginTop: 8 }}>
-                <div className="pim-service-meta-row" style={{ gridColumn: "span 2" }}>
-                  <span className="pim-service-meta-label">Specification:</span>
-                  <span className="pim-service-meta-value" data-no-translate="true" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                    {getServiceSpecificationColor(service) ? (
-                      <span
-                        aria-hidden="true"
-                        style={{
-                          width: 10,
-                          height: 10,
-                          borderRadius: 999,
-                          background: getServiceSpecificationColor(service),
-                          border: "1px solid rgba(15, 23, 42, 0.14)",
-                          display: "inline-block",
-                        }}
-                      ></span>
-                    ) : null}
-                    {getServiceSpecificationLabel(service)}
-                  </span>
-                </div>
+const ServicesCard = ({ order }: any) => {
+  const { t } = useLanguage();
+  return (
+    <div className="epm-detail-card pim-detail-card">
+      <h3>
+        <i className="fas fa-tasks"></i> {t("Services Summary")} ({order.services?.length || 0})
+      </h3>
+      <div className="epm-services-list pim-services-list">
+        {order.services && order.services.length > 0 ? (
+          order.services.map((service: any, idx: number) => (
+            <div key={idx} className="epm-service-item pim-service-item">
+              <div className="epm-service-header pim-service-header">
+                <span className="epm-service-name pim-service-name">{service.name}</span>
+                <span className={`epm-status-badge status-badge ${getServiceStatusClass(service.status)}`}>{service.status}</span>
               </div>
-            ) : null}
+              {getServiceSpecificationLabel(service) ? (
+                <div className="pim-service-meta" style={{ marginTop: 8 }}>
+                  <div className="pim-service-meta-row" style={{ gridColumn: "span 2" }}>
+                    <span className="pim-service-meta-label">Specification:</span>
+                    <span className="pim-service-meta-value" data-no-translate="true" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                      {getServiceSpecificationColor(service) ? (
+                        <span
+                          aria-hidden="true"
+                          style={{
+                            width: 10,
+                            height: 10,
+                            borderRadius: 999,
+                            background: getServiceSpecificationColor(service),
+                            border: "1px solid rgba(15, 23, 42, 0.14)",
+                            display: "inline-block",
+                          }}
+                        ></span>
+                      ) : null}
+                      {getServiceSpecificationLabel(service)}
+                    </span>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ))
+        ) : (
+          <div className="epm-service-item pim-service-item">
+            <em>{t("No services recorded")}</em>
           </div>
-        ))
-      ) : (
-        <div className="epm-service-item pim-service-item">
-          <em>No services recorded</em>
-        </div>
-      )}
+        )}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const AdditionalServicesRequestCard = ({ request, index }: any) => {
+  const { t } = useLanguage();
   const statusClass = getAdditionalServiceStatusClass(request.status);
   return (
     <div className={`epm-additional-services epm-${statusClass}`}>
-      <div className="epm-additional-header">Additional Services Request {index > 1 ? `#${index}` : ""}</div>
+      <div className="epm-additional-header">{t("Additional Services Request")} {index > 1 ? `#${index}` : ""}</div>
       <div className="epm-card-body">
         <div className="epm-info-item pim-info-item">
-          <div className="epm-info-label pim-info-label">Request ID</div>
+          <div className="epm-info-label pim-info-label">{t("Request ID")}</div>
           <div className="epm-info-value pim-info-value">{request.requestId}</div>
         </div>
         <div className="epm-info-item pim-info-item">
-          <div className="epm-info-label pim-info-label">Requested Service</div>
+          <div className="epm-info-label pim-info-label">{t("Requested Service")}</div>
           <div className="epm-info-value pim-info-value">{request.requestedService}</div>
         </div>
         <div className="epm-info-item pim-info-item">
-          <div className="epm-info-label pim-info-label">Status</div>
+          <div className="epm-info-label pim-info-label">{t("Status")}</div>
           <div className="epm-info-value pim-info-value">{request.status}</div>
         </div>
       </div>
@@ -1390,22 +1397,26 @@ const AdditionalServicesRequestCard = ({ request, index }: any) => {
   );
 };
 
-const CustomerNotesCard = ({ order }: any) => (
-  <div className="epm-detail-card pim-detail-card">
-    <h3>
-      <i className="fas fa-sticky-note"></i> Customer Notes / Comments
-    </h3>
-    <div className="epm-card-content pim-card-content">
-      <div className="epm-notes-box">{order.customerNotes}</div>
+const CustomerNotesCard = ({ order }: any) => {
+  const { t } = useLanguage();
+  return (
+    <div className="epm-detail-card pim-detail-card">
+      <h3>
+        <i className="fas fa-sticky-note"></i> {t("Customer Notes / Comments")}
+      </h3>
+      <div className="epm-card-content pim-card-content">
+        <div className="epm-notes-box">{order.customerNotes}</div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const BillingCard = ({ order }: any) => {
   return <UnifiedBillingInvoicesSection order={order} className="epm-detail-card" />;
 };
 
 const ExitPermitCard = ({ order }: any) => {
+  const { t } = useLanguage();
   const permit = order?.exitPermit ?? {};
   const permitInfo = order?.exitPermitInfo ?? {};
 
@@ -1434,11 +1445,11 @@ const ExitPermitCard = ({ order }: any) => {
   return (
     <div className="epm-detail-card pim-detail-card ex-unified-card">
       <h3>
-        <i className="fas fa-id-card"></i> Exit Permit
+        <i className="fas fa-id-card"></i> {t("Exit Permit")}
       </h3>
       <div className="epm-card-content pim-card-content ex-unified-grid">
         <div className="epm-info-item pim-info-item">
-          <span className="epm-info-label pim-info-label">Status</span>
+          <span className="epm-info-label pim-info-label">{t("Status")}</span>
           <span className="epm-info-value pim-info-value">
             <span className={`epm-status-badge status-badge ${getExitPermitPaymentBadgeClass(status)}`}>
               {status}
@@ -1446,27 +1457,27 @@ const ExitPermitCard = ({ order }: any) => {
           </span>
         </div>
         <div className="epm-info-item pim-info-item">
-          <span className="epm-info-label pim-info-label">Permit ID</span>
+          <span className="epm-info-label pim-info-label">{t("Permit ID")}</span>
           <span className="epm-info-value pim-info-value">{permitId}</span>
         </div>
         <div className="epm-info-item pim-info-item">
-          <span className="epm-info-label pim-info-label">Create Date</span>
+          <span className="epm-info-label pim-info-label">{t("Create Date")}</span>
           <span className="epm-info-value pim-info-value">{createDate}</span>
         </div>
         <div className="epm-info-item pim-info-item">
-          <span className="epm-info-label pim-info-label">Next Service Date</span>
+          <span className="epm-info-label pim-info-label">{t("Next Service Date")}</span>
           <span className="epm-info-value pim-info-value">{nextServiceDate}</span>
         </div>
         <div className="epm-info-item pim-info-item">
-          <span className="epm-info-label pim-info-label">Created By</span>
+          <span className="epm-info-label pim-info-label">{t("Created By")}</span>
           <span className="epm-info-value pim-info-value">{createdBy}</span>
         </div>
         <div className="epm-info-item pim-info-item">
-          <span className="epm-info-label pim-info-label">Collected By</span>
+          <span className="epm-info-label pim-info-label">{t("Collected By")}</span>
           <span className="epm-info-value pim-info-value">{collectedBy}</span>
         </div>
         <div className="epm-info-item pim-info-item">
-          <span className="epm-info-label pim-info-label">Mobile Number</span>
+          <span className="epm-info-label pim-info-label">{t("Mobile Number")}</span>
           <span className="epm-info-value pim-info-value">{collectedByMobile}</span>
         </div>
       </div>
@@ -1475,6 +1486,7 @@ const ExitPermitCard = ({ order }: any) => {
 };
 
 const QualityCheckListCard = ({ order }: any) => {
+  const { t } = useLanguage();
   const services = order.services || [];
 
   const getQualityCheckResult = (service: any) => {
@@ -1487,13 +1499,13 @@ const QualityCheckListCard = ({ order }: any) => {
   return (
     <div className="epm-detail-card pim-detail-card epm-qc-card">
       <h3>
-        <i className="fas fa-clipboard-check"></i> Quality Check List
+        <i className="fas fa-clipboard-check"></i> {t("Quality Check List")}
       </h3>
       <div className="epm-qc-list">
         {services.length > 0 ? (
           services.map((service: any, idx: number) => {
             const serviceName = typeof service === "string" ? service : service.name;
-            const result = getQualityCheckResult(service) || "Not Evaluated";
+            const result = getQualityCheckResult(service) || t("Not Evaluated");
             return (
               <div key={`${serviceName}-${idx}`} className="epm-qc-row">
                 <span className="epm-qc-name">{serviceName}</span>
@@ -1502,7 +1514,7 @@ const QualityCheckListCard = ({ order }: any) => {
             );
           })
         ) : (
-          <div className="epm-qc-empty">No services to evaluate</div>
+          <div className="epm-qc-empty">{t("No services to evaluate")}</div>
         )}
       </div>
     </div>

@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@aws-amplify/ui-react";
 import { createPortal } from "react-dom";
 import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
+import { useLanguage } from "../i18n/LanguageContext";
 
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
@@ -171,6 +172,7 @@ type MenuState =
 //const EMPTY = { canRead: false, canCreate: false, canUpdate: false, canDelete: false, canApprove: false };
 
 export default function Users(_: PageProps) {
+  const { t } = useLanguage();
   const client = getDataClient();
   const { canOption, isAdminGroup, email: currentUserEmail } = usePermissions();
   const isDev = import.meta.env.DEV;
@@ -703,7 +705,7 @@ export default function Users(_: PageProps) {
   // Backend actions
   const invite = async () => {
     if (!canInviteUsers) return;
-    setInviteStatus("Inviting...");
+    setInviteStatus(t("inviting"));
     try {
       const e = email.trim().toLowerCase();
       const eid = normalizeEmployeeId(employeeId);
@@ -714,19 +716,19 @@ export default function Users(_: PageProps) {
       const lmName =
         lineManagerOptions.find((x) => x.email === lmEmail)?.label.split(" (")[0]?.trim() ?? "";
 
-      if (!eid) throw new Error("Employee ID is required.");
-      if (!e || !fn || !ln) throw new Error("Email, first name, and last name are required.");
-      if (!departmentKey) throw new Error("Select a department.");
-      if (!roleKey) throw new Error("Select a role for the department.");
-      if (!mob) throw new Error("Mobile number is required.");
+      if (!eid) throw new Error(t("employeeIdIsRequired"));
+      if (!e || !fn || !ln) throw new Error(t("emailFirstNameLastNameRequired"));
+      if (!departmentKey) throw new Error(t("selectDepartment"));
+      if (!roleKey) throw new Error(t("selectRole"));
+      if (!mob) throw new Error(t("mobileNumberRequired"));
       const duplicateEmployeeId = users.some(
         (u) => normalizeEmployeeId(String((u as any).employeeId ?? "")) === eid
       );
       if (duplicateEmployeeId) {
-        throw new Error("Employee ID already exists.");
+        throw new Error(t("employeeIDExists"));
       }
       if (!availableRolesForDept.some((r) => String(r.id ?? "") === roleKey)) {
-        throw new Error("Selected role is not valid for the chosen department.");
+        throw new Error(t("selectedRoleNotValidForDept"));
       }
 
       const dept = departments.find((d) => d.key === departmentKey);
@@ -752,7 +754,7 @@ export default function Users(_: PageProps) {
       const payload = (res as any)?.data ?? {};
       const ok = payload?.ok !== false;
       if (!ok) {
-        throw new Error("Invitation email was not dispatched.");
+        throw new Error(t("invitationEmailNotDispatched"));
       }
 
       const inviteAction = String(payload?.inviteAction ?? "CREATED").toUpperCase();
@@ -774,14 +776,14 @@ export default function Users(_: PageProps) {
       await load();
     } catch (e: any) {
       console.error(e);
-      setInviteStatus(e?.message ?? "Invite failed.");
+      setInviteStatus(e?.message ?? t("inviteFailed"));
     }
   };
 
   const copyInviteLink = async () => {
     if (!inviteLink) return;
     await navigator.clipboard.writeText(inviteLink);
-    setInviteStatus("Set-password link copied.");
+    setInviteStatus(t("setPasswordLink"));
   };
 
   const askDeleteUser = (u: UserRow) => {
@@ -818,7 +820,7 @@ export default function Users(_: PageProps) {
       await load();
     } catch (e: any) {
       console.error(e);
-      setStatus(e?.message ?? "Failed to delete user.");
+      setStatus(e?.message ?? t("failedToDeleteUser"));
     } finally {
       setDeleteLoading(false);
       setLoading(false);
@@ -846,27 +848,27 @@ export default function Users(_: PageProps) {
   const saveUserChanges = async () => {
     if (!detailsUser?.email) return;
     if (isRootAdminSyntheticUser(detailsUser)) {
-      setDetailsStatus("Root admin user is read-only in this page.");
+      setDetailsStatus(t("rootAdminReadOnly"));
       return;
     }
     if (!editFirstName.trim() || !editLastName.trim()) {
-      setDetailsStatus("First name and last name are required.");
+      setDetailsStatus(t("firstNameLastNameRequired"));
       return;
     }
     if (!editDepartmentKey) {
-      setDetailsStatus("Department is required.");
+      setDetailsStatus(t("departmentRequired"));
       return;
     }
     if (!editRoleKey) {
-      setDetailsStatus("Role is required.");
+      setDetailsStatus(t("roleRequired"));
       return;
     }
     if (!normalizeEmployeeId(editEmployeeId)) {
-      setDetailsStatus("Employee ID is required.");
+      setDetailsStatus(t("employeeIdIsRequired"));
       return;
     }
     if (!availableRolesForEditDept.some((r) => String(r.id ?? "") === editRoleKey)) {
-      setDetailsStatus("Selected role is not valid for the chosen department.");
+      setDetailsStatus(t("selectedRoleNotValidForDept"));
       return;
     }
 
@@ -877,7 +879,7 @@ export default function Users(_: PageProps) {
         normalizeEmployeeId(String((u as any).employeeId ?? "")) === normalizedEditEmployeeId
     );
     if (duplicateEmployeeId) {
-      setDetailsStatus("Employee ID already exists.");
+      setDetailsStatus(t("employeeIDExists"));
       return;
     }
 
@@ -974,13 +976,13 @@ export default function Users(_: PageProps) {
           : prev
       );
 
-      setDetailsStatus("User updated successfully!");
+      setDetailsStatus(t("userUpdatedSuccessfully"));
       setDetailsEditing(false);
       await load();
       setDetailsOpen(false);
     } catch (e: any) {
       console.error(e);
-      setDetailsStatus(e?.message ?? "Failed to update user.");
+      setDetailsStatus(e?.message ?? t("failedToUpdateUser"));
     } finally {
       setLoading(false);
     }
@@ -992,7 +994,7 @@ export default function Users(_: PageProps) {
 
     const targetEmail = String(u.email ?? "").trim().toLowerCase();
     if (!targetEmail) {
-      setDetailsStatus("User email is missing.");
+      setDetailsStatus(t("userEmailMissing"));
       return;
     }
 
@@ -1003,12 +1005,12 @@ export default function Users(_: PageProps) {
     const employeeIdValue = normalizeEmployeeId(String((u as any).employeeId ?? ""));
 
     if (!deptKey) {
-      setDetailsStatus("Department is required to send reset password.");
+      setDetailsStatus(t("departmentRequiredForReset"));
       return;
     }
 
     setLoading(true);
-    setDetailsStatus("Sending reset password email...");
+    setDetailsStatus(t("sendingResetPasswordEmail"));
     try {
       const deptName =
         departments.find((d) => d.key === deptKey)?.name ??
@@ -1033,7 +1035,7 @@ export default function Users(_: PageProps) {
       const payload = (res as any)?.data ?? {};
       const ok = payload?.ok !== false;
       if (!ok) {
-        throw new Error("Password reset email was not dispatched.");
+        throw new Error(t("passwordResetNotDispatched"));
       }
 
       setDetailsStatus(`Reset password email sent to ${targetEmail}.`);
@@ -1043,7 +1045,7 @@ export default function Users(_: PageProps) {
       }
     } catch (e: any) {
       console.error(e);
-      setDetailsStatus(e?.message ?? "Failed to send reset password email.");
+      setDetailsStatus(e?.message ?? t("failedToSendResetPasswordEmail"));
     } finally {
       setLoading(false);
     }
@@ -1088,7 +1090,7 @@ export default function Users(_: PageProps) {
                 }}
                 disabled={loading}
               >
-                View Details
+                {t("View Details")}
               </button>
 
               <button
@@ -1099,7 +1101,7 @@ export default function Users(_: PageProps) {
                 }}
                 disabled={!canDeleteUsers || loading}
               >
-                Delete
+                {t("Delete")}
               </button>
             </>
           );
@@ -1114,18 +1116,18 @@ export default function Users(_: PageProps) {
 
       <ConfirmationPopup
         open={deletePopupOpen}
-        title="Delete user account"
+        title={t("deleteUserAccount")}
         message={
           <>
-            You are about to delete
+            {t("youAreAboutToDelete")}
             <strong>{` ${deleteTargetUser?.fullName || deleteTargetUser?.email || "this user"}`}</strong>
             {deleteTargetUser?.email ? <span>{` (${deleteTargetUser.email})`}</span> : null}.
             <br />
-            This action is permanent and cannot be undone.
+            {t("thisActionIsPermanent")}
           </>
         }
-        confirmText="Delete User"
-        cancelText="Keep User"
+        confirmText={t("deleteUser")}
+        cancelText={t("keepUser")}
         tone="danger"
         loading={deleteLoading}
         disableConfirm={!deleteTargetUser?.email}
@@ -1134,7 +1136,7 @@ export default function Users(_: PageProps) {
         closeOnOverlay={!deleteLoading}
         closeOnEsc={!deleteLoading}
         icon={<span className="cp-iconMark" aria-hidden="true">🗑</span>}
-        footerNote="Tip: If the user still needs access later, prefer setting them as inactive from User Details instead of deleting."
+        footerNote={t("tipSetInactiveInsteadOfDeleting")}
       />
 
       <div className="ums-shell">
@@ -1150,7 +1152,7 @@ export default function Users(_: PageProps) {
                   <path d="M16 13c-1.54 0-4.2.78-5.6 2.07A3.97 3.97 0 0 1 12 17v2h12v-2c0-2.66-5.33-4-8-4Z" fill="currentColor" opacity="0.9" />
                 </svg>
               </span>
-              <h1>User Management System</h1>
+              <h1>{t("userManagementSystem")}</h1>
             </div>
           </div>
         )}
@@ -1159,11 +1161,11 @@ export default function Users(_: PageProps) {
           <div className="ums-card ums-details-page" role="region" aria-label="Edit user details">
             <div className="ums-details-page-head">
               <div className="ums-details-page-title-wrap">
-                <h3><span className="ums-section-icon" aria-hidden>●</span>User Details</h3>
-                <div className="ums-details-page-sub">View and manage user account settings</div>
+                <h3><span className="ums-section-icon" aria-hidden>●</span>{t("userDetails")}</h3>
+                <div className="ums-details-page-sub">{t("viewAndManageUserAccountSettings")}</div>
               </div>
               <button className="ums-back-btn" onClick={() => setDetailsOpen(false)} aria-label="Back to users list">
-                Back to Users
+                {t("backToUsers")}
               </button>
             </div>
 
@@ -1171,7 +1173,7 @@ export default function Users(_: PageProps) {
               <div className={`ums-edit-page ${detailsEditing ? "is-editing" : "is-readonly"}`}>
                 <div className="ums-edit-card">
                   <div className="ums-edit-card-head-wrap">
-                    <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden>●</span>User Information</div>
+                    <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden>●</span>{t("userInformation")}</div>
                     <PermissionGate moduleId="users" optionId="users_edit">
                       <button
                         type="button"
@@ -1179,13 +1181,13 @@ export default function Users(_: PageProps) {
                         onClick={() => setDetailsEditing((v) => !v)}
                         disabled={isRootAdminSyntheticUser(detailsUser) || !canEditUsers}
                       >
-                        {detailsEditing ? "Cancel Edit" : "Edit"}
+                        {detailsEditing ? t("cancelEdit") : t("edit")}
                       </button>
                     </PermissionGate>
                   </div>
                   <div className={`ums-form-grid ${detailsEditing ? "" : "ums-form-grid-readonly"}`}>
                     <div>
-                      <label className="ums-label">Employee ID</label>
+                      <label className="ums-label">{t("employeeID")}</label>
                       {detailsEditing ? (
                         <input
                           className="ums-input"
@@ -1199,18 +1201,18 @@ export default function Users(_: PageProps) {
                     </div>
 
                     <div>
-                      <label className="ums-label">Email</label>
+                      <label className="ums-label">{t("Email")}</label>
                       <div className="ums-static-value">{detailsUser.email ?? "—"}</div>
                     </div>
 
                     <div>
-                      <label className="ums-label">First name</label>
+                      <label className="ums-label">{t("firstName")}</label>
                       {detailsEditing ? (
                         <input
                           className="ums-input"
                           value={editFirstName}
                           onChange={(e) => setEditFirstName(e.target.value)}
-                          placeholder="First name"
+                          placeholder={t("firstName")}
                         />
                       ) : (
                         <div className="ums-static-value">{editFirstName || "—"}</div>
@@ -1218,13 +1220,13 @@ export default function Users(_: PageProps) {
                     </div>
 
                     <div>
-                      <label className="ums-label">Last name</label>
+                      <label className="ums-label">{t("lastName")}</label>
                       {detailsEditing ? (
                         <input
                           className="ums-input"
                           value={editLastName}
                           onChange={(e) => setEditLastName(e.target.value)}
-                          placeholder="Last name"
+                          placeholder={t("lastName")}
                         />
                       ) : (
                         <div className="ums-static-value">{editLastName || "—"}</div>
@@ -1232,7 +1234,7 @@ export default function Users(_: PageProps) {
                     </div>
 
                     <div>
-                      <label className="ums-label">Mobile number</label>
+                      <label className="ums-label">{t("mobileNumber")}</label>
                       {detailsEditing ? (
                         <input
                           className="ums-input"
@@ -1246,7 +1248,7 @@ export default function Users(_: PageProps) {
                     </div>
 
                     <div>
-                      <label className="ums-label">Department</label>
+                      <label className="ums-label">{t("department")}</label>
                       {detailsEditing ? (
                         <select
                           className="ums-input"
@@ -1258,7 +1260,7 @@ export default function Users(_: PageProps) {
                           }}
                           disabled={loading}
                         >
-                          <option value="">Select…</option>
+                          <option value="">{t("selectEllipsis")}</option>
                           {departments.map((d) => (
                             <option key={d.key} value={d.key}>
                               {d.name}
@@ -1273,7 +1275,7 @@ export default function Users(_: PageProps) {
                     </div>
 
                     <div>
-                      <label className="ums-label">Role</label>
+                      <label className="ums-label">{t("role")}</label>
                       {detailsEditing ? (
                         <>
                           <select
@@ -1282,7 +1284,7 @@ export default function Users(_: PageProps) {
                             onChange={(e) => setEditRoleKey(e.target.value)}
                             disabled={loading || !editDepartmentKey}
                           >
-                            <option value="">Select…</option>
+                            <option value="">{t("selectEllipsis")}</option>
                             {availableRolesForEditDept.map((r) => (
                               <option key={String(r.id ?? "")} value={String(r.id ?? "")}>
                                 {r.name ?? "—"}
@@ -1290,7 +1292,7 @@ export default function Users(_: PageProps) {
                             ))}
                           </select>
                           {!editDepartmentKey && (
-                            <div className="ums-field-hint">Select a department first.</div>
+                            <div className="ums-field-hint">{t("selectDepartmentFirst")}</div>
                           )}
                         </>
                       ) : (
@@ -1299,7 +1301,7 @@ export default function Users(_: PageProps) {
                     </div>
 
                     <div className="ums-span-2">
-                      <label className="ums-label">Line Manager</label>
+                      <label className="ums-label">{t("lineManager")}</label>
                       {detailsEditing ? (
                         <select
                           className="ums-input"
@@ -1307,7 +1309,7 @@ export default function Users(_: PageProps) {
                           onChange={(e) => setEditLineManagerEmail(e.target.value)}
                           disabled={loading}
                         >
-                          <option value="">Select…</option>
+                          <option value="">{t("selectEllipsis")}</option>
                           {lineManagerOptions
                             .filter((o) => o.email !== String(detailsUser.email ?? "").trim().toLowerCase())
                             .map((opt) => (
@@ -1326,12 +1328,12 @@ export default function Users(_: PageProps) {
                 </div>
 
                 <div className="ums-edit-card">
-                  <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden>●</span>Account Settings</div>
+                  <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden>●</span>{t("accountSettings")}</div>
                   <div className="ums-toggle-grid">
                     <div className="ums-toggle-row">
                       <div>
-                        <div className="ums-toggle-title">User Status</div>
-                        <div className="ums-toggle-sub">Inactive users are blocked from access.</div>
+                        <div className="ums-toggle-title">{t("userStatus")}</div>
+                        <div className="ums-toggle-sub">{t("inactiveUsersBlockedFromAccess")}</div>
                       </div>
                       <label className="ums-switch" aria-label="Toggle user active status">
                         <input
@@ -1350,8 +1352,8 @@ export default function Users(_: PageProps) {
 
                     <div className="ums-toggle-row">
                       <div>
-                        <div className="ums-toggle-title">Dashboard Access</div>
-                        <div className="ums-toggle-sub">Disabled users cannot access the CRM dashboard.</div>
+                        <div className="ums-toggle-title">{t("dashboardAccess")}</div>
+                        <div className="ums-toggle-sub">{t("disabledUsersCannotAccessDashboard")}</div>
                       </div>
                       <label className="ums-switch" aria-label="Toggle dashboard access">
                         <input
@@ -1367,23 +1369,23 @@ export default function Users(_: PageProps) {
                 </div>
 
                 <div className="ums-edit-card">
-                  <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden>●</span>Password Management</div>
+                  <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden>●</span>{t("passwordManagement")}</div>
                   {editUserLockoutInfo.active && (
                     <div className="ums-lockout-label" role="status" aria-live="polite">
-                      Locked due to failed attempts ({editUserLockoutInfo.remainingMinutes} min left)
+                      {t("resetPassword")} ({editUserLockoutInfo.remainingMinutes} min left)
                     </div>
                   )}
                   <div className="ums-password-row">
                     <div>
-                      <div className="ums-toggle-title">Reset User Password</div>
-                      <div className="ums-toggle-sub">Send a password reset email to this user.</div>
+                      <div className="ums-toggle-title">{t("resetUserPassword")}</div>
+                      <div className="ums-toggle-sub">{t("sendPasswordResetEmailToUser")}</div>
                     </div>
                     <Button
                       onClick={() => void sendResetPassword(detailsUser)}
                       isDisabled={loading || isRootAdminSyntheticUser(detailsUser)}
                       disabled={!canEditUsers || loading}
                     >
-                      Reset Password
+                      {t("resetPassword")}
                     </Button>
                   </div>
                 </div>
@@ -1393,7 +1395,7 @@ export default function Users(_: PageProps) {
             </div>
 
             <div className="ums-details-page-foot">
-              <Button onClick={() => setDetailsOpen(false)}>Close</Button>
+              <Button onClick={() => setDetailsOpen(false)}>{t("Close")}</Button>
               {detailsEditing && (
                 <Button
                   variation="primary"
@@ -1401,7 +1403,7 @@ export default function Users(_: PageProps) {
                           disabled={isRootAdminSyntheticUser(detailsUser) || !canEditUsers}
                   isLoading={loading}
                 >
-                  Save Changes
+                  {t("Save Changes")}
                 </Button>
               )}
             </div>
@@ -1426,12 +1428,12 @@ export default function Users(_: PageProps) {
               className="ums-search"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by Employee ID, Name, Email, Mobile, Department, or Role"
+              placeholder={t("searchByEmployeeNameEmailEtc")}
             />
           </div>
 
           <div className="ums-showing">
-            Showing {from}-{to} of {total} users
+            Showing {from}-{to} of {total} {t("users")}
           </div>
         </div>
 
@@ -1469,12 +1471,12 @@ export default function Users(_: PageProps) {
           <div className="ums-table-header">
             <div className="ums-table-title">
               <span className="ums-list-icon" aria-hidden>≡</span>
-              <h2>Users List</h2>
+              <h2>{t("usersList")}</h2>
             </div>
 
             <div className="ums-table-actions">
               <div className="ums-rpp">
-                <span>Records per page:</span>
+                <span>{t("Records per page:")}</span>
                 <select className="ums-select" value={pageSize} onChange={(e) => setPageSize(Number(e.target.value))}>
                   <option value={10}>10</option>
                   <option value={20}>20</option>
@@ -1492,29 +1494,29 @@ export default function Users(_: PageProps) {
                   disabled={!canInviteUsers}
                 >
                   <span className="ums-add-icon" aria-hidden>+</span>
-                  Add New User
+                  {t("addNewUser")}
                 </button>
               </PermissionGate>
             </div>
           </div>
 
           {status && <div className="ums-status">{status}</div>}
-          {!canViewUsersList && <div className="ums-status">Users list visibility is disabled for your role.</div>}
+          {!canViewUsersList && <div className="ums-status">{t("usersListDisabledForRole")}</div>}
 
           <div className="ums-table-scroll">
             <table className="ums-table">
               <thead>
                 <tr>
-                  <th>Employee ID</th>
-                  <th>Employee Name</th>
-                  <th>Email Address</th>
-                  <th>Mobile Number</th>
-                  <th>Department</th>
-                  <th>Role</th>
-                  <th>Line Manager</th>
-                  <th>User Status</th>
-                  <th>Dashboard Access</th>
-                  <th className="ums-th-actions">Actions</th>
+                  <th>{t("employeeID")}</th>
+                  <th>{t("employeeName")}</th>
+                  <th>{t("emailAddress")}</th>
+                  <th>{t("mobileNumber")}</th>
+                  <th>{t("department")}</th>
+                  <th>{t("role")}</th>
+                  <th>{t("lineManager")}</th>
+                  <th>{t("userStatus")}</th>
+                  <th>{t("dashboardAccess")}</th>
+                  <th className="ums-th-actions">{t("Actions")}</th>
                 </tr>
               </thead>
 
@@ -1549,13 +1551,13 @@ export default function Users(_: PageProps) {
 
                       <td data-label="User Status">
                         <span className={`pill ${active ? "pill-active" : "pill-inactive"}`}>
-                          {active ? "Active" : "Inactive"}
+                          {active ? t("Active") : t("Inactive")}
                         </span>
                       </td>
 
                       <td data-label="Dashboard Access">
                         <span className={`pill ${dashAllowed ? "pill-allowed" : "pill-blocked"}`}>
-                          {dashAllowed ? "Allowed" : "Blocked"}
+                          {dashAllowed ? t("allowed") : t("blocked")}
                         </span>
                       </td>
 
@@ -1585,7 +1587,7 @@ export default function Users(_: PageProps) {
                 {!pageRows.length && (
                   <tr>
                     <td colSpan={10} className="ums-empty">
-                      No users found.
+                      {t("noUsersFound")}
                     </td>
                   </tr>
                 )}
@@ -1599,7 +1601,7 @@ export default function Users(_: PageProps) {
           <div className="ums-modal-overlay" role="dialog" aria-modal="true">
             <div className="ums-modal">
               <div className="ums-modal-head">
-                <h3>Add New User</h3>
+                <h3>{t("addNewUser")}</h3>
                 <button className="ums-modal-close" onClick={() => setInviteOpen(false)} aria-label="Close">
                   ✕
                 </button>
@@ -1608,7 +1610,7 @@ export default function Users(_: PageProps) {
               <div className="ums-modal-body">
                 <div className="ums-form-grid">
                   <div>
-                    <label className="ums-label">Employee ID</label>
+                    <label className="ums-label">{t("employeeID")}</label>
                     <input
                       className="ums-input"
                       value={employeeId}
@@ -1618,27 +1620,27 @@ export default function Users(_: PageProps) {
                   </div>
 
                   <div>
-                    <label className="ums-label">First name</label>
+                    <label className="ums-label">{t("firstName")}</label>
                     <input
                       className="ums-input"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      placeholder="First name"
+                      placeholder={t("firstName")}
                     />
                   </div>
 
                   <div>
-                    <label className="ums-label">Last name</label>
+                    <label className="ums-label">{t("lastName")}</label>
                     <input
                       className="ums-input"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      placeholder="Last name"
+                      placeholder={t("lastName")}
                     />
                   </div>
 
                   <div className="ums-span-2">
-                    <label className="ums-label">Email</label>
+                    <label className="ums-label">{t("Email")}</label>
                     <input
                       className="ums-input"
                       value={email}
@@ -1649,18 +1651,18 @@ export default function Users(_: PageProps) {
                   </div>
 
                   <div className="ums-span-2">
-                    <label className="ums-label">Mobile number</label>
+                    <label className="ums-label">{t("mobileNumber")}</label>
                     <input
                       className="ums-input"
                       value={mobileNumber}
                       onChange={(e) => setMobileNumber(e.target.value)}
                       placeholder="+974 1234 5678"
                     />
-                    <div className="ums-field-hint">Tip: use Qatar format like +974 XXXXXXXX</div>
+                    <div className="ums-field-hint">{t("tipQatarFormat")}</div>
                   </div>
 
                   <div className="ums-span-2">
-                    <label className="ums-label">Department</label>
+                    <label className="ums-label">{t("department")}</label>
                     <select
                       className="ums-input"
                       value={departmentKey}
@@ -1671,7 +1673,7 @@ export default function Users(_: PageProps) {
                       }}
                       disabled={loading}
                     >
-                      <option value="">Select…</option>
+                      <option value="">{t("selectEllipsis")}</option>
                       {departments.map((d) => (
                         <option key={d.key} value={d.key}>
                           {d.name}
@@ -1681,14 +1683,14 @@ export default function Users(_: PageProps) {
                   </div>
 
                   <div className="ums-span-2">
-                    <label className="ums-label">Role</label>
+                    <label className="ums-label">{t("role")}</label>
                     <select
                       className="ums-input"
                       value={roleKey}
                       onChange={(e) => setRoleKey(e.target.value)}
                       disabled={loading || !departmentKey}
                     >
-                      <option value="">Select…</option>
+                      <option value="">{t("selectEllipsis")}</option>
                       {availableRolesForDept.map((r) => (
                         <option key={String(r.id ?? "")} value={String(r.id ?? "")}>
                           {r.name ?? "—"}
@@ -1696,19 +1698,19 @@ export default function Users(_: PageProps) {
                       ))}
                     </select>
                     {!departmentKey && (
-                      <div className="ums-field-hint">Select a department first.</div>
+                      <div className="ums-field-hint">{t("selectDepartmentFirst")}</div>
                     )}
                   </div>
 
                   <div className="ums-span-2">
-                    <label className="ums-label">Line Manager</label>
+                    <label className="ums-label">{t("lineManager")}</label>
                     <select
                       className="ums-input"
                       value={lineManagerEmail}
                       onChange={(e) => setLineManagerEmail(e.target.value)}
                       disabled={loading}
                     >
-                      <option value="">Select…</option>
+                      <option value="">{t("selectEllipsis")}</option>
                       {lineManagerOptions
                         .filter((o) => o.email !== String(email ?? "").trim().toLowerCase())
                         .map((opt) => (
@@ -1721,16 +1723,16 @@ export default function Users(_: PageProps) {
                 </div>
 
                 <div className="ums-invite-link">
-                  <div className="ums-invite-link-title">Login Page</div>
+                  <div className="ums-invite-link-title">{t("loginPage")}</div>
                   <div className="ums-invite-link-value">
                     {crmLoginUrl}
                   </div>
                 </div>
 
                 <div className="ums-invite-link">
-                  <div className="ums-invite-link-title">Set-password link</div>
+                  <div className="ums-invite-link-title">{t("setPasswordLinkLabel")}</div>
                   <div className="ums-invite-link-value">
-                    {inviteLink || "Enter an email to generate the link."}
+                    {inviteLink || t("enterEmailToGenerateLink")}
                   </div>
                 </div>
 
@@ -1738,8 +1740,8 @@ export default function Users(_: PageProps) {
               </div>
 
               <div className="ums-modal-foot">
-                <Button onClick={() => setInviteOpen(false)}>Cancel</Button>
-                <Button onClick={copyInviteLink} isDisabled={!inviteLink}>Copy link</Button>
+                <Button onClick={() => setInviteOpen(false)}>{t("Cancel")}</Button>
+                <Button onClick={copyInviteLink} isDisabled={!inviteLink}>{t("copyLink")}</Button>
                 <PermissionGate moduleId="users" optionId="users_invite">
                   <Button
                     variation="primary"
@@ -1747,13 +1749,13 @@ export default function Users(_: PageProps) {
                     isDisabled={!canInviteUsers || loading}
                     isLoading={loading}
                   >
-                    Invite
+                    {t("inviteUser")}
                   </Button>
                 </PermissionGate>
               </div>
 
               <div className="ums-hint">
-                Users get access from Department(Group) → Roles → Policies.
+                {t("usersGetAccessHint")}
               </div>
             </div>
           </div>
