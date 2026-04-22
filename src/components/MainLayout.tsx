@@ -17,7 +17,6 @@ const loadUsers = () => import("../pages/UserAdmin");
 const loadDepartmentsAdmin = () => import("../pages/DepartmentsAdmin");
 const loadRolesPoliciesAdmin = () => import("../pages/RolesPoliciesAdmin");
 const loadInventoryManagement = () => import("../pages/InventoryManagement");
-const loadCampaignAudienceAdmin = () => import("../pages/CampaignAudienceAdmin.tsx");
 const loadInternalChat = () => import("../pages/InternalMessaging");
 const loadEmailInbox = () => import("../pages/EmailInboxPage");
 
@@ -44,7 +43,6 @@ const Users = lazy(loadUsers);
 const DepartmentsAdmin = lazy(loadDepartmentsAdmin);
 const RolesPoliciesAdmin = lazy(loadRolesPoliciesAdmin);
 const InventoryManagement = lazy(loadInventoryManagement);
-const CampaignAudienceAdmin = lazy(loadCampaignAudienceAdmin);
 const InternalChat = lazy(loadInternalChat);
 const EmailInbox = lazy(loadEmailInbox);
 
@@ -88,8 +86,7 @@ type Page =
   | "departments"
   | "rolespolicies"
     | "inventory"
-    | "campaignaudience"
-    | "dbcleanup";
+      | "dbcleanup";
 
 const PAGE_LOADERS: Record<Page, () => Promise<unknown>> = {
   dashboard: loadDashboard,
@@ -113,7 +110,6 @@ const PAGE_LOADERS: Record<Page, () => Promise<unknown>> = {
   departments: loadDepartmentsAdmin,
   rolespolicies: loadRolesPoliciesAdmin,
   inventory: loadInventoryManagement,
-  campaignaudience: loadCampaignAudienceAdmin,
   dbcleanup: loadDatabaseCleanup,
 };
 
@@ -302,7 +298,6 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       users: usersRead,
       departments: departmentsRead,
       rolespolicies: rolesRead && listOn("rolespolicies", "rolespolicies_list"),
-      campaignaudience: isAdminGroup,
       dbcleanup: isAdminGroup,
     };
   }, [isAdminGroup, can, canOption, isModuleEnabled]);
@@ -330,7 +325,6 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (showAdmin.users) pages.push("users");
     if (showAdmin.departments) pages.push("departments");
     if (showAdmin.rolespolicies) pages.push("rolespolicies");
-    if (showAdmin.campaignaudience) pages.push("campaignaudience");
     if (showAdmin.dbcleanup) pages.push("dbcleanup");
     return pages;
   }, [show, showAdmin]);
@@ -398,7 +392,6 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !showAdmin.users &&
     !showAdmin.departments &&
     !showAdmin.rolespolicies &&
-    !showAdmin.campaignaudience &&
     !showAdmin.dbcleanup;
 
   useEffect(() => {
@@ -427,7 +420,6 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (showAdmin.users) allowedPages.push("users");
     if (showAdmin.departments) allowedPages.push("departments");
     if (showAdmin.rolespolicies) allowedPages.push("rolespolicies");
-    if (showAdmin.campaignaudience) allowedPages.push("campaignaudience");
     if (showAdmin.dbcleanup) allowedPages.push("dbcleanup");
 
     const isCurrentAllowed =
@@ -452,7 +444,6 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       (page === "users" && showAdmin.users) ||
       (page === "departments" && showAdmin.departments) ||
       (page === "rolespolicies" && showAdmin.rolespolicies) ||
-      (page === "campaignaudience" && showAdmin.campaignaudience) ||
       (page === "dbcleanup" && showAdmin.dbcleanup);
 
     if (!isCurrentAllowed) {
@@ -615,7 +606,6 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     users: t("User Management"),
     departments: t("Departments"),
     rolespolicies: t("Roles & Policies"),
-    campaignaudience: t("Campaign Audience"),
     dbcleanup: t("Database Cleanup"),
   };
 
@@ -766,7 +756,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               </button>
             )}
 
-            {(showAdmin.users || showAdmin.departments || showAdmin.rolespolicies || showAdmin.campaignaudience || showAdmin.dbcleanup) && (
+            {(showAdmin.users || showAdmin.departments || showAdmin.rolespolicies || showAdmin.dbcleanup) && (
               <div className="drawer-section">
                 <div className="drawer-section-label">{t("Admin")}</div>
 
@@ -783,11 +773,6 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
                 {showAdmin.rolespolicies && (
                   <button className={page === "rolespolicies" ? "active" : ""} onClick={() => go("rolespolicies")}>
                     <i className="fas fa-shield-alt" aria-hidden="true" /> {t("Roles & Policies")}
-                  </button>
-                )}
-                {showAdmin.campaignaudience && (
-                  <button className={page === "campaignaudience" ? "active" : ""} onClick={() => go("campaignaudience")}>
-                    <i className="fas fa-bullhorn" aria-hidden="true" /> {t("Campaign Audience")}
                   </button>
                 )}
                 {showAdmin.dbcleanup && (
@@ -1010,9 +995,6 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               <PermissionGate moduleId="rolespolicies" optionId="rolespolicies_list">
                 <RolesPoliciesAdmin />
               </PermissionGate>
-            )}
-            {page === "campaignaudience" && showAdmin.campaignaudience && (
-              <CampaignAudienceAdmin />
             )}
             {page === "dbcleanup" && showAdmin.dbcleanup && (
               <DatabaseCleanupAdmin />

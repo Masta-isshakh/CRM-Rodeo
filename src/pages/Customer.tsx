@@ -63,19 +63,6 @@ const SOCIAL_PLATFORM_OPTIONS = [
   { value: "website", label: "Website" },
 ] as const;
 
-function heardFromLabel(v: unknown) {
-  const key = String(v ?? "").trim().toLowerCase();
-  if (!key) return "Not provided";
-  const found = HEARD_FROM_OPTIONS.find((o) => o.value === key);
-  return found?.label ?? key;
-}
-
-function socialPlatformLabel(v: unknown) {
-  const key = String(v ?? "").trim().toLowerCase();
-  if (!key) return "Not provided";
-  const found = SOCIAL_PLATFORM_OPTIONS.find((o) => o.value === key);
-  return found?.label ?? key;
-}
 
 type CountsMap = Record<
   string,
@@ -458,7 +445,6 @@ function CustomersTable(props: {
 // -----------------------------
 function DetailsView(props: {
   customer: CustomerRow;
-  counts: CountsMap;
   customerStats: { vehicles: number; completedServices: number };
   vehicles: VehicleRow[];
   contacts: ContactRow[];
@@ -477,7 +463,6 @@ function DetailsView(props: {
 }) {
   const {
     customer,
-    counts,
     customerStats,
     vehicles,
     contacts,
@@ -497,8 +482,7 @@ function DetailsView(props: {
 
   const fullName = `${customer.name ?? ""} ${customer.lastname ?? ""}`.trim();
   const displayCustomerId = formatCustomerId(customer.id);
-  const createdAt = customer.createdAt ? new Date(customer.createdAt).toLocaleString() : "—";
-  const ct = counts[customer.id] || { contacts: 0, deals: 0, tickets: 0 };
+  const firstVehicle = vehicles[0] as any;
 
   return (
     <div className="pim-details-screen">
@@ -516,123 +500,96 @@ function DetailsView(props: {
       <div className="pim-details-body">
         <div className="pim-details-grid">
           {canViewInfoCard && (
-            <div className="pim-detail-card">
-              <div className="details-card-header">
-                <h3>
-                  <i className="fas fa-user" /> Customer Information
-                </h3>
+            <>
+              <div className="pim-detail-card customer-summary-card">
+                <div className="details-card-header">
+                  <h3>
+                    <i className="fas fa-user" /> Customer Information
+                  </h3>
+                  {canUpdate && (
+                    <button className="btn-action btn-edit" onClick={() => onEdit(customer.id)} type="button">
+                      <i className="fas fa-edit" /> Edit Customer
+                    </button>
+                  )}
+                </div>
 
-                {canUpdate && (
-                  <button className="btn-action btn-edit" onClick={() => onEdit(customer.id)} type="button">
-                    <i className="fas fa-edit" /> Edit Customer
-                  </button>
-                )}
+                <div className="pim-card-content customer-summary-grid">
+                  <div className="pim-info-item">
+                    <span className="pim-info-label">Customer ID</span>
+                    <span className="pim-info-value">{displayCustomerId}</span>
+                  </div>
+                  <div className="pim-info-item">
+                    <span className="pim-info-label">Customer Name</span>
+                    <span className="pim-info-value">{fullName || "—"}</span>
+                  </div>
+                  <div className="pim-info-item">
+                    <span className="pim-info-label">Mobile</span>
+                    <span className="pim-info-value">{customer.phone || "Not provided"}</span>
+                  </div>
+                  <div className="pim-info-item">
+                    <span className="pim-info-label">Email</span>
+                    <span className="pim-info-value">{customer.email || "Not provided"}</span>
+                  </div>
+                  <div className="pim-info-item">
+                    <span className="pim-info-label">Registered Vehicles</span>
+                    <span className="pim-info-value"><span className="count-badge">{customerStats.vehicles} vehicles</span></span>
+                  </div>
+                  <div className="pim-info-item">
+                    <span className="pim-info-label">Completed Services</span>
+                    <span className="pim-info-value"><span className="count-badge">{customerStats.completedServices} completed</span></span>
+                  </div>
+                </div>
               </div>
 
-              <div className="pim-card-content">
-                <div className="pim-info-item">
-                  <span className="pim-info-label">Customer ID</span>
-                  <span className="pim-info-value">{displayCustomerId}</span>
+              <div className="pim-detail-card customer-summary-card">
+                <div className="details-card-header">
+                  <h3>
+                    <i className="fas fa-car" /> Vehicle Information
+                  </h3>
                 </div>
 
-                <div className="pim-info-item">
-                  <span className="pim-info-label">Customer Name</span>
-                  <span className="pim-info-value">{fullName || "—"}</span>
-                </div>
-
-                <div className="pim-info-item">
-                  <span className="pim-info-label">Mobile Number</span>
-                  <span className="pim-info-value">{customer.phone || "Not provided"}</span>
-                </div>
-
-                <div className="pim-info-item">
-                  <span className="pim-info-label">Email Address</span>
-                  <span className="pim-info-value">{customer.email || "Not provided"}</span>
-                </div>
-
-                <div className="pim-info-item">
-                  <span className="pim-info-label">Company</span>
-                  <span className="pim-info-value">{customer.company || "Not provided"}</span>
-                </div>
-
-                <div className="pim-info-item">
-                  <span className="pim-info-label">Notes</span>
-                  <span className="pim-info-value">{customer.notes || "Not provided"}</span>
-                </div>
-
-                <div className="pim-info-item">
-                  <span className="pim-info-label">Heard of us from</span>
-                  <span className="pim-info-value">{heardFromLabel((customer as any).heardFrom)}</span>
-                </div>
-
-                {String((customer as any).heardFrom ?? "") === "refer_person" && (
-                  <>
+                {firstVehicle ? (
+                  <div className="pim-card-content customer-summary-grid">
                     <div className="pim-info-item">
-                      <span className="pim-info-label">Referred Person Name</span>
-                      <span className="pim-info-value">{String((customer as any).referralPersonName ?? "").trim() || "Not provided"}</span>
+                      <span className="pim-info-label">Vehicle ID</span>
+                      <span className="pim-info-value">{String(firstVehicle.vehicleId ?? firstVehicle.id ?? "—")}</span>
                     </div>
                     <div className="pim-info-item">
-                      <span className="pim-info-label">Referred Person Mobile</span>
-                      <span className="pim-info-value">{String((customer as any).referralPersonMobile ?? "").trim() || "Not provided"}</span>
+                      <span className="pim-info-label">Make</span>
+                      <span className="pim-info-value">{String(firstVehicle.make ?? "").trim() || "—"}</span>
                     </div>
-                  </>
-                )}
-
-                {String((customer as any).heardFrom ?? "") === "social_media" && (
-                  <div className="pim-info-item">
-                    <span className="pim-info-label">Social Platform</span>
-                    <span className="pim-info-value">{socialPlatformLabel((customer as any).socialPlatform)}</span>
+                    <div className="pim-info-item">
+                      <span className="pim-info-label">Model</span>
+                      <span className="pim-info-value">{String(firstVehicle.model ?? "").trim() || "—"}</span>
+                    </div>
+                    <div className="pim-info-item">
+                      <span className="pim-info-label">Year</span>
+                      <span className="pim-info-value">{String(firstVehicle.year ?? "").trim() || "—"}</span>
+                    </div>
+                    <div className="pim-info-item">
+                      <span className="pim-info-label">Type</span>
+                      <span className="pim-info-value">{String(firstVehicle.vehicleType ?? "").trim() || "—"}</span>
+                    </div>
+                    <div className="pim-info-item">
+                      <span className="pim-info-label">Color</span>
+                      <span className="pim-info-value">{String(firstVehicle.color ?? "").trim() || "—"}</span>
+                    </div>
+                    <div className="pim-info-item">
+                      <span className="pim-info-label">Plate Number</span>
+                      <span className="pim-info-value">{String(firstVehicle.plateNumber ?? "").trim() || "—"}</span>
+                    </div>
+                    <div className="pim-info-item">
+                      <span className="pim-info-label">VIN</span>
+                      <span className="pim-info-value">{String(firstVehicle.vin ?? "").trim() || "N/A"}</span>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="pim-card-content">
+                    <div className="related-empty">No vehicles.</div>
                   </div>
                 )}
-
-                {String((customer as any).heardFrom ?? "") === "other" && (
-                  <div className="pim-info-item">
-                    <span className="pim-info-label">Other Note</span>
-                    <span className="pim-info-value">{String((customer as any).heardFromOtherNote ?? "").trim() || "Not provided"}</span>
-                  </div>
-                )}
-
-                <div className="pim-info-item">
-                  <span className="pim-info-label">Contacts</span>
-                  <span className="pim-info-value">
-                    <span className="count-badge">{ct.contacts} contacts</span>
-                  </span>
-                </div>
-
-                <div className="pim-info-item">
-                  <span className="pim-info-label">Deals</span>
-                  <span className="pim-info-value">
-                    <span className="count-badge">{ct.deals} deals</span>
-                  </span>
-                </div>
-
-                <div className="pim-info-item">
-                  <span className="pim-info-label">Tickets</span>
-                  <span className="pim-info-value">
-                    <span className="count-badge">{ct.tickets} tickets</span>
-                  </span>
-                </div>
-
-                <div className="pim-info-item">
-                  <span className="pim-info-label">Registered Vehicles</span>
-                  <span className="pim-info-value">
-                    <span className="count-badge">{customerStats.vehicles} vehicles</span>
-                  </span>
-                </div>
-
-                <div className="pim-info-item">
-                  <span className="pim-info-label">Completed Services</span>
-                  <span className="pim-info-value">
-                    <span className="count-badge">{customerStats.completedServices} completed</span>
-                  </span>
-                </div>
-
-                <div className="pim-info-item">
-                  <span className="pim-info-label">Created At</span>
-                  <span className="pim-info-value">{createdAt}</span>
-                </div>
               </div>
-            </div>
+            </>
           )}
 
           {canViewRelatedCard && (
@@ -647,41 +604,6 @@ function DetailsView(props: {
               </div>
 
               <div className="pim-card-content">
-                <div className="related-section">
-                  <div className="related-title">
-                    <i className="fas fa-car" /> Vehicles
-                  </div>
-                  {loadingRelations ? (
-                    <div className="related-empty">Loading vehicles…</div>
-                  ) : vehicles.length ? (
-                    <ul className="related-list customer-vehicles-list">
-                      {vehicles.slice(0, 10).map((x) => {
-                        const vehicleId = String((x as any).vehicleId ?? x.id ?? "—");
-                        const make = String((x as any).make ?? "").trim();
-                        const model = String((x as any).model ?? "").trim();
-                        const year = String((x as any).year ?? "").trim() || "—";
-                        const plate = String((x as any).plateNumber ?? "").trim() || "—";
-                        const type = String((x as any).vehicleType ?? "").trim() || "—";
-                        const color = String((x as any).color ?? "").trim() || "—";
-                        const vin = String((x as any).vin ?? "").trim() || "—";
-                        return (
-                          <li key={x.id} className="customer-vehicle-row">
-                            <span className="customer-vehicle-cell"><b>Vehicle ID:</b> {vehicleId}</span>
-                            <span className="customer-vehicle-cell"><b>Make:</b> {make || "—"}</span>
-                            <span className="customer-vehicle-cell"><b>Model:</b> {model || "—"}</span>
-                            <span className="customer-vehicle-cell"><b>Year:</b> {year}</span>
-                            <span className="customer-vehicle-cell"><b>Type:</b> {type}</span>
-                            <span className="customer-vehicle-cell"><b>Color:</b> {color}</span>
-                            <span className="customer-vehicle-cell"><b>Plate:</b> {plate}</span>
-                            <span className="customer-vehicle-cell"><b>VIN:</b> {vin}</span>
-                          </li>
-                        );
-                      })}
-                    </ul>
-                  ) : (
-                    <div className="related-empty">No vehicles.</div>
-                  )}
-                </div>
 
                 {canViewRelatedContacts && (
                   <div className="related-section">
@@ -1411,7 +1333,6 @@ export default function Customers({ permissions }: PageProps) {
       <>
         <DetailsView
           customer={selectedCustomer}
-          counts={counts}
           customerStats={customerStats}
           vehicles={vehicles}
           contacts={contacts}
