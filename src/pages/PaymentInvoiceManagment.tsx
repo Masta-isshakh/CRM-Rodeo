@@ -1453,6 +1453,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       maxWidthMm: number,
       fontPx: number,
       style: "normal" | "italic" | "bold" | "bolditalic",
+      colorHex = "#181818",
     ) => {
       if (typeof document === "undefined") {
         doc.setFont("helvetica", style === "bolditalic" ? "bold" : style === "bold" ? "bold" : "normal");
@@ -1481,7 +1482,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       const fontWeight = style.includes("bold") ? "700" : "400";
       const fontStyle = style.includes("italic") ? "italic" : "normal";
       ctx.clearRect(0, 0, widthPx, heightPx);
-      ctx.fillStyle = "#181818";
+      ctx.fillStyle = colorHex;
       ctx.direction = "rtl";
       ctx.textAlign = "right";
       ctx.textBaseline = "middle";
@@ -1689,17 +1690,17 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const summaryW = 78;
     const summaryRowH = 6.5;
     const summaryRows = [
-      ["Total Amount | إجمالي المبلغ", totalAmount],
-      ["Discount | الخصم", discount],
-      ["Net Amount | الصافي", netAmount],
-      ["Amount Paid | المدفوع", amountPaid],
-      ["Balance Due | المتبقي", balanceDue],
+      ["Total Amount", "إجمالي المبلغ", totalAmount],
+      ["Discount", "الخصم", discount],
+      ["Net Amount", "الصافي", netAmount],
+      ["Amount Paid", "المدفوع", amountPaid],
+      ["Balance Due", "المتبقي", balanceDue],
     ] as const;
 
     doc.setDrawColor(188, 196, 206);
     doc.setFillColor(246, 249, 252);
     doc.roundedRect(summaryX, summaryTop - 2, summaryW, summaryRows.length * summaryRowH + 3, 1.5, 1.5, "FD");
-    summaryRows.forEach(([label, value], idx) => {
+    summaryRows.forEach(([enLabel, arLabel, value], idx) => {
       const y = summaryTop + idx * summaryRowH;
       if (idx === summaryRows.length - 1) {
         doc.setFillColor(44, 62, 80);
@@ -1710,7 +1711,16 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       }
       doc.setFont("helvetica", idx >= 2 ? "bold" : "normal");
       doc.setFontSize(8.8);
-      doc.text(label, summaryX + 3, y + 2.8);
+      doc.text(`${enLabel} |`, summaryX + 3, y + 2.8);
+      drawArabicLine(
+        arLabel,
+        summaryX + 48,
+        y - 0.3,
+        24,
+        8,
+        idx >= 2 ? "bold" : "normal",
+        idx === summaryRows.length - 1 ? "#FFFFFF" : "#181818",
+      );
       doc.text(fmtQar(value), pageW - marginX - 2, y + 2.8, { align: "right" });
     });
 
