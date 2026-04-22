@@ -8,7 +8,6 @@ import {
   AdminDeleteUserCommand,
   AdminGetUserCommand,
   AdminResetUserPasswordCommand,
-  AdminSetUserPasswordCommand,
   AdminUpdateUserAttributesCommand,
   AdminListGroupsForUserCommand,
   GetGroupCommand,
@@ -499,21 +498,43 @@ const createRes = await cognito.send(
         })
       );
 
-      await cognito.send(
-        new AdminSetUserPasswordCommand({
-          UserPoolId: userPoolId,
-          Username: cognitoUsername,
-          Password: temporaryPassword,
-          Permanent: false,
-        })
-      );
+      // Some Cognito states reject direct reset ("User password cannot be reset in the current state").
+      // Try reset first, then fall back to RESEND invite for users awaiting initial password setup.
+      try {
+        await cognito.send(
+          new AdminResetUserPasswordCommand({
+            UserPoolId: userPoolId,
+            Username: cognitoUsername,
+          })
+        );
+      } catch (resetErr: any) {
+        const resetErrName = String(resetErr?.name ?? "").toLowerCase();
+        const resetErrMsg = String(resetErr?.message ?? "").toLowerCase();
+        const isCurrentStateResetIssue =
+          resetErrName.includes("invalidparameter") &&
+          (resetErrMsg.includes("cannot be reset in the current state") ||
+            resetErrMsg.includes("current state"));
 
-      await cognito.send(
-        new AdminResetUserPasswordCommand({
-          UserPoolId: userPoolId,
-          Username: cognitoUsername,
-        })
-      );
+        if (!isCurrentStateResetIssue) {
+          throw resetErr;
+        }
+
+        await cognito.send(
+          new AdminCreateUserCommand({
+            UserPoolId: userPoolId,
+            Username: cognitoUsername,
+            TemporaryPassword: temporaryPassword,
+            UserAttributes: [
+              { Name: "email", Value: email },
+              { Name: "email_verified", Value: "true" },
+              { Name: "name", Value: fullName },
+            ],
+            DesiredDeliveryMediums: ["EMAIL"],
+            MessageAction: "RESEND",
+            ForceAliasCreation: false,
+          })
+        );
+      }
     }
   }
 
