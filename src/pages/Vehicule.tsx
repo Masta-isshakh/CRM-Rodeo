@@ -1301,7 +1301,7 @@ export default function VehicleManagement({
                 </div>
               </div>
 
-              <div className="pim-detail-card">
+              <div className="pim-detail-card cv-full-width-card">
                 <div className="details-card-header">
                   <h3>
                     <i className="fas fa-tasks"></i> Completed Services (from Job Orders)
@@ -1313,10 +1313,24 @@ export default function VehicleManagement({
                       if (!onNavigate) return;
                       onNavigate("Job Order Management", {
                         openNewJob: true,
+                        startStep: 3,
                         source: "Vehicles Management",
-                        vehicleId: resolveVehicleIdRaw(selectedVehicle),
-                        customerId: selectedVehicle.customerId,
-                        plateNumber: selectedVehicle.plateNumber,
+                        returnToVehicle: resolveVehicleIdRaw(selectedVehicle),
+                        customerData: selectedCustomer
+                          ? {
+                              ...selectedCustomer,
+                              id: selectedVehicle.customerId,
+                              mobile: selectedCustomer.phone ?? null,
+                            }
+                          : selectedVehicle.customerId
+                            ? { id: selectedVehicle.customerId }
+                            : null,
+                        vehicleData: {
+                          ...selectedVehicle,
+                          id: resolveVehicleIdRaw(selectedVehicle),
+                          vehicleId: resolveVehicleIdRaw(selectedVehicle),
+                          plateNumber: selectedVehicle.plateNumber,
+                        },
                       });
                     }}
                   >

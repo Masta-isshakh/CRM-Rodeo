@@ -1,5 +1,6 @@
 // src/layout/MainLayout.tsx
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ErrorInfo, ReactNode } from "react";
 
 const loadDashboard = () => import("../pages/Dashboard");
 const loadCustomers = () => import("../pages/Customer");
@@ -124,11 +125,31 @@ const EMPTY = {
   canApprove: false,
 };
 
+class LocalPageErrorBoundary extends Component<
+  { children: ReactNode; fallback: ReactNode },
+  { hasError: boolean }
+> {
+  state = { hasError: false };
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: unknown, info: ErrorInfo) {
+    console.error("[local-page-error-boundary]", error, info);
+  }
+
+  render() {
+    if (this.state.hasError) return this.props.fallback;
+    return this.props.children;
+  }
+}
+
 type CrudPerm = typeof EMPTY;
 
 const THEME_STORAGE_KEY = "crm.themeMode";
 const CHAT_LAST_SEEN_STORAGE_PREFIX = "crm.chat.lastSeen.";
-const WORKMAIL_URL = String(import.meta.env.VITE_WORKMAIL_URL ?? "https://mail.awsapps.com/").trim();
+const WORKMAIL_URL = String(import.meta.env.VITE_WORKMAIL_URL ?? "https://rodeodrive.awsapps.com/mail").trim();
 
 type ThemeMode = "light" | "dark";
 
@@ -159,6 +180,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     typeof window !== "undefined" ? window.innerWidth >= DESKTOP_BREAKPOINT : true;
 
   const [page, setPage] = useState<Page>("dashboard");
+  const [navigationData, setNavigationData] = useState<any>(null);
   const [isDesktop, setIsDesktop] = useState<boolean>(detectDesktop);
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(detectDesktop);
   const [themeMode, setThemeMode] = useState<ThemeMode>(resolveInitialTheme);
@@ -178,13 +200,51 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
   const go = (p: Page) => {
     setPage(p);
+    setNavigationData(null);
     if (!isDesktop) setSidebarOpen(false);
   };
 
   const openEmailInbox = useCallback(() => {
     if (!WORKMAIL_URL) return;
-    window.open(WORKMAIL_URL, "_blank", "noopener,noreferrer");
+    window.location.assign(WORKMAIL_URL);
   }, []);
+
+  const handleModuleNavigate = useCallback(
+    (moduleName: string, payload?: any) => {
+      const normalized = String(moduleName ?? "").trim().toLowerCase();
+      let targetPage: Page | null = null;
+
+      if (normalized === "job order management" || normalized === "jobcards") {
+        targetPage = "jobcards";
+      } else if (normalized === "vehicles management" || normalized === "vehicles") {
+        targetPage = "vehicles";
+      }
+
+      if (!targetPage) return;
+      setNavigationData(payload ?? null);
+      setPage(targetPage);
+      if (!isDesktop) setSidebarOpen(false);
+    },
+    [isDesktop]
+  );
+
+  const clearNavigationData = useCallback(() => {
+    setNavigationData(null);
+  }, []);
+
+  const handleNavigateBack = useCallback(
+    (source: string, returnId?: string | null) => {
+      const normalized = String(source ?? "").trim().toLowerCase();
+      if (normalized === "vehicles management" || normalized === "vehicles") {
+        setNavigationData(returnId ? { openDetails: true, vehicleId: returnId } : null);
+        setPage("vehicles");
+        if (!isDesktop) setSidebarOpen(false);
+        return;
+      }
+      setNavigationData(null);
+    },
+    [isDesktop]
+  );
 
   // ✅ helper: sidebar “list” toggle gate (defaults to true if key not stored)
   const listOn = (moduleId: string, listOptionId: string) => {
@@ -831,13 +891,25 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
             {page === "vehicles" && show.vehicles && (
               <PermissionGate moduleId="vehicles" optionId="vehicles_list">
-                <Vehicles permissions={canAny("VEHICLES")} />
+                <Vehicles
+                  permissions={canAny("VEHICLES")}
+                  navigationData={navigationData}
+                  onClearNavigation={clearNavigationData}
+                  onNavigate={handleModuleNavigate}
+                  onNavigateBack={handleNavigateBack}
+                />
               </PermissionGate>
             )}
 
             {page === "jobcards" && show.jobcards && (
               <PermissionGate moduleId="joborder" optionId="joborder_list">
-                <JobCards permissions={canAny("JOB_CARDS")} currentUser={currentUser} />
+                <JobCards
+                  permissions={canAny("JOB_CARDS")}
+                  currentUser={currentUser}
+                  navigationData={navigationData}
+                  onClearNavigation={clearNavigationData}
+                  onNavigateBack={handleNavigateBack}
+                />
               </PermissionGate>
             )}
             {page === "servicecreation" && show.servicecreation && (
@@ -887,7 +959,11 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
             {page === "internalchat" && show.internalchat && (
               <PermissionGate moduleId="internalchat" optionId="internalchat_list">
-                <InternalChat permissions={canAny("INTERNAL_CHAT")} />
+                <LocalPageErrorBoundary
+                  fallback={<div className="no-access"><h3>{t("Internal Chat is temporarily unavailable.")}</h3></div>}
+                >
+                  <InternalChat permissions={canAny("INTERNAL_CHAT")} />
+                </LocalPageErrorBoundary>
               </PermissionGate>
             )}
 
