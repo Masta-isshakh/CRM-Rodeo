@@ -335,7 +335,14 @@ const authComponents = {
                 className="crm-auth-password-toggle"
                 aria-label={showPassword ? tr("Hide password") : tr("Show password")}
                 title={showPassword ? tr("Hide password") : tr("Show password")}
-                onClick={() => setShowPassword((prev) => !prev)}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                }}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setShowPassword((prev) => !prev);
+                }}
               >
                 <PasswordVisibilityIcon visible={showPassword} />
               </button>

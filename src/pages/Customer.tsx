@@ -19,6 +19,7 @@ type CustomerRow = Schema["Customer"]["type"];
 type ContactRow = Schema["Contact"]["type"];
 type DealRow = Schema["Deal"]["type"];
 type TicketRow = Schema["Ticket"]["type"];
+type VehicleRow = Schema["Vehicle"]["type"];
 
 type AlertType = "info" | "success" | "warning" | "error";
 
@@ -459,6 +460,7 @@ function DetailsView(props: {
   customer: CustomerRow;
   counts: CountsMap;
   customerStats: { vehicles: number; completedServices: number };
+  vehicles: VehicleRow[];
   contacts: ContactRow[];
   deals: DealRow[];
   tickets: TicketRow[];
@@ -477,6 +479,7 @@ function DetailsView(props: {
     customer,
     counts,
     customerStats,
+    vehicles,
     contacts,
     deals,
     tickets,
@@ -644,6 +647,42 @@ function DetailsView(props: {
               </div>
 
               <div className="pim-card-content">
+                <div className="related-section">
+                  <div className="related-title">
+                    <i className="fas fa-car" /> Vehicles
+                  </div>
+                  {loadingRelations ? (
+                    <div className="related-empty">Loading vehicles…</div>
+                  ) : vehicles.length ? (
+                    <ul className="related-list customer-vehicles-list">
+                      {vehicles.slice(0, 10).map((x) => {
+                        const vehicleId = String((x as any).vehicleId ?? x.id ?? "—");
+                        const make = String((x as any).make ?? "").trim();
+                        const model = String((x as any).model ?? "").trim();
+                        const year = String((x as any).year ?? "").trim() || "—";
+                        const plate = String((x as any).plateNumber ?? "").trim() || "—";
+                        const type = String((x as any).vehicleType ?? "").trim() || "—";
+                        const color = String((x as any).color ?? "").trim() || "—";
+                        const vin = String((x as any).vin ?? "").trim() || "—";
+                        return (
+                          <li key={x.id} className="customer-vehicle-row">
+                            <span className="customer-vehicle-cell"><b>Vehicle ID:</b> {vehicleId}</span>
+                            <span className="customer-vehicle-cell"><b>Make:</b> {make || "—"}</span>
+                            <span className="customer-vehicle-cell"><b>Model:</b> {model || "—"}</span>
+                            <span className="customer-vehicle-cell"><b>Year:</b> {year}</span>
+                            <span className="customer-vehicle-cell"><b>Type:</b> {type}</span>
+                            <span className="customer-vehicle-cell"><b>Color:</b> {color}</span>
+                            <span className="customer-vehicle-cell"><b>Plate:</b> {plate}</span>
+                            <span className="customer-vehicle-cell"><b>VIN:</b> {vin}</span>
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <div className="related-empty">No vehicles.</div>
+                  )}
+                </div>
+
                 {canViewRelatedContacts && (
                   <div className="related-section">
                     <div className="related-title">
@@ -713,9 +752,6 @@ function DetailsView(props: {
                   </div>
                 )}
 
-                {!canViewRelatedContacts && !canViewRelatedDeals && !canViewRelatedTickets && (
-                  <div className="related-empty">No related sections are enabled for your role.</div>
-                )}
               </div>
             </div>
           )}
@@ -858,6 +894,7 @@ export default function Customers({ permissions }: PageProps) {
   );
 
   const [loadingRelations, setLoadingRelations] = useState(false);
+  const [vehicles, setVehicles] = useState<VehicleRow[]>([]);
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [deals, setDeals] = useState<DealRow[]>([]);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
@@ -867,7 +904,7 @@ export default function Customers({ permissions }: PageProps) {
   });
   const countsRequestRef = useRef(0);
   const relationsCacheRef = useRef<
-    Map<string, { contacts?: ContactRow[]; deals?: DealRow[]; tickets?: TicketRow[] }>
+    Map<string, { vehicles?: VehicleRow[]; contacts?: ContactRow[]; deals?: DealRow[]; tickets?: TicketRow[] }>
   >(new Map());
   const customerStatsCacheRef = useRef<Map<string, { vehicles: number; completedServices: number }>>(new Map());
 
@@ -1138,12 +1175,11 @@ export default function Customers({ permissions }: PageProps) {
     })();
 
     // only load relations if at least one related section is enabled
-    const shouldLoadRelations =
-      canCustomersDetailsRelated &&
-      (canCustomersRelatedContacts || canCustomersRelatedDeals || canCustomersRelatedTickets);
+    const shouldLoadRelations = canCustomersDetailsRelated;
 
     if (!shouldLoadRelations) {
       setLoadingRelations(false);
+      setVehicles([]);
       setContacts([]);
       setDeals([]);
       setTickets([]);
@@ -1151,11 +1187,13 @@ export default function Customers({ permissions }: PageProps) {
     }
 
     const cacheEntry = relationsCacheRef.current.get(id) ?? {};
+    const needsVehicles = !cacheEntry.vehicles;
     const needsContacts = canCustomersRelatedContacts && !cacheEntry.contacts;
     const needsDeals = canCustomersRelatedDeals && !cacheEntry.deals;
     const needsTickets = canCustomersRelatedTickets && !cacheEntry.tickets;
 
-    if (!needsContacts && !needsDeals && !needsTickets) {
+    if (!needsVehicles && !needsContacts && !needsDeals && !needsTickets) {
+      setVehicles(cacheEntry.vehicles ?? []);
       setContacts(cacheEntry.contacts ?? []);
       setDeals(cacheEntry.deals ?? []);
       setTickets(cacheEntry.tickets ?? []);
@@ -1164,12 +1202,16 @@ export default function Customers({ permissions }: PageProps) {
     }
 
     setLoadingRelations(true);
+    setVehicles(cacheEntry.vehicles ?? []);
     setContacts(cacheEntry.contacts ?? []);
     setDeals(cacheEntry.deals ?? []);
     setTickets(cacheEntry.tickets ?? []);
 
     try {
-      const [contactRes, dealRes, ticketRes] = await Promise.all([
+      const [vehicleRes, contactRes, dealRes, ticketRes] = await Promise.all([
+        needsVehicles
+          ? client.models.Vehicle.list({ filter: { customerId: { eq: id } }, limit: 1000 })
+          : Promise.resolve({ data: (cacheEntry.vehicles ?? []) as VehicleRow[] } as any),
         needsContacts
           ? client.models.Contact.list({ filter: { customerId: { eq: id } }, limit: 500 })
           : Promise.resolve({ data: (cacheEntry.contacts ?? []) as ContactRow[] } as any),
@@ -1182,12 +1224,14 @@ export default function Customers({ permissions }: PageProps) {
       ]);
 
       const nextEntry = {
+        vehicles: (vehicleRes.data ?? []) as VehicleRow[],
         contacts: (contactRes.data ?? []) as ContactRow[],
         deals: (dealRes.data ?? []) as DealRow[],
         tickets: (ticketRes.data ?? []) as TicketRow[],
       };
       relationsCacheRef.current.set(id, nextEntry);
 
+      setVehicles(nextEntry.vehicles);
       setContacts(nextEntry.contacts);
       setDeals(nextEntry.deals);
       setTickets(nextEntry.tickets);
@@ -1202,6 +1246,7 @@ export default function Customers({ permissions }: PageProps) {
   const closeDetailsView = () => {
     setViewMode("list");
     setSelectedCustomerId(null);
+    setVehicles([]);
     setCustomerStats({ vehicles: 0, completedServices: 0 });
   };
 
@@ -1368,6 +1413,7 @@ export default function Customers({ permissions }: PageProps) {
           customer={selectedCustomer}
           counts={counts}
           customerStats={customerStats}
+          vehicles={vehicles}
           contacts={contacts}
           deals={deals}
           tickets={tickets}

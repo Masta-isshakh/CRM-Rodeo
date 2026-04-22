@@ -208,6 +208,14 @@ body,
   display: none;
 }
 
+.crm-auth-password-input-wrap input[type="password"]::-webkit-credentials-auto-fill-button,
+.crm-auth-password-input-wrap input[type="password"]::-webkit-contacts-auto-fill-button,
+.crm-auth-password-input-wrap input[type="password"]::-webkit-textfield-decoration-container {
+  visibility: hidden;
+  display: none !important;
+  pointer-events: none;
+}
+
 .crm-authenticator .amplify-label {
   color: rgba(255, 255, 255, 0.95);
   font-weight: 700;
