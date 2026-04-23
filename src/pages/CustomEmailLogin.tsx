@@ -6,13 +6,14 @@ import "./CustomEmailLogin.css";
 
 const WORKMAIL_REGION = String(import.meta.env.VITE_WORKMAIL_REGION ?? "eu-west-1").trim();
 const WORKMAIL_ORGANIZATION = String(import.meta.env.VITE_WORKMAIL_ORGANIZATION ?? "rodeodrive-mail").trim();
+const DEFAULT_IDENTITY_CENTER_START_URL = "https://d-9f676f5924.awsapps.com/start";
 const WORKMAIL_DEFAULT_ENTRY_URL = `https://webmail.mail.${WORKMAIL_REGION}.awsapps.com/workmail/?organization=${encodeURIComponent(WORKMAIL_ORGANIZATION)}`;
 const WORKMAIL_WEBAPP_URL = String(import.meta.env.VITE_WORKMAIL_URL ?? WORKMAIL_DEFAULT_ENTRY_URL).trim();
 const WORKMAIL_SSO_START_URL_TEMPLATE = String(
-  import.meta.env.VITE_WORKMAIL_IDC_START_URL ?? import.meta.env.VITE_WORKMAIL_SSO_START_URL ?? WORKMAIL_DEFAULT_ENTRY_URL
+  import.meta.env.VITE_WORKMAIL_IDC_START_URL ?? import.meta.env.VITE_WORKMAIL_SSO_START_URL ?? DEFAULT_IDENTITY_CENTER_START_URL
 ).trim();
 const HAS_EXPLICIT_IDENTITY_CENTER_URL = Boolean(
-  String(import.meta.env.VITE_WORKMAIL_IDC_START_URL ?? import.meta.env.VITE_WORKMAIL_SSO_START_URL ?? "").trim()
+  String(import.meta.env.VITE_WORKMAIL_IDC_START_URL ?? import.meta.env.VITE_WORKMAIL_SSO_START_URL ?? DEFAULT_IDENTITY_CENTER_START_URL).trim()
 );
 
 function fillTemplate(template: string, vars: Record<string, string>) {
