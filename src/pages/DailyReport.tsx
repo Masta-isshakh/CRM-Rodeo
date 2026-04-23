@@ -16,9 +16,44 @@ type MetricState = {
 type FeedItem = {
   id: string;
   time: string;
+  date: string;
   type: string;
   title: string;
   detail: string;
+};
+
+type JobOrderDetail = {
+  id: string;
+  dateTime: string;
+  jobOrderId: string;
+  status: string;
+  customerName: string;
+  customerPhone: string;
+  vehicleInfo: string;
+  services: string[];
+  products: string[];
+  totalAmount: number;
+  customerSources: string[];
+  vehicleSources: string[];
+  serviceSources: string[];
+  raw: Record<string, unknown>;
+};
+
+type CustomerDetail = {
+  id: string;
+  name: string;
+  phone: string;
+  dateTime: string;
+};
+
+type VehicleDetail = {
+  id: string;
+  plate: string;
+  make: string;
+  model: string;
+  color: string;
+  customerName: string;
+  dateTime: string;
 };
 
 type ReportFlavor = "executive" | "technical" | "luxury";
@@ -39,12 +74,68 @@ function parseDate(value: unknown): Date | null {
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
-function isSameDay(target: Date, date: Date) {
-  return (
-    target.getFullYear() === date.getFullYear() &&
-    target.getMonth() === date.getMonth() &&
-    target.getDate() === date.getDate()
-  );
+function inDateRange(date: Date, fromDate: string, toDate: string): boolean {
+  const day = date.toISOString().slice(0, 10);
+  return day >= fromDate && day <= toDate;
+}
+
+function firstText(obj: any, keys: string[]): string {
+  for (const key of keys) {
+    const value = safeText(obj?.[key]);
+    if (value) return value;
+  }
+  return "";
+}
+
+function firstTextWithSource(obj: any, keys: string[]): { value: string; source: string } {
+  for (const key of keys) {
+    const value = safeText(obj?.[key]);
+    if (value) return { value, source: key };
+  }
+  return { value: "", source: "" };
+}
+
+function collectTextFromKeysWithSources(
+  obj: Record<string, unknown>,
+  keys: string[]
+): { items: string[]; sources: string[] } {
+  const items = new Set<string>();
+  const sources = new Set<string>();
+
+  for (const key of keys) {
+    const value = obj?.[key];
+    const values = collectTextItems(value).filter(Boolean);
+    if (values.length === 0) continue;
+    values.forEach((entry) => items.add(entry));
+    sources.add(key);
+  }
+
+  return { items: [...items], sources: [...sources] };
+}
+
+function collectTextItems(value: unknown): string[] {
+  if (value == null) return [];
+  if (Array.isArray(value)) {
+    return value
+      .flatMap((item) => collectTextItems(item))
+      .map((item) => safeText(item))
+      .filter(Boolean);
+  }
+
+  if (typeof value === "object") {
+    const obj = value as Record<string, unknown>;
+    const direct = ["name", "serviceName", "title", "label", "productName", "description"]
+      .map((k) => safeText(obj[k]))
+      .filter(Boolean);
+    if (direct.length > 0) return direct;
+    return Object.values(obj)
+      .flatMap((v) => collectTextItems(v))
+      .map((item) => safeText(item))
+      .filter(Boolean);
+  }
+
+  const text = safeText(value);
+  return text ? [text] : [];
 }
 
 function pickModel(client: any, candidates: string[]) {
@@ -77,7 +168,8 @@ function formatMoney(value: number) {
 export default function DailyReport({ permissions }: PageProps) {
   const { t } = useLanguage();
   const client = useMemo(() => getDataClient(), []);
-  const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dateFrom, setDateFrom] = useState(() => new Date().toISOString().slice(0, 10));
+  const [dateTo, setDateTo] = useState(() => new Date().toISOString().slice(0, 10));
   const [flavor, setFlavor] = useState<ReportFlavor>("technical");
   const [loading, setLoading] = useState(false);
   const [metrics, setMetrics] = useState<MetricState>({
@@ -89,11 +181,15 @@ export default function DailyReport({ permissions }: PageProps) {
     incidents: 0,
   });
   const [feed, setFeed] = useState<FeedItem[]>([]);
+  const [jobOrders, setJobOrders] = useState<JobOrderDetail[]>([]);
+  const [customerDetails, setCustomerDetails] = useState<CustomerDetail[]>([]);
+  const [vehicleDetails, setVehicleDetails] = useState<VehicleDetail[]>([]);
 
   useEffect(() => {
     if (!permissions?.canRead) return;
 
-    const targetDate = parseDate(selectedDate) ?? new Date();
+    const normalizedFrom = dateFrom <= dateTo ? dateFrom : dateTo;
+    const normalizedTo = dateFrom <= dateTo ? dateTo : dateFrom;
     let cancelled = false;
 
     const run = async () => {
@@ -106,18 +202,18 @@ export default function DailyReport({ permissions }: PageProps) {
           safeList(client, ["ActivityLog", "ActivityLogs"], 1200),
         ]);
 
-        const todaysOrders = orders.filter((o: any) => {
+        const rangedOrders = orders.filter((o: any) => {
           const d = parseDate(o?.createdAt ?? o?.updatedAt ?? o?.createDate);
-          return d ? isSameDay(targetDate, d) : false;
+          return d ? inDateRange(d, normalizedFrom, normalizedTo) : false;
         });
 
-        const jobsCompleted = todaysOrders.filter((o: any) => {
+        const jobsCompleted = rangedOrders.filter((o: any) => {
           const s = safeText(o?.status ?? o?.workStatus ?? o?.workStatusLabel).toLowerCase();
           return s.includes("completed") || s === "ready";
         }).length;
 
-        const jobsCreated = todaysOrders.length;
-        const totalRevenue = todaysOrders.reduce((sum: number, o: any) => {
+        const jobsCreated = rangedOrders.length;
+        const totalRevenue = rangedOrders.reduce((sum: number, o: any) => {
           const orderTotal =
             toNum(o?.totalAmount) ||
             toNum(o?.billing?.totalAmount) ||
@@ -126,17 +222,18 @@ export default function DailyReport({ permissions }: PageProps) {
           return sum + Math.max(0, orderTotal);
         }, 0);
 
-        const newCustomers = customers.filter((c: any) => {
+        const rangedCustomers = customers.filter((c: any) => {
           const d = parseDate(c?.createdAt ?? c?.updatedAt ?? c?.registeredAt);
-          return d ? isSameDay(targetDate, d) : false;
-        }).length;
+          return d ? inDateRange(d, normalizedFrom, normalizedTo) : false;
+        });
+        const newCustomers = rangedCustomers.length;
 
         const activeEmployees = employees.filter((e: any) => {
           const status = safeText(e?.status ?? e?.employmentStatus ?? e?.active).toLowerCase();
           return status === "active" || status === "true" || status === "1";
         }).length;
 
-        const todaysLogs = logs
+        const rangedLogs = logs
           .map((l: any) => {
             const d = parseDate(l?.createdAt ?? l?.timestamp ?? l?.updatedAt);
             return {
@@ -144,23 +241,114 @@ export default function DailyReport({ permissions }: PageProps) {
               date: d,
             };
           })
-          .filter((x: any) => (x.date ? isSameDay(targetDate, x.date) : false));
+          .filter((x: any) => (x.date ? inDateRange(x.date, normalizedFrom, normalizedTo) : false));
 
-        const incidents = todaysLogs.filter((x: any) => {
+        const incidents = rangedLogs.filter((x: any) => {
           const text = `${safeText(x.raw?.action)} ${safeText(x.raw?.message)} ${safeText(x.raw?.type)}`.toLowerCase();
           return text.includes("error") || text.includes("failed") || text.includes("warning");
         }).length;
 
-        const feedItems: FeedItem[] = todaysLogs
+        const feedItems: FeedItem[] = rangedLogs
           .sort((a: any, b: any) => (b.date?.getTime() ?? 0) - (a.date?.getTime() ?? 0))
-          .slice(0, 16)
+          .slice(0, 80)
           .map((x: any, idx: number) => ({
             id: String(x.raw?.id ?? idx),
             time: x.date ? x.date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "--:--",
+            date: x.date ? x.date.toLocaleDateString() : "",
             type: safeText(x.raw?.action || x.raw?.type || "Event"),
             title: safeText(x.raw?.message || x.raw?.title || "System activity"),
             detail: safeText(x.raw?.details || x.raw?.module || "Operations stream"),
           }));
+
+        const orderDetails: JobOrderDetail[] = [...rangedOrders]
+          .sort((a: any, b: any) => {
+            const ta = parseDate(a?.createdAt ?? a?.updatedAt ?? a?.createDate)?.getTime() ?? 0;
+            const tb = parseDate(b?.createdAt ?? b?.updatedAt ?? b?.createDate)?.getTime() ?? 0;
+            return tb - ta;
+          })
+          .map((o: any, idx: number) => {
+            const created = parseDate(o?.createdAt ?? o?.updatedAt ?? o?.createDate);
+            const serviceExtraction = collectTextFromKeysWithSources(o, [
+              "services",
+              "serviceLines",
+              "selectedServices",
+              "serviceName",
+            ]);
+            const services = serviceExtraction.items;
+            const products = Array.from(
+              new Set([
+                ...collectTextItems(o?.products),
+                ...collectTextItems(o?.productLines),
+                ...collectTextItems(o?.items),
+                ...collectTextItems(o?.inventoryItems),
+              ].filter(Boolean))
+            );
+            const customerNameExtraction = firstTextWithSource(o, ["customerName", "customer", "clientName", "ownerName"]);
+            const customerPhoneExtraction = firstTextWithSource(o, ["customerPhone", "mobileNumber", "phone", "contactNumber"]);
+            const plateExtraction = firstTextWithSource(o, ["vehiclePlateNumber", "plateNumber", "plate"]);
+            const makeExtraction = firstTextWithSource(o, ["vehicleMake", "make", "vehicleBrand"]);
+            const modelExtraction = firstTextWithSource(o, ["vehicleModel", "model"]);
+            const colorExtraction = firstTextWithSource(o, ["vehicleColor", "color"]);
+            const customerName = customerNameExtraction.value;
+            const customerPhone = customerPhoneExtraction.value;
+            const plate = plateExtraction.value;
+            const make = makeExtraction.value;
+            const model = modelExtraction.value;
+            const color = colorExtraction.value;
+            const vehicleInfo = [plate, make, model, color].filter(Boolean).join(" • ");
+            const customerSources = [customerNameExtraction.source, customerPhoneExtraction.source].filter(Boolean);
+            const vehicleSources = [
+              plateExtraction.source,
+              makeExtraction.source,
+              modelExtraction.source,
+              colorExtraction.source,
+            ].filter(Boolean);
+
+            return {
+              id: String(o?.id ?? idx),
+              dateTime: created ? `${created.toLocaleDateString()} ${created.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "—",
+              jobOrderId: firstText(o, ["jobOrderId", "jobCardNumber", "orderNumber", "id"]),
+              status: firstText(o, ["status", "workStatus", "workStatusLabel"]) || "—",
+              customerName: customerName || "—",
+              customerPhone: customerPhone || "—",
+              vehicleInfo: vehicleInfo || "—",
+              services,
+              products,
+              totalAmount: toNum(o?.totalAmount) || toNum(o?.billing?.totalAmount) || toNum(o?.billing?.netAmount) || 0,
+              customerSources: Array.from(new Set(customerSources)),
+              vehicleSources: Array.from(new Set(vehicleSources)),
+              serviceSources: serviceExtraction.sources,
+              raw: o,
+            };
+          });
+
+        const customersDetails: CustomerDetail[] = [...rangedCustomers]
+          .sort((a: any, b: any) => {
+            const ta = parseDate(a?.createdAt ?? a?.updatedAt ?? a?.registeredAt)?.getTime() ?? 0;
+            const tb = parseDate(b?.createdAt ?? b?.updatedAt ?? b?.registeredAt)?.getTime() ?? 0;
+            return tb - ta;
+          })
+          .map((c: any, idx: number) => {
+            const d = parseDate(c?.createdAt ?? c?.updatedAt ?? c?.registeredAt);
+            return {
+              id: String(c?.id ?? idx),
+              name: firstText(c, ["name", "customerName", "fullName"]) || "—",
+              phone: firstText(c, ["mobileNumber", "phone", "whatsapp", "contactNumber"]) || "—",
+              dateTime: d ? `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}` : "—",
+            };
+          });
+
+        const vehicles = orderDetails
+          .map((order, idx) => ({
+            id: `${order.id}-${idx}`,
+            plate: order.vehicleInfo.split(" • ")[0] || "—",
+            make: order.vehicleInfo.split(" • ")[1] || "—",
+            model: order.vehicleInfo.split(" • ")[2] || "—",
+            color: order.vehicleInfo.split(" • ")[3] || "—",
+            customerName: order.customerName,
+            dateTime: order.dateTime,
+          }))
+          .filter((v) => v.plate !== "—" || v.make !== "—" || v.model !== "—");
 
         if (!cancelled) {
           setMetrics({
@@ -172,6 +360,9 @@ export default function DailyReport({ permissions }: PageProps) {
             incidents,
           });
           setFeed(feedItems);
+          setJobOrders(orderDetails);
+          setCustomerDetails(customersDetails);
+          setVehicleDetails(vehicles);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -183,7 +374,7 @@ export default function DailyReport({ permissions }: PageProps) {
     return () => {
       cancelled = true;
     };
-  }, [client, permissions?.canRead, selectedDate]);
+  }, [client, dateFrom, dateTo, permissions?.canRead]);
 
   const completionRate = metrics.jobsCreated > 0 ? Math.round((metrics.jobsCompleted / metrics.jobsCreated) * 100) : 0;
   const qualityScore = Math.max(0, Math.min(100, Math.round(100 - metrics.incidents * 7)));
@@ -213,11 +404,19 @@ export default function DailyReport({ permissions }: PageProps) {
         </div>
         <div className="dr-actions">
           <label>
-            {t("Report Date")}
+            {t("From Date")}
             <input
               type="date"
-              value={selectedDate}
-              onChange={(e) => setSelectedDate(e.target.value)}
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+            />
+          </label>
+          <label>
+            {t("To Date")}
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
             />
           </label>
           <fieldset className="dr-flavor" aria-label={t("Visual Flavor")}>
@@ -238,7 +437,7 @@ export default function DailyReport({ permissions }: PageProps) {
             type="button"
             onClick={() => {
               const content = [
-                `${t("Daily Report")} - ${selectedDate}`,
+                `${t("Daily Report")} - ${dateFrom} ${t("to")} ${dateTo}`,
                 `${t("Jobs Created")}: ${metrics.jobsCreated}`,
                 `${t("Jobs Completed")}: ${metrics.jobsCompleted}`,
                 `${t("Revenue")}: ${formatMoney(metrics.totalRevenue)}`,
@@ -250,7 +449,7 @@ export default function DailyReport({ permissions }: PageProps) {
               const url = URL.createObjectURL(blob);
               const a = document.createElement("a");
               a.href = url;
-              a.download = `daily-report-${selectedDate}.txt`;
+              a.download = `daily-report-${dateFrom}-to-${dateTo}.txt`;
               a.click();
               URL.revokeObjectURL(url);
             }}
@@ -295,11 +494,11 @@ export default function DailyReport({ permissions }: PageProps) {
         </article>
 
         <article className="dr-panel">
-          <h2>{t("Today Feed")}</h2>
+          <h2>{t("Activity Feed")}</h2>
           {loading ? (
             <div className="dr-loading">{t("Loading...")}</div>
           ) : feed.length === 0 ? (
-            <div className="dr-loading">{t("No activity captured for this date.")}</div>
+            <div className="dr-loading">{t("No activity captured for this date range.")}</div>
           ) : (
             <div className="dr-feed">
               {feed.map((item) => (
@@ -307,9 +506,93 @@ export default function DailyReport({ permissions }: PageProps) {
                   <span className="dr-time">{item.time}</span>
                   <span className="dr-type">{item.type || t("Event")}</span>
                   <div>
+                    <p className="dr-detail">{item.date}</p>
                     <p className="dr-title">{item.title}</p>
                     <p className="dr-detail">{item.detail}</p>
                   </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+      </section>
+
+      <section className="dr-details-grid">
+        <article className="dr-panel dr-wide-panel">
+          <h2>{t("Job Order Details")}</h2>
+          {loading ? (
+            <div className="dr-loading">{t("Loading...")}</div>
+          ) : jobOrders.length === 0 ? (
+            <div className="dr-loading">{t("No job orders found for this date range.")}</div>
+          ) : (
+            <div className="dr-detail-list">
+              {jobOrders.map((order) => (
+                <details key={order.id} className="dr-detail-item" open={false}>
+                  <summary>
+                    <span>{order.jobOrderId || order.id}</span>
+                    <span>{order.status}</span>
+                    <span>{order.dateTime}</span>
+                  </summary>
+                  <div className="dr-detail-body">
+                    <div className="dr-detail-grid">
+                      <div><strong>{t("Customer")}</strong><p>{order.customerName}</p></div>
+                      <div><strong>{t("Phone")}</strong><p>{order.customerPhone}</p></div>
+                      <div><strong>{t("Vehicle")}</strong><p>{order.vehicleInfo}</p></div>
+                      <div><strong>{t("Revenue")}</strong><p>{formatMoney(order.totalAmount)}</p></div>
+                      <div className="dr-span-2"><strong>{t("Services")}</strong><p>{order.services.length > 0 ? order.services.join(" | ") : "—"}</p></div>
+                      <div className="dr-span-2"><strong>{t("Products")}</strong><p>{order.products.length > 0 ? order.products.join(" | ") : "—"}</p></div>
+                    </div>
+                    <p className="dr-source-trace">
+                      <strong>{t("Detected source columns used now")}: </strong>
+                      {t("Customer source")}: {order.customerSources.length > 0 ? order.customerSources.join(", ") : t("Unknown source")}
+                      {" | "}
+                      {t("Vehicle source")}: {order.vehicleSources.length > 0 ? order.vehicleSources.join(", ") : t("Unknown source")}
+                      {" | "}
+                      {t("Service source")}: {order.serviceSources.length > 0 ? order.serviceSources.join(", ") : t("Unknown source")}
+                    </p>
+                    <details className="dr-raw-json">
+                      <summary>{t("Raw Details")}</summary>
+                      <pre>{JSON.stringify(order.raw, null, 2)}</pre>
+                    </details>
+                  </div>
+                </details>
+              ))}
+            </div>
+          )}
+        </article>
+
+        <article className="dr-panel">
+          <h2>{t("Customers In Range")}</h2>
+          {loading ? (
+            <div className="dr-loading">{t("Loading...")}</div>
+          ) : customerDetails.length === 0 ? (
+            <div className="dr-loading">{t("No customers found for this date range.")}</div>
+          ) : (
+            <div className="dr-simple-table">
+              {customerDetails.map((c) => (
+                <div key={c.id} className="dr-simple-row">
+                  <span>{c.name}</span>
+                  <span>{c.phone}</span>
+                  <span>{c.dateTime}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+
+        <article className="dr-panel">
+          <h2>{t("Vehicles In Range")}</h2>
+          {loading ? (
+            <div className="dr-loading">{t("Loading...")}</div>
+          ) : vehicleDetails.length === 0 ? (
+            <div className="dr-loading">{t("No vehicles found for this date range.")}</div>
+          ) : (
+            <div className="dr-simple-table">
+              {vehicleDetails.map((v) => (
+                <div key={v.id} className="dr-simple-row">
+                  <span>{[v.plate, v.make, v.model].filter((x) => x && x !== "—").join(" • ") || "—"}</span>
+                  <span>{v.customerName}</span>
+                  <span>{v.dateTime}</span>
                 </div>
               ))}
             </div>

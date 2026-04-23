@@ -62,6 +62,14 @@ type DynamicFilterRule = {
   value: string;
 };
 
+type DetectionConfidence = "high" | "medium" | "low";
+
+type DetectedColumn = {
+  column: string;
+  hits: number;
+  confidence: DetectionConfidence;
+};
+
 type RelativeDateMode = "any" | "olderThan" | "newerThan" | "dateRange";
 
 type ResultsViewMode = "table" | "cards";
@@ -491,8 +499,9 @@ function collectDetectedColumns(
   rows: CampaignLead[],
   rawRowByLeadId: Map<string, ParsedRow>,
   matcher: RegExp,
-  valueCheck: (value: unknown) => boolean
-): Array<{ column: string; hits: number }> {
+  valueCheck: (value: unknown) => boolean,
+  strongMatcher: RegExp
+): DetectedColumn[] {
   const hitCount = new Map<string, number>();
 
   rows.forEach((lead) => {
@@ -506,7 +515,19 @@ function collectDetectedColumns(
   });
 
   return [...hitCount.entries()]
-    .map(([column, hits]) => ({ column, hits }))
+    .map(([column, hits]) => {
+      const coverage = rows.length > 0 ? hits / rows.length : 0;
+      const strongHeader = strongMatcher.test(normalizeHeader(column));
+      let confidence: DetectionConfidence = "low";
+
+      if ((strongHeader && coverage >= 0.3) || coverage >= 0.55) {
+        confidence = "high";
+      } else if (strongHeader || coverage >= 0.18) {
+        confidence = "medium";
+      }
+
+      return { column, hits, confidence };
+    })
     .sort((a, b) => b.hits - a.hits || a.column.localeCompare(b.column));
 }
 
@@ -872,7 +893,8 @@ export default function CampaignAudienceAdmin() {
       filteredRows,
       rawRowByLeadId,
       SERVICE_COLUMN_HINT,
-      (value) => toText(value) !== ""
+      (value) => toText(value) !== "",
+      /service name|service|services|job|package|الخدمة|الخدمات|خدمة/
     );
   }, [filteredRows, rawRowByLeadId]);
 
@@ -881,9 +903,22 @@ export default function CampaignAudienceAdmin() {
       filteredRows,
       rawRowByLeadId,
       DATE_COLUMN_HINT,
-      (value) => parseExcelDate(value) != null
+      (value) => parseExcelDate(value) != null,
+      /service date|job date|invoice date|visit date|date|created at|تاريخ الخدمة|تاريخ/
     );
   }, [filteredRows, rawRowByLeadId]);
+
+  const dateDetectionLowConfidence = useMemo(() => {
+    if (detectedDateColumns.length === 0) return true;
+    if (detectedDateColumns.length === 1 && detectedDateColumns[0]?.confidence === "low") return true;
+    return detectedDateColumns.every((entry) => entry.confidence === "low");
+  }, [detectedDateColumns]);
+
+  const serviceDetectionLowConfidence = useMemo(() => {
+    if (detectedServiceColumns.length === 0) return true;
+    if (detectedServiceColumns.length === 1 && detectedServiceColumns[0]?.confidence === "low") return true;
+    return detectedServiceColumns.every((entry) => entry.confidence === "low");
+  }, [detectedServiceColumns]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const pagedRows = useMemo(() => filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filteredRows, page]);
@@ -1589,19 +1624,19 @@ export default function CampaignAudienceAdmin() {
                   <span>{t("Auto-detected columns from current result set")}</span>
                 </div>
                 <div className="campaign-filter-debug-grid">
-                  <div>
+                  <div className={serviceDetectionLowConfidence ? "confidence-low" : "confidence-ok"}>
                     <span>{t("Service columns")}</span>
                     <p>
                       {detectedServiceColumns.length > 0
-                        ? detectedServiceColumns.slice(0, 4).map((entry) => `${entry.column} (${entry.hits})`).join(" • ")
+                        ? detectedServiceColumns.slice(0, 4).map((entry) => `${entry.column} (${entry.hits}, ${t(entry.confidence === "high" ? "High confidence" : entry.confidence === "medium" ? "Medium confidence" : "Low confidence")})`).join(" • ")
                         : t("No service columns detected")}
                     </p>
                   </div>
-                  <div>
+                  <div className={dateDetectionLowConfidence ? "confidence-low" : "confidence-ok"}>
                     <span>{t("Date columns")}</span>
                     <p>
                       {detectedDateColumns.length > 0
-                        ? detectedDateColumns.slice(0, 4).map((entry) => `${entry.column} (${entry.hits})`).join(" • ")
+                        ? detectedDateColumns.slice(0, 4).map((entry) => `${entry.column} (${entry.hits}, ${t(entry.confidence === "high" ? "High confidence" : entry.confidence === "medium" ? "Medium confidence" : "Low confidence")})`).join(" • ")
                         : t("No date columns detected")}
                     </p>
                   </div>

@@ -295,6 +295,16 @@
   padding: 8px 10px;
 }
 
+.campaign-filter-debug-grid > div.confidence-low {
+  border-color: #fca5a5;
+  background: #fff1f2;
+}
+
+.campaign-filter-debug-grid > div.confidence-ok {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+
 .campaign-filter-debug-grid span {
   display: block;
   font-size: 11px;
