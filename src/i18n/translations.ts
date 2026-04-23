@@ -812,6 +812,18 @@ const PHRASES_EN_AR: Array<[string, string]> = [
   ["Vehicle Management Module", "وحدة إدارة المركبات"],
   ["vehicles awaiting inspection", "مركبات في انتظار الفحص"],
   ["Welcome Back", "مرحباً بعودتك"],
+  ["Secure Email Access", "الوصول الآمن للبريد الإلكتروني"],
+  ["Signing in...", "جاري تسجيل الدخول..."],
+  ["Access Email", "الوصول إلى البريد"],
+  ["Your credentials are sent securely to AWS WorkMail servers only.", "يتم إرسال بيانات اعتمادك بأمان إلى خوادم AWS WorkMail فقط."],
+  ["Trouble signing in?", "مشكلة في تسجيل الدخول؟"],
+  ["Contact your administrator for password reset assistance.", "تواصل مع مسؤولك للحصول على مساعدة إعادة تعيين كلمة المرور."],
+  ["Email and password are required.", "البريد الإلكتروني وكلمة المرور مطلوبان."],
+  ["Invalid email or password. Please try again.", "بريد إلكتروني أو كلمة مرور غير صحيحة. يرجى المحاولة مرة أخرى."],
+  ["Failed to retrieve your email. Please contact support.", "فشل الحصول على بريدك الإلكتروني. يرجى التواصل مع الدعم."],
+  ["Authentication successful. Opening your inbox...", "تم التحقق بنجاح. جاري فتح صندوق الوارد..."],
+  ["Show password", "عرض كلمة المرور"],
+  ["Hide password", "إخفاء كلمة المرور"],
 ];
 
 const EN_TO_AR = new Map<string, string>(PHRASES_EN_AR);
