@@ -67,7 +67,6 @@ type RelativeDateMode = "any" | "olderThan" | "newerThan" | "dateRange";
 type ResultsViewMode = "table" | "cards";
 type PreviewViewMode = "table" | "cards";
 
-const REQUIRED_MAPPING_FIELDS: MappingField[] = ["mobileNumber", "serviceName", "serviceDate"];
 const PAGE_SIZE = 50;
 const MOBILE_BREAKPOINT = 900;
 const PREVIEW_PAGE_SIZE = 30;
@@ -97,17 +96,6 @@ const EMPTY_MAPPING: ColumnMapping = {
   vehicleMake: "",
   vehicleModel: "",
   notes: "",
-};
-
-const FIELD_LABELS: Record<MappingField, string> = {
-  customerName: "Customer name",
-  mobileNumber: "Mobile number",
-  serviceName: "Service name",
-  serviceDate: "Service date",
-  vehiclePlateNumber: "Plate number",
-  vehicleMake: "Vehicle make",
-  vehicleModel: "Vehicle model",
-  notes: "Notes",
 };
 
 const HEADER_MATCHERS: Record<MappingField, string[]> = {
@@ -491,11 +479,8 @@ export default function CampaignAudienceAdmin() {
   const previewRows = useMemo(() => activeSheet?.rows ?? [], [activeSheet]);
 
   const previewDisplayColumns = useMemo(() => {
-    if (availableColumns.length === 0) return [];
-    const mapped = Array.from(new Set(Object.values(mapping).filter(Boolean)));
-    const remaining = availableColumns.filter((column) => !mapped.includes(column));
-    return [...mapped, ...remaining];
-  }, [availableColumns, mapping]);
+    return availableColumns;
+  }, [availableColumns]);
 
   const previewTotalPages = Math.max(1, Math.ceil(previewRows.length / PREVIEW_PAGE_SIZE));
   const previewPagedRows = useMemo(
@@ -878,15 +863,13 @@ export default function CampaignAudienceAdmin() {
     inFileDedupeKeys: Set<string>
   ): { lead?: PreparedLead; error?: string; duplicate?: boolean } => {
     const customerName = toText(row[mapping.customerName]);
-    const phone = normalizePhone(row[mapping.mobileNumber]);
-    const serviceName = toText(row[mapping.serviceName]);
-    const serviceDate = parseExcelDate(row[mapping.serviceDate]);
+    const phone = normalizePhone(mapping.mobileNumber ? row[mapping.mobileNumber] : "");
+    const mobileDisplay = phone.display || phone.normalized || `row-${rowNumber}`;
+    const mobileNormalized = phone.normalized || `row-${rowNumber}`;
+    const serviceName = toText(mapping.serviceName ? row[mapping.serviceName] : "") || "Imported";
+    const serviceDate = (mapping.serviceDate ? parseExcelDate(row[mapping.serviceDate]) : null) ?? formatIsoDate(new Date());
 
-    if (!phone.normalized) return { error: `Row ${rowNumber}: missing mobile number.` };
-    if (!serviceName) return { error: `Row ${rowNumber}: missing service name.` };
-    if (!serviceDate) return { error: `Row ${rowNumber}: invalid service date.` };
-
-    const dedupeKey = dedupeKeyOf(phone.normalized, serviceName, serviceDate, customerName);
+    const dedupeKey = dedupeKeyOf(mobileNormalized, serviceName, serviceDate, customerName);
     if (existingDedupeKeys.has(dedupeKey) || inFileDedupeKeys.has(dedupeKey)) {
       return { duplicate: true };
     }
@@ -903,8 +886,8 @@ export default function CampaignAudienceAdmin() {
         dedupeKey,
         customerName: customerName || undefined,
         customerNameLower: customerName ? normalizeHeader(customerName) : undefined,
-        mobileNumber: phone.display || phone.normalized,
-        normalizedMobileNumber: phone.normalized,
+        mobileNumber: mobileDisplay,
+        normalizedMobileNumber: mobileNormalized,
         serviceName,
         serviceNameLower: normalizeHeader(serviceName),
         serviceDate,
@@ -937,18 +920,6 @@ export default function CampaignAudienceAdmin() {
   const handleImport = async () => {
     if (!activeSheet || !selectedFileName || !selectedSheet) return;
 
-    const missingFields = REQUIRED_MAPPING_FIELDS.filter((field) => !mapping[field]);
-    if (missingFields.length > 0) {
-      setImportSummary({
-        totalRows: activeSheet.rows.length,
-        validRows: 0,
-        importedRows: 0,
-        skippedRows: activeSheet.rows.length,
-        duplicateRows: 0,
-        errors: [`Please map these fields first: ${missingFields.map((field) => FIELD_LABELS[field]).join(", ")}.`],
-      });
-      return;
-    }
 
     if (replaceExisting) {
       const confirmed = window.confirm(
@@ -1163,7 +1134,7 @@ export default function CampaignAudienceAdmin() {
           <div className="campaign-card-head">
             <div>
               <h2>{t("Excel Import")}</h2>
-              <p>{t("Preview the workbook, map the columns, and upload the records into the campaign audience database table.")}</p>
+              <p>{t("Preview the workbook and upload all records into the campaign audience database table.")}</p>
             </div>
           </div>
 
@@ -1198,29 +1169,6 @@ export default function CampaignAudienceAdmin() {
                   />
                   <span>{t("Replace current campaign dataset before import")}</span>
                 </label>
-              </div>
-
-              <div className="campaign-mapping-grid">
-                {(Object.keys(EMPTY_MAPPING) as MappingField[]).map((field) => {
-                  const required = REQUIRED_MAPPING_FIELDS.includes(field);
-                  return (
-                    <label key={field} className="campaign-mapping-field">
-                      <span>
-                        {t(FIELD_LABELS[field])}
-                        {required && <em>{t("Required")}</em>}
-                      </span>
-                      <select
-                        value={mapping[field]}
-                        onChange={(e) => setMapping((prev) => ({ ...prev, [field]: e.target.value }))}
-                      >
-                        <option value="">{t("Not mapped")}</option>
-                        {availableColumns.map((column) => (
-                          <option key={column} value={column}>{column}</option>
-                        ))}
-                      </select>
-                    </label>
-                  );
-                })}
               </div>
 
               <div className="campaign-preview-wrap">

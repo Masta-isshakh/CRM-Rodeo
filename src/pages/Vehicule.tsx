@@ -105,6 +105,7 @@ function normalizePaymentStatusLabel(value: any): string {
 // Alert Popup Component
 // ----------------------
 function AlertPopup(props: AlertState) {
+  const { t } = useLanguage();
   const { isOpen, title, message, type, onClose, showCancel, onConfirm } = props;
   if (!isOpen) return null;
 
@@ -136,15 +137,15 @@ function AlertPopup(props: AlertState) {
         <div className="alert-popup-footer">
           {!showCancel ? (
             <button className="alert-popup-btn ok" onClick={onClose}>
-              OK
+              {t("OK")}
             </button>
           ) : (
             <>
               <button className="alert-popup-btn cancel" onClick={onClose}>
-                Cancel
+                {t("Cancel")}
               </button>
               <button className="alert-popup-btn confirm" onClick={onConfirm}>
-                Confirm
+                {t("Confirm")}
               </button>
             </>
           )}
@@ -169,6 +170,7 @@ function Modal(props: {
   saveLabel?: string;
   className?: string;
 }) {
+  const { t } = useLanguage();
   const { isOpen, title, icon, children, onClose, onSave, isEdit = false, saving = false, saveLabel, className } = props;
 
   if (!isOpen) return null;
@@ -181,7 +183,7 @@ function Modal(props: {
           <h3>
             <i className={icon}></i> {title}
           </h3>
-          <button className="btn-close-modal" onClick={onClose} aria-label="Close">
+          <button className="btn-close-modal" onClick={onClose} aria-label={t("Close")}>
             <i className="fas fa-times"></i>
           </button>
         </div>
@@ -191,10 +193,10 @@ function Modal(props: {
         <div className="modal-footer">
           <button className="btn-save" onClick={onSave} disabled={saving}>
             <i className="fas fa-save"></i>{" "}
-            {saving ? "Saving..." : saveLabel ? saveLabel : isEdit ? "Save Changes" : "Add Vehicle"}
+            {saving ? t("Saving...") : saveLabel ? saveLabel : isEdit ? t("Save Changes") : t("Add Vehicle")}
           </button>
           <button className="btn-cancel" onClick={onClose} disabled={saving}>
-            <i className="fas fa-times"></i> Cancel
+            <i className="fas fa-times"></i> {t("Cancel")}
           </button>
         </div>
       </div>
@@ -219,6 +221,7 @@ function FormField(props: {
   options?: Array<string | { value: string; label: string }>;
   hint?: string;
 }) {
+  const { t } = useLanguage();
   const {
     label,
     id,
@@ -239,7 +242,7 @@ function FormField(props: {
     <div className="form-group">
       <label htmlFor={id}>
         {label}
-        {required ? <span className="required">*</span> : <span className="form-optional">(optional)</span>}
+        {required ? <span className="required">*</span> : <span className="form-optional">{t("(optional)")}</span>}
       </label>
 
       {isSelect ? (
@@ -256,7 +259,7 @@ function FormField(props: {
             const l = typeof opt === "string" ? opt : opt.label;
             return (
               <option key={v} value={v}>
-                {l}
+                {t(String(l))}
               </option>
             );
           })}
@@ -294,6 +297,7 @@ function VehiclesTable(props: {
   canDelete: boolean;
   completedServicesByPlate: Record<string, number>;
 }) {
+  const { t } = useLanguage();
   const { data, searchQuery, onView, onEdit, onDelete, canView, canUpdate, canDelete, completedServicesByPlate } = props;
 
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
@@ -319,8 +323,8 @@ function VehiclesTable(props: {
         <div className="empty-icon">
           <i className="fas fa-search"></i>
         </div>
-        <div className="empty-text">No matching vehicles found</div>
-        <div className="empty-subtext">Try adjusting your search terms or clear the search to see all records</div>
+        <div className="empty-text">{t("No matching vehicles found")}</div>
+        <div className="empty-subtext">{t("Try adjusting your search terms or clear the search to see all records")}</div>
       </div>
     );
   }
@@ -330,15 +334,15 @@ function VehiclesTable(props: {
       <table className="customers-table">
         <thead>
           <tr>
-            <th>Vehicle ID</th>
-            <th>Owned By</th>
-            <th>Make</th>
-            <th>Model</th>
-            <th>Year</th>
-            <th>Color</th>
-            <th>Plate Number</th>
-            <th>Completed Services</th>
-            <th>Actions</th>
+            <th>{t("Vehicle ID")}</th>
+            <th>{t("Owned By")}</th>
+            <th>{t("Make")}</th>
+            <th>{t("Model")}</th>
+            <th>{t("Year")}</th>
+            <th>{t("Color")}</th>
+            <th>{t("Plate Number")}</th>
+            <th>{t("Completed Services")}</th>
+            <th>{t("Actions")}</th>
           </tr>
         </thead>
 
@@ -359,7 +363,7 @@ function VehiclesTable(props: {
                   const finalCount = Number.isFinite(dynamicCount as number)
                     ? Number(dynamicCount)
                     : Number(v.completedServicesCount ?? 0);
-                  return <span className="count-badge">{finalCount.toString()} services</span>;
+                  return <span className="count-badge">{finalCount.toString()} {t("services")}</span>;
                 })()}
               </td>
 
@@ -386,7 +390,7 @@ function VehiclesTable(props: {
                         });
                       }}
                     >
-                      <i className="fas fa-cogs"></i> Actions <i className="fas fa-chevron-down"></i>
+                      <i className="fas fa-cogs"></i> {t("Actions")} <i className="fas fa-chevron-down"></i>
                     </button>
                   </div>
                 )}
@@ -413,7 +417,7 @@ function VehiclesTable(props: {
                   setActiveDropdown(null);
                 }}
               >
-                <i className="fas fa-eye"></i> View Details
+                <i className="fas fa-eye"></i> {t("View Details")}
               </button>
             )}
 
@@ -428,7 +432,7 @@ function VehiclesTable(props: {
                     setActiveDropdown(null);
                   }}
                 >
-                  <i className="fas fa-edit"></i> Edit Vehicle
+                  <i className="fas fa-edit"></i> {t("Edit Vehicle")}
                 </button>
                 {canDelete && <div className="dropdown-divider"></div>}
               </>
@@ -442,7 +446,7 @@ function VehiclesTable(props: {
                   setActiveDropdown(null);
                 }}
               >
-                <i className="fas fa-trash"></i> Delete Vehicle
+                <i className="fas fa-trash"></i> {t("Delete Vehicle")}
               </button>
             )}
           </div>,
@@ -525,40 +529,40 @@ export default function VehicleManagement({
   const [errors, setErrors] = useState<Record<string, string>>({});
 
   const manufacturerOptions = useMemo<Array<string | { value: string; label: string }>>(() => {
-    const options: Array<string | { value: string; label: string }> = [{ value: "", label: "Select manufacturer" }];
+    const options: Array<string | { value: string; label: string }> = [{ value: "", label: t("Select manufacturer") }];
     const make = form.make.trim();
     if (make && !QATAR_MANUFACTURERS.includes(make)) {
-      options.push({ value: make, label: `${make} (current)` });
+      options.push({ value: make, label: `${make} ${t("(current)")}` });
     }
     options.push(...QATAR_MANUFACTURERS);
     return options;
-  }, [form.make]);
+  }, [form.make, t]);
 
   const catalogModelsForMake = useMemo(() => getModelsByManufacturer(form.make), [form.make]);
   const selectedMakeHasCatalog = catalogModelsForMake.length > 0;
 
   const modelOptions = useMemo<Array<string | { value: string; label: string }>>(() => {
-    const options: Array<string | { value: string; label: string }> = [{ value: "", label: "Select model" }];
+    const options: Array<string | { value: string; label: string }> = [{ value: "", label: t("Select model") }];
 
     if (!selectedMakeHasCatalog) {
       const model = form.model.trim();
-      if (model) options.push({ value: model, label: `${model} (current)` });
+      if (model) options.push({ value: model, label: `${model} ${t("(current)")}` });
       return options;
     }
 
     options.push(...catalogModelsForMake);
     return options;
-  }, [catalogModelsForMake, form.model, selectedMakeHasCatalog]);
+  }, [catalogModelsForMake, form.model, selectedMakeHasCatalog, t]);
 
   const colorOptions = useMemo<Array<string | { value: string; label: string }>>(() => {
-    const options: Array<string | { value: string; label: string }> = [{ value: "", label: "Select color" }];
+    const options: Array<string | { value: string; label: string }> = [{ value: "", label: t("Select color") }];
     const color = form.color.trim();
     if (color && !VEHICLE_COLORS.includes(color)) {
-      options.push({ value: color, label: `${color} (current)` });
+      options.push({ value: color, label: `${color} ${t("(current)")}` });
     }
     options.push(...VEHICLE_COLORS);
     return options;
-  }, [form.color]);
+  }, [form.color, t]);
 
   useEffect(() => {
     if (!selectedMakeHasCatalog) return;
@@ -621,7 +625,7 @@ export default function VehicleManagement({
     } finally {
       setLoading(false);
     }
-  }, [showAlert]);
+  }, [showAlert, t]);
 
   const loadCompletedServicesByPlate = useCallback(async () => {
     try {
@@ -1040,101 +1044,117 @@ export default function VehicleManagement({
   // Load details view data
   useEffect(() => {
     if (viewMode !== "details" || !selectedVehicleId) return;
+    let cancelled = false;
 
     (async () => {
       try {
         const fromList = vehicles.find((item) => item.id === selectedVehicleId) ?? null;
         const v = fromList ? null : await client.models.Vehicle.get({ id: selectedVehicleId });
         const vehicle = fromList ?? ((v as any)?.data ?? null);
+        if (cancelled) return;
         setSelectedVehicle(vehicle);
+        setSelectedCustomer(null);
+        setCompletedOrders([]);
+        setSelectedCustomerVehiclesCount(0);
+        setSelectedCustomerCompletedServicesCount(0);
 
         const customerId = String(vehicle?.customerId ?? "").trim();
         const plateNumber = String(vehicle?.plateNumber ?? "").trim();
 
-        const customerPromise = customerId
-          ? (async () => {
+        if (customerId) {
+          void (async () => {
+            try {
+              let customerData: CustomerRow | null = null;
               if (customerByIdCacheRef.current.has(customerId)) {
-                return customerByIdCacheRef.current.get(customerId) ?? null;
+                customerData = customerByIdCacheRef.current.get(customerId) ?? null;
+              } else {
+                const customerRes = await client.models.Customer.get({ id: customerId });
+                customerData = (customerRes as any)?.data ?? null;
+                customerByIdCacheRef.current.set(customerId, customerData);
               }
-              const customerRes = await client.models.Customer.get({ id: customerId });
-              const customerData = (customerRes as any)?.data ?? null;
-              customerByIdCacheRef.current.set(customerId, customerData);
-              return customerData;
-            })()
-          : Promise.resolve(null);
+              if (!cancelled) setSelectedCustomer(customerData);
+            } catch {
+              if (!cancelled) setSelectedCustomer(null);
+            }
+          })();
 
-        const customerVehiclesCountPromise = customerId
-          ? (async () => {
-              try {
-                const byCustomer = await client.models.Vehicle.list({
-                  filter: { customerId: { eq: customerId } } as any,
-                  limit: 2000,
-                } as any);
-                return (byCustomer.data ?? []).length;
-              } catch {
-                return 0;
+          void (async () => {
+            try {
+              const byCustomer = await client.models.Vehicle.list({
+                filter: { customerId: { eq: customerId } } as any,
+                limit: 2000,
+              } as any);
+              if (!cancelled) setSelectedCustomerVehiclesCount((byCustomer.data ?? []).length);
+            } catch {
+              if (!cancelled) setSelectedCustomerVehiclesCount(0);
+            }
+          })();
+
+          void (async () => {
+            try {
+              const completed = await client.models.JobOrder.list({
+                filter: { customerId: { eq: customerId }, status: { eq: "COMPLETED" } } as any,
+                limit: 5000,
+              } as any);
+              const direct = (completed.data ?? []).length;
+              if (direct > 0) {
+                if (!cancelled) setSelectedCustomerCompletedServicesCount(direct);
+                return;
               }
-            })()
-          : Promise.resolve(0);
+            } catch {
+              // fallback below
+            }
 
-        const customerCompletedServicesPromise = customerId
-          ? (async () => {
-              try {
-                const completed = await client.models.JobOrder.list({
-                  filter: { customerId: { eq: customerId }, status: { eq: "COMPLETED" } } as any,
-                  limit: 5000,
-                } as any);
-                const direct = (completed.data ?? []).length;
-                if (direct > 0) return direct;
-              } catch {
-                // fallback below
+            try {
+              const customerVehicles = await client.models.Vehicle.list({
+                filter: { customerId: { eq: customerId } } as any,
+                limit: 2000,
+              } as any);
+              const uniquePlates = Array.from(
+                new Set(
+                  (customerVehicles.data ?? [])
+                    .map((v: any) => String(v?.plateNumber ?? "").trim())
+                    .filter(Boolean)
+                )
+              );
+
+              if (!uniquePlates.length) {
+                if (!cancelled) setSelectedCustomerCompletedServicesCount(0);
+                return;
               }
 
-              try {
-                const customerVehicles = await client.models.Vehicle.list({
-                  filter: { customerId: { eq: customerId } } as any,
-                  limit: 2000,
-                } as any);
-                const uniquePlates = Array.from(
-                  new Set(
-                    (customerVehicles.data ?? [])
-                      .map((v: any) => String(v?.plateNumber ?? "").trim())
-                      .filter(Boolean)
-                  )
-                );
+              const counts = await Promise.all(
+                uniquePlates.map(async (plate) => {
+                  try {
+                    const byPlate = await (client.models.JobOrder as any)?.jobOrdersByPlateNumber?.({
+                      plateNumber: plate,
+                      limit: 2000,
+                    });
+                    const rows = ((byPlate as any)?.data ?? []) as any[];
+                    return rows.filter((row) => String(row?.status ?? "") === "COMPLETED").length;
+                  } catch {
+                    const listed = await client.models.JobOrder.list({
+                      filter: { plateNumber: { eq: plate }, status: { eq: "COMPLETED" } } as any,
+                      limit: 2000,
+                    } as any);
+                    return (listed.data ?? []).length;
+                  }
+                })
+              );
 
-                if (!uniquePlates.length) return 0;
+              if (!cancelled) setSelectedCustomerCompletedServicesCount(counts.reduce((sum, n) => sum + Number(n || 0), 0));
+            } catch {
+              if (!cancelled) setSelectedCustomerCompletedServicesCount(0);
+            }
+          })();
+        }
 
-                const counts = await Promise.all(
-                  uniquePlates.map(async (plate) => {
-                    try {
-                      const byPlate = await (client.models.JobOrder as any)?.jobOrdersByPlateNumber?.({
-                        plateNumber: plate,
-                        limit: 2000,
-                      });
-                      const rows = ((byPlate as any)?.data ?? []) as any[];
-                      return rows.filter((row) => String(row?.status ?? "") === "COMPLETED").length;
-                    } catch {
-                      const listed = await client.models.JobOrder.list({
-                        filter: { plateNumber: { eq: plate }, status: { eq: "COMPLETED" } } as any,
-                        limit: 2000,
-                      } as any);
-                      return (listed.data ?? []).length;
-                    }
-                  })
-                );
-
-                return counts.reduce((sum, n) => sum + Number(n || 0), 0);
-              } catch {
-                return 0;
-              }
-            })()
-          : Promise.resolve(0);
-
-        const completedOrdersPromise = plateNumber
-          ? (async () => {
+        if (plateNumber) {
+          void (async () => {
+            try {
               if (completedOrdersByPlateRef.current.has(plateNumber)) {
-                return completedOrdersByPlateRef.current.get(plateNumber) ?? [];
+                if (!cancelled) setCompletedOrders(completedOrdersByPlateRef.current.get(plateNumber) ?? []);
+                return;
               }
               const ordersRes = await client.models.JobOrder.list({
                 limit: 500,
@@ -1142,25 +1162,20 @@ export default function VehicleManagement({
               });
               const rows = ((ordersRes as any)?.data ?? []) as JobOrderRow[];
               completedOrdersByPlateRef.current.set(plateNumber, rows);
-              return rows;
-            })()
-          : Promise.resolve([] as JobOrderRow[]);
-
-        const [customerData, completedRows, customerVehiclesCount, customerCompletedServicesCount] = await Promise.all([
-          customerPromise,
-          completedOrdersPromise,
-          customerVehiclesCountPromise,
-          customerCompletedServicesPromise,
-        ]);
-
-        setSelectedCustomer(customerData);
-        setCompletedOrders(completedRows);
-        setSelectedCustomerVehiclesCount(customerVehiclesCount);
-        setSelectedCustomerCompletedServicesCount(customerCompletedServicesCount);
+              if (!cancelled) setCompletedOrders(rows);
+            } catch {
+              if (!cancelled) setCompletedOrders([]);
+            }
+          })();
+        }
       } catch (e) {
         console.error(e);
       }
     })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [viewMode, selectedVehicleId, vehicles]);
 
   const closeDetails = () => {
@@ -1183,7 +1198,7 @@ export default function VehicleManagement({
           <div className="pim-details-header">
             <div className="pim-details-title-container">
               <h2>
-                <i className="fas fa-car"></i> Vehicle Details - <span>{resolveVehicleIdDisplay(selectedVehicle)}</span>
+                <i className="fas fa-car"></i> {t("Vehicle Details -")} <span>{resolveVehicleIdDisplay(selectedVehicle)}</span>
               </h2>
             </div>
 
@@ -1196,7 +1211,7 @@ export default function VehicleManagement({
                 }
               }}
             >
-              <i className="fas fa-times"></i> Close Details
+              <i className="fas fa-times"></i> {t("Close Details")}
             </button>
           </div>
 
@@ -1205,18 +1220,18 @@ export default function VehicleManagement({
               <div className="pim-detail-card cv-unified-card">
                 <div className="details-card-header">
                   <h3>
-                    <i className="fas fa-user"></i> Customer Information
+                    <i className="fas fa-user"></i> {t("Customer Information")}
                   </h3>
                 </div>
 
                 <div className="pim-card-content cv-unified-grid">
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Customer ID</span>
+                    <span className="pim-info-label">{t("Customer ID")}</span>
                     <span className="pim-info-value">{formatCustomerDisplayId(selectedVehicle.customerId)}</span>
                   </div>
 
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Customer Name</span>
+                    <span className="pim-info-label">{t("Customer Name")}</span>
                     <span className="pim-info-value">
                       {selectedCustomer
                         ? `${selectedCustomer.name} ${selectedCustomer.lastname}`
@@ -1225,26 +1240,26 @@ export default function VehicleManagement({
                   </div>
 
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Mobile</span>
-                    <span className="pim-info-value">{selectedCustomer?.phone ?? "Not provided"}</span>
+                    <span className="pim-info-label">{t("Mobile")}</span>
+                    <span className="pim-info-value">{selectedCustomer?.phone ?? t("Not provided")}</span>
                   </div>
 
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Email</span>
-                    <span className="pim-info-value">{selectedCustomer?.email ?? "Not provided"}</span>
+                    <span className="pim-info-label">{t("Email")}</span>
+                    <span className="pim-info-value">{selectedCustomer?.email ?? t("Not provided")}</span>
                   </div>
 
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Registered Vehicles</span>
+                    <span className="pim-info-label">{t("Registered Vehicles")}</span>
                     <span className="pim-info-value">
-                      <span className="count-badge">{selectedCustomerVehiclesCount} vehicles</span>
+                      <span className="count-badge">{selectedCustomerVehiclesCount} {t("vehicles")}</span>
                     </span>
                   </div>
 
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Completed Services</span>
+                    <span className="pim-info-label">{t("Completed Services")}</span>
                     <span className="pim-info-value">
-                      <span className="count-badge">{selectedCustomerCompletedServicesCount} completed</span>
+                      <span className="count-badge">{selectedCustomerCompletedServicesCount} {t("completed")}</span>
                     </span>
                   </div>
                 </div>
@@ -1253,13 +1268,13 @@ export default function VehicleManagement({
               <div className="pim-detail-card cv-unified-card">
                 <div className="details-card-header">
                   <h3>
-                    <i className="fas fa-car"></i> Vehicle Information
+                    <i className="fas fa-car"></i> {t("Vehicle Information")}
                   </h3>
 
                   <PermissionGate moduleId="vehicles" optionId="vehicles_edit" fallback={null}>
                     {canEdit && (
                       <button className="btn-action btn-edit" onClick={() => openEditModal(selectedVehicle.id)}>
-                        <i className="fas fa-edit"></i> Edit Vehicle
+                        <i className="fas fa-edit"></i> {t("Edit Vehicle")}
                       </button>
                     )}
                   </PermissionGate>
@@ -1267,36 +1282,36 @@ export default function VehicleManagement({
 
                 <div className="pim-card-content cv-unified-grid">
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Vehicle ID</span>
+                    <span className="pim-info-label">{t("Vehicle ID")}</span>
                     <span className="pim-info-value">{resolveVehicleIdDisplay(selectedVehicle)}</span>
                   </div>
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Make</span>
+                    <span className="pim-info-label">{t("Make")}</span>
                     <span className="pim-info-value">{selectedVehicle.make ?? "—"}</span>
                   </div>
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Model</span>
+                    <span className="pim-info-label">{t("Model")}</span>
                     <span className="pim-info-value">{selectedVehicle.model ?? "—"}</span>
                   </div>
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Year</span>
+                    <span className="pim-info-label">{t("Year")}</span>
                     <span className="pim-info-value">{selectedVehicle.year ?? "—"}</span>
                   </div>
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Type</span>
+                    <span className="pim-info-label">{t("Type")}</span>
                     <span className="pim-info-value">{selectedVehicle.vehicleType ?? "—"}</span>
                   </div>
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Color</span>
+                    <span className="pim-info-label">{t("Color")}</span>
                     <span className="pim-info-value">{selectedVehicle.color ?? "—"}</span>
                   </div>
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Plate Number</span>
+                    <span className="pim-info-label">{t("Plate Number")}</span>
                     <span className="pim-info-value">{selectedVehicle.plateNumber ?? "—"}</span>
                   </div>
                   <div className="pim-info-item">
-                    <span className="pim-info-label">VIN</span>
-                    <span className="pim-info-value">{selectedVehicle.vin ?? "N/A"}</span>
+                    <span className="pim-info-label">{t("VIN")}</span>
+                    <span className="pim-info-value">{selectedVehicle.vin ?? t("N/A")}</span>
                   </div>
                 </div>
               </div>
@@ -1304,7 +1319,7 @@ export default function VehicleManagement({
               <div className="pim-detail-card cv-full-width-card">
                 <div className="details-card-header">
                   <h3>
-                    <i className="fas fa-tasks"></i> Completed Services (from Job Orders)
+                    <i className="fas fa-tasks"></i> {t("Completed Services (from Job Orders)")}
                   </h3>
 
                   <button
@@ -1334,7 +1349,7 @@ export default function VehicleManagement({
                       });
                     }}
                   >
-                    <i className="fas fa-plus-circle"></i> Add New Order
+                    <i className="fas fa-plus-circle"></i> {t("Add New Order")}
                   </button>
                 </div>
 
@@ -1342,11 +1357,11 @@ export default function VehicleManagement({
                   <table className="vehicles-table">
                     <thead>
                       <tr>
-                        <th>Order #</th>
-                        <th>Status</th>
-                        <th>Payment</th>
-                        <th>Total</th>
-                        <th>Updated</th>
+                        <th>{t("Order #")}</th>
+                        <th>{t("Status")}</th>
+                        <th>{t("Payment")}</th>
+                        <th>{t("Total")}</th>
+                        <th>{t("Updated")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -1363,7 +1378,7 @@ export default function VehicleManagement({
                       ) : (
                         <tr>
                           <td colSpan={5} style={{ textAlign: "center", padding: 30, opacity: 0.8 }}>
-                            No completed job orders found for this vehicle (matched by plate number).
+                            {t("No completed job orders found for this vehicle (matched by plate number).")}
                           </td>
                         </tr>
                       )}
@@ -1378,7 +1393,7 @@ export default function VehicleManagement({
         {/* Edit Modal */}
         <Modal
           isOpen={showEditModal}
-          title="Edit Vehicle"
+          title={t("Edit Vehicle")}
           icon="fas fa-car"
           onClose={() => {
             setShowEditModal(false);
@@ -1388,14 +1403,14 @@ export default function VehicleManagement({
           onSave={handleUpdateVehicle}
           isEdit
           saving={saving}
-          saveLabel="Save Changes"
+          saveLabel={t("Save Changes")}
         >
           <div className="modal-form">
             <div className="verify-row">
               <FormField
-                label="Customer ID"
+                label={t("Customer ID")}
                 id="editCustomerId"
-                placeholder="Enter Customer ID"
+                placeholder={t("Enter Customer ID")}
                 value={form.customerId}
                 onChange={(e) => setForm((p) => ({ ...p, customerId: e.target.value }))}
                 error={errors.customerId}
@@ -1404,7 +1419,7 @@ export default function VehicleManagement({
               <PermissionGate moduleId="vehicles" optionId="vehicles_verifycustomer" fallback={null}>
                 {canVerifyCustomer && (
                   <button className="btn-verify" type="button" onClick={() => verifyCustomer(form.customerId)}>
-                    <i className="fas fa-check-circle"></i> Verify
+                    <i className="fas fa-check-circle"></i> {t("Verify")}
                   </button>
                 )}
               </PermissionGate>
@@ -1412,30 +1427,30 @@ export default function VehicleManagement({
 
             {verifiedCustomer && (
               <div className="verified-banner">
-                <i className="fas fa-check-circle"></i> Verified: {verifiedCustomer.name} {verifiedCustomer.lastname}
+                <i className="fas fa-check-circle"></i> {t("Verified:")} {verifiedCustomer.name} {verifiedCustomer.lastname}
               </div>
             )}
 
             <div className="form-grid-2">
               <FormField
-                label="Vehicle ID"
+                label={t("Vehicle ID")}
                 id="editVehicleId"
                 value={form.vehicleId}
                 onChange={(e) => setForm((p) => ({ ...p, vehicleId: e.target.value }))}
                 disabled
-                hint="Vehicle ID is not editable."
+                hint={t("Vehicle ID is not editable.")}
               />
               <FormField
-                label="Plate Number"
+                label={t("Plate Number")}
                 id="editPlate"
-                placeholder="e.g. 123456"
+                placeholder={t("e.g. 123456")}
                 value={form.plateNumber}
                 onChange={(e) => setForm((p) => ({ ...p, plateNumber: e.target.value }))}
                 error={errors.plateNumber}
                 required
               />
               <FormField
-                label="Make"
+                label={t("Make")}
                 id="editMake"
                 type="select"
                 value={form.make}
@@ -1445,7 +1460,7 @@ export default function VehicleManagement({
                 options={manufacturerOptions}
               />
               <FormField
-                label="Model"
+                label={t("Model")}
                 id="editModel"
                 type="select"
                 value={form.model}
@@ -1456,16 +1471,16 @@ export default function VehicleManagement({
                 disabled={!form.make.trim()}
               />
               <FormField
-                label="Year"
+                label={t("Year")}
                 id="editYear"
-                placeholder="e.g. 2024"
+                placeholder={t("e.g. 2024")}
                 value={form.year}
                 onChange={(e) => setForm((p) => ({ ...p, year: e.target.value }))}
                 error={errors.year}
                 required
               />
               <FormField
-                label="Vehicle Type"
+                label={t("Vehicle Type")}
                 id="editType"
                 type="select"
                 value={form.vehicleType}
@@ -1473,19 +1488,19 @@ export default function VehicleManagement({
                 error={errors.vehicleType}
                 required
                 options={[
-                  { value: "", label: "Select type" },
-                  { value: "Sedan", label: "Sedan" },
-                  { value: "SUV", label: "SUV" },
-                  { value: "Truck", label: "Truck" },
-                  { value: "Coupe", label: "Coupe" },
-                  { value: "Hatchback", label: "Hatchback" },
-                  { value: "Van", label: "Van" },
-                  { value: "Motorbike", label: "Motorbike" },
-                  { value: "Other", label: "Other" },
+                  { value: "", label: t("Select type") },
+                  { value: "Sedan", label: t("Sedan") },
+                  { value: "SUV", label: t("SUV") },
+                  { value: "Truck", label: t("Truck") },
+                  { value: "Coupe", label: t("Coupe") },
+                  { value: "Hatchback", label: t("Hatchback") },
+                  { value: "Van", label: t("Van") },
+                  { value: "Motorbike", label: t("Motorbike") },
+                  { value: "Other", label: t("Other") },
                 ]}
               />
               <FormField
-                label="Color"
+                label={t("Color")}
                 id="editColor"
                 type="select"
                 value={form.color}
@@ -1495,9 +1510,9 @@ export default function VehicleManagement({
                 options={colorOptions}
               />
               <FormField
-                label="VIN"
+                label={t("VIN")}
                 id="editVin"
-                placeholder="Optional"
+                placeholder={t("Optional")}
                 value={form.vin}
                 onChange={(e) => setForm((p) => ({ ...p, vin: e.target.value }))}
                 required={false}
@@ -1505,9 +1520,9 @@ export default function VehicleManagement({
             </div>
 
             <FormField
-              label="Notes"
+              label={t("Notes")}
               id="editNotes"
-              placeholder="Optional"
+              placeholder={t("Optional")}
               value={form.notes}
               onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
             />
@@ -1665,9 +1680,9 @@ export default function VehicleManagement({
         <div className="modal-form vehicle-create-form">
           <div className="verify-row vehicle-create-verify-row">
             <FormField
-              label="Customer ID"
+              label={t("Customer ID")}
               id="newCustomerId"
-              placeholder="Enter Customer ID"
+              placeholder={t("Enter Customer ID")}
               value={form.customerId}
               onChange={(e) => setForm((p) => ({ ...p, customerId: e.target.value }))}
               error={errors.customerId}
@@ -1676,7 +1691,7 @@ export default function VehicleManagement({
               <PermissionGate moduleId="vehicles" optionId="vehicles_verifycustomer" fallback={null}>
                 {canVerifyCustomer && (
                   <button className="btn-verify" type="button" onClick={() => verifyCustomer(form.customerId)}>
-                    <i className="fas fa-check-circle"></i> Verify
+                    <i className="fas fa-check-circle"></i> {t("Verify")}
                   </button>
                 )}
               </PermissionGate>
@@ -1684,25 +1699,25 @@ export default function VehicleManagement({
 
           {verifiedCustomer && (
             <div className="verified-banner">
-              <i className="fas fa-check-circle"></i> Verified: {verifiedCustomer.name} {verifiedCustomer.lastname}
+              <i className="fas fa-check-circle"></i> {t("Verified:")} {verifiedCustomer.name} {verifiedCustomer.lastname}
             </div>
           )}
 
           <div className="form-grid-2">
             <FormField
-              label="Vehicle ID"
+              label={t("Vehicle ID")}
               id="newVehicleId"
               value={form.vehicleId}
               onChange={(e) => setForm((p) => ({ ...p, vehicleId: e.target.value }))}
               error={errors.vehicleId}
               required
               disabled
-              hint="Auto-generated"
+              hint={t("Auto-generated")}
             />
             <FormField
-              label="Plate Number"
+              label={t("Plate Number")}
               id="newPlate"
-              placeholder="e.g. 123456"
+              placeholder={t("e.g. 123456")}
               value={form.plateNumber}
               onChange={(e) => setForm((p) => ({ ...p, plateNumber: e.target.value }))}
               error={errors.plateNumber}
@@ -1710,7 +1725,7 @@ export default function VehicleManagement({
             />
 
             <FormField
-              label="Make"
+              label={t("Make")}
               id="newMake"
               type="select"
               value={form.make}
@@ -1720,7 +1735,7 @@ export default function VehicleManagement({
               options={manufacturerOptions}
             />
             <FormField
-              label="Model"
+              label={t("Model")}
               id="newModel"
               type="select"
               value={form.model}
@@ -1732,9 +1747,9 @@ export default function VehicleManagement({
             />
 
             <FormField
-              label="Year"
+              label={t("Year")}
               id="newYear"
-              placeholder="e.g. 2024"
+              placeholder={t("e.g. 2024")}
               value={form.year}
               onChange={(e) => setForm((p) => ({ ...p, year: e.target.value }))}
               error={errors.year}
@@ -1742,7 +1757,7 @@ export default function VehicleManagement({
             />
 
             <FormField
-              label="Vehicle Type"
+              label={t("Vehicle Type")}
               id="newType"
               type="select"
               value={form.vehicleType}
@@ -1750,20 +1765,20 @@ export default function VehicleManagement({
               error={errors.vehicleType}
               required
               options={[
-                { value: "", label: "Select type" },
-                { value: "Sedan", label: "Sedan" },
-                { value: "SUV", label: "SUV" },
-                { value: "Truck", label: "Truck" },
-                { value: "Coupe", label: "Coupe" },
-                { value: "Hatchback", label: "Hatchback" },
-                { value: "Van", label: "Van" },
-                { value: "Motorbike", label: "Motorbike" },
-                { value: "Other", label: "Other" },
+                { value: "", label: t("Select type") },
+                { value: "Sedan", label: t("Sedan") },
+                { value: "SUV", label: t("SUV") },
+                { value: "Truck", label: t("Truck") },
+                { value: "Coupe", label: t("Coupe") },
+                { value: "Hatchback", label: t("Hatchback") },
+                { value: "Van", label: t("Van") },
+                { value: "Motorbike", label: t("Motorbike") },
+                { value: "Other", label: t("Other") },
               ]}
             />
 
             <FormField
-              label="Color"
+              label={t("Color")}
               id="newColor"
               type="select"
               value={form.color}
@@ -1774,9 +1789,9 @@ export default function VehicleManagement({
             />
 
             <FormField
-              label="VIN"
+              label={t("VIN")}
               id="newVin"
-              placeholder="Optional"
+              placeholder={t("Optional")}
               value={form.vin}
               onChange={(e) => setForm((p) => ({ ...p, vin: e.target.value }))}
               required={false}
@@ -1784,9 +1799,9 @@ export default function VehicleManagement({
           </div>
 
           <FormField
-            label="Notes"
+            label={t("Notes")}
             id="newNotes"
-            placeholder="Optional"
+            placeholder={t("Optional")}
             value={form.notes}
             onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
           />
@@ -1801,7 +1816,7 @@ export default function VehicleManagement({
             <div className="delete-modal" onClick={(e) => e.stopPropagation()}>
               <div className="delete-modal-header">
                 <h3>
-                  <i className="fas fa-exclamation-triangle"></i> Confirm Deletion
+                  <i className="fas fa-exclamation-triangle"></i> {t("Confirm Deletion")}
                 </h3>
               </div>
               <div className="delete-modal-body">
@@ -1809,18 +1824,18 @@ export default function VehicleManagement({
                   <i className="fas fa-exclamation-circle"></i>
                   <div className="delete-warning-text">
                     <p>
-                      You are about to delete vehicle <strong>{resolveVehicleIdDisplay(deleteVehicle)}</strong>.
+                      {t("You are about to delete vehicle")} <strong>{resolveVehicleIdDisplay(deleteVehicle)}</strong>.
                     </p>
-                    <p>This action cannot be undone.</p>
+                    <p>{t("This action cannot be undone.")}</p>
                   </div>
                 </div>
 
                 <div className="delete-modal-actions">
                   <button className="btn-confirm-delete" onClick={confirmDeleteVehicle} disabled={saving}>
-                    <i className="fas fa-trash"></i> Delete Vehicle
+                    <i className="fas fa-trash"></i> {t("Delete Vehicle")}
                   </button>
                   <button className="btn-cancel" onClick={() => setDeleteVehicle(null)} disabled={saving}>
-                    <i className="fas fa-times"></i> Cancel
+                    <i className="fas fa-times"></i> {t("Cancel")}
                   </button>
                 </div>
               </div>

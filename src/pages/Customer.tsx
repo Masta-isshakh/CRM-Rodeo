@@ -99,6 +99,7 @@ function AlertPopup(props: {
   showCancel?: boolean;
   onConfirm?: () => void;
 }) {
+  const { t } = useLanguage();
   const { isOpen, title, message, type, onClose, showCancel, onConfirm } = props;
   if (!isOpen) return null;
 
@@ -130,15 +131,15 @@ function AlertPopup(props: {
         <div className="alert-popup-footer">
           {!showCancel ? (
             <button className="alert-popup-btn ok" onClick={onClose}>
-              OK
+              {t("OK")}
             </button>
           ) : (
             <>
               <button className="alert-popup-btn cancel" onClick={onClose}>
-                Cancel
+                {t("Cancel")}
               </button>
               <button className="alert-popup-btn confirm" onClick={onConfirm}>
-                Confirm
+                {t("Confirm")}
               </button>
             </>
           )}
@@ -163,6 +164,7 @@ function Modal(props: {
   saveDisabled?: boolean;
   saveLabel?: string;
 }) {
+  const { t } = useLanguage();
   const { isOpen, title, icon, children, onClose, onSave, isEdit, saving, saveDisabled, saveLabel } = props;
   if (!isOpen) return null;
   if (typeof document === "undefined") return null;
@@ -182,10 +184,10 @@ function Modal(props: {
         <div className="modal-footer">
           <button className="btn-save" onClick={onSave} disabled={!!saving || !!saveDisabled}>
             <i className="fas fa-save" />{" "}
-            {saving ? "Saving..." : saveLabel ? saveLabel : isEdit ? "Save Changes" : "Add Customer"}
+            {saving ? t("Saving...") : saveLabel ? saveLabel : isEdit ? t("Save Changes") : t("Add Customer")}
           </button>
           <button className="btn-cancel" onClick={onClose} disabled={!!saving}>
-            <i className="fas fa-times" /> Cancel
+            <i className="fas fa-times" /> {t("Cancel")}
           </button>
         </div>
       </div>
@@ -208,6 +210,7 @@ function FormField(props: {
   required?: boolean;
   disabled?: boolean;
 }) {
+  const { t } = useLanguage();
   const { label, id, type = "text", value, onChange, error, placeholder, required, disabled } = props;
 
   const common = {
@@ -223,7 +226,7 @@ function FormField(props: {
     <div className="form-group">
       <label htmlFor={id}>
         {label}
-        {required ? <span className="required">*</span> : <span className="form-optional">(optional)</span>}
+        {required ? <span className="required">*</span> : <span className="form-optional">{t("(optional)")}</span>}
       </label>
 
       {type === "textarea" ? <textarea {...common} rows={3} /> : <input {...common} type={type} />}
@@ -249,6 +252,7 @@ function CustomersTable(props: {
   canDelete: boolean;
   canShowActions: boolean;
 }) {
+  const { t } = useLanguage();
   const {
     data,
     counts,
@@ -303,8 +307,8 @@ function CustomersTable(props: {
         <div className="empty-icon">
           <i className="fas fa-search" />
         </div>
-        <div className="empty-text">No matching customers found</div>
-        <div className="empty-subtext">Try adjusting your search terms or clear the search to see all records</div>
+        <div className="empty-text">{t("No matching customers found")}</div>
+        <div className="empty-subtext">{t("Try adjusting your search terms or clear the search to see all records")}</div>
       </div>
     );
   }
@@ -316,14 +320,14 @@ function CustomersTable(props: {
       <table className="customers-table">
         <thead>
           <tr>
-            <th>Customer ID</th>
-            <th>Customer Name</th>
-            <th>Mobile Number</th>
-            <th>Company</th>
-            <th>Contacts</th>
-            <th>Deals</th>
-            <th>Tickets</th>
-            <th>Actions</th>
+            <th>{t("Customer ID")}</th>
+            <th>{t("Customer Name")}</th>
+            <th>{t("Mobile Number")}</th>
+            <th>{t("Company")}</th>
+            <th>{t("Contacts")}</th>
+            <th>{t("Deals")}</th>
+            <th>{t("Tickets")}</th>
+            <th>{t("Actions")}</th>
           </tr>
         </thead>
         <tbody>
@@ -340,13 +344,13 @@ function CustomersTable(props: {
                 <td dangerouslySetInnerHTML={{ __html: highlight(c.company ?? "—", searchQuery) }} />
 
                 <td>
-                  <span className="count-badge">{ct.contacts} contacts</span>
+                  <span className="count-badge">{ct.contacts} {t("contacts")}</span>
                 </td>
                 <td>
-                  <span className="count-badge">{ct.deals} deals</span>
+                  <span className="count-badge">{ct.deals} {t("deals")}</span>
                 </td>
                 <td>
-                  <span className="count-badge">{ct.tickets} tickets</span>
+                  <span className="count-badge">{ct.tickets} {t("tickets")}</span>
                 </td>
 
                 <td>
@@ -372,11 +376,11 @@ function CustomersTable(props: {
                         }}
                         type="button"
                       >
-                        <i className="fas fa-cogs" /> Actions <i className="fas fa-chevron-down" />
+                        <i className="fas fa-cogs" /> {t("Actions")} <i className="fas fa-chevron-down" />
                       </button>
                     </div>
                   ) : (
-                    <span className="muted">—</span>
+                    <span className="muted">{t("—")}</span>
                   )}
                 </td>
               </tr>
@@ -401,7 +405,7 @@ function CustomersTable(props: {
                   setActiveDropdown(null);
                 }}
               >
-                <i className="fas fa-eye" /> View Details
+                <i className="fas fa-eye" /> {t("View Details")}
               </button>
             )}
 
@@ -416,7 +420,7 @@ function CustomersTable(props: {
                     setActiveDropdown(null);
                   }}
                 >
-                  <i className="fas fa-edit" /> Edit Customer
+                  <i className="fas fa-edit" /> {t("Edit Customer")}
                 </button>
                 {canDelete && <div className="dropdown-divider" />}
               </>
@@ -430,7 +434,7 @@ function CustomersTable(props: {
                   setActiveDropdown(null);
                 }}
               >
-                <i className="fas fa-trash" /> Delete Customer
+                <i className="fas fa-trash" /> {t("Delete Customer")}
               </button>
             )}
           </div>,
@@ -461,6 +465,7 @@ function DetailsView(props: {
   canViewRelatedDeals: boolean;
   canViewRelatedTickets: boolean;
 }) {
+  const { t } = useLanguage();
   const {
     customer,
     customerStats,
@@ -489,11 +494,11 @@ function DetailsView(props: {
       <div className="pim-details-header">
         <div className="pim-details-title-container">
           <h2>
-            <i className="fas fa-user-circle" /> Customer Details - <span>{displayCustomerId}</span>
+            <i className="fas fa-user-circle" /> {t("Customer Details -")} <span>{displayCustomerId}</span>
           </h2>
         </div>
         <button className="pim-btn-close-details" onClick={onClose} type="button">
-          <i className="fas fa-times" /> Close Details
+          <i className="fas fa-times" /> {t("Close Details")}
         </button>
       </div>
 
@@ -504,39 +509,39 @@ function DetailsView(props: {
               <div className="pim-detail-card customer-summary-card">
                 <div className="details-card-header">
                   <h3>
-                    <i className="fas fa-user" /> Customer Information
+                    <i className="fas fa-user" /> {t("Customer Information")}
                   </h3>
                   {canUpdate && (
                     <button className="btn-action btn-edit" onClick={() => onEdit(customer.id)} type="button">
-                      <i className="fas fa-edit" /> Edit Customer
+                      <i className="fas fa-edit" /> {t("Edit Customer")}
                     </button>
                   )}
                 </div>
 
                 <div className="pim-card-content customer-summary-grid">
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Customer ID</span>
+                    <span className="pim-info-label">{t("Customer ID")}</span>
                     <span className="pim-info-value">{displayCustomerId}</span>
                   </div>
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Customer Name</span>
+                    <span className="pim-info-label">{t("Customer Name")}</span>
                     <span className="pim-info-value">{fullName || "—"}</span>
                   </div>
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Mobile</span>
-                    <span className="pim-info-value">{customer.phone || "Not provided"}</span>
+                    <span className="pim-info-label">{t("Mobile")}</span>
+                    <span className="pim-info-value">{customer.phone || t("Not provided")}</span>
                   </div>
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Email</span>
-                    <span className="pim-info-value">{customer.email || "Not provided"}</span>
+                    <span className="pim-info-label">{t("Email")}</span>
+                    <span className="pim-info-value">{customer.email || t("Not provided")}</span>
                   </div>
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Registered Vehicles</span>
-                    <span className="pim-info-value"><span className="count-badge">{customerStats.vehicles} vehicles</span></span>
+                    <span className="pim-info-label">{t("Registered Vehicles")}</span>
+                    <span className="pim-info-value"><span className="count-badge">{customerStats.vehicles} {t("vehicles")}</span></span>
                   </div>
                   <div className="pim-info-item">
-                    <span className="pim-info-label">Completed Services</span>
-                    <span className="pim-info-value"><span className="count-badge">{customerStats.completedServices} completed</span></span>
+                    <span className="pim-info-label">{t("Completed Services")}</span>
+                    <span className="pim-info-value"><span className="count-badge">{customerStats.completedServices} {t("completed")}</span></span>
                   </div>
                 </div>
               </div>
@@ -544,48 +549,48 @@ function DetailsView(props: {
               <div className="pim-detail-card customer-summary-card">
                 <div className="details-card-header">
                   <h3>
-                    <i className="fas fa-car" /> Vehicle Information
+                    <i className="fas fa-car" /> {t("Vehicle Information")}
                   </h3>
                 </div>
 
                 {firstVehicle ? (
                   <div className="pim-card-content customer-summary-grid">
                     <div className="pim-info-item">
-                      <span className="pim-info-label">Vehicle ID</span>
+                      <span className="pim-info-label">{t("Vehicle ID")}</span>
                       <span className="pim-info-value">{String(firstVehicle.vehicleId ?? firstVehicle.id ?? "—")}</span>
                     </div>
                     <div className="pim-info-item">
-                      <span className="pim-info-label">Make</span>
+                      <span className="pim-info-label">{t("Make")}</span>
                       <span className="pim-info-value">{String(firstVehicle.make ?? "").trim() || "—"}</span>
                     </div>
                     <div className="pim-info-item">
-                      <span className="pim-info-label">Model</span>
+                      <span className="pim-info-label">{t("Model")}</span>
                       <span className="pim-info-value">{String(firstVehicle.model ?? "").trim() || "—"}</span>
                     </div>
                     <div className="pim-info-item">
-                      <span className="pim-info-label">Year</span>
+                      <span className="pim-info-label">{t("Year")}</span>
                       <span className="pim-info-value">{String(firstVehicle.year ?? "").trim() || "—"}</span>
                     </div>
                     <div className="pim-info-item">
-                      <span className="pim-info-label">Type</span>
+                      <span className="pim-info-label">{t("Type")}</span>
                       <span className="pim-info-value">{String(firstVehicle.vehicleType ?? "").trim() || "—"}</span>
                     </div>
                     <div className="pim-info-item">
-                      <span className="pim-info-label">Color</span>
+                      <span className="pim-info-label">{t("Color")}</span>
                       <span className="pim-info-value">{String(firstVehicle.color ?? "").trim() || "—"}</span>
                     </div>
                     <div className="pim-info-item">
-                      <span className="pim-info-label">Plate Number</span>
+                      <span className="pim-info-label">{t("Plate Number")}</span>
                       <span className="pim-info-value">{String(firstVehicle.plateNumber ?? "").trim() || "—"}</span>
                     </div>
                     <div className="pim-info-item">
-                      <span className="pim-info-label">VIN</span>
+                      <span className="pim-info-label">{t("VIN")}</span>
                       <span className="pim-info-value">{String(firstVehicle.vin ?? "").trim() || "N/A"}</span>
                     </div>
                   </div>
                 ) : (
                   <div className="pim-card-content">
-                    <div className="related-empty">No vehicles.</div>
+                    <div className="related-empty">{t("No vehicles.")}</div>
                   </div>
                 )}
               </div>
@@ -596,10 +601,10 @@ function DetailsView(props: {
             <div className="pim-detail-card">
               <div className="details-card-header">
                 <h3>
-                  <i className="fas fa-layer-group" /> Related Records
+                  <i className="fas fa-layer-group" /> {t("Related Records")}
                 </h3>
                 <div className="details-card-subtitle">
-                  {loadingRelations ? <span className="muted">Loading…</span> : <span className="muted">Latest 10 items per section</span>}
+                  {loadingRelations ? <span className="muted">{t("Loading…")}</span> : <span className="muted">{t("Latest 10 items per section")}</span>}
                 </div>
               </div>
 
@@ -608,10 +613,10 @@ function DetailsView(props: {
                 {canViewRelatedContacts && (
                   <div className="related-section">
                     <div className="related-title">
-                      <i className="fas fa-address-book" /> Contacts
+                      <i className="fas fa-address-book" /> {t("Contacts")}
                     </div>
                     {loadingRelations ? (
-                      <div className="related-empty">Loading contacts…</div>
+                      <div className="related-empty">{t("Loading contacts…")}</div>
                     ) : contacts.length ? (
                       <ul className="related-list">
                         {contacts.slice(0, 10).map((x) => (
@@ -622,7 +627,7 @@ function DetailsView(props: {
                         ))}
                       </ul>
                     ) : (
-                      <div className="related-empty">No contacts.</div>
+                      <div className="related-empty">{t("No contacts.")}</div>
                     )}
                   </div>
                 )}
@@ -630,10 +635,10 @@ function DetailsView(props: {
                 {canViewRelatedDeals && (
                   <div className="related-section">
                     <div className="related-title">
-                      <i className="fas fa-handshake" /> Deals
+                      <i className="fas fa-handshake" /> {t("Deals")}
                     </div>
                     {loadingRelations ? (
-                      <div className="related-empty">Loading deals…</div>
+                      <div className="related-empty">{t("Loading deals…")}</div>
                     ) : deals.length ? (
                       <ul className="related-list">
                         {deals.slice(0, 10).map((x) => (
@@ -647,7 +652,7 @@ function DetailsView(props: {
                         ))}
                       </ul>
                     ) : (
-                      <div className="related-empty">No deals.</div>
+                      <div className="related-empty">{t("No deals.")}</div>
                     )}
                   </div>
                 )}
@@ -655,10 +660,10 @@ function DetailsView(props: {
                 {canViewRelatedTickets && (
                   <div className="related-section">
                     <div className="related-title">
-                      <i className="fas fa-ticket-alt" /> Tickets
+                      <i className="fas fa-ticket-alt" /> {t("Tickets")}
                     </div>
                     {loadingRelations ? (
-                      <div className="related-empty">Loading tickets…</div>
+                      <div className="related-empty">{t("Loading tickets…")}</div>
                     ) : tickets.length ? (
                       <ul className="related-list">
                         {tickets.slice(0, 10).map((x) => (
@@ -669,7 +674,7 @@ function DetailsView(props: {
                         ))}
                       </ul>
                     ) : (
-                      <div className="related-empty">No tickets.</div>
+                      <div className="related-empty">{t("No tickets.")}</div>
                     )}
                   </div>
                 )}
@@ -681,7 +686,7 @@ function DetailsView(props: {
           {!canViewInfoCard && !canViewRelatedCard && (
             <div className="pim-detail-card">
               <div className="pim-card-content">
-                <div className="related-empty">You don’t have permission to view customer detail sections.</div>
+                <div className="related-empty">{t("You don’t have permission to view customer detail sections.")}</div>
               </div>
             </div>
           )}
@@ -1130,33 +1135,53 @@ export default function Customers({ permissions }: PageProps) {
     setTickets(cacheEntry.tickets ?? []);
 
     try {
-      const [vehicleRes, contactRes, dealRes, ticketRes] = await Promise.all([
-        needsVehicles
-          ? client.models.Vehicle.list({ filter: { customerId: { eq: id } }, limit: 1000 })
-          : Promise.resolve({ data: (cacheEntry.vehicles ?? []) as VehicleRow[] } as any),
-        needsContacts
-          ? client.models.Contact.list({ filter: { customerId: { eq: id } }, limit: 500 })
-          : Promise.resolve({ data: (cacheEntry.contacts ?? []) as ContactRow[] } as any),
-        needsDeals
-          ? client.models.Deal.list({ filter: { customerId: { eq: id } }, limit: 500 })
-          : Promise.resolve({ data: (cacheEntry.deals ?? []) as DealRow[] } as any),
-        needsTickets
-          ? client.models.Ticket.list({ filter: { customerId: { eq: id } }, limit: 500 })
-          : Promise.resolve({ data: (cacheEntry.tickets ?? []) as TicketRow[] } as any),
-      ]);
-
       const nextEntry = {
-        vehicles: (vehicleRes.data ?? []) as VehicleRow[],
-        contacts: (contactRes.data ?? []) as ContactRow[],
-        deals: (dealRes.data ?? []) as DealRow[],
-        tickets: (ticketRes.data ?? []) as TicketRow[],
+        vehicles: (cacheEntry.vehicles ?? []) as VehicleRow[],
+        contacts: (cacheEntry.contacts ?? []) as ContactRow[],
+        deals: (cacheEntry.deals ?? []) as DealRow[],
+        tickets: (cacheEntry.tickets ?? []) as TicketRow[],
       };
-      relationsCacheRef.current.set(id, nextEntry);
 
-      setVehicles(nextEntry.vehicles);
-      setContacts(nextEntry.contacts);
-      setDeals(nextEntry.deals);
-      setTickets(nextEntry.tickets);
+      const tasks: Promise<void>[] = [];
+
+      if (needsVehicles) {
+        tasks.push(
+          client.models.Vehicle.list({ filter: { customerId: { eq: id } }, limit: 1000 }).then((vehicleRes: any) => {
+            nextEntry.vehicles = (vehicleRes.data ?? []) as VehicleRow[];
+            setVehicles(nextEntry.vehicles);
+          })
+        );
+      }
+
+      if (needsContacts) {
+        tasks.push(
+          client.models.Contact.list({ filter: { customerId: { eq: id } }, limit: 500 }).then((contactRes: any) => {
+            nextEntry.contacts = (contactRes.data ?? []) as ContactRow[];
+            setContacts(nextEntry.contacts);
+          })
+        );
+      }
+
+      if (needsDeals) {
+        tasks.push(
+          client.models.Deal.list({ filter: { customerId: { eq: id } }, limit: 500 }).then((dealRes: any) => {
+            nextEntry.deals = (dealRes.data ?? []) as DealRow[];
+            setDeals(nextEntry.deals);
+          })
+        );
+      }
+
+      if (needsTickets) {
+        tasks.push(
+          client.models.Ticket.list({ filter: { customerId: { eq: id } }, limit: 500 }).then((ticketRes: any) => {
+            nextEntry.tickets = (ticketRes.data ?? []) as TicketRow[];
+            setTickets(nextEntry.tickets);
+          })
+        );
+      }
+
+      await Promise.all(tasks);
+      relationsCacheRef.current.set(id, nextEntry);
     } catch (err) {
       console.error(err);
       await showAlert(t("Warning"), t("Could not load related records."), "warning");
@@ -1230,7 +1255,7 @@ export default function Customers({ permissions }: PageProps) {
 
       setShowAddCustomerModal(false);
       resetForm();
-      await showAlert(t("Success"), `Customer "${created.data.name} ${created.data.lastname}" added successfully!`, "success");
+      await showAlert(t("Success"), `${t("Customer")} "${created.data.name} ${created.data.lastname}" ${t("added successfully!")}`, "success");
     } catch (err) {
       console.error(err);
       await showAlert(t("Error"), t("Failed to create customer. Check console."), "error");
@@ -1352,7 +1377,7 @@ export default function Customers({ permissions }: PageProps) {
 
         <Modal
           isOpen={showEditCustomerModal}
-          title="Edit Customer"
+          title={t("Edit Customer")}
           icon="fas fa-user-edit"
           onClose={() => setShowEditCustomerModal(false)}
           onSave={handleSaveCustomer}
@@ -1363,9 +1388,9 @@ export default function Customers({ permissions }: PageProps) {
         >
           <form className="modal-form" onSubmit={(e) => e.preventDefault()}>
             <FormField
-              label="First Name"
+              label={t("First Name")}
               id="editFirstName"
-              placeholder="Enter first name"
+              placeholder={t("Enter first name")}
               value={formData.name}
               onChange={(v) => setFormData((p) => ({ ...p, name: v }))}
               error={formErrors.name}
@@ -1373,9 +1398,9 @@ export default function Customers({ permissions }: PageProps) {
               disabled={!canCustomersEdit}
             />
             <FormField
-              label="Last Name"
+              label={t("Last Name")}
               id="editLastName"
-              placeholder="Enter last name"
+              placeholder={t("Enter last name")}
               value={formData.lastname}
               onChange={(v) => setFormData((p) => ({ ...p, lastname: v }))}
               error={formErrors.lastname}
@@ -1383,36 +1408,36 @@ export default function Customers({ permissions }: PageProps) {
               disabled={!canCustomersEdit}
             />
             <FormField
-              label="Mobile Number"
+              label={t("Mobile Number")}
               id="editPhone"
               type="tel"
-              placeholder="Enter mobile number"
+              placeholder={t("Enter mobile number")}
               value={formData.phone}
               onChange={(v) => setFormData((p) => ({ ...p, phone: v }))}
               disabled={!canCustomersEdit}
             />
             <FormField
-              label="Email Address"
+              label={t("Email Address")}
               id="editEmail"
               type="email"
-              placeholder="Enter email address"
+              placeholder={t("Enter email address")}
               value={formData.email}
               onChange={(v) => setFormData((p) => ({ ...p, email: v }))}
               disabled={!canCustomersEdit}
             />
             <FormField
-              label="Company"
+              label={t("Company")}
               id="editCompany"
-              placeholder="Enter company name"
+              placeholder={t("Enter company name")}
               value={formData.company}
               onChange={(v) => setFormData((p) => ({ ...p, company: v }))}
               disabled={!canCustomersEdit}
             />
             <FormField
-              label="Notes"
+              label={t("Notes")}
               id="editNotes"
               type="textarea"
-              placeholder="Enter notes"
+              placeholder={t("Enter notes")}
               value={formData.notes}
               onChange={(v) => setFormData((p) => ({ ...p, notes: v }))}
               disabled={!canCustomersEdit}
@@ -1420,7 +1445,7 @@ export default function Customers({ permissions }: PageProps) {
 
             <div className="form-group">
               <label htmlFor="editHeardFrom">
-                Heard of us from <span className="required">*</span>
+                {t("Heard of us from *")}
               </label>
               <select
                 id="editHeardFrom"
@@ -1438,10 +1463,10 @@ export default function Customers({ permissions }: PageProps) {
                 }
                 disabled={!canCustomersEdit}
               >
-                <option value="">Select…</option>
+                <option value="">{t("Select…")}</option>
                 {HEARD_FROM_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
-                    {opt.label}
+                    {t(opt.label)}
                   </option>
                 ))}
               </select>
@@ -1451,9 +1476,9 @@ export default function Customers({ permissions }: PageProps) {
             {formData.heardFrom === "refer_person" && (
               <>
                 <FormField
-                  label="Referred Person Name"
+                  label={t("Referred Person Name")}
                   id="editReferralPersonName"
-                  placeholder="Enter person name"
+                  placeholder={t("Enter person name")}
                   value={formData.referralPersonName}
                   onChange={(v) => setFormData((p) => ({ ...p, referralPersonName: v }))}
                   error={formErrors.referralPersonName}
@@ -1461,10 +1486,10 @@ export default function Customers({ permissions }: PageProps) {
                   disabled={!canCustomersEdit}
                 />
                 <FormField
-                  label="Referred Person Mobile"
+                  label={t("Referred Person Mobile")}
                   id="editReferralPersonMobile"
                   type="tel"
-                  placeholder="Enter mobile number"
+                  placeholder={t("Enter mobile number")}
                   value={formData.referralPersonMobile}
                   onChange={(v) => setFormData((p) => ({ ...p, referralPersonMobile: v }))}
                   error={formErrors.referralPersonMobile}
@@ -1477,7 +1502,7 @@ export default function Customers({ permissions }: PageProps) {
             {formData.heardFrom === "social_media" && (
               <div className="form-group">
                 <label htmlFor="editSocialPlatform">
-                  Social Platform <span className="required">*</span>
+                  {t("Social Platform")} <span className="required">*</span>
                 </label>
                 <select
                   id="editSocialPlatform"
@@ -1486,10 +1511,10 @@ export default function Customers({ permissions }: PageProps) {
                   onChange={(e) => setFormData((p) => ({ ...p, socialPlatform: e.target.value }))}
                   disabled={!canCustomersEdit}
                 >
-                  <option value="">Select…</option>
+                  <option value="">{t("Select…")}</option>
                   {SOCIAL_PLATFORM_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
-                      {opt.label}
+                      {t(opt.label)}
                     </option>
                   ))}
                 </select>
@@ -1499,10 +1524,10 @@ export default function Customers({ permissions }: PageProps) {
 
             {formData.heardFrom === "other" && (
               <FormField
-                label="Other Note"
+                label={t("Other Note")}
                 id="editHeardFromOtherNote"
                 type="textarea"
-                placeholder="Enter note"
+                placeholder={t("Enter note")}
                 value={formData.heardFromOtherNote}
                 onChange={(v) => setFormData((p) => ({ ...p, heardFromOtherNote: v }))}
                 error={formErrors.heardFromOtherNote}
@@ -1699,9 +1724,9 @@ export default function Customers({ permissions }: PageProps) {
       >
         <form className="modal-form" onSubmit={(e) => e.preventDefault()}>
           <FormField
-            label="First Name"
+            label={t("First Name")}
             id="newFirstName"
-            placeholder="Enter first name"
+            placeholder={t("Enter first name")}
             value={formData.name}
             onChange={(v) => setFormData((p) => ({ ...p, name: v }))}
             error={formErrors.name}
@@ -1709,9 +1734,9 @@ export default function Customers({ permissions }: PageProps) {
             disabled={!canCustomersAdd}
           />
           <FormField
-            label="Last Name"
+            label={t("Last Name")}
             id="newLastName"
-            placeholder="Enter last name"
+            placeholder={t("Enter last name")}
             value={formData.lastname}
             onChange={(v) => setFormData((p) => ({ ...p, lastname: v }))}
             error={formErrors.lastname}
@@ -1719,36 +1744,36 @@ export default function Customers({ permissions }: PageProps) {
             disabled={!canCustomersAdd}
           />
           <FormField
-            label="Mobile Number"
+            label={t("Mobile Number")}
             id="newPhone"
             type="tel"
-            placeholder="Enter mobile number"
+            placeholder={t("Enter mobile number")}
             value={formData.phone}
             onChange={(v) => setFormData((p) => ({ ...p, phone: v }))}
             disabled={!canCustomersAdd}
           />
           <FormField
-            label="Email Address"
+            label={t("Email Address")}
             id="newEmail"
             type="email"
-            placeholder="Enter email address"
+            placeholder={t("Enter email address")}
             value={formData.email}
             onChange={(v) => setFormData((p) => ({ ...p, email: v }))}
             disabled={!canCustomersAdd}
           />
           <FormField
-            label="Company"
+            label={t("Company")}
             id="newCompany"
-            placeholder="Enter company name"
+            placeholder={t("Enter company name")}
             value={formData.company}
             onChange={(v) => setFormData((p) => ({ ...p, company: v }))}
             disabled={!canCustomersAdd}
           />
           <FormField
-            label="Notes"
+            label={t("Notes")}
             id="newNotes"
             type="textarea"
-            placeholder="Enter notes"
+            placeholder={t("Enter notes")}
             value={formData.notes}
             onChange={(v) => setFormData((p) => ({ ...p, notes: v }))}
             disabled={!canCustomersAdd}
@@ -1756,7 +1781,7 @@ export default function Customers({ permissions }: PageProps) {
 
           <div className="form-group">
             <label htmlFor="newHeardFrom">
-              Heard of us from <span className="required">*</span>
+              {t("Heard of us from *")}
             </label>
             <select
               id="newHeardFrom"
@@ -1774,10 +1799,10 @@ export default function Customers({ permissions }: PageProps) {
               }
               disabled={!canCustomersAdd}
             >
-              <option value="">Select…</option>
+              <option value="">{t("Select…")}</option>
               {HEARD_FROM_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
-                  {opt.label}
+                  {t(opt.label)}
                 </option>
               ))}
             </select>
@@ -1787,9 +1812,9 @@ export default function Customers({ permissions }: PageProps) {
           {formData.heardFrom === "refer_person" && (
             <>
               <FormField
-                label="Referred Person Name"
+                label={t("Referred Person Name")}
                 id="newReferralPersonName"
-                placeholder="Enter person name"
+                placeholder={t("Enter person name")}
                 value={formData.referralPersonName}
                 onChange={(v) => setFormData((p) => ({ ...p, referralPersonName: v }))}
                 error={formErrors.referralPersonName}
@@ -1797,10 +1822,10 @@ export default function Customers({ permissions }: PageProps) {
                 disabled={!canCustomersAdd}
               />
               <FormField
-                label="Referred Person Mobile"
+                label={t("Referred Person Mobile")}
                 id="newReferralPersonMobile"
                 type="tel"
-                placeholder="Enter mobile number"
+                placeholder={t("Enter mobile number")}
                 value={formData.referralPersonMobile}
                 onChange={(v) => setFormData((p) => ({ ...p, referralPersonMobile: v }))}
                 error={formErrors.referralPersonMobile}
@@ -1813,7 +1838,7 @@ export default function Customers({ permissions }: PageProps) {
           {formData.heardFrom === "social_media" && (
             <div className="form-group">
               <label htmlFor="newSocialPlatform">
-                Social Platform <span className="required">*</span>
+                {t("Social Platform")} <span className="required">*</span>
               </label>
               <select
                 id="newSocialPlatform"
@@ -1822,10 +1847,10 @@ export default function Customers({ permissions }: PageProps) {
                 onChange={(e) => setFormData((p) => ({ ...p, socialPlatform: e.target.value }))}
                 disabled={!canCustomersAdd}
               >
-                <option value="">Select…</option>
+                <option value="">{t("Select…")}</option>
                 {SOCIAL_PLATFORM_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
-                    {opt.label}
+                    {t(opt.label)}
                   </option>
                 ))}
               </select>
@@ -1835,10 +1860,10 @@ export default function Customers({ permissions }: PageProps) {
 
           {formData.heardFrom === "other" && (
             <FormField
-              label="Other Note"
+              label={t("Other Note")}
               id="newHeardFromOtherNote"
               type="textarea"
-              placeholder="Enter note"
+              placeholder={t("Enter note")}
               value={formData.heardFromOtherNote}
               onChange={(v) => setFormData((p) => ({ ...p, heardFromOtherNote: v }))}
               error={formErrors.heardFromOtherNote}
@@ -1862,9 +1887,9 @@ export default function Customers({ permissions }: PageProps) {
       >
         <form className="modal-form" onSubmit={(e) => e.preventDefault()}>
           <FormField
-            label="First Name"
+            label={t("First Name")}
             id="editFirstName2"
-            placeholder="Enter first name"
+            placeholder={t("Enter first name")}
             value={formData.name}
             onChange={(v) => setFormData((p) => ({ ...p, name: v }))}
             error={formErrors.name}
@@ -1872,9 +1897,9 @@ export default function Customers({ permissions }: PageProps) {
             disabled={!canCustomersEdit}
           />
           <FormField
-            label="Last Name"
+            label={t("Last Name")}
             id="editLastName2"
-            placeholder="Enter last name"
+            placeholder={t("Enter last name")}
             value={formData.lastname}
             onChange={(v) => setFormData((p) => ({ ...p, lastname: v }))}
             error={formErrors.lastname}
@@ -1882,36 +1907,36 @@ export default function Customers({ permissions }: PageProps) {
             disabled={!canCustomersEdit}
           />
           <FormField
-            label="Mobile Number"
+            label={t("Mobile Number")}
             id="editPhone2"
             type="tel"
-            placeholder="Enter mobile number"
+            placeholder={t("Enter mobile number")}
             value={formData.phone}
             onChange={(v) => setFormData((p) => ({ ...p, phone: v }))}
             disabled={!canCustomersEdit}
           />
           <FormField
-            label="Email Address"
+            label={t("Email Address")}
             id="editEmail2"
             type="email"
-            placeholder="Enter email address"
+            placeholder={t("Enter email address")}
             value={formData.email}
             onChange={(v) => setFormData((p) => ({ ...p, email: v }))}
             disabled={!canCustomersEdit}
           />
           <FormField
-            label="Company"
+            label={t("Company")}
             id="editCompany2"
-            placeholder="Enter company name"
+            placeholder={t("Enter company name")}
             value={formData.company}
             onChange={(v) => setFormData((p) => ({ ...p, company: v }))}
             disabled={!canCustomersEdit}
           />
           <FormField
-            label="Notes"
+            label={t("Notes")}
             id="editNotes2"
             type="textarea"
-            placeholder="Enter notes"
+            placeholder={t("Enter notes")}
             value={formData.notes}
             onChange={(v) => setFormData((p) => ({ ...p, notes: v }))}
             disabled={!canCustomersEdit}
@@ -1937,7 +1962,7 @@ export default function Customers({ permissions }: PageProps) {
               }
               disabled={!canCustomersEdit}
             >
-              <option value="">Select…</option>
+              <option value="">{t("Select…")}</option>
               {HEARD_FROM_OPTIONS.map((opt) => (
                 <option key={opt.value} value={opt.value}>
                   {opt.label}
@@ -1950,9 +1975,9 @@ export default function Customers({ permissions }: PageProps) {
           {formData.heardFrom === "refer_person" && (
             <>
               <FormField
-                label="Referred Person Name"
+                label={t("Referred Person Name")}
                 id="editReferralPersonName2"
-                placeholder="Enter person name"
+                placeholder={t("Enter person name")}
                 value={formData.referralPersonName}
                 onChange={(v) => setFormData((p) => ({ ...p, referralPersonName: v }))}
                 error={formErrors.referralPersonName}
@@ -1960,10 +1985,10 @@ export default function Customers({ permissions }: PageProps) {
                 disabled={!canCustomersEdit}
               />
               <FormField
-                label="Referred Person Mobile"
+                label={t("Referred Person Mobile")}
                 id="editReferralPersonMobile2"
                 type="tel"
-                placeholder="Enter mobile number"
+                placeholder={t("Enter mobile number")}
                 value={formData.referralPersonMobile}
                 onChange={(v) => setFormData((p) => ({ ...p, referralPersonMobile: v }))}
                 error={formErrors.referralPersonMobile}
@@ -1985,7 +2010,7 @@ export default function Customers({ permissions }: PageProps) {
                 onChange={(e) => setFormData((p) => ({ ...p, socialPlatform: e.target.value }))}
                 disabled={!canCustomersEdit}
               >
-                <option value="">Select…</option>
+                <option value="">{t("Select…")}</option>
                 {SOCIAL_PLATFORM_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
                     {opt.label}
@@ -1998,10 +2023,10 @@ export default function Customers({ permissions }: PageProps) {
 
           {formData.heardFrom === "other" && (
             <FormField
-              label="Other Note"
+              label={t("Other Note")}
               id="editHeardFromOtherNote2"
               type="textarea"
-              placeholder="Enter note"
+              placeholder={t("Enter note")}
               value={formData.heardFromOtherNote}
               onChange={(v) => setFormData((p) => ({ ...p, heardFromOtherNote: v }))}
               error={formErrors.heardFromOtherNote}
@@ -2017,7 +2042,7 @@ export default function Customers({ permissions }: PageProps) {
           <div className="delete-modal" onClick={(e) => e.stopPropagation()}>
             <div className="delete-modal-header">
               <h3>
-                <i className="fas fa-exclamation-triangle" /> Confirm Deletion
+                <i className="fas fa-exclamation-triangle" /> {t("Confirm Deletion")}
               </h3>
             </div>
             <div className="delete-modal-body">
@@ -2025,18 +2050,18 @@ export default function Customers({ permissions }: PageProps) {
                 <i className="fas fa-exclamation-circle" />
                 <div className="delete-warning-text">
                   <p>
-                    You are about to delete customer <strong>{deleteCustomerId}</strong>.
+                    {t("You are about to delete customer")} <strong>{deleteCustomerId}</strong>.
                   </p>
-                  <p>This action cannot be undone.</p>
+                  <p>{t("This action cannot be undone.")}</p>
                 </div>
               </div>
 
               <div className="delete-modal-actions">
                 <button className="btn-confirm-delete" onClick={() => void handleConfirmDelete()} disabled={saving}>
-                  <i className="fas fa-trash" /> Delete Customer
+                  <i className="fas fa-trash" /> {t("Delete Customer")}
                 </button>
                 <button className="btn-cancel" onClick={() => setDeleteCustomerId(null)} disabled={saving}>
-                  <i className="fas fa-times" /> Cancel
+                  <i className="fas fa-times" /> {t("Cancel")}
                 </button>
               </div>
             </div>

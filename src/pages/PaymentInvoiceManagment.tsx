@@ -1382,15 +1382,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const orderTypeLabel = safeText(order?.orderType || order?._row?.orderType || "Job Order");
     const workStatusLabel = safeText(order?.workStatus || order?._row?.workStatusLabel || order?._row?.status || "-");
     const paymentMethodLabel = safeText(billing.paymentMethod || "-");
-    const paymentStatus = (billing.paymentStatus || (toNum(billing.balanceDue) <= 0 ? "PAID" : "UNPAID")).toString().toUpperCase();
-    const paymentStatusArabic =
-      paymentStatus === "PAID"
-        ? "مدفوع"
-        : paymentStatus === "UNPAID"
-          ? "غير مدفوع"
-          : paymentStatus === "PARTIAL" || paymentStatus === "PARTIALLY_PAID"
-            ? "مدفوع جزئيا"
-            : paymentStatus;
 
     const services: Array<{ name: string; price: number }> = Array.isArray(order?.services)
       ? order.services.map((service: any) => ({
@@ -1404,6 +1395,25 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const netAmount = toNum(billing.netAmount || 0);
     const amountPaid = toNum(billing.amountPaid || 0);
     const balanceDue = toNum(billing.balanceDue || 0);
+    const dynamicPaymentSnap = computePaymentSnapshot(totalAmount, discount, amountPaid);
+    const paymentStatusLabel = normalizePaymentStatusLabel(
+      safeText(order?.paymentStatusEnum || billing.paymentStatus || dynamicPaymentSnap.paymentStatusEnum),
+      safeText(order?.paymentStatus || billing.paymentStatusLabel || dynamicPaymentSnap.paymentStatusLabel)
+    );
+    const paymentStatus =
+      paymentStatusLabel === "Fully Paid"
+        ? "PAID"
+        : paymentStatusLabel === "Partially Paid"
+          ? "PARTIAL"
+          : "UNPAID";
+    const paymentStatusArabic =
+      paymentStatus === "PAID"
+        ? "مدفوع"
+        : paymentStatus === "UNPAID"
+          ? "غير مدفوع"
+          : paymentStatus === "PARTIAL" || paymentStatus === "PARTIALLY_PAID"
+            ? "مدفوع جزئيا"
+            : paymentStatus;
 
     const logoDataUrl = await (async () => {
       try {
@@ -1592,13 +1602,17 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8.3);
     doc.text(clipText(safeText(order?.customerName) || "-", infoW - 6), marginX + 3, infoTop + 10);
-    doc.text(`Mobile | الجوال: ${safeText(order?.mobile) || "-"}`, marginX + 3, infoTop + 14.5);
-    doc.text(`Order | رقم الطلب: ${safeText(order?.id) || "-"}`, marginX + 3, infoTop + 19);
+    doc.text(`Mobile: ${safeText(order?.mobile) || "-"}`, marginX + 3, infoTop + 14.5);
+    doc.text(`Order: ${safeText(order?.id) || "-"}`, marginX + 3, infoTop + 19);
+    drawArabicLine(`الجوال: ${safeText(order?.mobile) || "-"}`, marginX + infoW - 3, infoTop + 12.1, infoW - 8, 9, "normal");
+    drawArabicLine(`رقم الطلب: ${safeText(order?.id) || "-"}`, marginX + infoW - 3, infoTop + 16.6, infoW - 8, 9, "normal");
 
     const vehicleName = `${safeText(order?.vehicleDetails?.make)} ${safeText(order?.vehicleDetails?.model)}`.trim() || "-";
     doc.text(clipText(vehicleName, infoW - 6), marginX + infoW + infoGap + 3, infoTop + 10);
-    doc.text(`Plate | رقم اللوحة: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 14.5);
-    doc.text(`VIN | الرقم التعريفي: ${safeText(order?.vehicleDetails?.vin) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 19);
+    doc.text(`Plate: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 14.5);
+    doc.text(`VIN: ${safeText(order?.vehicleDetails?.vin) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 19);
+    drawArabicLine(`رقم اللوحة: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "-"}`, marginX + infoW + infoGap + infoW - 3, infoTop + 12.1, infoW - 8, 9, "normal");
+    drawArabicLine(`الرقم التعريفي: ${safeText(order?.vehicleDetails?.vin) || "-"}`, marginX + infoW + infoGap + infoW - 3, infoTop + 16.6, infoW - 8, 9, "normal");
 
     // Job-order metadata block
     const metaTop = infoTop + 30.8;
@@ -1612,11 +1626,16 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     drawArabicLine("تفاصيل أمر العمل", pageW - marginX - 2.5, metaTop + 0.9, 42, 10, "bolditalic");
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8);
-    doc.text(`Type | نوع الطلب: ${orderTypeLabel || "-"}`, marginX + 2.5, metaTop + 8.6);
-    doc.text(`Work Status | حالة العمل: ${workStatusLabel || "-"}`, marginX + 72, metaTop + 8.6);
-    doc.text(`Payment Method | طريقة الدفع: ${paymentMethodLabel || "-"}`, marginX + 2.5, metaTop + 11.9);
-    doc.text(`Opened | تاريخ الفتح: ${jobCreatedAtDisplay}`, marginX + 2.5, metaTop + 15.2);
-    doc.text(`Last Update | آخر تحديث: ${jobUpdatedAtDisplay}`, marginX + 2.5, metaTop + 18.5);
+    doc.text(`Type: ${orderTypeLabel || "-"}`, marginX + 2.5, metaTop + 8.6);
+    doc.text(`Work Status: ${workStatusLabel || "-"}`, marginX + 72, metaTop + 8.6);
+    doc.text(`Payment Method: ${paymentMethodLabel || "-"}`, marginX + 2.5, metaTop + 11.9);
+    doc.text(`Opened: ${jobCreatedAtDisplay}`, marginX + 2.5, metaTop + 15.2);
+    doc.text(`Last Update: ${jobUpdatedAtDisplay}`, marginX + 2.5, metaTop + 18.5);
+    drawArabicLine(`نوع الطلب: ${orderTypeLabel || "-"}`, pageW - marginX - 2.5, metaTop + 6.1, 66, 7.6, "normal");
+    drawArabicLine(`حالة العمل: ${workStatusLabel || "-"}`, pageW - marginX - 2.5, metaTop + 9.4, 66, 7.6, "normal");
+    drawArabicLine(`طريقة الدفع: ${paymentMethodLabel || "-"}`, pageW - marginX - 2.5, metaTop + 12.7, 66, 7.6, "normal");
+    drawArabicLine(`تاريخ الفتح: ${jobCreatedAtDisplay}`, pageW - marginX - 2.5, metaTop + 16.0, 66, 7.6, "normal");
+    drawArabicLine(`آخر تحديث: ${jobUpdatedAtDisplay}`, pageW - marginX - 2.5, metaTop + 19.3, 66, 7.6, "normal");
 
     // Services table area
     const tableTop = metaTop + metaH + 3;

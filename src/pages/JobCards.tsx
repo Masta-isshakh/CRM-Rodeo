@@ -610,6 +610,7 @@ function resolveRoadmapActor(step: any, order: any, identityMap?: Record<string,
 function JobOrderManagement({ currentUser, navigationData, onClearNavigation, onNavigateBack }: any) {
   const client = useMemo(() => getDataClient(), []);
   const { canOption, getOptionNumber } = usePermissions();
+  const { t } = useLanguage();
   const [screenState, setScreenState] = useState<"main" | "details" | "newJob" | "addService">("main");
   const [currentDetailsOrder, setCurrentDetailsOrder] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -639,6 +640,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
   const [errorDetails, setErrorDetails] = useState<string | undefined>(undefined);
   const [errorRetry, setErrorRetry] = useState<(() => void) | undefined>(undefined);
   const [actorIdentityMap, setActorIdentityMap] = useState<Record<string, string>>({});
+  const detailsViewCacheRef = useRef<Map<string, any>>(new Map());
 
   useEffect(() => {
     let cancelled = false;
@@ -938,6 +940,32 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
 
   const paginatedOrders = filteredOrders.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
+  const openDetailsView = async (order: any) => {
+    const orderKey = String(order?.id ?? "").trim();
+    if (!orderKey) return;
+
+    const immediateDetails = detailsViewCacheRef.current.get(orderKey) ?? order;
+    setCurrentDetailsOrder(immediateDetails);
+    setScreenState("details");
+
+    try {
+      const fresh = await getJobOrderByOrderNumber(orderKey);
+      const resolvedDetails = fresh || immediateDetails;
+      detailsViewCacheRef.current.set(orderKey, resolvedDetails);
+      setCurrentDetailsOrder((prev: any) =>
+        String(prev?.id ?? "").trim() === orderKey ? resolvedDetails : prev
+      );
+    } catch (e) {
+      console.error(e);
+      showError({
+        title: t("Load details failed"),
+        message: t("Could not load latest details. Showing available data."),
+        details: String((e as any)?.stack ?? ""),
+        onRetry: () => void openDetailsView(order),
+      });
+    }
+  };
+
   return (
     <div className="job-order-management">
       {screenState === "main" && (
@@ -945,25 +973,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
           orders={paginatedOrders}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
-          onViewDetails={async (order: any) => {
-            try {
-              const fresh = await getJobOrderByOrderNumber(order.id);
-              setCurrentDetailsOrder(fresh || order);
-              setScreenState("details");
-            } catch (e) {
-              console.error(e);
-              showError({
-                title: "Load details failed",
-                message: errMsg(e),
-                details: String((e as any)?.stack ?? ""),
-                onRetry: async () => {
-                  const fresh = await getJobOrderByOrderNumber(order.id);
-                  setCurrentDetailsOrder(fresh || order);
-                  setScreenState("details");
-                },
-              });
-            }
-          }}
+          onViewDetails={openDetailsView}
           onNewJob={() => setScreenState("newJob")}
           currentPage={currentPage}
           onPageChange={setCurrentPage}
@@ -1279,6 +1289,7 @@ function MainScreen({
   onCancelOrder,
   loading,
 }: any) {
+  const { t } = useLanguage();
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const activeDropdownRef = useRef<string | null>(null);
@@ -1333,7 +1344,7 @@ function MainScreen({
       <header className="app-header crm-unified-header">
         <div className="header-left">
           <h1>
-            <i className="fas fa-tools"></i> Job Order Management
+            <i className="fas fa-tools"></i> {t("Job Order Management")}
           </h1>
         </div>
       </header>
@@ -1345,24 +1356,28 @@ function MainScreen({
             <input
               type="text"
               className="smart-search-input"
-              placeholder="Search by any details"
+              placeholder={t("Search by any details")}
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
             />
           </div>
           <div className="search-stats">
-            {loading ? "Loading..." : totalCount === 0 ? "No job orders found" : `Showing ${orders.length} of ${totalCount} job orders`}
+            {loading
+              ? t("Loading...")
+              : totalCount === 0
+              ? t("No job orders found")
+              : `${t("Showing")} ${orders.length} ${t("of")} ${totalCount} ${t("job orders")}`}
           </div>
         </section>
 
         <section className="results-section">
           <div className="section-header">
             <h2>
-              <i className="fas fa-list"></i> Job Order Records
+              <i className="fas fa-list"></i> {t("Job Order Records")}
             </h2>
             <div className="pagination-controls">
               <div className="records-per-page">
-                <label htmlFor="pageSizeSelect">Records per page:</label>
+                <label htmlFor="pageSizeSelect">{t("Records per page:")}</label>
                 <select id="pageSizeSelect" className="page-size-select" value={pageSize} onChange={(e) => onPageSizeChange(parseInt(e.target.value))}>
                   <option value="20">20</option>
                   <option value="50">50</option>
@@ -1371,7 +1386,7 @@ function MainScreen({
               </div>
               <PermissionGate moduleId="joborder" optionId="joborder_add">
                 <button className="btn-new-job" onClick={onNewJob}>
-                  <i className="fas fa-plus-circle"></i> New Job Order
+                  <i className="fas fa-plus-circle"></i> {t("New Job Order")}
                 </button>
               </PermissionGate>
             </div>
@@ -1410,7 +1425,7 @@ function MainScreen({
       </main>
 
       <footer className="app-footer">
-        <p>Service Management System © 2023 | Job Order Management Module</p>
+        <p>{t("Service Management System © 2023 | Job Order Management Module")}</p>
       </footer>
 
       {typeof document !== "undefined" &&
@@ -1434,7 +1449,7 @@ function MainScreen({
                   setActiveDropdown(null);
                 }}
               >
-                <i className="fas fa-eye"></i> View Details
+                <i className="fas fa-eye"></i> {t("View Details")}
               </button>
             </PermissionGate>
 
@@ -1450,7 +1465,7 @@ function MainScreen({
                     setActiveDropdown(null);
                   }}
                 >
-                  <i className="fas fa-times-circle"></i> Cancel Order
+                  <i className="fas fa-times-circle"></i> {t("Cancel Order")}
                 </button>
               </>
             </PermissionGate>
@@ -1465,16 +1480,17 @@ function MainScreen({
 // DETAILS SCREEN
 // ============================================
 function DetailsScreen({ order, onClose, onAddService, currentUser, actorMap }: any) {
+  const { t } = useLanguage();
   return (
 <div className="pim-details-screen jo-details-v3">
       <div className="pim-details-header">
         <div className="pim-details-title-container">
           <h2>
-            <i className="fas fa-clipboard-list"></i> Job Order Details - {order.id}
+            <i className="fas fa-clipboard-list"></i> {t("Job Order Details")} - {order.id}
           </h2>
         </div>
         <button className="pim-btn-close-details" onClick={onClose}>
-          <i className="fas fa-times"></i> Close Details
+          <i className="fas fa-times"></i> {t("Close Details")}
         </button>
       </div>
 
@@ -1532,6 +1548,7 @@ function DetailsScreen({ order, onClose, onAddService, currentUser, actorMap }: 
 function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }: any) {
   const client = useMemo(() => getDataClient(), []);
   const { canOption, getOptionNumber } = usePermissions();
+  const { t } = useLanguage();
   const [step, setStep] = useState(1);
   const [orderType, setOrderType] = useState<any>(null); // 'new' or 'service'
   const [customerType, setCustomerType] = useState<any>(null);
@@ -1791,11 +1808,11 @@ return (
     <div className="pim-details-header jo-wizard-header">
       <div className="pim-details-title-container">
         <h2>
-          <i className="fas fa-plus-circle"></i> Create New Job Order
+          <i className="fas fa-plus-circle"></i> {t("Create New Job Order")}
         </h2>
       </div>
       <button className="pim-btn-close-details jo-wizard-cancel-btn" onClick={onClose}>
-        <i className="fas fa-times"></i> Cancel
+        <i className="fas fa-times"></i> {t("Cancel")}
       </button>
     </div>
 
@@ -1804,7 +1821,7 @@ return (
         {[1, 2, 3, 4, 5].map((s) => (
           <div key={s} className={`progress-step ${s < step ? "completed" : s === step ? "active" : ""}`}>
             <span>{s}</span>
-            <div className="step-label">{["Customer", "Vehicle", "Order Type", "Services", "Confirm"][s - 1]}</div>
+            <div className="step-label">{[t("Customer"), t("Vehicle"), t("Order Type"), t("Services"), t("Confirm")][s - 1]}</div>
           </div>
         ))}
       </div>
@@ -1910,6 +1927,7 @@ return (
 // CUSTOMER STEP (backend search/create)
 // ============================================
 function StepOneCustomer({ customerType, setCustomerType, customerData, setCustomerData, onNext, onCancel, actorUsername }: any) {
+  const { t } = useLanguage();
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -1945,10 +1963,10 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
   }, [customerType]);
 
   const sourceLabel = (src: string) => {
-    if (src === "walk_in") return "Walk-in";
-    if (src === "refer_person") return "Refer by person";
-    if (src === "social_media") return "Social media";
-    if (src === "other") return "Other";
+    if (src === "walk_in") return t("Walk-in");
+    if (src === "refer_person") return t("Refer by person");
+    if (src === "social_media") return t("Social media");
+    if (src === "other") return t("Other");
     return src || "";
   };
 
@@ -2068,15 +2086,15 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
     <div className="form-card">
       <div className="form-card-title">
         <i className="fas fa-user"></i>
-        <h2>Customer Information</h2>
+        <h2>{t("Customer Information")}</h2>
       </div>
       <div className="form-card-content">
         <div className="option-selector">
           <div className={`option-btn ${customerType === "new" ? "selected" : ""}`} onClick={() => setCustomerType("new")}>
-            New Customer
+            {t("New Customer")}
           </div>
           <div className={`option-btn ${customerType === "existing" ? "selected" : ""}`} onClick={() => setCustomerType("existing")}>
-            Existing Customer
+            {t("Existing Customer")}
           </div>
         </div>
 
@@ -2084,28 +2102,28 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
           <div>
             <div className="form-row">
               <div className="form-group">
-                <label>Full Name *</label>
+                <label>{t("Full Name")} *</label>
                 <input value={fullName} onChange={(e) => setFullName(e.target.value)} />
               </div>
               <div className="form-group">
-                <label>Phone *</label>
+                <label>{t("Phone")} *</label>
                 <input value={phone} onChange={(e) => setPhone(e.target.value)} />
               </div>
             </div>
             <div className="form-row">
               <div className="form-group">
-                <label>Email</label>
-                <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder="Optional" />
+                <label>{t("Email")}</label>
+                <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder={t("Optional")} />
               </div>
               <div className="form-group">
-                <label>Address</label>
-                <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Optional" />
+                <label>{t("Address")}</label>
+                <input value={address} onChange={(e) => setAddress(e.target.value)} placeholder={t("Optional")} />
               </div>
             </div>
 
             <div className="form-row">
               <div className="form-group">
-                <label>Heard of us from *</label>
+                <label>{t("Heard of us from")} *</label>
                 <select
                   value={heardFrom}
                   onChange={(e) => {
@@ -2116,11 +2134,11 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
                     setHeardFromOtherNote("");
                   }}
                 >
-                  <option value="">Select…</option>
-                  <option value="walk_in">Walk-in</option>
-                  <option value="refer_person">Refer by person</option>
-                  <option value="social_media">Social media</option>
-                  <option value="other">Other</option>
+                  <option value="">{t("Select...")}</option>
+                  <option value="walk_in">{t("Walk-in")}</option>
+                  <option value="refer_person">{t("Refer by person")}</option>
+                  <option value="social_media">{t("Social media")}</option>
+                  <option value="other">{t("Other")}</option>
                 </select>
               </div>
             </div>
@@ -2128,11 +2146,11 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
             {heardFrom === "refer_person" && (
               <div className="form-row">
                 <div className="form-group">
-                  <label>Referred Person Name *</label>
+                  <label>{t("Referred Person Name")} *</label>
                   <input value={referralPersonName} onChange={(e) => setReferralPersonName(e.target.value)} />
                 </div>
                 <div className="form-group">
-                  <label>Referred Person Mobile *</label>
+                  <label>{t("Referred Person Mobile")} *</label>
                   <input value={referralPersonMobile} onChange={(e) => setReferralPersonMobile(e.target.value)} />
                 </div>
               </div>
@@ -2141,9 +2159,9 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
             {heardFrom === "social_media" && (
               <div className="form-row">
                 <div className="form-group">
-                  <label>Platform *</label>
+                  <label>{t("Platform")} *</label>
                   <select value={socialPlatform} onChange={(e) => setSocialPlatform(e.target.value)}>
-                    <option value="">Select…</option>
+                    <option value="">{t("Select...")}</option>
                     <option value="instagram">Instagram</option>
                     <option value="twitter">Twitter</option>
                     <option value="tiktok">TikTok</option>
@@ -2156,7 +2174,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
             {heardFrom === "other" && (
               <div className="form-row">
                 <div className="form-group">
-                  <label>Other Note *</label>
+                  <label>{t("Other Note")} *</label>
                   <input value={heardFromOtherNote} onChange={(e) => setHeardFromOtherNote(e.target.value)} />
                 </div>
               </div>
@@ -2174,7 +2192,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
                 (heardFrom === "other" && !heardFromOtherNote)
               }
             >
-              {saving ? "Saving..." : "Save Customer"}
+              {saving ? t("Saving...") : t("Save Customer")}
             </button>
           </div>
         )}
@@ -2182,13 +2200,13 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
         {customerType === "existing" && (
           <div>
             <div className="form-group" style={{ position: "relative" }}>
-              <label>Search Customer</label>
+              <label>{t("Search Customer")}</label>
               <div className="smart-search-wrapper">
                 <i className="fas fa-search" style={{ position: "absolute", left: "12px", top: "50%", transform: "translateY(-50%)", color: "#888" }}></i>
                 <input
                   type="text"
                   className="smart-search-input"
-                  placeholder="Search by name, customer ID, mobile, or email..."
+                  placeholder={t("Search by name, customer ID, mobile, or email...")}
                   value={smartSearch}
                   onChange={(e) => setSmartSearch(e.target.value)}
                   onKeyPress={(e) => e.key === "Enter" && void handleVerifySearch()}
@@ -2196,7 +2214,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
                 />
               </div>
               <button className="btn btn-primary" onClick={() => void handleVerifySearch()} style={{ marginTop: "10px" }}>
-                <i className="fas fa-search"></i> Verify Customer
+                <i className="fas fa-search"></i> {t("Verify Customer")}
               </button>
 
               {showResults && searchResults.length > 0 && (
@@ -2268,36 +2286,36 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
                   )}
                   {(verifiedCustomer.heardFrom || "").trim() && (
                     <div className="verified-row">
-                      <span className="verified-label">Heard of us from:</span>
+                      <span className="verified-label">{t("Heard of us from")}:</span>
                       <span className="verified-value">{sourceLabel(String(verifiedCustomer.heardFrom || ""))}</span>
                     </div>
                   )}
                   {String(verifiedCustomer.heardFrom ?? "") === "refer_person" && (
                     <>
                       <div className="verified-row">
-                        <span className="verified-label">Referred Name:</span>
+                        <span className="verified-label">{t("Referred Name")}:</span>
                         <span className="verified-value">{verifiedCustomer.referralPersonName || "—"}</span>
                       </div>
                       <div className="verified-row">
-                        <span className="verified-label">Referred Mobile:</span>
+                        <span className="verified-label">{t("Referred Mobile")}:</span>
                         <span className="verified-value">{verifiedCustomer.referralPersonMobile || "—"}</span>
                       </div>
                     </>
                   )}
                   {String(verifiedCustomer.heardFrom ?? "") === "social_media" && (
                     <div className="verified-row">
-                      <span className="verified-label">Platform:</span>
+                      <span className="verified-label">{t("Platform")}:</span>
                       <span className="verified-value">{verifiedCustomer.socialPlatform || "—"}</span>
                     </div>
                   )}
                   {String(verifiedCustomer.heardFrom ?? "") === "other" && (
                     <div className="verified-row">
-                      <span className="verified-label">Other Note:</span>
+                      <span className="verified-label">{t("Other Note")}:</span>
                       <span className="verified-value">{verifiedCustomer.heardFromOtherNote || "—"}</span>
                     </div>
                   )}
                   <div className="verified-row">
-                    <span className="verified-label">Registered Vehicles:</span>
+                    <span className="verified-label">{t("Registered Vehicles")}:</span>
                     <span className="verified-value">{verifiedCustomer.vehicles?.length ?? verifiedCustomer.registeredVehiclesCount ?? 0}</span>
                   </div>
                 </div>
@@ -2339,7 +2357,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
               </div>
               {(verifiedCustomer.heardFrom || "").trim() && (
                 <div className="verified-row">
-                  <span className="verified-label">Heard of us from:</span>
+                  <span className="verified-label">{t("Heard of us from")}:</span>
                   <span className="verified-value">{sourceLabel(String(verifiedCustomer.heardFrom || ""))}</span>
                 </div>
               )}
@@ -2397,10 +2415,10 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
 
       <div className="action-buttons">
         <button className="btn btn-secondary" onClick={onCancel}>
-          Cancel
+          {t("Cancel")}
         </button>
         <button className="btn btn-primary" onClick={onNext} disabled={!customerData}>
-          Next: Vehicle
+          {t("Next: Vehicle")}
         </button>
       </div>
     </div>
@@ -2411,6 +2429,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
 // VEHICLE STEP
 // ============================================
 function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomerData, onVehicleSelected, onNext, onBack, actorUsername }: any) {
+  const { t } = useLanguage();
   const [showNewVehicleForm, setShowNewVehicleForm] = useState(false);
   const [factory, setFactory] = useState(QATAR_MANUFACTURERS[0] ?? "Toyota");
   const [model, setModel] = useState("");
@@ -2471,7 +2490,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
     <div className="form-card">
       <div className="form-card-title">
         <i className="fas fa-car"></i>
-        <h2>Vehicle Information</h2>
+        <h2>{t("Vehicle Information")}</h2>
       </div>
       <div className="form-card-content">
         {hasVehicles && !showNewVehicleForm && !vehicleData && (
@@ -2481,7 +2500,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
               <span>This customer has {customerData.vehicles.length} registered vehicle(s). Select one or add a new vehicle.</span>
             </div>
 
-            <h3 style={{ marginBottom: "15px", fontSize: "16px", fontWeight: "600" }}>Registered Vehicles</h3>
+            <h3 style={{ marginBottom: "15px", fontSize: "16px", fontWeight: "600" }}>{t("Registered Vehicles")}</h3>
             <div className="vehicles-list">
               {customerData.vehicles.map((vehicle: any, idx: number) => (
                 <div key={String(vehicle?.vehicleId ?? vehicle?.id ?? vehicle?.plateNumber ?? idx)} className="vehicle-result-item">
@@ -2507,14 +2526,14 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
                     </div>
                   </div>
                   <button className="btn btn-verify" onClick={() => handleSelectExistingVehicle(vehicle)}>
-                    <i className="fas fa-check"></i> Select
+                    <i className="fas fa-check"></i> {t("Select")}
                   </button>
                 </div>
               ))}
             </div>
 
             <button className="btn btn-secondary" onClick={() => setShowNewVehicleForm(true)} style={{ marginTop: "15px" }}>
-              <i className="fas fa-plus"></i> Add New Vehicle
+              <i className="fas fa-plus"></i> {t("Add New Vehicle")}
             </button>
           </div>
         )}
@@ -2523,13 +2542,13 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
           <div>
             {hasVehicles && (
               <button className="btn btn-link" onClick={() => setShowNewVehicleForm(false)} style={{ marginBottom: "15px", padding: "8px 12px", fontSize: "14px" }}>
-                <i className="fas fa-arrow-left"></i> Back to Vehicle Selection
+                <i className="fas fa-arrow-left"></i> {t("Back to Vehicle Selection")}
               </button>
             )}
 
             <div className="form-row">
               <div className="form-group">
-                <label>Manufacturer *</label>
+                <label>{t("Manufacturer")} *</label>
                 <select value={factory} onChange={(e) => setFactory(e.target.value)}>
                   {manufacturerOptions.map((manufacturer) => (
                     <option key={manufacturer} value={manufacturer}>
@@ -2539,7 +2558,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
                 </select>
               </div>
               <div className="form-group">
-                <label>Model *</label>
+                <label>{t("Model")} *</label>
                 <select value={model} onChange={(e) => setModel(e.target.value)} disabled={!modelOptions.length}>
                   <option value="">Select model</option>
                   {modelOptions.map((modelName) => (
@@ -2553,7 +2572,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
 
             <div className="form-row">
               <div className="form-group">
-                <label>Year *</label>
+                <label>{t("Year")} *</label>
                 <select value={year} onChange={(e) => setYear(e.target.value)}>
                   {Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - i).map((y) => (
                     <option key={y} value={y}>
@@ -2563,7 +2582,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
                 </select>
               </div>
               <div className="form-group">
-                <label>License Plate *</label>
+                <label>{t("License Plate")} *</label>
                 <input value={license} onChange={(e) => setLicense(e.target.value)} placeholder="e.g., 123456" />
               </div>
             </div>
@@ -2571,7 +2590,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
             {/* ✅ NEW ROW: VIN + Vehicle Type */}
             <div className="form-row">
               <div className="form-group">
-                <label>VIN Number</label>
+                <label>{t("VIN Number")}</label>
                 <input
                   value={vinNumber}
                   onChange={(e) => setVinNumber(e.target.value.toUpperCase())}
@@ -2580,22 +2599,22 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
                 />
               </div>
               <div className="form-group">
-                <label>Vehicle Type *</label>
+                <label>{t("Vehicle Type")} *</label>
                 <select value={carType} onChange={(e) => setCarType(e.target.value)}>
-                  <option>SUV</option>
-                  <option>Sedan</option>
-                  <option>Hatchback</option>
-                  <option>Coupe</option>
-                  <option>Truck</option>
+                  <option>{t("SUV")}</option>
+                  <option>{t("Sedan")}</option>
+                  <option>{t("Hatchback")}</option>
+                  <option>{t("Coupe")}</option>
+                  <option>{t("Truck")}</option>
                 </select>
               </div>
             </div>
 
             <div className="form-row">
               <div className="form-group">
-                <label>Color *</label>
+                <label>{t("Color")} *</label>
                 <select value={color} onChange={(e) => setColor(e.target.value)}>
-                  <option value="">Select color</option>
+                  <option value="">{t("Select color")}</option>
                   {colorOptions.map((colorName) => (
                     <option key={colorName} value={colorName}>
                       {colorName}
@@ -2610,7 +2629,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
               onClick={() => void handleSaveNewVehicle()}
               disabled={!(factory && model && year && license && carType && color)}
             >
-              <i className="fas fa-save"></i> Save Vehicle
+              <i className="fas fa-save"></i> {t("Save Vehicle")}
             </button>
           </div>
         )}
@@ -2619,36 +2638,36 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
           <div className="verified-customer-display" style={{ marginTop: "0" }}>
             <div className="verified-header">
               <i className="fas fa-check-circle"></i>
-              <span>Vehicle Selected</span>
+              <span>{t("Vehicle Selected")}</span>
             </div>
             <div className="verified-info">
               <div className="verified-row">
-                <span className="verified-label">Vehicle:</span>
+                <span className="verified-label">{t("Vehicle")}:</span>
                 <span className="verified-value">
                   {vehicleData.make} {vehicleData.model} ({vehicleData.year})
                 </span>
               </div>
               <div className="verified-row">
-                <span className="verified-label">License Plate:</span>
+                <span className="verified-label">{t("License Plate")}:</span>
                 <span className="verified-value">{vehicleData.plateNumber}</span>
               </div>
               <div className="verified-row">
-                <span className="verified-label">Type:</span>
+                <span className="verified-label">{t("Type")}:</span>
                 <span className="verified-value">{vehicleData.vehicleType}</span>
               </div>
               <div className="verified-row">
-                <span className="verified-label">Color:</span>
+                <span className="verified-label">{t("Color")}:</span>
                 <span className="verified-value">{vehicleData.color}</span>
               </div>
               {vehicleData.vin && (
                 <div className="verified-row">
-                  <span className="verified-label">VIN:</span>
+                  <span className="verified-label">{t("VIN")}:</span>
                   <span className="verified-value">{vehicleData.vin}</span>
                 </div>
               )}
             </div>
             <button className="btn btn-change-customer" onClick={() => setVehicleData(null)}>
-              <i className="fas fa-sync-alt"></i> Change Vehicle
+              <i className="fas fa-sync-alt"></i> {t("Change Vehicle")}
             </button>
           </div>
         )}
@@ -2656,10 +2675,10 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
 
       <div className="action-buttons">
         <button className="btn btn-secondary" onClick={onBack}>
-          Back
+          {t("Back")}
         </button>
         <button className="btn btn-primary" onClick={onNext} disabled={!vehicleData}>
-          Next: Services
+          {t("Next: Services")}
         </button>
       </div>
     </div>
@@ -2688,6 +2707,7 @@ function StepThreeServices({
   orderType,
   vehicleCompletedServices,
 }: any) {
+  const { t } = useLanguage();
   const [pendingSpecificationProduct, setPendingSpecificationProduct] = useState<any>(null);
   const [pendingSelectionMode, setPendingSelectionMode] = useState<"paid" | "complimentary">("paid");
   const [selectedCompletedOrderId, setSelectedCompletedOrderId] = useState("");
@@ -2903,7 +2923,7 @@ function StepThreeServices({
     <div className="form-card">
       <div className="form-card-title">
         <i className="fas fa-concierge-bell"></i>
-        <h2>Services Selection</h2>
+        <h2>{t("Services Selection")}</h2>
       </div>
 
       <div className="form-card-content">
@@ -2913,12 +2933,12 @@ function StepThreeServices({
           <>
             <div className="jo-completed-svc-banner">
               <i className="fas fa-history"></i>
-              <span>Select from previously completed services for this vehicle</span>
+              <span>{t("Select from previously completed services for this vehicle")}</span>
             </div>
 
             <div className="jo-completed-orders-wrap">
               <div className="jo-completed-orders-title">
-                <i className="fas fa-list-check"></i> Completed Job Orders for this Vehicle
+                <i className="fas fa-list-check"></i> {t("Completed Job Orders for this Vehicle")}
               </div>
               <div className="jo-completed-orders-grid">
                 {completedOrderHistory.map((entry: any) => (
@@ -2932,7 +2952,7 @@ function StepThreeServices({
                     <div className="jo-completed-order-meta">
                       <span className="jo-completed-order-status">{entry.workStatus}</span>
                       <span className="jo-completed-order-count">
-                        {entry.servicesCount} service{entry.servicesCount === 1 ? "" : "s"}
+                        {entry.servicesCount} {t("service")}{entry.servicesCount === 1 ? "" : "s"}
                       </span>
                     </div>
                   </button>
@@ -2942,7 +2962,7 @@ function StepThreeServices({
 
             <div className="jo-completed-svc-banner" style={{ marginBottom: 10 }}>
               <i className="fas fa-gift"></i>
-              <span>Services from the selected completed order are included for free (QAR 0)</span>
+              <span>{t("Services from the selected completed order are included for free (QAR 0)")}</span>
             </div>
 
             <div className="jo-completed-svc-grid">
@@ -3011,36 +3031,36 @@ function StepThreeServices({
 
             <div className="jo-completed-orders-wrap" style={{ marginTop: 14 }}>
               <div className="jo-completed-orders-title">
-                <i className="fas fa-plus-circle"></i> Add Other Paid Services
+                <i className="fas fa-plus-circle"></i> {t("Add Other Paid Services")}
               </div>
               <div className="svc-filter-bar">
                 <div className="svc-filter-row">
-                  <span className="svc-filter-label"><i className="fas fa-tags"></i> Category</span>
+                  <span className="svc-filter-label"><i className="fas fa-tags"></i> {t("Category")}</span>
                   <select
                     className="svc-filter-select"
                     value={filterCategory}
                     onChange={(e) => { setFilterCategory(e.target.value); }}
                   >
-                    <option value="all">All Categories</option>
+                    <option value="all">{t("All Categories")}</option>
                     {svcCategories.map((cat) => (
                       <option key={cat.id} value={cat.id}>{cat.nameEn}</option>
                     ))}
                   </select>
                 </div>
                 <div className="svc-filter-row">
-                  <span className="svc-filter-label"><i className="fas fa-layer-group"></i> Type</span>
+                  <span className="svc-filter-label"><i className="fas fa-layer-group"></i> {t("Type")}</span>
                   <div className="svc-type-pills">
-                    <button type="button" className={`svc-type-pill${filterType === "all" ? " active" : ""}`} onClick={() => setFilterType("all")}>All</button>
-                    <button type="button" className={`svc-type-pill${filterType === "service" ? " active" : ""}`} onClick={() => setFilterType("service")}><i className="fas fa-wrench"></i> Services</button>
-                    <button type="button" className={`svc-type-pill${filterType === "package" ? " active" : ""}`} onClick={() => setFilterType("package")}><i className="fas fa-box-open"></i> Packages</button>
+                    <button type="button" className={`svc-type-pill${filterType === "all" ? " active" : ""}`} onClick={() => setFilterType("all")}>{t("All")}</button>
+                    <button type="button" className={`svc-type-pill${filterType === "service" ? " active" : ""}`} onClick={() => setFilterType("service")}><i className="fas fa-wrench"></i> {t("Services")}</button>
+                    <button type="button" className={`svc-type-pill${filterType === "package" ? " active" : ""}`} onClick={() => setFilterType("package")}><i className="fas fa-box-open"></i> {t("Packages")}</button>
                   </div>
-                  <span className="svc-filter-count">{filteredProducts.length} of {products.length}</span>
+                  <span className="svc-filter-count">{filteredProducts.length} {t("of")} {products.length}</span>
                 </div>
               </div>
 
               {filteredProducts.length === 0 ? (
                 <div className="empty-state" style={{ padding: "20px 12px" }}>
-                  <div className="empty-text">No services match your filter</div>
+                  <div className="empty-text">{t("No services match your filter")}</div>
                 </div>
               ) : (
                 <div className="services-grid" style={{ marginTop: 10 }}>
@@ -3058,7 +3078,7 @@ function StepThreeServices({
                             {String(product?.type ?? "").toLowerCase() === "package" && (
                               <span className="jo-package-price-badge">
                                 <i className="fas fa-box-open" aria-hidden="true"></i>
-                                Package Price Applied
+                                {t("Package Price Applied")}
                               </span>
                             )}
                           </div>
@@ -3074,43 +3094,43 @@ function StepThreeServices({
         ) : (
           /* ── CATALOG MODE (new order or no completed services) ── */
           <>
-            <p>Select services for {vehicleType}:</p>
+            <p>{t("Select services for")} {vehicleType}:</p>
 
             {products.length === 0 ? (
               <div className="empty-state" style={{ padding: "30px 12px" }}>
-                <div className="empty-text">No services configured yet</div>
-                <div className="empty-subtext">Please create services from the Service Creation page first.</div>
+                <div className="empty-text">{t("No services configured yet")}</div>
+                <div className="empty-subtext">{t("Please create services from the Service Creation page first.")}</div>
               </div>
             ) : (
             <>
               <div className="svc-filter-bar">
                 <div className="svc-filter-row">
-                  <span className="svc-filter-label"><i className="fas fa-tags"></i> Category</span>
+                  <span className="svc-filter-label"><i className="fas fa-tags"></i> {t("Category")}</span>
                   <select
                     className="svc-filter-select"
                     value={filterCategory}
                     onChange={(e) => { setFilterCategory(e.target.value); }}
                   >
-                    <option value="all">All Categories</option>
+                    <option value="all">{t("All Categories")}</option>
                     {svcCategories.map((cat) => (
                       <option key={cat.id} value={cat.id}>{cat.nameEn}</option>
                     ))}
                   </select>
                 </div>
                 <div className="svc-filter-row">
-                  <span className="svc-filter-label"><i className="fas fa-layer-group"></i> Type</span>
+                  <span className="svc-filter-label"><i className="fas fa-layer-group"></i> {t("Type")}</span>
                   <div className="svc-type-pills">
-                    <button type="button" className={`svc-type-pill${filterType === "all" ? " active" : ""}`} onClick={() => setFilterType("all")}>All</button>
-                    <button type="button" className={`svc-type-pill${filterType === "service" ? " active" : ""}`} onClick={() => setFilterType("service")}><i className="fas fa-wrench"></i> Services</button>
-                    <button type="button" className={`svc-type-pill${filterType === "package" ? " active" : ""}`} onClick={() => setFilterType("package")}><i className="fas fa-box-open"></i> Packages</button>
+                    <button type="button" className={`svc-type-pill${filterType === "all" ? " active" : ""}`} onClick={() => setFilterType("all")}>{t("All")}</button>
+                    <button type="button" className={`svc-type-pill${filterType === "service" ? " active" : ""}`} onClick={() => setFilterType("service")}><i className="fas fa-wrench"></i> {t("Services")}</button>
+                    <button type="button" className={`svc-type-pill${filterType === "package" ? " active" : ""}`} onClick={() => setFilterType("package")}><i className="fas fa-box-open"></i> {t("Packages")}</button>
                   </div>
-                  <span className="svc-filter-count">{filteredProducts.length} of {products.length}</span>
+                  <span className="svc-filter-count">{filteredProducts.length} {t("of")} {products.length}</span>
                 </div>
               </div>
               {filteredProducts.length === 0 ? (
                 <div className="empty-state" style={{ padding: "24px 12px" }}>
-                  <div className="empty-text">No services match your filter</div>
-                  <div className="empty-subtext">Try a different category or type.</div>
+                  <div className="empty-text">{t("No services match your filter")}</div>
+                  <div className="empty-subtext">{t("Try a different category or type.")}</div>
                 </div>
               ) : (
               <div className="services-grid">
@@ -3126,7 +3146,7 @@ function StepThreeServices({
                         {String(product?.type ?? "").toLowerCase() === "package" && (
                           <span className="jo-package-price-badge">
                             <i className="fas fa-box-open" aria-hidden="true"></i>
-                            Package Price Applied
+                            {t("Package Price Applied")}
                           </span>
                         )}
                       </div>
@@ -3151,9 +3171,9 @@ function StepThreeServices({
                                     }}
                                   ></span>
                                 ) : null}
-                                {`Specification: ${label}`}
+                                {`${t("Specification")}: ${label}`}
                               </span>
-                            ) : "Specification required before adding this service.";
+                            ) : t("Specification required before adding this service.");
                           })()}
                         </div>
                       )}
@@ -3171,12 +3191,12 @@ function StepThreeServices({
         <div style={{ marginTop: "20px" }}>
           <label style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "#333" }}>
             <i className="fas fa-sticky-note" style={{ marginRight: "8px" }}></i>
-            Notes / Comments (Optional)
+            {t("Notes / Comments (Optional)")}
           </label>
           <textarea
             value={orderNotes}
             onChange={(e) => setOrderNotes(e.target.value)}
-            placeholder="Add any special instructions, notes, or comments for this order..."
+            placeholder={t("Add any special instructions, notes, or comments for this order...")}
             rows={4}
             style={{ width: "100%", padding: "12px", border: "1px solid #ddd", borderRadius: "8px", fontSize: "14px", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box" }}
           />
@@ -3185,7 +3205,7 @@ function StepThreeServices({
         <div style={{ marginTop: "20px" }}>
           <label style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "#333" }}>
             <i className="fas fa-calendar-check" style={{ marginRight: "8px" }}></i>
-            Expected Delivery Date & Time
+            {t("Expected Delivery Date & Time")}
           </label>
           <div style={{ display: "flex", gap: "12px" }}>
             <div style={{ flex: 1 }}>
@@ -3209,13 +3229,13 @@ function StepThreeServices({
         </div>
 
         <div className="price-summary-box">
-          <h4>Price Summary</h4>
+          <h4>{t("Price Summary")}</h4>
           <div className="price-row">
-            <span>{packageCount > 0 ? "Packages & Services:" : "Services:"}</span>
+            <span>{packageCount > 0 ? t("Packages & Services:") : t("Services:")}</span>
             <span>{formatPrice(subtotal)}</span>
           </div>
           <div className="price-row">
-            <span>Apply Discount:</span>
+            <span>{t("Apply Discount:")}</span>
             <div>
               <PermissionGate moduleId="joborder" optionId="joborder_discount_percent">
                 <input
@@ -3234,7 +3254,7 @@ function StepThreeServices({
             </div>
           </div>
           <div className="price-row">
-            <span>Discount Amount (QAR):</span>
+            <span>{t("Discount Amount (QAR):")}</span>
             <div>
               <PermissionGate moduleId="joborder" optionId="joborder_discount_percent">
                 <input
@@ -3253,15 +3273,15 @@ function StepThreeServices({
             </div>
           </div>
           <div className="price-row">
-            <span>Max Allowed Discount:</span>
+            <span>{t("Max Allowed Discount:")}</span>
             <span>{Number(normalizedMaxDiscountPercent.toFixed(2))}%</span>
           </div>
           <div className="price-row discount-amount">
-            <span>Discount Amount:</span>
+            <span>{t("Discount Amount:")}</span>
             <span>{formatPrice(discount)}</span>
           </div>
           <div className="price-row total">
-            <span>Total:</span>
+            <span>{t("Total:")}</span>
             <span>{formatPrice(total)}</span>
           </div>
         </div>
@@ -3269,10 +3289,10 @@ function StepThreeServices({
 
       <div className="action-buttons">
         <button className="btn btn-secondary" onClick={onBack}>
-          Back
+          {t("Back")}
         </button>
         <button className="btn btn-primary" onClick={onNext} disabled={selectedServices.length === 0 || (!useCompletedPool && products.length === 0)}>
-          Next: Confirm
+          {t("Next: Confirm")}
         </button>
       </div>
 
@@ -3382,11 +3402,11 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
       <div className="pim-details-header">
         <div className="pim-details-title-container">
           <h2>
-            <i className="fas fa-plus-circle"></i> Add Services to Job Order
+            <i className="fas fa-plus-circle"></i> {t("Add Services to Job Order")}
           </h2>
         </div>
         <button className="pim-btn-close-details" onClick={onClose}>
-          <i className="fas fa-times"></i> Cancel
+          <i className="fas fa-times"></i> {t("Cancel")}
         </button>
       </div>
 
@@ -3394,46 +3414,46 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
         <div className="form-card">
           <div className="form-card-title">
             <i className="fas fa-concierge-bell"></i>
-            <h2>Services Selection</h2>
+            <h2>{t("Services Selection")}</h2>
           </div>
 
           <div className="form-card-content">
-            <p>Select services for {vehicleType}:</p>
+            <p>{t("Select services for")} {vehicleType}:</p>
             {products.length === 0 ? (
               <div className="empty-state" style={{ padding: "28px 12px" }}>
-                <div className="empty-text">No services configured yet</div>
-                <div className="empty-subtext">Create services from Service Creation before adding to a job order.</div>
+                <div className="empty-text">{t("No services configured yet")}</div>
+                <div className="empty-subtext">{t("Create services from Service Creation before adding to a job order.")}</div>
               </div>
             ) : (
             <>
               <div className="svc-filter-bar">
                 <div className="svc-filter-row">
-                  <span className="svc-filter-label"><i className="fas fa-tags"></i> Category</span>
+                  <span className="svc-filter-label"><i className="fas fa-tags"></i> {t("Category")}</span>
                   <select
                     className="svc-filter-select"
                     value={asFilterCategory}
                     onChange={(e) => setAsFilterCategory(e.target.value)}
                   >
-                    <option value="all">All Categories</option>
+                    <option value="all">{t("All Categories")}</option>
                     {asCategories.map((cat) => (
                       <option key={cat.id} value={cat.id}>{cat.nameEn}</option>
                     ))}
                   </select>
                 </div>
                 <div className="svc-filter-row">
-                  <span className="svc-filter-label"><i className="fas fa-layer-group"></i> Type</span>
+                  <span className="svc-filter-label"><i className="fas fa-layer-group"></i> {t("Type")}</span>
                   <div className="svc-type-pills">
-                    <button type="button" className={`svc-type-pill${asFilterType === "all" ? " active" : ""}`} onClick={() => setAsFilterType("all")}>All</button>
-                    <button type="button" className={`svc-type-pill${asFilterType === "service" ? " active" : ""}`} onClick={() => setAsFilterType("service")}><i className="fas fa-wrench"></i> Services</button>
-                    <button type="button" className={`svc-type-pill${asFilterType === "package" ? " active" : ""}`} onClick={() => setAsFilterType("package")}><i className="fas fa-box-open"></i> Packages</button>
+                    <button type="button" className={`svc-type-pill${asFilterType === "all" ? " active" : ""}`} onClick={() => setAsFilterType("all")}>{t("All")}</button>
+                    <button type="button" className={`svc-type-pill${asFilterType === "service" ? " active" : ""}`} onClick={() => setAsFilterType("service")}><i className="fas fa-wrench"></i> {t("Services")}</button>
+                    <button type="button" className={`svc-type-pill${asFilterType === "package" ? " active" : ""}`} onClick={() => setAsFilterType("package")}><i className="fas fa-box-open"></i> {t("Packages")}</button>
                   </div>
                   <span className="svc-filter-count">{asFilteredProducts.length} of {products.length}</span>
                 </div>
               </div>
               {asFilteredProducts.length === 0 ? (
                 <div className="empty-state" style={{ padding: "24px 12px" }}>
-                  <div className="empty-text">No services match your filter</div>
-                  <div className="empty-subtext">Try a different category or type.</div>
+                  <div className="empty-text">{t("No services match your filter")}</div>
+                  <div className="empty-subtext">{t("Try a different category or type.")}</div>
                 </div>
               ) : (
               <div className="services-grid">
@@ -3445,7 +3465,7 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
                         {String(product?.type ?? "").toLowerCase() === "package" && (
                           <span className="jo-package-price-badge">
                             <i className="fas fa-box-open" aria-hidden="true"></i>
-                            Package Price Applied
+                            {t("Package Price Applied")}
                           </span>
                         )}
                       </div>
@@ -3470,9 +3490,9 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
                                     }}
                                   ></span>
                                 ) : null}
-                                {`Specification: ${label}`}
+                                {`${t("Specification")}: ${label}`}
                               </span>
-                            ) : "Specification required before adding this service.";
+                            ) : t("Specification required before adding this service.");
                           })()}
                         </div>
                       )}
@@ -3488,14 +3508,14 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
             )}
 
             <div className="price-summary-box">
-              <h4>Price Summary</h4>
+              <h4>{t("Price Summary")}</h4>
               <div className="price-row">
-                <span>{packageCount > 0 ? "Packages & Services:" : "Services:"}</span>
+                <span>{packageCount > 0 ? t("Packages & Services:") : t("Services:")}</span>
                 <span>{formatPrice(subtotal)}</span>
               </div>
               <PermissionGate moduleId="joborder" optionId="joborder_discount_percent">
                 <div className="price-row">
-                  <span>Apply Discount:</span>
+                  <span>{t("Apply Discount:")}</span>
                   <div>
                     <PermissionGate moduleId="joborder" optionId="joborder_discount_percent">
                       <input
@@ -3517,7 +3537,7 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
               </PermissionGate>
               <PermissionGate moduleId="joborder" optionId="joborder_discount_percent">
                 <div className="price-row">
-                  <span>Remaining Allowed Discount:</span>
+                  <span>{t("Remaining Allowed Discount:")}</span>
                   <span>
                     {Number(maxAdditionalDiscountPercent.toFixed(2))}% ({formatPrice(maxAdditionalDiscountAmount)})
                   </span>
@@ -3529,25 +3549,25 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
                 </div>
               ) : null}
               <div className="price-row discount-amount">
-                <span>Discount Amount:</span>
+                <span>{t("Discount Amount:")}</span>
                 <span>{formatPrice(discount)}</span>
               </div>
               <div className="price-row total">
-                <span>Total:</span>
+                <span>{t("Total:")}</span>
                 <span>{formatPrice(total)}</span>
               </div>
             </div>
 
             <div className="action-buttons">
               <button className="btn btn-secondary" onClick={onClose}>
-                Cancel
+                {t("Cancel")}
               </button>
               <button
                 className="btn btn-primary"
                 onClick={() => onSubmit({ selectedServices, discountPercent: effectiveDiscountPercent })}
                 disabled={selectedServices.length === 0 || products.length === 0}
               >
-                Add Services
+                {t("Add Services")}
               </button>
             </div>
 
@@ -3619,6 +3639,7 @@ function StepFourConfirm({
   onBack,
   onSubmit,
 }: any) {
+  const { t } = useLanguage();
   const formatPrice = (price: number) => `QAR ${price.toLocaleString()}`;
   const { subtotal } = summarizeServicesPricing(selectedServices);
   const normalizedMaxDiscountPercent = Math.max(0, Math.min(100, Number(maxDiscountPercent ?? 0)));
@@ -3649,7 +3670,7 @@ function StepFourConfirm({
     <div className="form-card confirm-review-card">
       <div className="form-card-title">
         <i className="fas fa-check-circle"></i>
-        <h2>Order Confirmation</h2>
+        <h2>{t("Order Confirmation")}</h2>
       </div>
 
       <div className="form-card-content">
@@ -3659,7 +3680,7 @@ function StepFourConfirm({
             <div className="jo-confirm-order-type-line">
               <i className="fas fa-file-alt"></i>
               <div>
-                <div className="jo-confirm-strip-title">{orderType === "service" ? "Service Order" : "New Job Order"}</div>
+                <div className="jo-confirm-strip-title">{orderType === "service" ? t("Service Order") : t("New Job Order")}</div>
                 <div className="jo-confirm-strip-subtitle">
                   {[vehicleData?.make, vehicleData?.model].filter(Boolean).join(" ")} {plate ? `• ${plate}` : ""}
                 </div>
@@ -3667,77 +3688,77 @@ function StepFourConfirm({
             </div>
           </div>
           <button className="btn btn-secondary jo-confirm-change-type-btn" onClick={onBack}>
-            <i className="fas fa-exchange-alt"></i> Change Selection
+            <i className="fas fa-exchange-alt"></i> {t("Change Selection")}
           </button>
         </div>
 
         {/* Customer */}
         <section className="jo-confirm-section">
           <h3>
-            <i className="fas fa-user"></i> Customer Information
+            <i className="fas fa-user"></i> {t("Customer Information")}
           </h3>
           <div className="jo-confirm-grid">
             <div className="jo-confirm-item">
-              <span>Customer ID</span>
+              <span>{t("Customer ID")}</span>
               <strong>{formatCustomerDisplayId(customerData?.id)}</strong>
             </div>
             <div className="jo-confirm-item">
-              <span>Customer Name</span>
+              <span>{t("Customer Name")}</span>
               <strong>{customerData?.name || "N/A"}</strong>
             </div>
             <div className="jo-confirm-item">
-              <span>Mobile Number</span>
+              <span>{t("Mobile Number")}</span>
               <strong>{customerMobile}</strong>
             </div>
             <div className="jo-confirm-item">
-              <span>Email Address</span>
+              <span>{t("Email Address")}</span>
               <strong>{customerData?.email || "Not provided"}</strong>
             </div>
             <div className="jo-confirm-item jo-confirm-item-wide">
-              <span>Home Address</span>
-              <strong>{customerData?.address || "Not provided"}</strong>
+              <span>{t("Home Address")}</span>
+              <strong>{customerData?.address || t("Not provided")}</strong>
             </div>
             {heardFrom && (
               <div className="jo-confirm-item">
-                <span>Heard of us from</span>
+                <span>{t("Heard of us from")}</span>
                 <strong>{heardFrom}</strong>
               </div>
             )}
             {heardFrom === "refer_person" && (
               <>
                 <div className="jo-confirm-item">
-                  <span>Referred Person Name</span>
-                  <strong>{customerData?.referralPersonName || "Not provided"}</strong>
+                  <span>{t("Referred Person Name")}</span>
+                  <strong>{customerData?.referralPersonName || t("Not provided")}</strong>
                 </div>
                 <div className="jo-confirm-item">
-                  <span>Referred Person Mobile</span>
-                  <strong>{customerData?.referralPersonMobile || "Not provided"}</strong>
+                  <span>{t("Referred Person Mobile")}</span>
+                  <strong>{customerData?.referralPersonMobile || t("Not provided")}</strong>
                 </div>
               </>
             )}
             {heardFrom === "social_media" && (
               <div className="jo-confirm-item">
-                <span>Social Platform</span>
-                <strong>{customerData?.socialPlatform || "Not provided"}</strong>
+                <span>{t("Social Platform")}</span>
+                <strong>{customerData?.socialPlatform || t("Not provided")}</strong>
               </div>
             )}
             {heardFrom === "other" && (
               <div className="jo-confirm-item jo-confirm-item-wide">
-                <span>Other Note</span>
-                <strong>{customerData?.heardFromOtherNote || "Not provided"}</strong>
+                <span>{t("Other Note")}</span>
+                <strong>{customerData?.heardFromOtherNote || t("Not provided")}</strong>
               </div>
             )}
             <div className="jo-confirm-item">
-              <span>Registered Vehicles</span>
+              <span>{t("Registered Vehicles")}</span>
               <strong>{customerData?.vehicles?.length ?? customerData?.registeredVehiclesCount ?? 0}</strong>
             </div>
             <div className="jo-confirm-item">
-              <span>Completed Services</span>
+              <span>{t("Completed Services")}</span>
               <strong>{customerData?.completedServicesCount ?? 0}</strong>
             </div>
             <div className="jo-confirm-item">
-              <span>Customer Since</span>
-              <strong>{customerData?.customerSince || "N/A"}</strong>
+              <span>{t("Customer Since")}</span>
+              <strong>{customerData?.customerSince || t("N/A")}</strong>
             </div>
           </div>
         </section>
@@ -3745,43 +3766,43 @@ function StepFourConfirm({
         {/* Vehicle */}
         <section className="jo-confirm-section">
           <h3>
-            <i className="fas fa-car"></i> Vehicle Information
+            <i className="fas fa-car"></i> {t("Vehicle Information")}
           </h3>
           <div className="jo-confirm-grid">
             <div className="jo-confirm-item">
-              <span>Vehicle ID</span>
+              <span>{t("Vehicle ID")}</span>
               <strong>{vehicleId}</strong>
             </div>
             <div className="jo-confirm-item">
-              <span>Owned By</span>
-              <strong>{customerData?.name || "N/A"}</strong>
+              <span>{t("Owned By")}</span>
+              <strong>{customerData?.name || t("N/A")}</strong>
             </div>
             <div className="jo-confirm-item">
-              <span>Make</span>
-              <strong>{vehicleData?.make || vehicleData?.factory || "N/A"}</strong>
+              <span>{t("Make")}</span>
+              <strong>{vehicleData?.make || vehicleData?.factory || t("N/A")}</strong>
             </div>
             <div className="jo-confirm-item">
-              <span>Model</span>
-              <strong>{vehicleData?.model || "N/A"}</strong>
+              <span>{t("Model")}</span>
+              <strong>{vehicleData?.model || t("N/A")}</strong>
             </div>
             <div className="jo-confirm-item">
-              <span>Year</span>
-              <strong>{vehicleData?.year || "N/A"}</strong>
+              <span>{t("Year")}</span>
+              <strong>{vehicleData?.year || t("N/A")}</strong>
             </div>
             <div className="jo-confirm-item">
-              <span>Color</span>
-              <strong>{vehicleData?.color || "N/A"}</strong>
+              <span>{t("Color")}</span>
+              <strong>{vehicleData?.color || t("N/A")}</strong>
             </div>
             <div className="jo-confirm-item">
-              <span>Plate Number</span>
+              <span>{t("Plate Number")}</span>
               <strong>{plate}</strong>
             </div>
             <div className="jo-confirm-item">
-              <span>VIN</span>
+              <span>{t("VIN")}</span>
               <strong>{vin}</strong>
             </div>
             <div className="jo-confirm-item">
-              <span>Vehicle Type</span>
+              <span>{t("Vehicle Type")}</span>
               <strong>{vehicleType}</strong>
             </div>
           </div>
@@ -3790,15 +3811,15 @@ function StepFourConfirm({
         {/* Selected services table */}
         <section className="jo-confirm-section">
           <h3>
-            <i className="fas fa-clipboard-list"></i> Selected Services
+            <i className="fas fa-clipboard-list"></i> {t("Selected Services")}
           </h3>
 
           <div className="jo-confirm-table-wrap">
             <table className="jo-confirm-services-table">
               <thead>
                 <tr>
-                  <th>Service Name</th>
-                  <th style={{ textAlign: "right" }}>Price</th>
+                  <th>{t("Service Name")}</th>
+                  <th style={{ textAlign: "right" }}>{t("Price")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -3826,7 +3847,7 @@ function StepFourConfirm({
                           )}
                         </td>
                         <td style={{ textAlign: "right", fontWeight: 700 }}>
-                          {group.packageTitle ? "Included in package" : formatPrice(service.price || 0)}
+                          {group.packageTitle ? t("Included in package") : formatPrice(service.price || 0)}
                         </td>
                       </tr>
                     ))}
@@ -3835,7 +3856,7 @@ function StepFourConfirm({
                 {selectedServices.length === 0 && (
                   <tr>
                     <td colSpan={2} style={{ textAlign: "center", color: "#64748b" }}>
-                      No services selected
+                      {t("No services selected")}
                     </td>
                   </tr>
                 )}
@@ -3847,23 +3868,23 @@ function StepFourConfirm({
         {/* Price summary */}
         <section className="jo-confirm-section">
           <h3>
-            <i className="fas fa-calculator"></i> Price Summary
+            <i className="fas fa-calculator"></i> {t("Price Summary")}
           </h3>
           <div className="jo-price-summary-grid">
             <div className="jo-price-box">
               <div className="jo-price-row">
-                <span>Subtotal</span>
+                <span>{t("Subtotal")}</span>
                 <strong>{formatPrice(subtotal)}</strong>
               </div>
               <div className="jo-price-row">
-                <span>Discount ({Number(discountPercent.toFixed(2))}%)</span>
+                <span>{`${t("Discount")} (${Number(discountPercent.toFixed(2))}%)`}</span>
                 <strong>- {formatPrice(discount)}</strong>
               </div>
             </div>
 
             <div className="jo-price-box jo-price-box-total">
               <div className="jo-price-row">
-                <span>Total</span>
+                <span>{t("Total")}</span>
                 <strong>{formatPrice(total)}</strong>
               </div>
             </div>
@@ -3873,20 +3894,20 @@ function StepFourConfirm({
         {(orderNotes || expectedDeliveryDate || expectedDeliveryTime) && (
           <section className="jo-confirm-section">
             <h3>
-              <i className="fas fa-info-circle"></i> Additional Information
+              <i className="fas fa-info-circle"></i> {t("Additional Information")}
             </h3>
             <div className="jo-confirm-grid">
               <div className="jo-confirm-item">
-                <span>Expected Delivery Date</span>
-                <strong>{expectedDeliveryDate || "Not specified"}</strong>
+                <span>{t("Expected Delivery Date")}</span>
+                <strong>{expectedDeliveryDate || t("Not specified")}</strong>
               </div>
               <div className="jo-confirm-item">
-                <span>Expected Delivery Time</span>
-                <strong>{expectedDeliveryTime || "Not specified"}</strong>
+                <span>{t("Expected Delivery Time")}</span>
+                <strong>{expectedDeliveryTime || t("Not specified")}</strong>
               </div>
               <div className="jo-confirm-item jo-confirm-item-wide">
-                <span>Notes / Comments</span>
-                <strong style={{ whiteSpace: "pre-wrap" }}>{orderNotes || "No notes"}</strong>
+                <span>{t("Notes / Comments")}</span>
+                <strong style={{ whiteSpace: "pre-wrap" }}>{orderNotes || t("No notes")}</strong>
               </div>
             </div>
           </section>
@@ -3895,16 +3916,16 @@ function StepFourConfirm({
 
       <div className="action-buttons confirm-action-buttons">
         <button className="btn btn-secondary" onClick={onBack} disabled={isSubmitting}>
-          Back
+          {t("Back")}
         </button>
         <button className="btn btn-primary" onClick={onSubmit} disabled={isSubmitting}>
           {isSubmitting ? (
             <>
               <i className="fas fa-spinner fa-spin" style={{ marginRight: 8 }}></i>
-              Creating...
+              {t("Creating...")}
             </>
           ) : (
-            "Submit Order"
+            t("Submit Order")
           )}
         </button>
       </div>
@@ -4464,25 +4485,26 @@ function RoadmapCard({ order, actorMap }: any) {
 // ORDER TYPE SCREENS
 // ============================================
 function OrderTypeSelection({ vehicleCompletedServices, onSelectOrderType, onBack, orderType }: any) {
+  const { t } = useLanguage();
   return (
     <div className="form-card">
       <div className="form-card-title">
         <i className="fas fa-list-check"></i>
-        <h2>Select Order Type</h2>
+        <h2>{t("Select Order Type")}</h2>
       </div>
       <div className="form-card-content">
         <p style={{ marginBottom: "20px", color: "#666", fontSize: "14px" }}>
-          This vehicle has {vehicleCompletedServices.length} completed service(s). Choose the type of order you want to create:
+          {t("This vehicle has")} {vehicleCompletedServices.length} {t("completed service(s). Choose the type of order you want to create:")}
         </p>
 
         <div className="option-selector">
           <div className={`option-btn ${orderType === "new" ? "selected" : ""}`} onClick={() => onSelectOrderType("new")}>
             <i className="fas fa-file-alt" style={{ marginRight: "8px" }}></i>
-            New Job Order
+            {t("New Job Order")}
           </div>
           <div className={`option-btn ${orderType === "service" ? "selected" : ""}`} onClick={() => onSelectOrderType("service")}>
             <i className="fas fa-tools" style={{ marginRight: "8px" }}></i>
-            Service Order
+            {t("Service Order")}
           </div>
         </div>
       </div>
@@ -4490,7 +4512,7 @@ function OrderTypeSelection({ vehicleCompletedServices, onSelectOrderType, onBac
       <div className="action-buttons">
         <button className="btn btn-secondary" onClick={onBack}>
           <i className="fas fa-arrow-left" style={{ marginRight: "8px" }}></i>
-          Back
+          {t("Back")}
         </button>
       </div>
     </div>
@@ -4498,27 +4520,28 @@ function OrderTypeSelection({ vehicleCompletedServices, onSelectOrderType, onBac
 }
 
 function NoCompletedServicesMessage({ onNext, onBack }: any) {
+  const { t } = useLanguage();
   return (
     <div className="form-card">
       <div className="form-card-title">
         <i className="fas fa-info-circle"></i>
-        <h2>Order Type</h2>
+        <h2>{t("Order Type")}</h2>
       </div>
       <div className="form-card-content">
         <div style={{ marginBottom: "20px", padding: "15px", backgroundColor: "#fff3cd", borderRadius: "8px", border: "1px solid #ffc107" }}>
           <i className="fas fa-exclamation-circle" style={{ color: "#ff9800", marginRight: "8px" }}></i>
           <span style={{ color: "#ff9800", fontWeight: "500" }}>
-            This vehicle has no completed services yet. Proceeding with New Job Order.
+            {t("This vehicle has no completed services yet. Proceeding with New Job Order.")}
           </span>
         </div>
       </div>
 
       <div className="action-buttons">
         <button className="btn btn-secondary" onClick={onBack}>
-          Back
+          {t("Back")}
         </button>
         <button className="btn btn-primary" onClick={onNext}>
-          Continue
+          {t("Continue")}
         </button>
       </div>
     </div>
