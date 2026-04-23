@@ -859,10 +859,10 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
     } catch (e) {
       console.error(e);
       showError({
-        title: "Add services failed",
+        title: t("Add services failed"),
         message: (
           <div>
-            <div style={{ fontWeight: 700, marginBottom: 6 }}>Could not add services to this job order.</div>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>{t("Could not add services to this job order.")}</div>
             <div>{errMsg(e)}</div>
           </div>
         ),
@@ -882,8 +882,8 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
     const orderToCancel = demoOrders.find((o) => o.id === cancelOrderId);
     if (!orderToCancel) {
       showError({
-        title: "Cancel failed",
-        message: "Order not found in the current list. Please refresh and try again.",
+        title: t("Cancel failed"),
+        message: t("Order not found in the current list. Please refresh and try again."),
         onRetry: () => void refreshMainOrders(),
       });
       return;
@@ -891,8 +891,8 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
 
     if (orderToCancel.workStatus === "Cancelled") {
       showError({
-        title: "Already cancelled",
-        message: `Job Order ${cancelOrderId} is already cancelled.`,
+        title: t("Already cancelled"),
+        message: `${t("Job Order")} ${cancelOrderId} ${t("is already cancelled.")}`,
       });
       setShowCancelConfirmation(false);
       setCancelOrderId(null);
@@ -911,10 +911,10 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
     } catch (e) {
       console.error(e);
       showError({
-        title: "Cancel failed",
+        title: t("Cancel failed"),
         message: (
           <div>
-            <div style={{ fontWeight: 700, marginBottom: 6 }}>Could not cancel this job order.</div>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>{t("Could not cancel this job order.")}</div>
             <div>{errMsg(e)}</div>
           </div>
         ),
@@ -1042,10 +1042,10 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
             } catch (e) {
               console.error(e);
               showError({
-                title: "Create job order failed",
+                title: t("Create job order failed"),
                 message: (
                   <div>
-                    <div style={{ fontWeight: 700, marginBottom: 6 }}>Your job order was not created.</div>
+                    <div style={{ fontWeight: 700, marginBottom: 6 }}>{t("Your job order was not created.")}</div>
                     <div>{errMsg(e)}</div>
                   </div>
                 ),
@@ -1087,28 +1087,28 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
             setShowSuccessPopup(false);
             setLastAction("create");
           }}
-          title={lastAction === "cancel" ? "Cancelled" : "Created"}
+          title={lastAction === "cancel" ? t("Cancelled") : t("Created")}
           message={
             lastAction === "cancel" ? (
               <>
                 <span style={{ fontSize: "1.2rem", fontWeight: "bold", color: "#4CAF50", display: "block", marginBottom: "15px" }}>
-                  <i className="fas fa-check-circle"></i> Order Cancelled Successfully!
+                  <i className="fas fa-check-circle"></i> {t("Order Cancelled Successfully!")}
                 </span>
                 <span style={{ fontSize: "1.1rem", color: "#333", display: "block", marginTop: "10px" }}>
-                  <strong>Job Order ID:</strong>{" "}
+                  <strong>{t("Job Order ID:")}</strong>{" "}
                   <span style={{ color: "#2196F3", fontWeight: "600" }}>{submittedOrderId}</span>
                 </span>
                 <span style={{ fontSize: "0.95rem", color: "#666", display: "block", marginTop: "8px" }}>
-                  This order is now marked as Cancelled.
+                  {t("This order is now marked as Cancelled.")}
                 </span>
               </>
             ) : (
               <>
                 <span style={{ fontSize: "1.2rem", fontWeight: "bold", color: "#4CAF50", display: "block", marginBottom: "15px" }}>
-                  <i className="fas fa-check-circle"></i> Order Created Successfully!
+                  <i className="fas fa-check-circle"></i> {t("Order Created Successfully!")}
                 </span>
                 <span style={{ fontSize: "1.1rem", color: "#333", display: "block", marginTop: "10px" }}>
-                  <strong>Job Order ID:</strong>{" "}
+                  <strong>{t("Job Order ID:")}</strong>{" "}
                   <span style={{ color: "#2196F3", fontWeight: "600" }}>{submittedOrderId}</span>
                 </span>
               </>
@@ -1123,18 +1123,18 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         <SuccessPopup
           isVisible={true}
           onClose={() => setShowAddServiceSuccessPopup(false)}
-          title="Services added"
+          title={t("Services added")}
           message={
             <>
               <span style={{ fontSize: "1.2rem", fontWeight: "bold", color: "#4CAF50", display: "block", marginBottom: "15px" }}>
-                <i className="fas fa-check-circle"></i> Services Added Successfully!
+                <i className="fas fa-check-circle"></i> {t("Services Added Successfully!")}
               </span>
               <span style={{ fontSize: "1.05rem", color: "#333", display: "block", marginTop: "10px" }}>
-                <strong>Job Order ID:</strong>{" "}
+                <strong>{t("Job Order ID:")}</strong>{" "}
                 <span style={{ color: "#2196F3", fontWeight: "600" }}>{addServiceSuccessData.orderId}</span>
               </span>
               <span style={{ fontSize: "1.05rem", color: "#333", display: "block", marginTop: "8px" }}>
-                <strong>New Invoice ID:</strong>{" "}
+                <strong>{t("New Invoice ID:")}</strong>{" "}
                 <span style={{ color: "#27ae60", fontWeight: "600" }}>{addServiceSuccessData.invoiceId}</span>
               </span>
             </>
@@ -1148,7 +1148,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         isVisible={errorOpen}
         onClose={() => setErrorOpen(false)}
         title={errorTitle}
-        message={errorMessage || "Unknown error"}
+        message={errorMessage || t("Unknown error")}
         details={errorDetails}
         onRetry={errorRetry}
       />
@@ -1158,7 +1158,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         <div className="cancel-modal">
           <div className="cancel-modal-header">
             <h3>
-              <i className="fas fa-exclamation-triangle"></i> Confirm Cancellation
+              <i className="fas fa-exclamation-triangle"></i> {t("Confirm Cancellation")}
             </h3>
           </div>
           <div className="cancel-modal-body">
@@ -1166,9 +1166,9 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
               <i className="fas fa-exclamation-circle"></i>
               <div className="cancel-warning-text">
                 <p>
-                  You are about to cancel order <strong>{cancelOrderId}</strong>.
+                  {t("You are about to cancel order")} <strong>{cancelOrderId}</strong>.
                 </p>
-                <p>This action cannot be undone.</p>
+                <p>{t("This action cannot be undone.")}</p>
               </div>
             </div>
             <div className="cancel-modal-actions">
@@ -1179,10 +1179,10 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
                   setCancelOrderId(null);
                 }}
               >
-                <i className="fas fa-times"></i> Keep Order
+                <i className="fas fa-times"></i> {t("Keep Order")}
               </button>
               <button className="btn-confirm-cancel" onClick={handleCancelOrder} disabled={loadingOrders}>
-                <i className="fas fa-ban"></i> {loadingOrders ? "Cancelling..." : "Cancel Order"}
+                <i className="fas fa-ban"></i> {loadingOrders ? t("Cancelling...") : t("Cancel Order")}
               </button>
             </div>
           </div>
@@ -1199,14 +1199,15 @@ const JobOrderRecordsTable = memo(function JobOrderRecordsTable({
   orders,
   onToggleActions,
 }: any) {
+  const { t } = useLanguage();
   if (orders.length === 0) {
     return (
       <div className="empty-state">
         <div className="empty-icon">
           <i className="fas fa-search"></i>
         </div>
-        <div className="empty-text">No matching job orders found</div>
-        <div className="empty-subtext">Try adjusting your search terms or click "New Job Order" to create one</div>
+        <div className="empty-text">{t("No matching job orders found")}</div>
+        <div className="empty-subtext">{t("Try adjusting your search terms or click \"New Job Order\" to create one")}</div>
       </div>
     );
   }
@@ -1216,15 +1217,15 @@ const JobOrderRecordsTable = memo(function JobOrderRecordsTable({
       <table className="job-order-table">
         <thead>
           <tr>
-            <th>Create Date</th>
-            <th>Job Card ID</th>
-            <th>Order Type</th>
-            <th>Customer Name</th>
-            <th>Mobile Number</th>
-            <th>Vehicle Plate</th>
-            <th>Work Status</th>
-            <th>Payment Status</th>
-            <th>Actions</th>
+            <th>{t("Create Date")}</th>
+            <th>{t("Job Card ID")}</th>
+            <th>{t("Order Type")}</th>
+            <th>{t("Customer Name")}</th>
+            <th>{t("Mobile Number")}</th>
+            <th>{t("Vehicle Plate")}</th>
+            <th>{t("Work Status")}</th>
+            <th>{t("Payment Status")}</th>
+            <th>{t("Actions")}</th>
           </tr>
         </thead>
         <tbody>
@@ -1234,7 +1235,7 @@ const JobOrderRecordsTable = memo(function JobOrderRecordsTable({
               <td>{order.id}</td>
               <td>
                 <span className={`order-type-badge ${order.orderType === "New Job Order" ? "order-type-new-job" : "order-type-service"}`}>
-                  {order.orderType}
+                  {t(order.orderType)}
                 </span>
               </td>
               <td>{order.customerName}</td>
@@ -1262,7 +1263,7 @@ const JobOrderRecordsTable = memo(function JobOrderRecordsTable({
                         }
                       }}
                     >
-                      <i className="fas fa-cogs"></i> Actions <i className="fas fa-chevron-down"></i>
+                      <i className="fas fa-cogs"></i> {t("Actions")} <i className="fas fa-chevron-down"></i>
                     </button>
                   </div>
                 </PermissionGate>
@@ -3590,6 +3591,7 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
 }
 
 function InspectionModal({ item, onClose }: any) {
+  const { t } = useLanguage();
   if (!item) return null;
   return (
     <div className="inspection-modal" style={{ display: "flex" }} onClick={onClose}>
@@ -3604,14 +3606,14 @@ function InspectionModal({ item, onClose }: any) {
         </div>
         <div className="inspection-modal-body">
           <div className="inspection-detail-section">
-            <h4>Details</h4>
+            <h4>{t("Details")}</h4>
             <div className="detail-grid">
               <div className="detail-item">
-                <span className="detail-label">Status</span>
+                <span className="detail-label">{t("Status")}</span>
                 <span className="detail-value">{item.status}</span>
               </div>
               <div className="detail-item">
-                <span className="detail-label">Notes</span>
+                <span className="detail-label">{t("Notes")}</span>
                 <span className="detail-value">{item.notes}</span>
               </div>
             </div>
@@ -4005,6 +4007,7 @@ function resolveCompletedServiceActor(service: any): string {
 }
 
 function ServicesCard({ order, onAddService }: any) {
+  const { t } = useLanguage();
   const serviceProgress = (() => {
     const services = Array.isArray(order?.services) ? order.services : [];
     const total = services.length;
@@ -4030,7 +4033,7 @@ function ServicesCard({ order, onAddService }: any) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
         <div style={{ flex: 1 }}>
           <h3 style={{ margin: '0 0 12px 0' }}>
-            <i className="fas fa-tasks"></i> Services Summary ({order.services?.length || 0})
+            <i className="fas fa-tasks"></i> {t("Services Summary")} ({order.services?.length || 0})
           </h3>
           {/* ✅ NEW: Service Progress Bar */}
           {serviceProgress.progress && (
@@ -4051,7 +4054,7 @@ function ServicesCard({ order, onAddService }: any) {
         </div>
         <PermissionGate moduleId="joborder" optionId="joborder_addservice">
           <button className="btn-add-service" onClick={onAddService} style={{ padding: "8px 16px", fontSize: "14px" }}>
-            <i className="fas fa-plus-circle"></i> Add Service
+            <i className="fas fa-plus-circle"></i> {t("Add Service")}
           </button>
         </PermissionGate>
       </div>
@@ -4076,43 +4079,43 @@ function ServicesCard({ order, onAddService }: any) {
                   <div className="pim-service-header">
                     <span className="pim-service-name" data-no-translate="true">{getServiceDisplayName(service)}</span>
                     <span className="pim-service-price">
-                      {group.packageTitle ? "Included in package" : service.price ? `QAR ${service.price.toLocaleString()}` : "N/A"}
+                      {group.packageTitle ? t("Included in package") : service.price ? `QAR ${service.price.toLocaleString()}` : t("N/A")}
                     </span>
                   </div>
                   <div className="pim-service-meta">
                     {getServiceSpecificationLabel(service) && (
                       <div className="pim-service-meta-row" style={{ gridColumn: 'span 2' }}>
-                        <span className="pim-service-meta-label">Specification:</span>
+                        <span className="pim-service-meta-label">{t("Specification")}:</span>
                         <div className="pim-service-meta-value">{renderServiceSpecificationBadges(service)}</div>
                       </div>
                     )}
                     <div className="pim-service-meta-row">
-                      <span className="pim-service-meta-label">Status:</span>
-                      <span className="pim-service-meta-value">{service.status || 'N/A'}</span>
+                      <span className="pim-service-meta-label">{t("Status")}:</span>
+                      <span className="pim-service-meta-value">{service.status || t("N/A")}</span>
                     </div>
                     <div className="pim-service-meta-row">
-                      <span className="pim-service-meta-label">Technician:</span>
+                      <span className="pim-service-meta-label">{t("Technician")}:</span>
                       <span className="pim-service-meta-value">{resolveCompletedServiceActor(service)}</span>
                     </div>
                     {service.started && (
                       <div className="pim-service-meta-row">
-                        <span className="pim-service-meta-label">Started:</span>
+                        <span className="pim-service-meta-label">{t("Started")}:</span>
                         <span className="pim-service-meta-value">{service.started}</span>
                       </div>
                     )}
                     {service.ended && (
                       <div className="pim-service-meta-row">
-                        <span className="pim-service-meta-label">Ended:</span>
+                        <span className="pim-service-meta-label">{t("Ended")}:</span>
                         <span className="pim-service-meta-value">{service.ended}</span>
                       </div>
                     )}
                     <div className="pim-service-meta-row">
-                      <span className="pim-service-meta-label">Duration:</span>
+                      <span className="pim-service-meta-label">{t("Duration")}:</span>
                       <span className="pim-service-meta-value">{formatServiceDuration(service.started, service.ended)}</span>
                     </div>
                     {service.notes && (
                       <div className="pim-service-meta-row" style={{ gridColumn: 'span 2' }}>
-                        <span className="pim-service-meta-label">Notes:</span>
+                        <span className="pim-service-meta-label">{t("Notes")}:</span>
                         <span className="pim-service-meta-value">{service.notes}</span>
                       </div>
                     )}
@@ -4126,8 +4129,8 @@ function ServicesCard({ order, onAddService }: any) {
             <div className="empty-icon">
               <i className="fas fa-clipboard-list"></i>
             </div>
-            <div className="empty-text">No services added yet</div>
-            <div className="empty-subtext">Click "Add Service" to add services to this job order</div>
+            <div className="empty-text">{t("No services added yet")}</div>
+            <div className="empty-subtext">{t("Click \"Add Service\" to add services to this job order")}</div>
           </div>
         )}
       </div>
@@ -4153,6 +4156,7 @@ type DocUi = {
 };
 
 function JobOrderDocumentsCard({ order }: any) {
+  const { t } = useLanguage();
   const docs: DocUi[] = Array.isArray(order?.documents) ? order.documents : [];
 
   const docGeneratedAt = (doc: DocUi) =>
@@ -4206,9 +4210,9 @@ function JobOrderDocumentsCard({ order }: any) {
                         onClick={async () => {
                           await downloadDocument(raw);
                         }}
-                        title={!raw ? "No file path/url available" : "Download"}
+                        title={!raw ? t("No file path/url available") : t("Download")}
                       >
-                        <i className="fas fa-download" /> Download
+                        <i className="fas fa-download" /> {t("Download")}
                       </button>
                     </PermissionGate>
                   </div>
@@ -4217,7 +4221,7 @@ function JobOrderDocumentsCard({ order }: any) {
             })}
           </div>
         ) : (
-          <div className="jo-doc-empty">No documents available.</div>
+          <div className="jo-doc-empty">{t("No documents available.")}</div>
         )}
       </div>
     </div>
@@ -4227,6 +4231,7 @@ function JobOrderDocumentsCard({ order }: any) {
 // ✅ NEW: QUALITY CHECK CARD
 // ============================================
 function QualityCheckCard({ order }: any) {
+  const { t } = useLanguage();
   const services = Array.isArray(order?.services) ? order.services : [];
 
   const getServiceQcResult = (service: any) => {
@@ -4244,21 +4249,21 @@ function QualityCheckCard({ order }: any) {
     const normalized = String(raw ?? "").trim().toLowerCase().replace(/[\s_]+/g, "-");
 
     if (normalized === "pass" || normalized === "passed") {
-      return { label: "Pass", className: "pass" };
+      return { label: t("Pass"), className: "pass" };
     }
     if (normalized === "failed" || normalized === "fail") {
-      return { label: "Failed", className: "failed" };
+      return { label: t("Failed"), className: "failed" };
     }
     if (normalized === "acceptable") {
-      return { label: "Acceptable", className: "acceptable" };
+      return { label: t("Acceptable"), className: "acceptable" };
     }
 
     if (!normalized || normalized === "not-evaluated" || normalized === "n-a" || normalized === "na" || normalized === "pending") {
-      return { label: "Not Evaluated", className: "not-evaluated" };
+      return { label: t("Not Evaluated"), className: "not-evaluated" };
     }
 
     return {
-      label: String(raw ?? "Not Evaluated").trim() || "Not Evaluated",
+      label: String(raw ?? t("Not Evaluated")).trim() || t("Not Evaluated"),
       className: "not-evaluated",
     };
   };
@@ -4267,7 +4272,7 @@ function QualityCheckCard({ order }: any) {
     <div className="pim-detail-card jo-qc-card jo-card-theme-quality">
       <h3 className="jo-qc-heading">
         <span className="jo-qc-title-dot" aria-hidden="true"></span>
-        Quality Check List
+        {t("Quality Check List")}
       </h3>
       <div className="jo-qc-list">
         {services.length > 0 ? (
@@ -4283,7 +4288,7 @@ function QualityCheckCard({ order }: any) {
             );
           })
         ) : (
-          <div className="jo-qc-empty">No services to evaluate</div>
+          <div className="jo-qc-empty">{t("No services to evaluate")}</div>
         )}
       </div>
     </div>
@@ -4343,6 +4348,7 @@ function DeliveryTrackingCard({ order }: any) {
 // ROADMAP CARD - Timeline Visualization
 // ============================================
 function RoadmapCard({ order, actorMap }: any) {
+  const { t } = useLanguage();
   if (!order.roadmap || order.roadmap.length === 0) return null;
 
   const roadmap = Array.isArray(order?.roadmap) ? order.roadmap : [];
@@ -4409,7 +4415,7 @@ function RoadmapCard({ order, actorMap }: any) {
     <div className="pim-roadmap-container jo-roadmap-compact jo-card-theme-roadmap">
       <div className="pim-roadmap-title jo-card-theme-roadmap-title">
         <i className="fas fa-route"></i>
-        Job Order Roadmap
+        {t("Job Order Roadmap")}
       </div>
 
       <div className="jo-roadmap-list">
@@ -4461,15 +4467,15 @@ function RoadmapCard({ order, actorMap }: any) {
 
               <div className="jo-roadmap-row-meta">
                 <div className="jo-roadmap-meta-block">
-                  <span>Started</span>
-                  <strong>{inferredStartedAt || "Not started"}</strong>
+                  <span>{t("Started")}</span>
+                  <strong>{inferredStartedAt || t("Not started")}</strong>
                 </div>
                 <div className="jo-roadmap-meta-block">
-                  <span>Completed</span>
+                  <span>{t("Completed")}</span>
                   <strong>{completedLabel}</strong>
                 </div>
                 <div className="jo-roadmap-meta-block">
-                  <span>Action done by</span>
+                  <span>{t("Action done by")}</span>
                   <strong>{actor}</strong>
                 </div>
               </div>

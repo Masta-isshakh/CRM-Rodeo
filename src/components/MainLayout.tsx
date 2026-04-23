@@ -3,6 +3,7 @@ import { Component, lazy, Suspense, useCallback, useEffect, useMemo, useRef, use
 import type { ErrorInfo, ReactNode } from "react";
 
 const loadDashboard = () => import("../pages/Dashboard");
+const loadDailyReport = () => import("../pages/DailyReport");
 const loadCustomers = () => import("../pages/Customer");
 const loadVehicles = () => import("../pages/Vehicule");
 const loadTickets = () => import("../pages/Tickets");
@@ -30,6 +31,7 @@ const loadPaymentInvoiceManagment = () => import("../pages/PaymentInvoiceManagme
 const loadDatabaseCleanup = () => import("../pages/DatabaseCleanupAdmin");
 
 const Dashboard = lazy(loadDashboard);
+const DailyReport = lazy(loadDailyReport);
 const Customers = lazy(loadCustomers);
 const Vehicles = lazy(loadVehicles);
 const Tickets = lazy(loadTickets);
@@ -68,6 +70,7 @@ import { getDataClient } from "../lib/amplifyClient";
 
 type Page =
   | "dashboard"
+  | "dailyreport"
   | "customers"
   | "vehicles"
   | "tickets"
@@ -93,6 +96,7 @@ type Page =
 
 const PAGE_LOADERS: Record<Page, () => Promise<unknown>> = {
   dashboard: loadDashboard,
+  dailyreport: loadDailyReport,
   customers: loadCustomers,
   vehicles: loadVehicles,
   tickets: loadTickets,
@@ -259,6 +263,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     return {
       // Core
       dashboard: (isAdminGroup || canAny("DASHBOARD").canRead) && listOn("dashboard", "dashboard_list"),
+      dailyreport: (isAdminGroup || canAny("DASHBOARD").canRead) && listOn("dashboard", "dashboard_list"),
 
       // ✅ Customers now uses normalized customerPerms
       customers: (isAdminGroup || customerPerms.canRead) && listOn("customers", "customers_list"),
@@ -308,6 +313,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   const visiblePages = useMemo(() => {
     const pages: Page[] = [];
     if (show.dashboard) pages.push("dashboard");
+    if (show.dailyreport) pages.push("dailyreport");
     if (show.customers) pages.push("customers");
     if (show.vehicles) pages.push("vehicles");
     if (show.jobcards) pages.push("jobcards");
@@ -376,6 +382,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   const nothingVisible =
     !loading &&
     !show.dashboard &&
+    !show.dailyreport &&
     !show.customers &&
     !show.vehicles &&
     !show.tickets &&
@@ -404,6 +411,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
     const allowedPages: Page[] = [];
     if (show.dashboard) allowedPages.push("dashboard");
+    if (show.dailyreport) allowedPages.push("dailyreport");
     if (show.customers) allowedPages.push("customers");
     if (show.vehicles) allowedPages.push("vehicles");
     if (show.jobcards) allowedPages.push("jobcards");
@@ -430,6 +438,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
     const isCurrentAllowed =
       (page === "dashboard" && show.dashboard) ||
+      (page === "dailyreport" && show.dailyreport) ||
       (page === "customers" && show.customers) ||
       (page === "vehicles" && show.vehicles) ||
       (page === "jobcards" && show.jobcards) ||
@@ -593,6 +602,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
   const pageTitleByKey: Record<Page, string> = {
     dashboard: t("Dashboard"),
+    dailyreport: t("Daily Report"),
     customers: t("Customers"),
     vehicles: t("Vehicles"),
     tickets: t("Tickets"),
@@ -650,12 +660,32 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             </button>
           </div>
 
+          <div className="drawer-focus-card" role="note" aria-label={t("Daily operations focus")}> 
+            <div className="drawer-focus-title">{t("Today at a glance")}</div>
+            <div className="drawer-focus-sub">{t("Track performance, incidents, and delivery flow in one place.")}</div>
+          </div>
+
           <nav className="drawer-nav">
+            <div className="drawer-section-label">{t("Overview")}</div>
             {show.dashboard && (
               <button className={page === "dashboard" ? "active" : ""} onClick={() => go("dashboard")}>
                 <i className="fas fa-chart-line" aria-hidden="true" /> {t("Dashboard")}
               </button>
             )}
+
+            {show.dailyreport && (
+              <button className={page === "dailyreport" ? "active" : ""} onClick={() => go("dailyreport")}>
+                <i className="fas fa-calendar-day" aria-hidden="true" /> {t("Daily Report")}
+              </button>
+            )}
+
+            {show.activitylog && (
+              <button className={page === "activitylog" ? "active" : ""} onClick={() => go("activitylog")}>
+                <i className="fas fa-stream" aria-hidden="true" /> {t("Activity Log")}
+              </button>
+            )}
+
+            <div className="drawer-section-label">{t("Operations")}</div>
 
             {show.customers && (
               <button className={page === "customers" ? "active" : ""} onClick={() => go("customers")}>
@@ -717,6 +747,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               </button>
             )}
 
+            <div className="drawer-section-label">{t("Communication")}</div>
+
             {show.internalchat && (
               <button className={page === "internalchat" ? "active" : ""} onClick={() => go("internalchat")}>
                 <i className="fas fa-comments" aria-hidden="true" /> {t("Internal Chat")}
@@ -733,6 +765,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
                 <i className="fas fa-envelope-open-text" aria-hidden="true" /> {t("Email Inbox")}
               </button>
             )}
+
+            <div className="drawer-section-label">{t("People & Support")}</div>
 
             {show.inspection && (
               <button className={page === "inspection" ? "active" : ""} onClick={() => go("inspection")}>
@@ -755,12 +789,6 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             {show.inventory && (
               <button className={page === "inventory" ? "active" : ""} onClick={() => go("inventory")}>
                 <i className="fas fa-boxes-stacked" aria-hidden="true" /> {t("Inventory")}
-              </button>
-            )}
-
-            {show.activitylog && (
-              <button className={page === "activitylog" ? "active" : ""} onClick={() => go("activitylog")}>
-                <i className="fas fa-stream" aria-hidden="true" /> {t("Activity Log")}
               </button>
             )}
 
@@ -877,6 +905,12 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
                   visibility={{ ...show, admin: showAdmin }}
                   onNavigate={(p: Page) => setPage(p)}
                 />
+              </PermissionGate>
+            )}
+
+            {page === "dailyreport" && show.dailyreport && (
+              <PermissionGate moduleId="dashboard" optionId="dashboard_list">
+                <DailyReport permissions={canAny("DASHBOARD")} />
               </PermissionGate>
             )}
 

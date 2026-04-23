@@ -1147,3 +1147,57 @@ body.lang-ar .layout-root.desktop-sidebar .topbar-inner::after {
   background: #ef4444;
   color: #fff;
 }
+
+.drawer-focus-card {
+  margin: 10px 12px 4px;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgba(14, 165, 233, 0.18), transparent 60%),
+    radial-gradient(120% 120% at 100% 100%, rgba(16, 185, 129, 0.18), transparent 60%),
+    rgba(255, 255, 255, 0.76);
+}
+
+.theme-dark .drawer-focus-card {
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgba(14, 165, 233, 0.24), transparent 60%),
+    radial-gradient(120% 120% at 100% 100%, rgba(16, 185, 129, 0.24), transparent 60%),
+    rgba(15, 23, 42, 0.62);
+  border-color: rgba(148, 163, 184, 0.22);
+}
+
+.drawer-focus-title {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  color: #0f172a;
+}
+
+.drawer-focus-sub {
+  margin-top: 5px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: #334155;
+}
+
+.theme-dark .drawer-focus-title {
+  color: #e2e8f0;
+}
+
+.theme-dark .drawer-focus-sub {
+  color: #cbd5e1;
+}
+
+.drawer-nav > .drawer-section-label {
+  margin-top: 8px;
+  margin-bottom: 4px;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: rgba(71, 85, 105, 0.9);
+}
+
+.theme-dark .drawer-nav > .drawer-section-label {
+  color: rgba(203, 213, 225, 0.85);
+}
