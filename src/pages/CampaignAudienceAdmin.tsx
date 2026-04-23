@@ -487,6 +487,29 @@ function resolveLeadServiceDate(lead: CampaignLead, rawRow: ParsedRow): string {
   return fromRaw || direct || "";
 }
 
+function collectDetectedColumns(
+  rows: CampaignLead[],
+  rawRowByLeadId: Map<string, ParsedRow>,
+  matcher: RegExp,
+  valueCheck: (value: unknown) => boolean
+): Array<{ column: string; hits: number }> {
+  const hitCount = new Map<string, number>();
+
+  rows.forEach((lead) => {
+    const leadId = toText(lead.id);
+    const rawRow = rawRowByLeadId.get(leadId) ?? {};
+    Object.entries(rawRow).forEach(([column, value]) => {
+      if (!matcher.test(column)) return;
+      if (!valueCheck(value)) return;
+      hitCount.set(column, (hitCount.get(column) ?? 0) + 1);
+    });
+  });
+
+  return [...hitCount.entries()]
+    .map(([column, hits]) => ({ column, hits }))
+    .sort((a, b) => b.hits - a.hits || a.column.localeCompare(b.column));
+}
+
 export default function CampaignAudienceAdmin() {
   const client = getDataClient();
   const { t } = useLanguage();
@@ -843,6 +866,24 @@ export default function CampaignAudienceAdmin() {
 
     return Array.from(new Set(values));
   }, [audienceColumn, filteredRows, rawRowByLeadId]);
+
+  const detectedServiceColumns = useMemo(() => {
+    return collectDetectedColumns(
+      filteredRows,
+      rawRowByLeadId,
+      SERVICE_COLUMN_HINT,
+      (value) => toText(value) !== ""
+    );
+  }, [filteredRows, rawRowByLeadId]);
+
+  const detectedDateColumns = useMemo(() => {
+    return collectDetectedColumns(
+      filteredRows,
+      rawRowByLeadId,
+      DATE_COLUMN_HINT,
+      (value) => parseExcelDate(value) != null
+    );
+  }, [filteredRows, rawRowByLeadId]);
 
   const totalPages = Math.max(1, Math.ceil(filteredRows.length / PAGE_SIZE));
   const pagedRows = useMemo(() => filteredRows.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE), [filteredRows, page]);
@@ -1539,6 +1580,31 @@ export default function CampaignAudienceAdmin() {
                     <span key={`value-${value}`} className="campaign-column-chip">{value}</span>
                   ))}
                   {selectedColumnValues.length === 0 && <div className="campaign-empty-cell">{t("No values match the current real-time filters.")}</div>}
+                </div>
+              </div>
+
+              <div className="campaign-filter-debug-badge" role="status" aria-live="polite">
+                <div className="campaign-filter-debug-head">
+                  <strong>{t("Filter debug")}</strong>
+                  <span>{t("Auto-detected columns from current result set")}</span>
+                </div>
+                <div className="campaign-filter-debug-grid">
+                  <div>
+                    <span>{t("Service columns")}</span>
+                    <p>
+                      {detectedServiceColumns.length > 0
+                        ? detectedServiceColumns.slice(0, 4).map((entry) => `${entry.column} (${entry.hits})`).join(" • ")
+                        : t("No service columns detected")}
+                    </p>
+                  </div>
+                  <div>
+                    <span>{t("Date columns")}</span>
+                    <p>
+                      {detectedDateColumns.length > 0
+                        ? detectedDateColumns.slice(0, 4).map((entry) => `${entry.column} (${entry.hits})`).join(" • ")
+                        : t("No date columns detected")}
+                    </p>
+                  </div>
                 </div>
               </div>
 

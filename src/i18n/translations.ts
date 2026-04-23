@@ -889,6 +889,12 @@ const PHRASES_EN_AR: Array<[string, string]> = [
   ["Finance watch: verify invoice alignment for all completed orders.", "متابعة مالية: التحقق من توافق الفواتير لجميع الأوامر المكتملة."],
   ["Service focus: maintain throughput while preserving quality checkpoints.", "تركيز الخدمة: الحفاظ على سرعة الإنجاز مع الالتزام بنقاط فحص الجودة."],
   ["Event", "حدث"],
+  ["Filter debug", "تشخيص الفلتر"],
+  ["Auto-detected columns from current result set", "الأعمدة المكتشفة تلقائياً من مجموعة النتائج الحالية"],
+  ["Service columns", "أعمدة الخدمة"],
+  ["Date columns", "أعمدة التاريخ"],
+  ["No service columns detected", "لم يتم اكتشاف أعمدة خدمة"],
+  ["No date columns detected", "لم يتم اكتشاف أعمدة تاريخ"],
 ];
 
 const EN_TO_AR = new Map<string, string>(PHRASES_EN_AR);
