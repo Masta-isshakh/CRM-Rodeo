@@ -411,6 +411,82 @@ function dynamicRuleMatches(value: string, operator: DynamicFilterOperator, need
   }
 }
 
+const SERVICE_COLUMN_HINT = /service|job|package|work|الخدمة|الخدمات|خدمة|باقه|باقة|services?/i;
+const DATE_COLUMN_HINT = /date|created|invoice|visit|check|pickup|delivery|تاريخ|موعد|الوقت|التشييك/i;
+const MOBILE_COLUMN_HINT = /mobile|phone|whatsapp|telephone|موبايل|جوال|هاتف|واتساب|رقم/i;
+
+function findRawMobileNumber(rawRow: ParsedRow): string {
+  const entries = Object.entries(rawRow);
+  for (const [key, value] of entries) {
+    if (!MOBILE_COLUMN_HINT.test(key)) continue;
+    const asText = toText(value);
+    if (!asText) continue;
+    const digits = asText.replace(/[^\d]/g, "");
+    if (digits.length >= 8) return asText;
+  }
+
+  for (const [, value] of entries) {
+    const asText = toText(value);
+    if (!asText) continue;
+    const digits = asText.replace(/[^\d]/g, "");
+    if (digits.length >= 8) return asText;
+  }
+
+  return "";
+}
+
+function findRawServiceName(rawRow: ParsedRow): string {
+  const candidates: string[] = [];
+  for (const [key, value] of Object.entries(rawRow)) {
+    if (!SERVICE_COLUMN_HINT.test(key)) continue;
+    const text = toText(value);
+    if (!text) continue;
+    candidates.push(text);
+  }
+
+  if (candidates.length === 0) return "";
+  return Array.from(new Set(candidates)).join(" | ");
+}
+
+function findRawServiceDate(rawRow: ParsedRow): string {
+  for (const [key, value] of Object.entries(rawRow)) {
+    if (!DATE_COLUMN_HINT.test(key)) continue;
+    const parsed = parseExcelDate(value);
+    if (parsed) return parsed;
+  }
+
+  for (const value of Object.values(rawRow)) {
+    const parsed = parseExcelDate(value);
+    if (parsed) return parsed;
+  }
+
+  return "";
+}
+
+function resolveLeadServiceName(lead: CampaignLead, rawRow: ParsedRow): string {
+  const direct = toText(lead.serviceName);
+  if (direct && normalizeHeader(direct) !== "imported") return direct;
+  return findRawServiceName(rawRow) || direct;
+}
+
+function resolveLeadMobile(lead: CampaignLead, rawRow: ParsedRow): { display: string; normalized: string } {
+  const directDisplay = toText(lead.mobileNumber);
+  const directNormalized = toText(lead.normalizedMobileNumber).replace(/[^\d]/g, "");
+  if (directNormalized.length >= 8) {
+    return { display: directDisplay || directNormalized, normalized: directNormalized };
+  }
+
+  const rawDisplay = findRawMobileNumber(rawRow);
+  const rawNormalized = rawDisplay.replace(/[^\d]/g, "");
+  return { display: rawDisplay || directDisplay, normalized: rawNormalized || directNormalized };
+}
+
+function resolveLeadServiceDate(lead: CampaignLead, rawRow: ParsedRow): string {
+  const direct = parseExcelDate(lead.serviceDate);
+  const fromRaw = findRawServiceDate(rawRow);
+  return fromRaw || direct || "";
+}
+
 export default function CampaignAudienceAdmin() {
   const client = getDataClient();
   const { t } = useLanguage();
@@ -659,21 +735,23 @@ export default function CampaignAudienceAdmin() {
       const leadId = toText(lead.id);
       const rawRow = rawRowByLeadId.get(leadId) ?? {};
       const rawValues = Object.values(rawRow).map((value) => toText(value));
-      const serviceDate = toText(lead.serviceDate);
+      const resolvedServiceName = resolveLeadServiceName(lead, rawRow);
+      const resolvedMobile = resolveLeadMobile(lead, rawRow);
+      const serviceDate = resolveLeadServiceDate(lead, rawRow);
       const ageDays = getAgeInDays(serviceDate);
       const matchesBatch = batchFilter === "all" || String(lead.importBatchId ?? "") === batchFilter;
-      const matchesService = serviceFilter === "all" || toText(lead.serviceName) === serviceFilter;
+      const matchesService = serviceFilter === "all" || resolvedServiceName === serviceFilter;
       const matchesName = !nameNeedle || normalizeHeader(lead.customerName ?? "").includes(nameNeedle);
-      const matchesMobile = !mobileDigits || toText(lead.normalizedMobileNumber).includes(mobileDigits);
+      const matchesMobile = !mobileDigits || resolvedMobile.normalized.includes(mobileDigits);
       const haystack = normalizeHeader(
-        [lead.customerName, lead.mobileNumber, lead.serviceName, lead.vehiclePlateNumber, lead.vehicleMake, lead.vehicleModel, lead.notes, ...rawValues]
+        [lead.customerName, resolvedMobile.display || lead.mobileNumber, resolvedServiceName || lead.serviceName, lead.vehiclePlateNumber, lead.vehicleMake, lead.vehicleModel, lead.notes, ...rawValues]
           .filter(Boolean)
           .join(" ")
       );
       const matchesKeyword = !keyword || haystack.includes(keyword);
       const matchesServiceKeyword =
         !serviceKeyword ||
-        normalizeHeader(lead.serviceName ?? "").includes(serviceKeyword) ||
+        normalizeHeader(resolvedServiceName).includes(serviceKeyword) ||
         normalizeHeader(rawValues.join(" ")).includes(serviceKeyword);
       const matchesDateRange =
         relativeDateMode !== "dateRange" ||
@@ -716,7 +794,12 @@ export default function CampaignAudienceAdmin() {
     });
 
     result = [...result].sort(
-      (a, b) => new Date(b.serviceDate ?? "").getTime() - new Date(a.serviceDate ?? "").getTime()
+      (a, b) => {
+        const aRow = rawRowByLeadId.get(toText(a.id)) ?? {};
+        const bRow = rawRowByLeadId.get(toText(b.id)) ?? {};
+        return new Date(resolveLeadServiceDate(b, bRow) || b.serviceDate || "").getTime()
+          - new Date(resolveLeadServiceDate(a, aRow) || a.serviceDate || "").getTime();
+      }
     );
 
     if (!uniqueByMobile) return result;

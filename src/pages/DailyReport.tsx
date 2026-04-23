@@ -21,6 +21,8 @@ type FeedItem = {
   detail: string;
 };
 
+type ReportFlavor = "executive" | "technical" | "luxury";
+
 function toNum(x: unknown) {
   const n = typeof x === "number" ? x : Number(String(x ?? "").trim());
   return Number.isFinite(n) ? n : 0;
@@ -76,6 +78,7 @@ export default function DailyReport({ permissions }: PageProps) {
   const { t } = useLanguage();
   const client = useMemo(() => getDataClient(), []);
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [flavor, setFlavor] = useState<ReportFlavor>("technical");
   const [loading, setLoading] = useState(false);
   const [metrics, setMetrics] = useState<MetricState>({
     jobsCreated: 0,
@@ -194,8 +197,14 @@ export default function DailyReport({ permissions }: PageProps) {
     { label: t("Incidents"), value: String(metrics.incidents), icon: "fa-triangle-exclamation", tone: "rose" },
   ];
 
+  const flavorOptions: Array<{ key: ReportFlavor; label: string }> = [
+    { key: "executive", label: t("Executive") },
+    { key: "technical", label: t("Technical") },
+    { key: "luxury", label: t("Luxury") },
+  ];
+
   return (
-    <div className="daily-report-page">
+    <div className={`daily-report-page flavor-${flavor}`}>
       <header className="dr-header">
         <div>
           <p className="dr-kicker">{t("Executive Operations")}</p>
@@ -211,6 +220,20 @@ export default function DailyReport({ permissions }: PageProps) {
               onChange={(e) => setSelectedDate(e.target.value)}
             />
           </label>
+          <fieldset className="dr-flavor" aria-label={t("Visual Flavor")}>
+            <legend>{t("Style")}</legend>
+            {flavorOptions.map((option) => (
+              <button
+                key={option.key}
+                type="button"
+                className={option.key === flavor ? "is-active" : ""}
+                onClick={() => setFlavor(option.key)}
+                aria-pressed={option.key === flavor}
+              >
+                {option.label}
+              </button>
+            ))}
+          </fieldset>
           <button
             type="button"
             onClick={() => {
