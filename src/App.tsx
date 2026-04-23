@@ -13,6 +13,7 @@ const ACCOUNT_BLOCK_MESSAGE_KEY = "crm.accountBlockMessage";
 const FAILED_LOGIN_TRACKER_KEY = "crm.failedLoginTracker";
 const FAILED_LOGIN_THRESHOLD = 5;
 const FAILED_LOGIN_LOCK_MINUTES = 15;
+const SIGNIN_TIMEOUT_MS = 30000; // 30 seconds for sign in request
 const SESSION_CHECK_TIMEOUT_DEFAULT_MS = 15000;
 const SESSION_CHECK_TIMEOUT_MS = (() => {
   const raw = Number(import.meta.env.VITE_SESSION_CHECK_TIMEOUT_MS ?? SESSION_CHECK_TIMEOUT_DEFAULT_MS);
@@ -424,10 +425,15 @@ export default function App() {
       }
 
       try {
-        const res = await signIn({
-          username: input?.username,
-          password: input?.password,
-        });
+        const res = await withTimeout(
+          "Sign In",
+          () =>
+            signIn({
+              username: input?.username,
+              password: input?.password,
+            }),
+          SIGNIN_TIMEOUT_MS
+        );
 
         if (emailKey) {
           delete tracker[emailKey];
@@ -474,7 +480,12 @@ export default function App() {
         </div>
       )}
       <ThemeProvider theme={crmAuthTheme as any}>
-        <Authenticator hideSignUp services={authServices} className="crm-authenticator" components={authComponents}>
+        <Authenticator 
+          hideSignUp 
+          services={authServices} 
+          className="crm-authenticator" 
+          components={authComponents}
+        >
           {() => <AppContent onBlocked={setBlocked} />}
         </Authenticator>
       </ThemeProvider>
