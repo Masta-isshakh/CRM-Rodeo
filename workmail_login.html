@@ -1,0 +1,36 @@
+﻿<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+ <head>
+  <title>Web App</title>
+ </head>
+
+ <body>
+  <script type="text/javascript">
+  <!--
+	var hostname = window.location.hostname;
+	var querystring = window.location.search;
+
+	var webappEndpoint = 'https://webmail.mail.eu-west-1.awsapps.com/workmail/';
+
+	// Regex to check whether the hostname is correct.
+	var hostnameRegex = /^([\da-zA-Z\-]+)\.awsapps\.com/i;
+
+	// Get organization and pass it on
+	var match = hostname.match(hostnameRegex)
+	if(match != null && match[1] != null){
+		// The first character is the ?. When none supplied it is an empty string.
+		if(querystring.length < 2){
+			querystring = '?organization='+match[1];
+		}else{
+			// Adding it to the query string
+			querystring += '&organization='+match[1];
+		}
+	}
+
+	window.location = webappEndpoint + querystring;
+
+  //-->
+  </script>
+ </body>
+</html>
+

@@ -19,6 +19,7 @@ const loadRolesPoliciesAdmin = () => import("../pages/RolesPoliciesAdmin");
 const loadInventoryManagement = () => import("../pages/InventoryManagement");
 const loadInternalChat = () => import("../pages/InternalMessaging");
 const loadEmailInbox = () => import("../pages/EmailInboxPage");
+const loadCampaignAudienceAdmin = () => import("../pages/CampaignAudienceAdmin");
 
 const loadJobOrderHistory = () => import("../pages/JobOrderHistory");
 const loadQualityCheckModule = () => import("../pages/QualityCheckModule");
@@ -45,6 +46,7 @@ const RolesPoliciesAdmin = lazy(loadRolesPoliciesAdmin);
 const InventoryManagement = lazy(loadInventoryManagement);
 const InternalChat = lazy(loadInternalChat);
 const EmailInbox = lazy(loadEmailInbox);
+const CampaignAudienceAdmin = lazy(loadCampaignAudienceAdmin);
 
 const JobOrderHistory = lazy(loadJobOrderHistory);
 const QualityCheckModule = lazy(loadQualityCheckModule);
@@ -82,6 +84,7 @@ type Page =
   | "inspection"
   | "internalchat"
   | "emailinbox"
+  | "campaignaudience"
   | "users"
   | "departments"
   | "rolespolicies"
@@ -106,6 +109,7 @@ const PAGE_LOADERS: Record<Page, () => Promise<unknown>> = {
   inspection: loadInspectionModule,
   internalchat: loadInternalChat,
   emailinbox: loadEmailInbox,
+  campaignaudience: loadCampaignAudienceAdmin,
   users: loadUsers,
   departments: loadDepartmentsAdmin,
   rolespolicies: loadRolesPoliciesAdmin,
@@ -145,7 +149,6 @@ type CrudPerm = typeof EMPTY;
 
 const THEME_STORAGE_KEY = "crm.themeMode";
 const CHAT_LAST_SEEN_STORAGE_PREFIX = "crm.chat.lastSeen.";
-const WORKMAIL_URL = String(import.meta.env.VITE_WORKMAIL_URL ?? "https://rodeodrive.awsapps.com/mail").trim();
 
 type ThemeMode = "light" | "dark";
 
@@ -201,8 +204,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   };
 
   const openEmailInbox = useCallback(() => {
-    if (!WORKMAIL_URL) return;
-    window.location.assign(WORKMAIL_URL);
+    go("emailinbox");
   }, []);
 
   const handleModuleNavigate = useCallback(
@@ -298,6 +300,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       users: usersRead,
       departments: departmentsRead,
       rolespolicies: rolesRead && listOn("rolespolicies", "rolespolicies_list"),
+      campaignaudience: isAdminGroup,
       dbcleanup: isAdminGroup,
     };
   }, [isAdminGroup, can, canOption, isModuleEnabled]);
@@ -322,6 +325,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.internalchat) pages.push("internalchat");
     if (show.emailinbox) pages.push("emailinbox");
     if (show.inventory) pages.push("inventory");
+    if (showAdmin.campaignaudience) pages.push("campaignaudience");
     if (showAdmin.users) pages.push("users");
     if (showAdmin.departments) pages.push("departments");
     if (showAdmin.rolespolicies) pages.push("rolespolicies");
@@ -380,6 +384,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !show.calltracking &&
     !show.internalchat &&
     !show.emailinbox &&
+    !showAdmin.campaignaudience &&
     !show.jobcards &&
     !show.servicecreation &&
     !show.jobhistory &&
@@ -416,6 +421,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.internalchat) allowedPages.push("internalchat");
     if (show.emailinbox) allowedPages.push("emailinbox");
     if (show.inventory) allowedPages.push("inventory");
+    if (showAdmin.campaignaudience) allowedPages.push("campaignaudience");
 
     if (showAdmin.users) allowedPages.push("users");
     if (showAdmin.departments) allowedPages.push("departments");
@@ -441,6 +447,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       (page === "internalchat" && show.internalchat) ||
       (page === "emailinbox" && show.emailinbox) ||
       (page === "inventory" && show.inventory) ||
+      (page === "campaignaudience" && showAdmin.campaignaudience) ||
       (page === "users" && showAdmin.users) ||
       (page === "departments" && showAdmin.departments) ||
       (page === "rolespolicies" && showAdmin.rolespolicies) ||
@@ -601,6 +608,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     calltracking: t("Call Tracking"),
     internalchat: t("Internal Chat"),
     emailinbox: t("Email Inbox"),
+    campaignaudience: t("Campaign Audience"),
     inventory: t("Inventory"),
     inspection: t("Inspection"),
     users: t("User Management"),
@@ -773,6 +781,11 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
                 {showAdmin.rolespolicies && (
                   <button className={page === "rolespolicies" ? "active" : ""} onClick={() => go("rolespolicies")}>
                     <i className="fas fa-shield-alt" aria-hidden="true" /> {t("Roles & Policies")}
+                  </button>
+                )}
+                {showAdmin.campaignaudience && (
+                  <button className={page === "campaignaudience" ? "active" : ""} onClick={() => go("campaignaudience")}>
+                    <i className="fas fa-bullhorn" aria-hidden="true" /> {t("Campaign Audience")}
                   </button>
                 )}
                 {showAdmin.dbcleanup && (
@@ -956,6 +969,14 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               <PermissionGate moduleId="emailinbox" optionId="emailinbox_list">
                 <EmailInbox />
               </PermissionGate>
+            )}
+
+            {page === "campaignaudience" && showAdmin.campaignaudience && (
+              <LocalPageErrorBoundary
+                fallback={<div className="no-access"><h3>{t("Campaign Audience is temporarily unavailable.")}</h3></div>}
+              >
+                <CampaignAudienceAdmin />
+              </LocalPageErrorBoundary>
             )}
 
             {page === "tickets" && show.tickets && (

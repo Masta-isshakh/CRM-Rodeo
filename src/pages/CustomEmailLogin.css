@@ -309,9 +309,28 @@
 
 /* Spinner */
 .email-login-spinner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
   text-align: center;
   color: #cbd5e1;
   font-size: 16px;
+}
+
+.email-login-spinner-circle {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(203, 213, 225, 0.28);
+  border-top-color: #60a5fa;
+  border-radius: 50%;
+  animation: email-login-spin 0.8s linear infinite;
+}
+
+@keyframes email-login-spin {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 /* Backdrop */

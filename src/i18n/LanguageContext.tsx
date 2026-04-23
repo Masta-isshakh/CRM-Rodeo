@@ -14,6 +14,21 @@ type LanguageContextValue = {
 
 const LanguageContext = createContext<LanguageContextValue | null>(null);
 
+function applyLanguageToDocument(language: LanguageCode) {
+  if (typeof document === "undefined") return;
+
+  try {
+    window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
+  } catch {
+    // ignore storage access issues
+  }
+
+  document.documentElement.lang = language;
+  document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
+  document.body.classList.toggle("lang-ar", language === "ar");
+  document.body.classList.toggle("lang-en", language === "en");
+}
+
 function getInitialLanguage(): LanguageCode {
   if (typeof window === "undefined") return "en";
   try {
@@ -32,15 +47,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
   const originalAttrRef = useRef(new WeakMap<Element, Map<string, string>>());
 
   useEffect(() => {
-    try {
-      window.localStorage.setItem(LANGUAGE_STORAGE_KEY, language);
-    } catch {
-      // ignore storage access issues
-    }
-    document.documentElement.lang = language;
-    document.documentElement.dir = language === "ar" ? "rtl" : "ltr";
-    document.body.classList.toggle("lang-ar", language === "ar");
-    document.body.classList.toggle("lang-en", language === "en");
+    applyLanguageToDocument(language);
   }, [language]);
 
   useEffect(() => {
@@ -213,6 +220,15 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
 
 export function useLanguage() {
   const ctx = useContext(LanguageContext);
-  if (!ctx) throw new Error("useLanguage must be used inside LanguageProvider");
+  if (!ctx) {
+    const language = getInitialLanguage();
+    console.error("[i18n] LanguageProvider missing, using fallback language context.");
+    return {
+      language,
+      setLanguage: (next: LanguageCode) => applyLanguageToDocument(next),
+      toggleLanguage: () => applyLanguageToDocument(language === "en" ? "ar" : "en"),
+      t: (englishText: string) => tHelper(getInitialLanguage(), englishText),
+    };
+  }
   return ctx;
 }

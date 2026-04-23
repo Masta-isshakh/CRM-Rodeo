@@ -824,6 +824,17 @@ const PHRASES_EN_AR: Array<[string, string]> = [
   ["Authentication successful. Opening your inbox...", "تم التحقق بنجاح. جاري فتح صندوق الوارد..."],
   ["Show password", "عرض كلمة المرور"],
   ["Hide password", "إخفاء كلمة المرور"],
+  ["Your account is locked. Please contact your administrator.", "حسابك مقفل. يرجى التواصل مع مسؤولك."],
+  ["Too many failed login attempts. Please try again later.", "محاولات تسجيل دخول فاشلة كثيرة جداً. يرجى المحاولة لاحقاً."],
+  ["Use your WorkMail username (for example: mohd.haggo) or full email address.", "استخدم اسم مستخدم WorkMail الخاص بك (مثال: mohd.haggo) أو البريد الإلكتروني الكامل."],
+  ["Unable to open WorkMail. Please try again.", "تعذر فتح WorkMail. يرجى المحاولة مرة أخرى."],
+  ["Continue with SSO", "المتابعة عبر تسجيل الدخول الموحد"],
+  ["Redirecting...", "جاري إعادة التوجيه..."],
+  ["Single Sign-On will open your organization identity provider for authentication.", "سيفتح تسجيل الدخول الموحد موفر الهوية الخاص بمؤسستك لإتمام المصادقة."],
+  ["Email is required.", "البريد الإلكتروني مطلوب."],
+  ["Continue to Email", "المتابعة إلى البريد الإلكتروني"],
+  ["Your organization currently opens the Amazon WorkMail web application directly.", "تقوم مؤسستك حالياً بفتح تطبيق Amazon WorkMail مباشرة."],
+  ["Campaign Audience is temporarily unavailable.", "ميزة جمهور الحملة غير متاحة مؤقتاً."],
 ];
 
 const EN_TO_AR = new Map<string, string>(PHRASES_EN_AR);
