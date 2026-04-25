@@ -414,6 +414,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const activeDropdownRef = useRef<string | null>(null);
+  const detailsCacheRef = useRef<Map<string, any>>(new Map());
 
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
@@ -588,19 +589,46 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
   };
 
   const openDetailsView = async (orderId: string) => {
+    // Instant open from cache
+    const cached = detailsCacheRef.current.get(orderId);
+    if (cached) {
+      flushSync(() => {
+        setSelectedOrder(cached);
+        setShowDetailsScreen(true);
+      });
+      return;
+    }
+
+    // Show stub immediately from list row
+    const listRow = allOrders.find((o: any) => o.id === orderId);
+    if (listRow) {
+      flushSync(() => {
+        setSelectedOrder({
+          ...listRow,
+          _backendId: String(listRow._backendId ?? ""),
+          id: String(listRow.id ?? ""),
+          documents: [],
+          roadmap: [],
+          services: [],
+          customerDetails: null,
+          vehicleDetails: null,
+          _parsed: { roadmap: [], services: [], documents: [] },
+        });
+        setShowDetailsScreen(true);
+      });
+    }
+
     setLoading(true);
     try {
       const order = await getJobOrderByOrderNumber(orderId);
       if (!order) throw new Error(t("Order not found"));
-
-      // ✅ FIX: normalize payment status for details view too
       order.paymentStatus = derivePaymentStatusFromUiOrder(order);
-
-      setSelectedOrder(order);
-      setShowDetailsScreen(true);
+      detailsCacheRef.current.set(orderId, order);
+      flushSync(() => { setSelectedOrder(order); });
     } catch (e) {
       setErrorMessage(errMsg(e));
       setShowErrorPopup(true);
+      if (!listRow) setShowDetailsScreen(false);
     } finally {
       setLoading(false);
     }
@@ -612,6 +640,13 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
   };
 
   const openExitPermitModal = async (orderId: string) => {
+    // Show modal immediately with loading indicator, then validate & hydrate
+    flushSync(() => {
+      setCurrentOrderForPermit({ id: orderId, _loading: true });
+      setExitPermitForm({ collectedBy: "", mobileNumber: "", nextServiceDate: "" });
+      setShowExitPermitModal(true);
+    });
+
     setLoading(true);
     try {
       const order = await getJobOrderByOrderNumber(orderId);
@@ -636,11 +671,11 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
         mobileNumber: order.mobile || "",
         nextServiceDate: safeLower(order.workStatus) === "cancelled" ? "" : formattedDate,
       });
-
-      setShowExitPermitModal(true);
     } catch (e) {
       setErrorMessage(errMsg(e));
       setShowErrorPopup(true);
+      setShowExitPermitModal(false);
+      setCurrentOrderForPermit(null);
     } finally {
       setLoading(false);
     }

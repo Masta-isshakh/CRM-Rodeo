@@ -156,6 +156,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const activeDropdownRef = useRef<string | null>(null);
+  const detailsCacheRef = useRef<Map<string, { selectedOrder: any; qcResults: Record<number, "Pass" | "Failed" | "Acceptable"> }>>(new Map());
 
   // details
   const [screenState, setScreenState] = useState<"main" | "details">("main");
@@ -309,7 +310,36 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
 
   /* -------------------- details loader -------------------- */
   const viewDetails = async (job: QCListRow) => {
-    setScreenState("details");
+    const orderKey = String(job?.id ?? "").trim();
+    if (!orderKey) return;
+
+    const cached = detailsCacheRef.current.get(orderKey);
+    if (cached) {
+      flushSync(() => {
+        setServiceQCResults(cached.qcResults);
+        setSelectedOrder(cached.selectedOrder);
+        setScreenState("details");
+      });
+      return;
+    }
+
+    // Show lightweight details immediately while full data loads.
+    flushSync(() => {
+      setServiceQCResults({});
+      setSelectedOrder({
+        ...job,
+        _backendId: String(job._backendId ?? ""),
+        id: String(job.id ?? ""),
+        paymentStatus: "Unpaid",
+        documents: [],
+        roadmap: [],
+        services: [],
+        _row: null,
+        _parsed: { roadmap: [], services: [], documents: [] },
+      });
+      setScreenState("details");
+    });
+
     setLoading(true);
     try {
       const detailed = await getJobOrderByOrderNumber(job.id);
@@ -352,9 +382,12 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
         documents: Array.isArray(parsed?.documents) ? parsed.documents : Array.isArray(detailed?.documents) ? detailed.documents : [],
       };
 
-      setSelectedOrder(merged);
+      detailsCacheRef.current.set(orderKey, { selectedOrder: merged, qcResults: nextResults });
+      flushSync(() => {
+        setSelectedOrder(merged);
+      });
     } catch (e) {
-      setPopupMessage(`Load failed: ${errMsg(e)}`);
+      setPopupMessage(`${t("Load failed:")} ${errMsg(e)}`);
       setShowPopup(true);
       setScreenState("main");
     } finally {
@@ -384,13 +417,13 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
       setShowCancelConfirmation(false);
       setCancelOrderId(null);
 
-      setPopupMessage(`Job Order ${cancelOrderId} cancelled successfully.`);
+      setPopupMessage(`${t("Job Order")} ${cancelOrderId} ${t("cancelled successfully.")}`);
       setShowPopup(true);
 
       // if details open for this order, close
       if (selectedOrder?.id === cancelOrderId) closeDetailView();
     } catch (e) {
-      setPopupMessage(`Cancel failed: ${errMsg(e)}`);
+      setPopupMessage(`${t("Cancel failed:")} ${errMsg(e)}`);
       setShowPopup(true);
     } finally {
       setLoading(false);
@@ -533,11 +566,11 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
 
   /* -------------------- approve / reject (backend write) -------------------- */
   const persistQcResultsToOrder = async (nextWorkStatusLabel: string) => {
-    if (!selectedOrder?.id) throw new Error("No order selected.");
+    if (!selectedOrder?.id) throw new Error(t("No order selected."));
 
     // Load fresh detailed order (repo ensures correct shape)
     const detailed = await getJobOrderByOrderNumber(String(selectedOrder.id));
-    if (!detailed) throw new Error("Order not found.");
+    if (!detailed) throw new Error(t("Order not found."));
 
     const parsed = safeJsonParse<any>((selectedOrder as any)?._parsed ?? (selectedOrder as any)?.dataJson, {});
     const parsedServices = Array.isArray(parsed?.services) ? parsed.services : [];
@@ -627,12 +660,12 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
     setLoading(true);
     try {
       await persistQcResultsToOrder("Ready");
-      setPopupMessage("Quality Check Approved! Order moved to Ready status.");
+      setPopupMessage(t("Quality Check Approved! Order moved to Ready status."));
       setShowPopup(true);
       setShowQCConfirmation(false);
       closeDetailView();
     } catch (e) {
-      setPopupMessage(`Approve failed: ${errMsg(e)}`);
+      setPopupMessage(`${t("Approve failed:")} ${errMsg(e)}`);
       setShowPopup(true);
     } finally {
       setLoading(false);
@@ -644,12 +677,12 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
     setLoading(true);
     try {
       await persistQcResultsToOrder("Service_Operation");
-      setPopupMessage("Quality Check Rejected! Order returned to Service Execution (Service_Operation).");
+      setPopupMessage(t("Quality Check Rejected! Order returned to Service Execution (Service_Operation)."));
       setShowPopup(true);
       setShowQCConfirmation(false);
       closeDetailView();
     } catch (e) {
-      setPopupMessage(`Reject failed: ${errMsg(e)}`);
+      setPopupMessage(`${t("Reject failed:")} ${errMsg(e)}`);
       setShowPopup(true);
     } finally {
       setLoading(false);
@@ -686,7 +719,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
               <div className="search-stats">
                 {filteredJobs.length === 0
                   ? loading
-                    ? "Loading..."
+                    ? t("Loading...")
                     : t("No jobs found")
                   : `${t("Showing")} ${Math.min((currentPage - 1) * pageSize + 1, filteredJobs.length)}-${Math.min(
                       currentPage * pageSize,
@@ -743,14 +776,14 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                           <td>{job.id}</td>
                           <td>
                             <span className={`order-type-badge ${safeLower(job.orderType).includes("new") ? "order-type-new-job" : "order-type-service"}`}>
-                              {job.orderType}
+                              {t(job.orderType)}
                             </span>
                           </td>
                           <td>{job.customerName}</td>
                           <td>{job.mobile}</td>
                           <td>{job.vehiclePlate}</td>
                           <td>
-                            <span className="status-badge status-pending">{job.workStatus}</span>
+                            <span className="status-badge status-pending">{t(job.workStatus)}</span>
                           </td>
                           <td>
                             <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_actions">
@@ -958,7 +991,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
               <PermissionGate moduleId="qualitycheck" optionId="qualitycheck_roadmap">
                 <div className="jh-card jh-span-2">
                   {roadmap.length === 0 ? (
-                    <div className="jh-empty-inline">No roadmap data.</div>
+                    <div className="jh-empty-inline">{t("No roadmap data.")}</div>
                   ) : (
                     <UnifiedJobOrderRoadmap order={{ ...selectedOrder, roadmap }} />
                   )}
@@ -989,13 +1022,13 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                           <div className="pim-service-header">
                             <span className="pim-service-name">{String(service?.name ?? service ?? `Service ${idx + 1}`)}</span>
                             <span className={`status-badge ${getServiceStatusClass(service?.status ?? "New")}`}>
-                              {String(service?.status ?? "New")}
+                              {t(String(service?.status ?? "New"))}
                             </span>
                           </div>
                           {getServiceSpecificationLabel(service) ? (
                             <div className="pim-service-meta" style={{ marginTop: 8 }}>
                               <div className="pim-service-meta-row" style={{ gridColumn: "span 2" }}>
-                                <span className="pim-service-meta-label">Specification:</span>
+                                <span className="pim-service-meta-label">{t("Specification:")}</span>
                                 <span className="pim-service-meta-value" data-no-translate="true" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                                   {getServiceSpecificationColor(service) ? (
                                     <span
@@ -1053,7 +1086,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
 
                             {serviceQCResults[idx] ? (
                               <span className={`qc-result-badge qc-result-${safeLower(serviceQCResults[idx])}`}>
-                                {serviceQCResults[idx]}
+                                {t(serviceQCResults[idx])}
                               </span>
                             ) : null}
                           </div>

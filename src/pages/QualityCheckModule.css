@@ -1321,3 +1321,163 @@
     max-width: 100% !important;
   }
 }
+
+/* ================================================================
+   DAILY REPORT PREMIUM SHELL — Quality Check Module
+   Exact cube-grid background matching DailyReport flavor-technical
+   ================================================================ */
+.quality-check-module {
+  --dr-bg-a: #f8f7f2;
+  --dr-bg-b: #eef2ff;
+  --dr-panel: rgba(255, 255, 255, 0.84);
+  --dr-border: rgba(15, 23, 42, 0.11);
+  --dr-text: #111827;
+  --dr-muted: #4b5563;
+  --dr-shadow: 0 24px 55px rgba(15, 23, 42, 0.12);
+  --dr-gold: #a16207;
+  --dr-brand: #0e7490;
+  background:
+    radial-gradient(1200px 380px at 8% -8%, rgba(161, 98, 7, 0.14), transparent 60%),
+    radial-gradient(1200px 380px at 100% -20%, rgba(14, 116, 144, 0.17), transparent 55%),
+    linear-gradient(135deg, var(--dr-bg-a), var(--dr-bg-b)) !important;
+  border: 1px solid var(--dr-border) !important;
+  border-radius: 26px !important;
+  box-shadow: var(--dr-shadow) !important;
+  color: var(--dr-text) !important;
+  min-height: calc(100vh - 120px) !important;
+  position: relative !important;
+  overflow: hidden !important;
+  animation: qcm-fade-in 260ms ease-out;
+}
+
+.quality-check-module::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.045) 1px, transparent 1px);
+  background-size: 20px 20px;
+  pointer-events: none;
+  mask-image: none;
+  z-index: 0;
+}
+
+.quality-check-module > * {
+  position: relative;
+  z-index: 1;
+}
+
+.quality-check-module .app-container,
+.quality-check-module .detail-view,
+.quality-check-module .pim-details-screen {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.quality-check-module .app-header,
+.quality-check-module .detail-header,
+.quality-check-module .pim-details-header {
+  background: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06) !important;
+}
+
+.quality-check-module .header-left h1,
+.quality-check-module .pim-details-title-container h2 {
+  font-weight: 900 !important;
+  background: linear-gradient(135deg, #0f172a 0%, #0e7490 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.quality-check-module .header-left h1 {
+  font-size: 22px !important;
+  letter-spacing: -0.3px;
+}
+
+.quality-check-module .search-section,
+.quality-check-module .results-section,
+.quality-check-module .qc-detail-card,
+.quality-check-module .pim-detail-card,
+.quality-check-module .action-dropdown-menu-fixed,
+.quality-check-module .cancel-modal {
+  background: rgba(255, 255, 255, 0.82) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(15, 23, 42, 0.09) !important;
+  box-shadow: 0 6px 20px rgba(15, 23, 42, 0.08) !important;
+}
+
+.quality-check-module .section-header,
+.quality-check-module .qc-detail-card h3,
+.quality-check-module .cancel-modal-header {
+  background: linear-gradient(90deg, rgba(14, 116, 144, 0.07), rgba(161, 98, 7, 0.04)) !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.07) !important;
+}
+
+.quality-check-module .section-header h2 i,
+.quality-check-module .qc-detail-card h3 i,
+.quality-check-module .cancel-modal-header h3 i {
+  color: var(--dr-brand) !important;
+}
+
+.quality-check-module .job-order-table thead th {
+  background: rgba(248, 250, 255, 0.92) !important;
+  color: #0f172a !important;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.quality-check-module .cancel-modal-overlay {
+  background: rgba(15, 23, 42, 0.55) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.quality-check-module .cancel-modal {
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.5) inset,
+    0 32px 80px rgba(15, 23, 42, 0.28) !important;
+  border-radius: 22px !important;
+}
+
+.quality-check-module .cancel-modal-actions {
+  background: rgba(248, 247, 242, 0.6) !important;
+  border-top: 1px solid rgba(15, 23, 42, 0.08) !important;
+  padding-top: 10px;
+}
+
+.quality-check-module .quality-footer {
+  color: var(--dr-muted) !important;
+}
+
+@media (max-width: 760px) {
+  .quality-check-module {
+    border-radius: 16px !important;
+  }
+
+  .quality-check-module .app-header,
+  .quality-check-module .detail-header {
+    border-radius: 14px !important;
+    padding: 14px 16px !important;
+  }
+
+  .quality-check-module .header-left h1 {
+    font-size: 17px !important;
+    line-height: 1.35;
+  }
+
+  .quality-check-module .pim-details-title-container h2 {
+    font-size: 15px !important;
+    line-height: 1.35;
+  }
+}
+
+@keyframes qcm-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

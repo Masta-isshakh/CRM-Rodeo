@@ -1006,6 +1006,21 @@ const PHRASES_EN_AR: Array<[string, string]> = [
   ["Generate Bill", "إنشاء فاتورة"],
   ["Invoice", "فاتورة"],
   ["Transfer proof uploaded to Documents.", "تم رفع إثبات التحويل إلى المستندات."],
+  ["No order selected.", "لم يتم اختيار طلب."],
+  ["Order not found.", "لم يتم العثور على الطلب."],
+  ["Quality Check Approved! Order moved to Ready status.", "تم اعتماد فحص الجودة! تم نقل الطلب إلى حالة جاهز."],
+  ["Quality Check Rejected! Order returned to Service Execution (Service_Operation).", "تم رفض فحص الجودة! تمت إعادة الطلب إلى تنفيذ الخدمة (Service_Operation)."],
+  ["Approve failed:", "فشل الاعتماد:"],
+  ["Reject failed:", "فشل الرفض:"],
+  ["Specification:", "المواصفة:"],
+  ["Daily Sales Snapshot", "ملخص المبيعات اليومي"],
+  ["No records in selected date range.", "لا توجد سجلات ضمن النطاق الزمني المحدد."],
+  ["Branch", "الفرع"],
+  ["Vehicle Model", "طراز المركبة"],
+  ["Advisor", "المستشار"],
+  ["Brand", "العلامة"],
+  ["Service Description", "وصف الخدمة"],
+  ["Invoice No", "رقم الفاتورة"],
 ];
 
 const EN_TO_AR = new Map<string, string>(PHRASES_EN_AR);

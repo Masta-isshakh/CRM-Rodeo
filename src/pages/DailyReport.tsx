@@ -56,6 +56,22 @@ type VehicleDetail = {
   dateTime: string;
 };
 
+type SnapshotRow = {
+  id: string;
+  branch: string;
+  vehicleModel: string;
+  advisor: string;
+  customer: string;
+  phone: string;
+  brand: string;
+  color: string;
+  jobCardId: string;
+  serviceDescription: string;
+  amount: number;
+  invoiceNo: string;
+  dateTime: string;
+};
+
 type ReportFlavor = "executive" | "technical" | "luxury";
 
 function toNum(x: unknown) {
@@ -413,6 +429,43 @@ export default function DailyReport({ permissions }: PageProps) {
     { key: "luxury", label: t("Luxury") },
   ];
 
+  const snapshotRows = useMemo<SnapshotRow[]>(() => {
+    return jobOrders.map((order, index) => {
+      const raw = (order.raw ?? {}) as any;
+      const branch = firstText(raw, ["branch", "branchName", "location", "site", "department"]);
+      const vehicleModel = firstText(raw, ["vehicleModel", "model"]);
+      const advisor = firstText(raw, ["serviceAdvisor", "advisor", "assignedTo", "assignedEmployee", "employeeName", "createdBy"]);
+      const brand = firstText(raw, ["vehicleMake", "make", "vehicleBrand"]);
+      const color = firstText(raw, ["vehicleColor", "color"]);
+      const invoiceNo =
+        firstText(raw, ["invoiceNumber", "invoiceNo", "billId", "billingId"]) ||
+        safeText(raw?.billing?.billId ?? raw?.billing?.invoiceNumber ?? raw?.billing?.invoiceNo);
+
+      return {
+        id: `${order.id}-${index}`,
+        branch: branch || "—",
+        vehicleModel: vehicleModel || "—",
+        advisor: advisor || "—",
+        customer: order.customerName || "—",
+        phone: order.customerPhone || "—",
+        brand: brand || "—",
+        color: color || "—",
+        jobCardId: order.jobOrderId || order.id || "—",
+        serviceDescription:
+          order.services.length > 0
+            ? order.services.join(" / ")
+            : order.products.length > 0
+              ? order.products.join(" / ")
+              : "—",
+        amount: Math.max(0, toNum(order.totalAmount)),
+        invoiceNo: invoiceNo || "—",
+        dateTime: order.dateTime || "—",
+      };
+    });
+  }, [jobOrders]);
+
+  const snapshotTotal = useMemo(() => snapshotRows.reduce((sum, row) => sum + Math.max(0, toNum(row.amount)), 0), [snapshotRows]);
+
   return (
     <div className={`daily-report-page flavor-${flavor}`}>
       <header className="dr-header">
@@ -642,6 +695,61 @@ export default function DailyReport({ permissions }: PageProps) {
                   </div>
                 </details>
               ))}
+            </div>
+          )}
+        </article>
+
+        <article className="dr-panel dr-wide-panel dr-snapshot-panel">
+          <h2>{t("Daily Sales Snapshot")}</h2>
+          {loading ? (
+            <div className="dr-loading">{t("Loading...")}</div>
+          ) : snapshotRows.length === 0 ? (
+            <div className="dr-loading">{t("No records in selected date range.")}</div>
+          ) : (
+            <div className="dr-snapshot-table-wrap">
+              <table className="dr-snapshot-table">
+                <thead>
+                  <tr>
+                    <th>{t("Branch")}</th>
+                    <th>{t("Vehicle Model")}</th>
+                    <th>{t("Advisor")}</th>
+                    <th>{t("Customer")}</th>
+                    <th>{t("Phone")}</th>
+                    <th>{t("Brand")}</th>
+                    <th>{t("Color")}</th>
+                    <th>{t("Job Card ID")}</th>
+                    <th>{t("Service Description")}</th>
+                    <th>{t("Amount")}</th>
+                    <th>{t("Invoice No")}</th>
+                    <th>{t("Date")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {snapshotRows.map((row) => (
+                    <tr key={row.id}>
+                      <td>{row.branch}</td>
+                      <td>{row.vehicleModel}</td>
+                      <td>{row.advisor}</td>
+                      <td>{row.customer}</td>
+                      <td>{row.phone}</td>
+                      <td>{row.brand}</td>
+                      <td>{row.color}</td>
+                      <td>{row.jobCardId}</td>
+                      <td>{row.serviceDescription}</td>
+                      <td className="dr-amount-cell">{formatMoney(row.amount)}</td>
+                      <td>{row.invoiceNo}</td>
+                      <td>{row.dateTime}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot>
+                  <tr>
+                    <td colSpan={9} className="dr-total-label">{t("Total")}</td>
+                    <td className="dr-amount-cell">{formatMoney(snapshotTotal)}</td>
+                    <td colSpan={2}></td>
+                  </tr>
+                </tfoot>
+              </table>
             </div>
           )}
         </article>

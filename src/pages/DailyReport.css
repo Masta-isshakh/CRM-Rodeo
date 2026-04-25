@@ -521,6 +521,65 @@
   overflow-wrap: anywhere;
 }
 
+.dr-snapshot-panel {
+  overflow: hidden;
+}
+
+.dr-snapshot-table-wrap {
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dr-snapshot-table {
+  width: 100%;
+  min-width: 1240px;
+  border-collapse: collapse;
+}
+
+.dr-snapshot-table thead th {
+  text-align: left;
+  font-size: 11px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  padding: 10px 8px;
+  color: #0f172a;
+  background: rgba(248, 250, 255, 0.94);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+  white-space: nowrap;
+}
+
+.dr-snapshot-table tbody td {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f172a;
+  padding: 9px 8px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  white-space: nowrap;
+}
+
+.dr-snapshot-table tbody tr:hover td {
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.dr-amount-cell {
+  color: #dc2626 !important;
+  font-weight: 900 !important;
+}
+
+.dr-snapshot-table tfoot td {
+  padding: 10px 8px;
+  border-top: 2px solid rgba(15, 23, 42, 0.14);
+  background: rgba(255, 255, 255, 0.96);
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.dr-total-label {
+  text-align: right;
+  color: #0f172a;
+}
+
 @keyframes dr-fade-in {
   from {
     opacity: 0;
