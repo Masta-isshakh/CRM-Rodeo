@@ -848,7 +848,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
               <div className="epm-search-stats">
                 {searchResults.length === 0
                   ? loading
-                    ? "Loading..."
+                    ? t("Loading...")
                     : t("No eligible job orders found")
                   : `${t("Showing")} ${startIndex + 1}-${endIndex} ${t("of")} ${searchResults.length} ${t("job orders")}`}
               </div>
@@ -1376,7 +1376,7 @@ const ServicesCard = ({ order }: any) => {
               {getServiceSpecificationLabel(service) ? (
                 <div className="pim-service-meta" style={{ marginTop: 8 }}>
                   <div className="pim-service-meta-row" style={{ gridColumn: "span 2" }}>
-                    <span className="pim-service-meta-label">Specification:</span>
+                    <span className="pim-service-meta-label">{t("Specification:")}</span>
                     <span className="pim-service-meta-value" data-no-translate="true" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
                       {getServiceSpecificationColor(service) ? (
                         <span
