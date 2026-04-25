@@ -1321,3 +1321,13 @@
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: translateY(0); }
 }
+
+.jh-btn-danger {
+  background: rgba(220, 38, 38, 0.10) !important;
+  border-color: rgba(220, 38, 38, 0.35) !important;
+  color: #b91c1c !important;
+}
+
+.jh-btn-danger:hover {
+  background: rgba(220, 38, 38, 0.18) !important;
+}

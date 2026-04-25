@@ -6,6 +6,7 @@ import "./JobOrderHistory.css";
 import PermissionGate from "./PermissionGate";
 import { getDataClient } from "../lib/amplifyClient";
 import { matchesSearchQuery } from "../lib/searchUtils";
+import { usePermissions } from "../lib/userPermissions";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { firstPreferredActorValue, resolveActorDisplay, resolveOrderCreatedBy, resolveOrderUpdatedBy } from "../utils/actorIdentity";
 import {
@@ -674,6 +675,7 @@ export default function JobOrderHistory({
 }) {
   const client = useMemo(() => getDataClient(), []);
   const { t } = useLanguage();
+  const { isAdminGroup } = usePermissions();
 
   const [loading, setLoading] = useState(false);
 
@@ -699,6 +701,8 @@ export default function JobOrderHistory({
 
   const [navSource, setNavSource] = useState<string | null>(null);
   const [returnVehicleId, setReturnVehicleId] = useState<string | null>(null);
+
+  const canDeleteHistory = isAdminGroup;
 
   useEffect(() => {
     let cancelled = false;
@@ -1200,6 +1204,27 @@ export default function JobOrderHistory({
     }
   };
 
+  const handleDeleteHistory = async (row: ListRow) => {
+    if (!canDeleteHistory) return;
+
+    const ok = window.confirm(t("Delete this job order from history? This action cannot be undone."));
+    if (!ok) return;
+
+    setLoading(true);
+    try {
+      await client.models.JobOrder.delete({ id: String(row._backendId) } as any);
+
+      detailsCacheRef.current.delete(String(row.orderNumber ?? ""));
+      setRows((prev) => prev.filter((item) => String(item._backendId) !== String(row._backendId)));
+
+      alert(t("Job order history deleted successfully."));
+    } catch (e) {
+      alert(`${t("Delete failed.")} ${errMsg(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // ===================== DETAILS SCREEN =====================
   if (selectedOrder) {
     return (
@@ -1331,15 +1356,28 @@ export default function JobOrderHistory({
                           <span className={paymentStatusClass(r.paymentStatus)}>{r.paymentStatus}</span>
                         </td>
                         <td>
-                          <PermissionGate moduleId="jobhistory" optionId="jobhistory_view">
-                            <button
-                              className="jh-btn jh-btn-primary"
-                              type="button"
-                              onClick={() => void openDetails(r.orderNumber, r)}
-                            >
-                              <i className="fas fa-eye" /> {t("View Details")}
-                            </button>
-                          </PermissionGate>
+                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                            <PermissionGate moduleId="jobhistory" optionId="jobhistory_view">
+                              <button
+                                className="jh-btn jh-btn-primary"
+                                type="button"
+                                onClick={() => void openDetails(r.orderNumber, r)}
+                              >
+                                <i className="fas fa-eye" /> {t("View Details")}
+                              </button>
+                            </PermissionGate>
+
+                            {canDeleteHistory && (
+                              <button
+                                className="jh-btn jh-btn-danger"
+                                type="button"
+                                onClick={() => void handleDeleteHistory(r)}
+                                disabled={loading}
+                              >
+                                <i className="fas fa-trash" /> {t("Delete History")}
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
