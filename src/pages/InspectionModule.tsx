@@ -186,6 +186,7 @@ function deriveDetailData(order: AnyObj, row: AnyObj) {
 }
 
 function InspectionModule({ currentUser }: any) {
+  const { t } = useLanguage();
   const { canOption, getOptionNumber } = usePermissions();
   const [inspectionConfig, setInspectionConfig] = useState<any[]>(inspectionListConfig);
   const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
@@ -240,6 +241,7 @@ function InspectionModule({ currentUser }: any) {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const activeDropdownRef = useRef<string | null>(null);
+  const detailsCacheRef = useRef<Map<string, { order: AnyObj; detail: AnyObj; state: AnyObj | null; report: string | null }>>(new Map());
 
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
@@ -368,20 +370,61 @@ function InspectionModule({ currentUser }: any) {
   };
 
   const viewDetails = async (row: AnyObj) => {
-    setActiveRow(row);
-    setScreenState("details");
-    setReportHtml(null);
+    const rowId = String(row?.id ?? "").trim();
+    if (!rowId) return;
+
+    const cached = detailsCacheRef.current.get(rowId);
+    if (cached) {
+      flushSync(() => {
+        setActiveRow(row);
+        setActiveOrder(cached.order);
+        setDetailData(cached.detail);
+        setReportHtml(cached.report);
+        if (cached.state) {
+          setInspectionState(cached.state);
+          setResumeAvailable({ exterior: true, interior: true });
+          hydratedRef.current = true;
+        } else {
+          hydratedRef.current = false;
+          resetInspectionState();
+        }
+        setScreenState("details");
+      });
+      return;
+    }
+
+    const orderStub: AnyObj = {
+      ...row,
+      id: rowId,
+      _backendId: String(row?._backendId ?? ""),
+      services: [],
+      documents: [],
+      roadmap: [],
+      customerDetails: null,
+      vehicleDetails: null,
+      _parsed: {},
+    };
+    const detailStub = deriveDetailData(orderStub, row);
+
+    flushSync(() => {
+      setActiveRow(row);
+      setActiveOrder(orderStub);
+      setDetailData(detailStub);
+      setScreenState("details");
+      setReportHtml(null);
+    });
 
     hydratedRef.current = false;
     resetInspectionState();
 
     setLoading(true);
     try {
-      const order = await getJobOrderByOrderNumber(row.id);
-      if (!order?._backendId) throw new Error("Backend order not found.");
+      const order = await getJobOrderByOrderNumber(rowId);
+      if (!order?._backendId) throw new Error(t("Backend order not found."));
 
+      const resolvedDetail = deriveDetailData(order, row);
       setActiveOrder(order);
-      setDetailData(deriveDetailData(order, row));
+      setDetailData(resolvedDetail);
 
       const [state, rep] = await Promise.all([
         getInspectionState(order._backendId),
@@ -393,10 +436,17 @@ function InspectionModule({ currentUser }: any) {
       }
       setReportHtml(rep);
 
+      detailsCacheRef.current.set(rowId, {
+        order,
+        detail: resolvedDetail,
+        state: state || null,
+        report: rep ?? null,
+      });
+
       hydratedRef.current = true;
     } catch (e) {
       console.error(e);
-      setPopupMessage(`Load failed: ${errMsg(e)}`);
+      setPopupMessage(`${t("Load failed:")} ${errMsg(e)}`);
       setShowPopup(true);
       setScreenState("main");
       setActiveRow(null);
@@ -632,11 +682,11 @@ function InspectionModule({ currentUser }: any) {
         actor: actorEmail,
       });
 
-      setPopupMessage("Inspection started.");
+      setPopupMessage(t("Inspection started."));
       setShowPopup(true);
     } catch (e) {
       console.error(e);
-      setPopupMessage(`Start failed: ${errMsg(e)}`);
+      setPopupMessage(`${t("Start failed:")} ${errMsg(e)}`);
       setShowPopup(true);
     } finally {
       setLoading(false);
@@ -644,9 +694,10 @@ function InspectionModule({ currentUser }: any) {
   };
 
   const saveAndPause = (sectionKey: "exterior" | "interior") => {
+    const sectionLabel = sectionKey === "exterior" ? t("Exterior") : t("Interior");
     setInspectionConfirmData({
-      title: "Save and Pause Inspection",
-      message: `Save and pause ${sectionKey} inspection? You can resume later.`,
+      title: t("Save and Pause Inspection"),
+      message: `${t("Save and pause")} ${sectionLabel} ${t("inspection? You can resume later.")}`,
       onConfirm: () => {
         setInspectionState((prev: AnyObj) => ({
           ...prev,
@@ -654,7 +705,7 @@ function InspectionModule({ currentUser }: any) {
         }));
         setResumeAvailable({ exterior: true, interior: true });
         setShowInspectionConfirmation(false);
-        setPopupMessage(`${sectionKey} inspection saved and paused.`);
+        setPopupMessage(`${sectionLabel} ${t("inspection saved and paused.")}`);
         setShowPopup(true);
       },
     });
@@ -662,18 +713,20 @@ function InspectionModule({ currentUser }: any) {
   };
 
   const resumeInspection = (sectionKey: "exterior" | "interior") => {
+    const sectionLabel = sectionKey === "exterior" ? t("Exterior") : t("Interior");
     setInspectionState((prev: AnyObj) => ({
       ...prev,
       [sectionKey]: { ...prev[sectionKey], started: true, paused: false },
     }));
-    setPopupMessage(`${sectionKey} inspection resumed.`);
+    setPopupMessage(`${sectionLabel} ${t("inspection resumed.")}`);
     setShowPopup(true);
   };
 
   const markNotRequired = (sectionKey: "exterior" | "interior") => {
+    const sectionLabel = sectionKey === "exterior" ? t("Exterior") : t("Interior");
     setInspectionConfirmData({
-      title: "Mark as Not Required",
-      message: `Mark ${sectionKey} inspection as not required?`,
+      title: t("Mark as Not Required"),
+      message: `${t("Mark")} ${sectionLabel} ${t("inspection as not required?")}`,
       onConfirm: () => {
         setInspectionState((prev: AnyObj) => ({
           ...prev,
@@ -686,15 +739,16 @@ function InspectionModule({ currentUser }: any) {
   };
 
   const completeSection = (sectionKey: "exterior" | "interior") => {
+    const sectionLabel = sectionKey === "exterior" ? t("Exterior") : t("Interior");
     setInspectionConfirmData({
-      title: "Complete Inspection",
-      message: `Complete ${sectionKey} inspection?`,
+      title: t("Complete Inspection"),
+      message: `${t("Complete")} ${sectionLabel} ${t("inspection?")}`,
       onConfirm: () => {
         setInspectionState((prev: AnyObj) => ({
           ...prev,
           [sectionKey]: { ...prev[sectionKey], completed: true, started: false, paused: false },
         }));
-        setPopupMessage(`${sectionKey} inspection completed successfully.`);
+        setPopupMessage(`${sectionLabel} ${t("inspection completed successfully.")}`);
         setShowPopup(true);
         setShowInspectionConfirmation(false);
       },
@@ -708,8 +762,8 @@ function InspectionModule({ currentUser }: any) {
 
   const finishInspection = () => {
     setInspectionConfirmData({
-      title: "Finish Inspection",
-      message: "Finish the inspection? Status will change to Service_Operation.",
+      title: t("Finish Inspection"),
+      message: t("Finish the inspection? Status will change to Service_Operation."),
       onConfirm: async () => {
         if (!activeOrder || !activeRow) return;
 
@@ -818,14 +872,14 @@ function InspectionModule({ currentUser }: any) {
 
           await refreshOrders();
 
-          setPopupMessage("Inspection finished! Status changed to Service_Operation.");
+          setPopupMessage(t("Inspection finished! Status changed to Service_Operation."));
           setShowPopup(true);
 
           setShowInspectionConfirmation(false);
           closeDetailView();
         } catch (e) {
           console.error(e);
-          setPopupMessage(`Finish failed: ${errMsg(e)}`);
+          setPopupMessage(`${t("Finish failed:")} ${errMsg(e)}`);
           setShowPopup(true);
         } finally {
           setLoading(false);
@@ -852,17 +906,17 @@ function InspectionModule({ currentUser }: any) {
       setPopupMessage(
         <>
           <span style={{ fontWeight: 700, color: "#16a34a", display: "block", marginBottom: 8 }}>
-            <i className="fas fa-check-circle"></i> Order Cancelled Successfully
+            <i className="fas fa-check-circle"></i> {t("Order Cancelled Successfully")}
           </span>
           <span>
-            Job Order ID: <strong>{cancelOrderId}</strong>
+            {t("Job Order ID:")} <strong>{cancelOrderId}</strong>
           </span>
         </>
       );
       setShowPopup(true);
     } catch (e) {
       console.error(e);
-      setPopupMessage(`Cancel failed: ${errMsg(e)}`);
+      setPopupMessage(`${t("Cancel failed:")} ${errMsg(e)}`);
       setShowPopup(true);
     } finally {
       setLoading(false);
@@ -899,7 +953,7 @@ function InspectionModule({ currentUser }: any) {
           <header className="app-header crm-unified-header">
             <div className="header-left">
               <h1>
-                <i className="fas fa-car"></i> Inspection Module
+                <i className="fas fa-car"></i> {t("Inspection Module")}
               </h1>
             </div>
           </header>
@@ -911,7 +965,7 @@ function InspectionModule({ currentUser }: any) {
                 <input
                   type="text"
                   className="smart-search-input"
-                  placeholder="Search by any details"
+                  placeholder={t("Search by any details")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   autoComplete="off"
@@ -919,24 +973,24 @@ function InspectionModule({ currentUser }: any) {
               </div>
               <div className="search-stats">
                 {loading
-                  ? "Loading..."
+                  ? t("Loading...")
                   : filteredRows.length === 0
-                  ? "No jobs found"
-                  : `Showing ${Math.min((currentPage - 1) * pageSize + 1, filteredRows.length)}-${Math.min(
+                  ? t("No jobs found")
+                  : `${t("Showing")} ${Math.min((currentPage - 1) * pageSize + 1, filteredRows.length)}-${Math.min(
                       currentPage * pageSize,
                       filteredRows.length
-                    )} of ${filteredRows.length} inspection jobs`}
+                    )} ${t("of")} ${filteredRows.length} ${t("inspection jobs")}`}
               </div>
             </section>
 
             <section className="results-section">
               <div className="section-header">
                 <h2>
-                  <i className="fas fa-list"></i> Inspection Jobs Records
+                  <i className="fas fa-list"></i> {t("Inspection Jobs Records")}
                 </h2>
                 <div className="pagination-controls">
                   <div className="records-per-page">
-                    <label htmlFor="inspectionPageSize">Records per page:</label>
+                    <label htmlFor="inspectionPageSize">{t("Records per page:")}</label>
                     <select
                       id="inspectionPageSize"
                       className="page-size-select"
@@ -960,13 +1014,13 @@ function InspectionModule({ currentUser }: any) {
                     <thead>
                       <tr>
                         <th>Create Date</th>
-                        <th>Job Card ID</th>
-                        <th>Order Type</th>
-                        <th>Customer Name</th>
-                        <th>Mobile Number</th>
-                        <th>Vehicle Plate</th>
-                        <th>Work Status</th>
-                        <th>Actions</th>
+                        <th>{t("Job Card ID")}</th>
+                        <th>{t("Order Type")}</th>
+                        <th>{t("Customer Name")}</th>
+                        <th>{t("Mobile Number")}</th>
+                        <th>{t("Vehicle Plate")}</th>
+                        <th>{t("Work Status")}</th>
+                        <th>{t("Actions")}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -991,7 +1045,7 @@ function InspectionModule({ currentUser }: any) {
                             <PermissionGate moduleId="inspection" optionId="inspection_actions">
                               <div className="action-dropdown-container">
                                 <button className={`btn-action-dropdown ${activeDropdown === job.id ? "active" : ""}`} onClick={(e) => handleOpenDropdown(e.currentTarget as HTMLElement, job.id)}>
-                                  <i className="fas fa-cogs"></i> Actions <i className="fas fa-chevron-down"></i>
+                                  <i className="fas fa-cogs"></i> {t("Actions")} <i className="fas fa-chevron-down"></i>
                                 </button>
                               </div>
                             </PermissionGate>
@@ -1006,7 +1060,7 @@ function InspectionModule({ currentUser }: any) {
                   <p>
                     <i className="fas fa-inbox" style={{ fontSize: "36px", marginBottom: "10px" }}></i>
                   </p>
-                  <p>No inspection jobs found</p>
+                  <p>{t("No inspection jobs found")}</p>
                 </div>
               )}
 
@@ -1041,7 +1095,7 @@ function InspectionModule({ currentUser }: any) {
           </main>
 
           <div className="inspection-footer">
-            <p>Service Management System © 2023 | Inspection Module</p>
+            <p>{t("Service Management System © 2023 | Inspection Module")}</p>
           </div>
         </div>
       )}
@@ -1061,12 +1115,12 @@ function InspectionModule({ currentUser }: any) {
           <div className="detail-header pim-details-header">
             <div className="detail-title-container">
               <h2>
-                <i className="fas fa-clipboard-list"></i> Inspection Details - Job Order #
+                <i className="fas fa-clipboard-list"></i> {t("Inspection Details - Job Order #")}
                 <span id="detailJobIdHeader">{activeRow.id}</span>
               </h2>
             </div>
             <button className="close-detail pim-btn-close-details" onClick={closeDetailView}>
-              <i className="fas fa-times"></i> Close Details
+              <i className="fas fa-times"></i> {t("Close Details")}
             </button>
           </div>
 
@@ -1084,10 +1138,10 @@ function InspectionModule({ currentUser }: any) {
                   {reportHtml && (
                     <div className="inspection-summary-actions">
                       <button className="btn btn-primary" onClick={downloadReport}>
-                        <i className="fas fa-download"></i> Download Inspection Report
+                        <i className="fas fa-download"></i> {t("Download Inspection Report")}
                       </button>
                       <div style={{ marginTop: 8, fontSize: 12, opacity: 0.85 }}>
-                        Generated: {
+                        {t("Generated:")} {
                           String(
                             Array.isArray(activeOrder?.documents)
                               ? (
@@ -1119,10 +1173,10 @@ function InspectionModule({ currentUser }: any) {
               <PermissionGate moduleId="inspection" optionId="inspection_services">
                 <div className="pim-detail-card">
                   <div className="inspection-service-head">
-                    <h3><i className="fas fa-tasks"></i> Services Summary ({Array.isArray(activeOrder.services) ? activeOrder.services.length : 0})</h3>
+                    <h3><i className="fas fa-tasks"></i> {t("Services Summary")} ({Array.isArray(activeOrder.services) ? activeOrder.services.length : 0})</h3>
                     <PermissionGate moduleId="inspection" optionId="inspection_addservice">
                       <button className="btn-add-service inspection-add-service-btn" onClick={handleAddService}>
-                        <i className="fas fa-plus-circle"></i> Add Service
+                        <i className="fas fa-plus-circle"></i> {t("Add Service")}
                       </button>
                     </PermissionGate>
                   </div>
@@ -1132,12 +1186,12 @@ function InspectionModule({ currentUser }: any) {
                         <div key={idx} className="pim-service-item">
                           <div className="pim-service-header">
                             <span className="pim-service-name" data-no-translate="true">{toBilingualName(s?.name, s?.nameAr)}</span>
-                            <span className={`status-badge ${getServiceStatusClass(s.status || "New")}`}>{s.status || "New"}</span>
+                            <span className={`status-badge ${getServiceStatusClass(s.status || "New")}`}>{t(String(s.status || "New"))}</span>
                           </div>
                         </div>
                       ))
                     ) : (
-                      <div className="inspection-empty-inline">No services added yet</div>
+                      <div className="inspection-empty-inline">{t("No services added yet")}</div>
                     )}
                   </div>
                 </div>
@@ -1151,7 +1205,7 @@ function InspectionModule({ currentUser }: any) {
             <PermissionGate moduleId="inspection" optionId="inspection_list">
               <div className="epm-detail-card inspection-list-card">
                 <div className="inspection-list-head">
-                  <h3><i className="fas fa-clipboard-check"></i> Inspection List</h3>
+                  <h3><i className="fas fa-clipboard-check"></i> {t("Inspection List")}</h3>
                 </div>
 
                 <div className="inspection-section">
@@ -1175,10 +1229,10 @@ function InspectionModule({ currentUser }: any) {
                             <h3 style={{ margin: 0 }}>
                               {sectionConfig[sectionKey].title}
                               {!isCompleted && !isNotRequired && isStarted && !isPaused && (
-                                <span className="status-indicator status-active"><i className="fas fa-spinner fa-spin"></i> In Progress</span>
+                                  <span className="status-indicator status-active"><i className="fas fa-spinner fa-spin"></i> {t("In Progress")}</span>
                               )}
-                              {isPaused && <span className="status-indicator status-paused"><i className="fas fa-pause"></i> Paused</span>}
-                              {isCompleted && <span className="status-indicator status-active"><i className="fas fa-check"></i> Completed</span>}
+                              {isPaused && <span className="status-indicator status-paused"><i className="fas fa-pause"></i> {t("Paused")}</span>}
+                              {isCompleted && <span className="status-indicator status-active"><i className="fas fa-check"></i> {t("Completed")}</span>}
                             </h3>
                           </div>
 
@@ -1186,21 +1240,21 @@ function InspectionModule({ currentUser }: any) {
                             {!isCompleted && !isNotRequired && (
                               <PermissionGate moduleId="inspection" optionId="inspection_start">
                                 <button className="inspection-btn btn-start" onClick={() => void startInspection(sectionKey)} style={{ display: isStarted ? "none" : "flex" }}>
-                                  <i className="fas fa-play"></i> {startLabel}
+                                  <i className="fas fa-play"></i> {t(startLabel)}
                                 </button>
                               </PermissionGate>
                             )}
 
                             {!isCompleted && !isNotRequired && (
                               <button className="inspection-btn btn-save" onClick={() => saveAndPause(sectionKey)} style={{ display: isStarted && !isPaused ? "flex" : "none" }}>
-                                <i className="fas fa-save"></i> Save & Pause
+                                <i className="fas fa-save"></i> {t("Save & Pause")}
                               </button>
                             )}
 
                             {!isCompleted && !isNotRequired && (
                               <PermissionGate moduleId="inspection" optionId="inspection_resume">
                                 <button className="inspection-btn btn-resume" onClick={() => resumeInspection(sectionKey)} disabled={!resumeAvailable[sectionKey]}>
-                                  <i className="fas fa-play-circle"></i> Resume
+                                  <i className="fas fa-play-circle"></i> {t("Resume")}
                                 </button>
                               </PermissionGate>
                             )}
@@ -1208,7 +1262,7 @@ function InspectionModule({ currentUser }: any) {
                             {!isCompleted && !isNotRequired && (
                               <PermissionGate moduleId="inspection" optionId="inspection_complete">
                                 <button className="inspection-btn btn-complete" onClick={() => completeSection(sectionKey)} disabled={!canComplete}>
-                                  <i className="fas fa-check-circle"></i> Complete Inspection
+                                  <i className="fas fa-check-circle"></i> {t("Complete Inspection")}
                                 </button>
                               </PermissionGate>
                             )}
@@ -1216,7 +1270,7 @@ function InspectionModule({ currentUser }: any) {
                             {!isCompleted && !isNotRequired && (
                               <PermissionGate moduleId="inspection" optionId="inspection_notrequired">
                                 <button className="inspection-btn btn-not-required" onClick={() => markNotRequired(sectionKey)}>
-                                  <i className="fas fa-ban"></i> Not Required
+                                  <i className="fas fa-ban"></i> {t("Not Required")}
                                 </button>
                               </PermissionGate>
                             )}
@@ -1225,7 +1279,7 @@ function InspectionModule({ currentUser }: any) {
 
                         {isStarted && !isNotRequired && (
                           <div className="inspection-progress">
-                            <div>Progress: <span>{progressText}</span></div>
+                            <div>{t("Progress:")} <span>{progressText}</span></div>
                             <div className="progress-bar"><div className="progress-fill" style={{ width: progressText }} /></div>
                           </div>
                         )}
@@ -1246,9 +1300,9 @@ function InspectionModule({ currentUser }: any) {
                                     <button 
                                       className="select-all-btn" 
                                       onClick={() => selectAllGroupItems(sectionKey, group.items)} 
-                                      title="Select all items as Pass"
+                                      title={t("Select all items as Pass")}
                                     >
-                                      <i className="fas fa-check-double"></i> Select All
+                                      <i className="fas fa-check-double"></i> {t("Select All")}
                                     </button>
                                   </div>
 
@@ -1265,22 +1319,22 @@ function InspectionModule({ currentUser }: any) {
                                               <div className="checkbox-group">
                                                 <label className="checkbox-option">
                                                   <input type="radio" name={`${sectionKey}-${item.id}`} value="pass" checked={itemState?.status === "pass"} onChange={() => updateItemStatus(sectionKey, item.id, "pass")} />
-                                                  <span className="status-label green">Pass</span>
+                                                  <span className="status-label green">{t("Pass")}</span>
                                                 </label>
                                                 <label className="checkbox-option">
                                                   <input type="radio" name={`${sectionKey}-${item.id}`} value="attention" checked={itemState?.status === "attention"} onChange={() => updateItemStatus(sectionKey, item.id, "attention")} />
-                                                  <span className="status-label amber">Attention</span>
+                                                  <span className="status-label amber">{t("Attention")}</span>
                                                 </label>
                                                 <label className="checkbox-option">
                                                   <input type="radio" name={`${sectionKey}-${item.id}`} value="failed" checked={itemState?.status === "failed"} onChange={() => updateItemStatus(sectionKey, item.id, "failed")} />
-                                                  <span className="status-label red">Failed</span>
+                                                  <span className="status-label red">{t("Failed")}</span>
                                                 </label>
                                               </div>
                                             </div>
 
                                             {showComments && (
                                               <div className="comment-section">
-                                                <textarea placeholder="Add comments..." value={itemState?.comment} onChange={(e) => updateItemComment(sectionKey, item.id, e.target.value)} />
+                                                <textarea placeholder={t("Add comments...")} value={itemState?.comment} onChange={(e) => updateItemComment(sectionKey, item.id, e.target.value)} />
                                                 <div className="photo-upload">
                                                   <input
                                                     id={`${sectionKey}-${item.id}-photo`}
@@ -1294,9 +1348,9 @@ function InspectionModule({ currentUser }: any) {
                                                     }}
                                                   />
                                                   <button type="button" className="photo-btn" onClick={() => document.getElementById(`${sectionKey}-${item.id}-photo`)?.click()}>
-                                                    <i className="fas fa-camera"></i> Upload/Take Photo
+                                                    <i className="fas fa-camera"></i> {t("Upload/Take Photo")}
                                                   </button>
-                                                  <span className="photo-requirement">* Required for Amber/Red status</span>
+                                                  <span className="photo-requirement">{t("* Required for Amber/Red status")}</span>
                                                 </div>
 
                                                 {Array.isArray(itemState?.photos) && itemState.photos.length > 0 && (
@@ -1305,7 +1359,7 @@ function InspectionModule({ currentUser }: any) {
                                                       const src = p.startsWith("data:") ? p : photoUrlCache[p] || "";
                                                       return (
                                                         <div key={`${item.id}-photo-${idx}`} className="photo-preview-item">
-                                                          {src ? <img src={src} alt={`Inspection ${item.name}`} /> : <div style={{ padding: 10, color: "#999" }}>Loading...</div>}
+                                                          {src ? <img src={src} alt={`${t("Inspection")} ${item.name}`} /> : <div style={{ padding: 10, color: "#999" }}>{t("Loading...")}</div>}
                                                         </div>
                                                       );
                                                     })}
@@ -1331,7 +1385,7 @@ function InspectionModule({ currentUser }: any) {
                 <div className="inspection-list-footer">
                   <PermissionGate moduleId="inspection" optionId="inspection_finish">
                     <button className="finish-btn inspection-finish-btn" disabled={!canFinish || loading} onClick={finishInspection}>
-                      <i className="fas fa-flag-checkered"></i> {loading ? "Working..." : "Finish Inspection"}
+                      <i className="fas fa-flag-checkered"></i> {loading ? t("Working...") : t("Finish Inspection")}
                     </button>
                   </PermissionGate>
                 </div>
@@ -1355,10 +1409,10 @@ function InspectionModule({ currentUser }: any) {
             </div>
             <div className="cancel-modal-actions">
               <button className="btn-cancel" onClick={() => setShowInspectionConfirmation(false)}>
-                <i className="fas fa-times"></i> Cancel
+                <i className="fas fa-times"></i> {t("Cancel")}
               </button>
               <button className="btn-confirm-cancel" onClick={() => inspectionConfirmData.onConfirm && inspectionConfirmData.onConfirm()} disabled={loading}>
-                <i className="fas fa-check"></i> {loading ? "Working..." : "Confirm"}
+                <i className="fas fa-check"></i> {loading ? t("Working...") : t("Confirm")}
               </button>
             </div>
           </div>
@@ -1368,22 +1422,22 @@ function InspectionModule({ currentUser }: any) {
       <div className={`cancel-modal-overlay ${showCancelConfirmation && cancelOrderId ? "active" : ""}`}>
         <div className="cancel-modal">
           <div className="cancel-modal-header">
-            <h3><i className="fas fa-exclamation-triangle"></i> Confirm Cancellation</h3>
+            <h3><i className="fas fa-exclamation-triangle"></i> {t("Confirm Cancellation")}</h3>
           </div>
           <div className="cancel-modal-body">
             <div className="cancel-warning">
               <i className="fas fa-exclamation-circle"></i>
               <div className="cancel-warning-text">
-                <p>You are about to cancel order <strong>{cancelOrderId}</strong>.</p>
-                <p>This action cannot be undone.</p>
+                <p>{t("You are about to cancel order")} <strong>{cancelOrderId}</strong>.</p>
+                <p>{t("This action cannot be undone.")}</p>
               </div>
             </div>
             <div className="cancel-modal-actions">
               <button className="btn-cancel" onClick={() => { setShowCancelConfirmation(false); setCancelOrderId(null); }}>
-                <i className="fas fa-times"></i> Keep Order
+                <i className="fas fa-times"></i> {t("Keep Order")}
               </button>
               <button className="btn-confirm-cancel" onClick={() => void handleCancelOrder()} disabled={loading}>
-                <i className="fas fa-ban"></i> {loading ? "Cancelling..." : "Cancel Order"}
+                <i className="fas fa-ban"></i> {loading ? t("Cancelling...") : t("Cancel Order")}
               </button>
             </div>
           </div>
@@ -1408,7 +1462,7 @@ function InspectionModule({ currentUser }: any) {
                   if (r) void viewDetails(r);
                 }}
               >
-                <i className="fas fa-eye"></i> View Details
+                <i className="fas fa-eye"></i> {t("View Details")}
               </button>
             </PermissionGate>
             <PermissionGate moduleId="inspection" optionId="inspection_cancel">
@@ -1424,7 +1478,7 @@ function InspectionModule({ currentUser }: any) {
                     handleShowCancelConfirmation(target);
                   }}
                 >
-                  <i className="fas fa-times-circle"></i> Cancel Order
+                  <i className="fas fa-times-circle"></i> {t("Cancel Order")}
                 </button>
               </>
             </PermissionGate>
@@ -1503,10 +1557,10 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
     <div className="pim-details-screen">
       <div className="pim-details-header">
         <div className="pim-details-title-container">
-          <h2><i className="fas fa-plus-circle"></i> Add Services to Job Order</h2>
+          <h2><i className="fas fa-plus-circle"></i> {t("Add Services to Job Order")}</h2>
         </div>
         <button className="pim-btn-close-details" onClick={onClose}>
-          <i className="fas fa-times"></i> Cancel
+          <i className="fas fa-times"></i> {t("Cancel")}
         </button>
       </div>
 
@@ -1514,46 +1568,46 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
         <div className="form-card">
           <div className="form-card-title">
             <i className="fas fa-concierge-bell"></i>
-            <h2>Services Selection</h2>
+            <h2>{t("Services Selection")}</h2>
           </div>
 
           <div className="form-card-content">
-            <p>Select services for {vehicleType}:</p>
+            <p>{t("Select services for")} {vehicleType}:</p>
             {products.length === 0 ? (
               <div className="empty-state" style={{ padding: "28px 12px" }}>
-                <div className="empty-text">No services configured yet</div>
-                <div className="empty-subtext">Create services from Service Creation before adding services.</div>
+                <div className="empty-text">{t("No services configured yet")}</div>
+                <div className="empty-subtext">{t("Create services from Service Creation before adding services.")}</div>
               </div>
             ) : (
             <>
               <div className="svc-filter-bar">
                 <div className="svc-filter-row">
-                  <span className="svc-filter-label"><i className="fas fa-tags"></i> Category</span>
+                  <span className="svc-filter-label"><i className="fas fa-tags"></i> {t("Category")}</span>
                   <select
                     className="svc-filter-select"
                     value={inFilterCategory}
                     onChange={(e) => setInFilterCategory(e.target.value)}
                   >
-                    <option value="all">All Categories</option>
+                    <option value="all">{t("All Categories")}</option>
                     {inCategories.map((cat) => (
                       <option key={cat.id} value={cat.id}>{cat.nameEn}</option>
                     ))}
                   </select>
                 </div>
                 <div className="svc-filter-row">
-                  <span className="svc-filter-label"><i className="fas fa-layer-group"></i> Type</span>
+                  <span className="svc-filter-label"><i className="fas fa-layer-group"></i> {t("Type")}</span>
                   <div className="svc-type-pills">
-                    <button type="button" className={`svc-type-pill${inFilterType === "all" ? " active" : ""}`} onClick={() => setInFilterType("all")}>All</button>
-                    <button type="button" className={`svc-type-pill${inFilterType === "service" ? " active" : ""}`} onClick={() => setInFilterType("service")}><i className="fas fa-wrench"></i> Services</button>
-                    <button type="button" className={`svc-type-pill${inFilterType === "package" ? " active" : ""}`} onClick={() => setInFilterType("package")}><i className="fas fa-box-open"></i> Packages</button>
+                    <button type="button" className={`svc-type-pill${inFilterType === "all" ? " active" : ""}`} onClick={() => setInFilterType("all")}>{t("All")}</button>
+                    <button type="button" className={`svc-type-pill${inFilterType === "service" ? " active" : ""}`} onClick={() => setInFilterType("service")}><i className="fas fa-wrench"></i> {t("Services")}</button>
+                    <button type="button" className={`svc-type-pill${inFilterType === "package" ? " active" : ""}`} onClick={() => setInFilterType("package")}><i className="fas fa-box-open"></i> {t("Packages")}</button>
                   </div>
-                  <span className="svc-filter-count">{inFilteredProducts.length} of {products.length}</span>
+                  <span className="svc-filter-count">{inFilteredProducts.length} {t("of")} {products.length}</span>
                 </div>
               </div>
               {inFilteredProducts.length === 0 ? (
                 <div className="empty-state" style={{ padding: "24px 12px" }}>
-                  <div className="empty-text">No services match your filter</div>
-                  <div className="empty-subtext">Try a different category or type.</div>
+                  <div className="empty-text">{t("No services match your filter")}</div>
+                  <div className="empty-subtext">{t("Try a different category or type.")}</div>
                 </div>
               ) : (
               <div className="services-grid">
@@ -1569,7 +1623,7 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
                         {String(product?.type ?? "").toLowerCase() === "package" && (
                           <span className="jo-package-price-badge">
                             <i className="fas fa-box-open" aria-hidden="true"></i>
-                            Package Price Applied
+                            {t("Package Price Applied")}
                           </span>
                         )}
                       </div>
@@ -1583,10 +1637,10 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
             )}
 
             <div className="price-summary-box">
-              <h4>Price Summary</h4>
-              <div className="price-row"><span>Services:</span><span>{formatPrice(subtotal)}</span></div>
+              <h4>{t("Price Summary")}</h4>
+              <div className="price-row"><span>{t("Services:")}</span><span>{formatPrice(subtotal)}</span></div>
               <div className="price-row">
-                <span>Apply Discount:</span>
+                <span>{t("Apply Discount:")}</span>
                 <div>
                   <input
                     type="number"
@@ -1600,7 +1654,7 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
                 </div>
               </div>
               <div className="price-row">
-                <span>Remaining Allowed Discount:</span>
+                <span>{t("Remaining Allowed Discount:")}</span>
                 <span>{Number(maxAdditionalDiscountPercent.toFixed(2))}% ({formatPrice(maxAdditionalDiscountAmount)})</span>
               </div>
               {noRemainingDiscountAllowance ? (
@@ -1608,14 +1662,14 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
                   {t("No additional discount can be applied. The order has already reached the role policy discount limit.")}
                 </div>
               ) : null}
-              <div className="price-row discount-amount"><span>Discount Amount:</span><span>{formatPrice(discount)}</span></div>
-              <div className="price-row total"><span>Total:</span><span>{formatPrice(total)}</span></div>
+              <div className="price-row discount-amount"><span>{t("Discount Amount:")}</span><span>{formatPrice(discount)}</span></div>
+              <div className="price-row total"><span>{t("Total:")}</span><span>{formatPrice(total)}</span></div>
             </div>
 
             <div className="action-buttons">
-              <button className="btn btn-secondary" onClick={onClose}>Cancel</button>
+              <button className="btn btn-secondary" onClick={onClose}>{t("Cancel")}</button>
               <button className="btn btn-primary" onClick={() => onSubmit({ selectedServices, discountPercent: effectiveDiscountPercent })} disabled={selectedServices.length === 0 || products.length === 0}>
-                Add Services
+                {t("Add Services")}
               </button>
             </div>
           </div>

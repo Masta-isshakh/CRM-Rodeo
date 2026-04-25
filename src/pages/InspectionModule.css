@@ -1582,3 +1582,187 @@ body{
     max-width: 100% !important;
   }
 }
+
+/* ======================================================================
+   DAILY REPORT PREMIUM SHELL — applied to Inspection Module
+   ====================================================================== */
+:root {
+  --dr-bg-a: #f0f4ff;
+  --dr-bg-b: #e8f4fa;
+}
+
+.inspection-module {
+  position: relative;
+  background:
+    radial-gradient(1200px 380px at 8% -8%, rgba(37, 99, 235, 0.12), transparent 60%),
+    radial-gradient(1200px 380px at 100% -20%, rgba(14, 116, 144, 0.14), transparent 55%),
+    linear-gradient(135deg, var(--dr-bg-a), var(--dr-bg-b)) !important;
+  border-radius: 26px !important;
+  overflow: visible;
+}
+
+.inspection-module::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+  background-size: 20px 20px;
+  border-radius: 26px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.inspection-module > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Premium glass surfaces */
+.inspection-module .app-header,
+.inspection-module .search-section,
+.inspection-module .results-section,
+.inspection-module .detail-header,
+.inspection-module .pim-details-header {
+  background: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.58) !important;
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08), 0 1px 4px rgba(15, 23, 42, 0.06) !important;
+}
+
+.inspection-module .header-left h1,
+.inspection-module .detail-title-container h2,
+.inspection-module .pim-details-title-container h2 {
+  background: linear-gradient(135deg, #0f172a 0%, #1e40af 60%, #0e7490 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 950 !important;
+}
+
+.inspection-module .header-left h1 {
+  font-size: 22px !important;
+}
+
+/* Details cards + title bars */
+.inspection-module .pim-detail-card,
+.inspection-module .epm-detail-card,
+.inspection-module .inspection-card,
+.inspection-module .form-card {
+  background: rgba(255, 255, 255, 0.84) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.09), 0 1px 4px rgba(15, 23, 42, 0.06) !important;
+  overflow: hidden !important;
+}
+
+.inspection-module .pim-detail-card h3,
+.inspection-module .inspection-list-head h3,
+.inspection-module .inspection-service-head h3,
+.inspection-module .form-card-title h2 {
+  margin: 0 !important;
+  padding: 14px 18px !important;
+  font-size: 16px !important;
+  font-weight: 950 !important;
+  letter-spacing: 0.3px !important;
+  border-radius: 18px 18px 0 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  color: #fff !important;
+  background: linear-gradient(135deg, #0f172a 0%, #1e40af 70%, #0e7490 100%) !important;
+}
+
+.inspection-module .pim-detail-card h3 i,
+.inspection-module .inspection-list-head h3 i,
+.inspection-module .inspection-service-head h3 i,
+.inspection-module .form-card-title i {
+  width: 32px;
+  height: 32px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.18);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff !important;
+}
+
+/* Different colors for card titles to improve section identity */
+.inspection-module .detail-cards > *:nth-child(1) .pim-detail-card h3,
+.inspection-module .detail-cards > *:nth-child(1) h3 { background: linear-gradient(135deg, #0f172a 0%, #1e40af 100%) !important; }
+.inspection-module .detail-cards > *:nth-child(2) .pim-detail-card h3,
+.inspection-module .detail-cards > *:nth-child(2) h3 { background: linear-gradient(135deg, #065f46 0%, #059669 100%) !important; }
+.inspection-module .detail-cards > *:nth-child(3) .pim-detail-card h3,
+.inspection-module .detail-cards > *:nth-child(3) h3 { background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important; }
+.inspection-module .detail-cards > *:nth-child(4) .pim-detail-card h3,
+.inspection-module .detail-cards > *:nth-child(4) h3 { background: linear-gradient(135deg, #0e7490 0%, #0284c7 100%) !important; }
+.inspection-module .detail-cards > *:nth-child(5) .pim-detail-card h3,
+.inspection-module .detail-cards > *:nth-child(5) h3 { background: linear-gradient(135deg, #b45309 0%, #d97706 100%) !important; }
+
+.inspection-module .inspection-list-head h3 { background: linear-gradient(135deg, #be123c 0%, #e11d48 100%) !important; }
+
+/* Premium popups/modals */
+.inspection-module .cancel-modal-overlay {
+  backdrop-filter: blur(9px);
+  -webkit-backdrop-filter: blur(9px);
+}
+
+.inspection-module .cancel-modal {
+  border-radius: 22px !important;
+  border: 1px solid rgba(255, 255, 255, 0.45) !important;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5) inset, 0 32px 80px rgba(15, 23, 42, 0.28) !important;
+}
+
+.inspection-module .cancel-modal-header {
+  background: linear-gradient(135deg, #7f1d1d 0%, #dc2626 100%) !important;
+  border-radius: 22px 22px 0 0 !important;
+  padding: 18px 20px !important;
+}
+
+.inspection-module .cancel-modal-header h3 {
+  color: #fff !important;
+  font-size: 15.5px !important;
+}
+
+/* Action dropdown + controls */
+.inspection-module .btn-action-dropdown,
+.inspection-module .btn-add-service,
+.inspection-module .inspection-btn,
+.inspection-module .finish-btn {
+  border-radius: 12px !important;
+  font-weight: 900 !important;
+}
+
+@keyframes inspection-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.inspection-module .detail-view,
+.inspection-module .pim-details-screen {
+  animation: inspection-fade-in 0.22s ease;
+}
+
+@media (max-width: 760px) {
+  .inspection-module .header-left h1 {
+    font-size: 16px !important;
+  }
+
+  .inspection-module .pim-detail-card h3,
+  .inspection-module .inspection-list-head h3,
+  .inspection-module .inspection-service-head h3,
+  .inspection-module .form-card-title h2 {
+    font-size: 14px !important;
+    padding: 12px 14px !important;
+  }
+
+  .inspection-module .detail-title-container h2,
+  .inspection-module .pim-details-title-container h2 {
+    font-size: 14px !important;
+  }
+}
