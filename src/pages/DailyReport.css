@@ -409,6 +409,61 @@
   color: #0f172a;
 }
 
+.dr-source-row {
+  margin-top: 6px;
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 8px;
+  align-items: start;
+}
+
+.dr-source-row span {
+  font-size: 11px;
+  font-weight: 800;
+  color: #334155;
+}
+
+.dr-source-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.dr-source-pills button {
+  border: 1px solid rgba(14, 116, 144, 0.4);
+  border-radius: 999px;
+  background: rgba(240, 249, 255, 0.92);
+  color: #0c4a6e;
+  font-size: 11px;
+  font-weight: 800;
+  padding: 3px 8px;
+  cursor: pointer;
+}
+
+.dr-source-pills button:hover {
+  background: rgba(224, 242, 254, 0.96);
+  border-color: rgba(2, 132, 199, 0.55);
+}
+
+.dr-source-pills button.is-active {
+  background: rgba(14, 116, 144, 0.92);
+  border-color: rgba(14, 116, 144, 0.95);
+  color: #ecfeff;
+}
+
+.dr-source-trace em {
+  font-style: normal;
+  color: #64748b;
+}
+
+.dr-source-trace small {
+  display: block;
+  margin-top: 7px;
+  color: #64748b;
+  font-size: 10px;
+  font-weight: 700;
+}
+
 .dr-raw-json {
   margin-top: 8px;
 }
@@ -420,7 +475,7 @@
   color: #334155;
 }
 
-.dr-raw-json pre {
+.dr-json-view {
   margin: 8px 0 0;
   max-height: 280px;
   overflow: auto;
@@ -429,6 +484,18 @@
   border-radius: 8px;
   padding: 10px;
   font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+}
+
+.dr-json-line {
+  white-space: pre;
+  padding: 1px 4px;
+  border-radius: 4px;
+}
+
+.dr-json-line.is-hit {
+  background: rgba(250, 204, 21, 0.22);
+  color: #fef3c7;
 }
 
 .dr-simple-table {
@@ -480,6 +547,7 @@
   .dr-detail-item > summary { grid-template-columns: 1fr; }
   .dr-detail-grid { grid-template-columns: 1fr; }
   .dr-simple-row { grid-template-columns: 1fr; }
+  .dr-source-row { grid-template-columns: 1fr; }
 }
 
 /* Executive: restrained monochrome, boardroom feel */

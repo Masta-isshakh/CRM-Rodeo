@@ -1035,8 +1035,11 @@ export default function Customers({ permissions }: PageProps) {
   const openDetailsView = async (id: string) => {
     if (!canCustomersViewDetails) return;
 
-    setSelectedCustomerId(id);
-    setViewMode("details");
+    // Use flushSync to ensure UI state updates synchronously before async data fetch
+    flushSync(() => {
+      setSelectedCustomerId(id);
+      setViewMode("details");
+    });
 
     const cachedStats = customerStatsCacheRef.current.get(id);
     setCustomerStats(cachedStats ?? { vehicles: 0, completedServices: 0 });
@@ -1555,9 +1558,11 @@ export default function Customers({ permissions }: PageProps) {
     <div className="app-container customer-page" id="mainScreen">
       <header className="app-header crm-unified-header">
         <div className="header-left">
+          <p className="cust-kicker">{t("Customer Management")}</p>
           <h1>
-            <i className="fas fa-users" /> {t("Customers Management")}
+            <i className="fas fa-users" /> {t("Customers")}
           </h1>
+          <p className="cust-sub">{t("Manage customer information, vehicles, contacts, and relationships.")}</p>
         </div>
         <div className="header-right">
           {canCustomersRefresh && (

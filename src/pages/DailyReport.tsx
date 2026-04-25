@@ -184,6 +184,25 @@ export default function DailyReport({ permissions }: PageProps) {
   const [jobOrders, setJobOrders] = useState<JobOrderDetail[]>([]);
   const [customerDetails, setCustomerDetails] = useState<CustomerDetail[]>([]);
   const [vehicleDetails, setVehicleDetails] = useState<VehicleDetail[]>([]);
+  const [rawInspectorState, setRawInspectorState] = useState<Record<string, { open: boolean; focusKeys: string[] }>>({});
+
+  const openRawInspectorWithKey = (orderId: string, key: string, appendSelection: boolean) => {
+    if (!key) return;
+    setRawInspectorState((prev) => {
+      const previousKeys = prev[orderId]?.focusKeys ?? [];
+      const nextKeys = appendSelection
+        ? (previousKeys.includes(key) ? previousKeys.filter((existing) => existing !== key) : [...previousKeys, key])
+        : [key];
+
+      return {
+        ...prev,
+        [orderId]: {
+          open: true,
+          focusKeys: nextKeys,
+        },
+      };
+    });
+  };
 
   useEffect(() => {
     if (!permissions?.canRead) return;
@@ -542,17 +561,83 @@ export default function DailyReport({ permissions }: PageProps) {
                       <div className="dr-span-2"><strong>{t("Services")}</strong><p>{order.services.length > 0 ? order.services.join(" | ") : "—"}</p></div>
                       <div className="dr-span-2"><strong>{t("Products")}</strong><p>{order.products.length > 0 ? order.products.join(" | ") : "—"}</p></div>
                     </div>
-                    <p className="dr-source-trace">
-                      <strong>{t("Detected source columns used now")}: </strong>
-                      {t("Customer source")}: {order.customerSources.length > 0 ? order.customerSources.join(", ") : t("Unknown source")}
-                      {" | "}
-                      {t("Vehicle source")}: {order.vehicleSources.length > 0 ? order.vehicleSources.join(", ") : t("Unknown source")}
-                      {" | "}
-                      {t("Service source")}: {order.serviceSources.length > 0 ? order.serviceSources.join(", ") : t("Unknown source")}
-                    </p>
-                    <details className="dr-raw-json">
+                    <div className="dr-source-trace">
+                      <strong>{t("Detected source columns used now")}:</strong>
+                      <div className="dr-source-row">
+                        <span>{t("Customer source")}</span>
+                        <div className="dr-source-pills">
+                          {order.customerSources.length > 0 ? order.customerSources.map((key) => (
+                            <button
+                              key={`${order.id}-customer-${key}`}
+                              type="button"
+                              className={(rawInspectorState[order.id]?.focusKeys ?? []).includes(key) ? "is-active" : ""}
+                              onClick={(e) => openRawInspectorWithKey(order.id, key, e.ctrlKey || e.metaKey)}
+                            >
+                              {key}
+                            </button>
+                          )) : <em>{t("Unknown source")}</em>}
+                        </div>
+                      </div>
+                      <div className="dr-source-row">
+                        <span>{t("Vehicle source")}</span>
+                        <div className="dr-source-pills">
+                          {order.vehicleSources.length > 0 ? order.vehicleSources.map((key) => (
+                            <button
+                              key={`${order.id}-vehicle-${key}`}
+                              type="button"
+                              className={(rawInspectorState[order.id]?.focusKeys ?? []).includes(key) ? "is-active" : ""}
+                              onClick={(e) => openRawInspectorWithKey(order.id, key, e.ctrlKey || e.metaKey)}
+                            >
+                              {key}
+                            </button>
+                          )) : <em>{t("Unknown source")}</em>}
+                        </div>
+                      </div>
+                      <div className="dr-source-row">
+                        <span>{t("Service source")}</span>
+                        <div className="dr-source-pills">
+                          {order.serviceSources.length > 0 ? order.serviceSources.map((key) => (
+                            <button
+                              key={`${order.id}-service-${key}`}
+                              type="button"
+                              className={(rawInspectorState[order.id]?.focusKeys ?? []).includes(key) ? "is-active" : ""}
+                              onClick={(e) => openRawInspectorWithKey(order.id, key, e.ctrlKey || e.metaKey)}
+                            >
+                              {key}
+                            </button>
+                          )) : <em>{t("Unknown source")}</em>}
+                        </div>
+                      </div>
+                      <small>{t("Click a source label to open and highlight it in Raw Details. Use Ctrl/Cmd + click to multi-select.")}</small>
+                    </div>
+                    <details
+                      className="dr-raw-json"
+                      open={Boolean(rawInspectorState[order.id]?.open)}
+                      onToggle={(e) => {
+                        const nextOpen = (e.currentTarget as HTMLDetailsElement).open;
+                        setRawInspectorState((prev) => ({
+                          ...prev,
+                          [order.id]: {
+                            open: nextOpen,
+                            focusKeys: prev[order.id]?.focusKeys ?? [],
+                          },
+                        }));
+                      }}
+                    >
                       <summary>{t("Raw Details")}</summary>
-                      <pre>{JSON.stringify(order.raw, null, 2)}</pre>
+                      <div className="dr-json-view">
+                        {JSON.stringify(order.raw, null, 2)
+                          .split("\n")
+                          .map((line, idx) => {
+                            const focusedKeys = rawInspectorState[order.id]?.focusKeys ?? [];
+                            const isHit = focusedKeys.some((key) => line.includes(`"${key}"`));
+                            return (
+                              <div key={`${order.id}-json-${idx}`} className={`dr-json-line${isHit ? " is-hit" : ""}`}>
+                                {line || " "}
+                              </div>
+                            );
+                          })}
+                      </div>
                     </details>
                   </div>
                 </details>

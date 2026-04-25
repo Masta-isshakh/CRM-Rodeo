@@ -398,6 +398,7 @@ function getServiceDisplayName(service: any) {
 }
 
 function ServiceSpecificationModal({ product, onClose, onConfirm }: any) {
+  const { t } = useLanguage();
   const brands = Array.isArray(product?.specifications) ? product.specifications : [];
   const [brandId, setBrandId] = useState(() => String(brands[0]?.id || ""));
   const selectedBrand = brands.find((brand: any) => String(brand?.id || "") === brandId) || brands[0] || null;
@@ -439,20 +440,20 @@ function ServiceSpecificationModal({ product, onClose, onConfirm }: any) {
     <div className="sc2-overlay" onClick={onClose}>
       <div className="sc2-modal" onClick={(e) => e.stopPropagation()}>
         <div className="sc2-modal-header">
-          <h3><i className="fas fa-palette"></i> Service Specification</h3>
+          <h3><i className="fas fa-palette"></i> {t("Service Specification")}</h3>
           <button onClick={onClose}>✕</button>
         </div>
         <div className="sc2-modal-body">
           <div className="sc2-grid-1">
             <label>
-              <span>Service</span>
+              <span>{t("Service")}</span>
               <input value={getServiceDisplayName(product)} readOnly />
             </label>
           </div>
 
           <div className="sc2-grid-2" style={{ marginTop: 16 }}>
             <label>
-              <span>Brand *</span>
+              <span>{t("Brand")} *</span>
               <select value={brandId} onChange={(e) => setBrandId(e.target.value)}>
                 {brands.map((brand: any) => (
                   <option key={String(brand?.id || brand?.name)} value={String(brand?.id || "")}>
@@ -466,7 +467,7 @@ function ServiceSpecificationModal({ product, onClose, onConfirm }: any) {
               </small>
             </label>
             <label>
-              <span>Product *</span>
+              <span>{t("Product")} *</span>
               <select value={productId} onChange={(e) => setProductId(e.target.value)}>
                 {selectedBrandProducts.map((entry: any) => (
                   <option key={String(entry?.id || entry?.name)} value={String(entry?.id || "")}>
@@ -479,7 +480,7 @@ function ServiceSpecificationModal({ product, onClose, onConfirm }: any) {
 
           <div className="sc2-grid-1" style={{ marginTop: 16 }}>
             <label>
-              <span>Measurement *</span>
+              <span>{t("Measurement")} *</span>
               <select value={measurement} onChange={(e) => setMeasurement(e.target.value)}>
                 {selectedProductMeasurements.map((entry: any, index: number) => (
                   <option key={`${String(selectedProduct?.id || "product")}-measurement-${index}`} value={String(entry || "")}>
@@ -506,13 +507,13 @@ function ServiceSpecificationModal({ product, onClose, onConfirm }: any) {
                 ></span>
                 {selectedBrand?.name}
               </div>
-              {selectedProduct && <div className="sc2-empty">Selected product: {selectedProduct.name}</div>}
-              {measurement && <div className="sc2-empty">Selected measurement: {measurement}</div>}
+              {selectedProduct && <div className="sc2-empty">{t("Selected product")}: {selectedProduct.name}</div>}
+              {measurement && <div className="sc2-empty">{t("Selected measurement")}: {measurement}</div>}
             </div>
           )}
         </div>
         <div className="sc2-modal-actions">
-          <button className="sc2-btn ghost" onClick={onClose}>Cancel</button>
+          <button className="sc2-btn ghost" onClick={onClose}>{t("Cancel")}</button>
           <button
             className="sc2-btn blue"
             onClick={() =>
@@ -527,7 +528,7 @@ function ServiceSpecificationModal({ product, onClose, onConfirm }: any) {
             }
             disabled={!selectedBrand || !selectedProduct || !measurement}
           >
-            Apply Specification
+            {t("Apply Specification")}
           </button>
         </div>
       </div>
@@ -945,8 +946,10 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
     if (!orderKey) return;
 
     const immediateDetails = detailsViewCacheRef.current.get(orderKey) ?? order;
-    setCurrentDetailsOrder(immediateDetails);
-    setScreenState("details");
+    flushSync(() => {
+      setCurrentDetailsOrder(immediateDetails);
+      setScreenState("details");
+    });
 
     try {
       const fresh = await getJobOrderByOrderNumber(orderKey);
@@ -1344,9 +1347,11 @@ function MainScreen({
     <div className="app-container">
       <header className="app-header crm-unified-header">
         <div className="header-left">
+          <p className="jo-kicker">{t("Executive Operations")}</p>
           <h1>
             <i className="fas fa-tools"></i> {t("Job Order Management")}
           </h1>
+          <p className="jo-sub">{t("Unified daily brief for service, quality, finance, and staffing.")}</p>
         </div>
       </header>
 
@@ -2389,24 +2394,24 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
             <div className="warning-dialog">
               <div className="warning-dialog-header">
                 <i className="fas fa-exclamation-circle"></i>
-                <span>Duplicate Customer Warning</span>
+                <span>{t("Duplicate Customer Warning")}</span>
               </div>
               <div className="warning-dialog-body">
-                <p>This customer already exists in the system.</p>
+                <p>{t("This customer already exists in the system.")}</p>
                 <p>
                   <strong>Name:</strong> {pendingCustomer?.name}
                 </p>
                 <p>
                   <strong>Mobile:</strong> {pendingCustomer?.mobile}
                 </p>
-                <p className="warning-message">Are you sure you want to save as a new customer?</p>
+                <p className="warning-message">{t("Are you sure you want to save as a new customer?")}</p>
               </div>
               <div className="warning-dialog-footer">
                 <button className="btn btn-danger" onClick={() => void handleConfirmDuplicate()}>
-                  <i className="fas fa-check"></i> Yes, Save Anyway
+                  <i className="fas fa-check"></i> {t("Yes, Save Anyway")}
                 </button>
                 <button className="btn btn-secondary" onClick={handleCancelDuplicate}>
-                  <i className="fas fa-times"></i> No, Cancel
+                  <i className="fas fa-times"></i> {t("No, Cancel")}
                 </button>
               </div>
             </div>

@@ -743,16 +743,23 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   const endIndex = Math.min(startIndex + pageSize, filteredJobs.length);
   const paginatedJobs = filteredJobs.slice(startIndex, endIndex);
 
-  const openDetailsView = async (orderNumber: string) => {
+  const openDetailsView = async (orderNumber: string, listJob?: any) => {
     const orderKey = String(orderNumber ?? "").trim();
     if (!orderKey) return;
 
     const cachedDetails = detailsCacheRef.current.get(orderKey);
     if (cachedDetails) {
-      setCurrentDetailsJob(cachedDetails);
-      setDetailsEditMode(false);
-      setShowDetails(true);
+      flushSync(() => { setCurrentDetailsJob(cachedDetails); setDetailsEditMode(false); setShowDetails(true); });
       return;
+    }
+
+    // Instant stub from list row so UI shows immediately
+    if (listJob) {
+      flushSync(() => {
+        setCurrentDetailsJob({ ...listJob, services: listJob.services ?? [], roadmap: listJob.roadmap ?? [], documents: [], billing: null, exitPermit: null, customerDetails: null, vehicleDetails: null });
+        setDetailsEditMode(false);
+        setShowDetails(true);
+      });
     }
 
     setLoading(true);
@@ -940,9 +947,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
       };
 
       detailsCacheRef.current.set(orderKey, merged);
-      setCurrentDetailsJob(merged);
-      setDetailsEditMode(false); // reset each time you open
-      setShowDetails(true);
+      flushSync(() => { setCurrentDetailsJob(merged); setDetailsEditMode(false); setShowDetails(true); });
     } catch (e) {
       setSuccessMessage(`${t("Load failed:")} ${errMsg(e)}`);
       setShowSuccessPopup(true);
@@ -1201,7 +1206,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
               <PermissionGate moduleId="serviceexec" optionId="serviceexec_roadmap">
                 <div className="jh-card jh-span-2">
                   {roadmap.length === 0 ? (
-                    <div className="jh-empty-inline">No roadmap data.</div>
+                    <div className="jh-empty-inline">{t("No roadmap data.")}</div>
                   ) : (
                     <UnifiedJobOrderRoadmap order={{ ...currentDetailsJob, roadmap }} />
                   )}
@@ -1399,9 +1404,10 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                           onClick={() => {
                             if (!activeDropdown) return;
                             const target = activeDropdown;
+                            const listJob = jobs.find(j => String(j.id ?? "") === String(target ?? "") || String(j.orderNumber ?? "") === String(target ?? ""));
                             activeDropdownRef.current = null;
                             setActiveDropdown(null);
-                            void openDetailsView(target);
+                            void openDetailsView(target, listJob);
                           }}
                         >
                           <i className="fas fa-eye"></i> {t("View Details")}

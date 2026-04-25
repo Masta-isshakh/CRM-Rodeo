@@ -1,4 +1,5 @@
 // src/pages/JobOrderHistory.tsx
+import { flushSync } from "react-dom";
 import  { useEffect, useMemo, useRef, useState } from "react";
 import "./JobOrderHistory.css";
 
@@ -856,17 +857,71 @@ export default function JobOrderHistory({
   };
 
   // -------------------- DETAILS LOADER --------------------
-  const openDetails = async (orderNumber: string) => {
+  const openDetails = async (orderNumber: string, listRow?: ListRow) => {
     const orderKey = String(orderNumber ?? "").trim();
     if (!orderKey) return;
 
     const cached = detailsCacheRef.current.get(orderKey);
     if (cached) {
-      setSelectedOrder(cached);
+      flushSync(() => setSelectedOrder(cached));
       return;
     }
 
-    setLoading(true);
+    // Immediately show the details screen using what we already know from the list row
+    const stub: DetailsOrder | null = listRow
+      ? {
+          _backendId: listRow._backendId,
+          id: orderKey,
+          orderType: listRow.orderType,
+          customerName: listRow.customerName,
+          mobile: listRow.mobile,
+          vehiclePlate: listRow.vehiclePlate,
+          workStatus: listRow.workStatus,
+          paymentStatus: listRow.paymentStatus,
+          roadmap: [],
+          documents: [],
+          services: [],
+          billing: {
+            billId: "",
+            totalAmount: "—",
+            discount: "—",
+            netAmount: "—",
+            amountPaid: "—",
+            balanceDue: "—",
+            paymentMethod: "",
+            invoices: [],
+          },
+          exitPermit: null,
+          customerDetails: null,
+          vehicleDetails: null,
+          customerNotes: null,
+          paymentActivityLog: [],
+          summary: {
+            jobOrderId: orderKey,
+            orderType: listRow.orderType,
+            requestCreateDate: listRow.createDate,
+            requestCreateDateTime: listRow.createDate,
+            createdBy: "—",
+            expectedDeliveryDate: "—",
+            workStatus: listRow.workStatus,
+            paymentStatus: listRow.paymentStatus,
+            exitPermitStatus: "—",
+            customerName: listRow.customerName,
+            customerMobile: listRow.mobile,
+            vehiclePlate: listRow.vehiclePlate,
+            orderStatusEnum: listRow.statusEnum,
+            paymentStatusEnum: listRow.paymentEnum,
+            updatedAt: "—",
+            updatedBy: "—",
+          },
+        }
+      : null;
+
+    flushSync(() => {
+      setLoading(true);
+      if (stub) setSelectedOrder(stub);
+    });
+
     try {
       const detailed = await getJobOrderByOrderNumber(orderKey);
       if (!detailed?._backendId) throw new Error("Order not found in backend.");
@@ -1123,11 +1178,13 @@ export default function JobOrderHistory({
       };
 
       detailsCacheRef.current.set(orderKey, merged);
-      setSelectedOrder(merged);
+      flushSync(() => {
+        setSelectedOrder(merged);
+        setLoading(false);
+      });
     } catch (e) {
       alert(`${t("Load failed:")} ${errMsg(e)}`);
-    } finally {
-      setLoading(false);
+      flushSync(() => setLoading(false));
     }
   };
 
@@ -1162,8 +1219,12 @@ export default function JobOrderHistory({
     <div className="jh-root">
       <header className="jh-header crm-unified-header">
         <div className="jh-header-left">
+          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--dr-brand)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 4 }}>
+            <i className="fas fa-history" style={{ marginRight: 6 }} />
+            {t("Records")}
+          </div>
           <h1>
-            <i className="fas fa-history" /> {t("Job Order History")}
+            {t("Job Order History")}
           </h1>
           <div className="jh-sub">
             {t("Cancelled + Unpaid and Completed + Fully Paid job orders (live from backend)")}
@@ -1274,7 +1335,7 @@ export default function JobOrderHistory({
                             <button
                               className="jh-btn jh-btn-primary"
                               type="button"
-                              onClick={() => void openDetails(r.orderNumber)}
+                              onClick={() => void openDetails(r.orderNumber, r)}
                             >
                               <i className="fas fa-eye" /> {t("View Details")}
                             </button>
@@ -1523,7 +1584,7 @@ function JobHistoryDetails({
                         </div>
                         <div className="pim-service-meta-row">
                           <span className="pim-service-meta-label">{t("Technician:")}</span>
-                          <span className="pim-service-meta-value">{resolveHistoryServiceActor(svc, displayUser)}</span>
+                          <span className="pim-service-meta-value">{t(resolveHistoryServiceActor(svc, displayUser))}</span>
                         </div>
                         {svc?.started ? (
                           <div className="pim-service-meta-row">
@@ -1539,7 +1600,7 @@ function JobHistoryDetails({
                         ) : null}
                         <div className="pim-service-meta-row">
                           <span className="pim-service-meta-label">{t("Duration:")}</span>
-                          <span className="pim-service-meta-value">{formatHistoryServiceDuration(svc?.started, svc?.ended)}</span>
+                          <span className="pim-service-meta-value">{t(formatHistoryServiceDuration(svc?.started, svc?.ended))}</span>
                         </div>
                         {svc?.notes ? (
                           <div className="pim-service-meta-row" style={{ gridColumn: "span 2" }}>

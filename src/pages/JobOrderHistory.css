@@ -960,3 +960,364 @@
     margin-right: 0 !important;
   }
 }
+
+/* ================================================================
+   DAILY REPORT PREMIUM SHELL — Job Order History
+   Exact cube-grid background matching DailyReport flavor-technical
+   ================================================================ */
+.jh-root,
+.jh-details {
+  --dr-bg-a: #f8f7f2;
+  --dr-bg-b: #eef2ff;
+  --dr-panel: rgba(255, 255, 255, 0.84);
+  --dr-border: rgba(15, 23, 42, 0.11);
+  --dr-text: #111827;
+  --dr-muted: #4b5563;
+  --dr-shadow: 0 24px 55px rgba(15, 23, 42, 0.12);
+  --dr-gold: #a16207;
+  --dr-brand: #0e7490;
+  background:
+    radial-gradient(1200px 380px at 8% -8%, rgba(161, 98, 7, 0.14), transparent 60%),
+    radial-gradient(1200px 380px at 100% -20%, rgba(14, 116, 144, 0.17), transparent 55%),
+    linear-gradient(135deg, var(--dr-bg-a), var(--dr-bg-b)) !important;
+  border: 1px solid var(--dr-border) !important;
+  border-radius: 26px !important;
+  box-shadow: var(--dr-shadow) !important;
+  color: var(--dr-text) !important;
+  position: relative !important;
+  overflow: hidden !important;
+  animation: jh-fade-in 260ms ease-out;
+}
+
+.jh-root::before,
+.jh-details::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.045) 1px, transparent 1px);
+  background-size: 20px 20px;
+  pointer-events: none;
+  mask-image: none;
+  z-index: 0;
+}
+
+.jh-root > *,
+.jh-details > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Premium header */
+.jh-header {
+  background: rgba(255, 255, 255, 0.75) !important;
+  backdrop-filter: blur(14px) !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
+  border-radius: 26px 26px 0 0 !important;
+  padding: 22px 26px !important;
+}
+
+.jh-header-left h1 {
+  font-size: 22px !important;
+  font-weight: 900 !important;
+  background: linear-gradient(135deg, #0f172a 0%, #0e7490 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.3px;
+}
+
+.jh-sub {
+  font-size: 12px;
+  color: var(--dr-muted);
+  margin-top: 4px;
+  font-weight: 500;
+}
+
+/* Premium details header */
+.jh-details-head {
+  background: rgba(255, 255, 255, 0.75) !important;
+  backdrop-filter: blur(14px) !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
+  border-radius: 26px 26px 0 0 !important;
+  padding: 18px 24px !important;
+}
+
+.jh-details-title h2 {
+  font-size: 18px !important;
+  font-weight: 900 !important;
+  background: linear-gradient(135deg, #0f172a 0%, #0e7490 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Main area transparent so shell shows through */
+.jh-main {
+  background: transparent !important;
+  padding: 18px 20px !important;
+}
+
+.jh-details-body {
+  background: transparent !important;
+  padding: 18px 20px !important;
+}
+
+/* Search box premium */
+.jh-search-box {
+  background: rgba(255, 255, 255, 0.82) !important;
+  backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(15, 23, 42, 0.09) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06) !important;
+}
+
+/* Table section glassmorphism */
+.jh-section {
+  background: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(15, 23, 42, 0.09) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.07) !important;
+}
+
+.jh-section-head {
+  background: linear-gradient(90deg, rgba(14, 116, 144, 0.07), rgba(161, 98, 7, 0.04)) !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.07) !important;
+  border-radius: 16px 16px 0 0 !important;
+}
+
+.jh-section-head h2 {
+  background: linear-gradient(135deg, #0f172a, #0e7490);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-size: 15px !important;
+}
+
+.jh-table thead th {
+  background: rgba(248, 250, 255, 0.90) !important;
+  font-weight: 800;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* Detail cards premium glassmorphism */
+.jh-card {
+  background: rgba(255, 255, 255, 0.82) !important;
+  backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(15, 23, 42, 0.09) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06) !important;
+  overflow: hidden !important;
+}
+
+.jh-card h3 {
+  background: linear-gradient(90deg, rgba(14, 116, 144, 0.08), transparent) !important;
+  margin: -11px -12px 12px -12px !important;
+  padding: 13px 16px !important;
+  border-radius: 16px 16px 0 0 !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.07) !important;
+  font-size: 13px !important;
+  font-weight: 900 !important;
+  color: #0f172a !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.jh-card h3 i {
+  color: var(--dr-brand);
+}
+
+/* ============================================================
+   PREMIUM MODAL (Export + any future modals)
+   ============================================================ */
+.jh-modal-overlay {
+  background: rgba(15, 23, 42, 0.55) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.jh-modal {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.5) inset,
+    0 32px 80px rgba(15, 23, 42, 0.28) !important;
+  border-radius: 22px !important;
+  overflow: hidden !important;
+}
+
+.jh-modal-head {
+  background: linear-gradient(135deg, rgba(14, 116, 144, 0.09), rgba(161, 98, 7, 0.06)) !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
+  padding: 20px 22px !important;
+}
+
+.jh-modal-head h3 {
+  font-size: 16px !important;
+  font-weight: 900 !important;
+  background: linear-gradient(135deg, #0f172a, #0e7490);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+}
+
+.jh-modal-head h3 i {
+  -webkit-text-fill-color: var(--dr-brand);
+}
+
+.jh-x {
+  background: rgba(255, 255, 255, 0.8) !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  border-radius: 12px !important;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.jh-x:hover {
+  background: rgba(220, 38, 38, 0.08) !important;
+  border-color: rgba(220, 38, 38, 0.25) !important;
+  color: #dc2626;
+}
+
+.jh-modal-body {
+  padding: 20px 22px !important;
+}
+
+.jh-modal-actions {
+  background: rgba(248, 247, 242, 0.6);
+  border-top: 1px solid rgba(15, 23, 42, 0.08) !important;
+  padding: 16px 22px !important;
+  gap: 12px !important;
+}
+
+.jh-field label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--dr-muted);
+  margin-bottom: 7px;
+  display: block;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.jh-field input {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border: 1px solid rgba(15, 23, 42, 0.13) !important;
+  border-radius: 12px !important;
+  padding: 10px 12px !important;
+  font-size: 13px;
+  width: 100%;
+  outline: none;
+}
+
+.jh-field input:focus {
+  border-color: rgba(14, 116, 144, 0.45) !important;
+  box-shadow: 0 0 0 3px rgba(14, 116, 144, 0.10) !important;
+}
+
+/* Premium action buttons */
+.jh-btn {
+  border-radius: 12px !important;
+  padding: 9px 16px !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  cursor: pointer !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  color: var(--dr-text) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 7px !important;
+}
+
+.jh-btn-primary {
+  background: rgba(14, 116, 144, 0.1) !important;
+  border-color: rgba(14, 116, 144, 0.35) !important;
+  color: #0e7490 !important;
+}
+
+.jh-btn-primary:hover {
+  background: rgba(14, 116, 144, 0.18) !important;
+}
+
+.jh-btn-secondary {
+  background: rgba(14, 116, 144, 0.07) !important;
+  border-color: rgba(14, 116, 144, 0.25) !important;
+  color: #0e7490 !important;
+}
+
+/* Loading state */
+.jh-loading {
+  color: var(--dr-brand) !important;
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  animation: jh-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes jh-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* Footer */
+.jh-footer {
+  background: transparent !important;
+  color: var(--dr-muted) !important;
+  font-size: 12px;
+  text-align: center;
+  padding: 14px 18px !important;
+}
+
+/* Mobile premium tuning */
+@media (max-width: 760px) {
+  .jh-root,
+  .jh-details {
+    border-radius: 16px !important;
+  }
+
+  .jh-header,
+  .jh-details-head {
+    border-radius: 16px 16px 0 0 !important;
+    padding: 16px 18px !important;
+  }
+
+  .jh-header-left h1 {
+    font-size: 17px !important;
+  }
+
+  .jh-details-title h2 {
+    font-size: 15px !important;
+  }
+
+  .jh-modal {
+    border-radius: 18px !important;
+  }
+
+  .jh-main,
+  .jh-details-body {
+    padding: 12px 14px !important;
+  }
+
+  .jh-card h3 {
+    font-size: 12px !important;
+    padding: 11px 13px !important;
+  }
+}
+
+@keyframes jh-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}

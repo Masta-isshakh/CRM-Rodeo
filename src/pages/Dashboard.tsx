@@ -451,6 +451,14 @@ export default function Dashboard({ permissions, email, visibility, onNavigate }
 
   return (
     <div className="od-stage">
+      <header className="od-page-header">
+        <div>
+          <p className="od-kicker">{t("Executive Operations")}</p>
+          <h1>{t("Dashboard")}</h1>
+          <p className="od-sub">{t("Unified daily brief for service, quality, finance, and staffing.")}</p>
+        </div>
+      </header>
+
       <section className="od-top-grid">
         <div className="od-left-stack">
           <article className="od-welcome-card">

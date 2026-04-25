@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { flushSync } from "react-dom";
 import PermissionGate from "./PermissionGate";
 import "./ServiceCreation.css";
 import {
@@ -351,8 +352,8 @@ export default function ServiceCreation() {
         category: {
           id: "uncategorized",
           categoryCode: "UNC",
-          nameEn: "Uncategorized",
-          nameAr: "غير مصنف",
+          nameEn: t("Uncategorized"),
+          nameAr: t("Uncategorized"),
           descriptionEn: "",
           descriptionAr: "",
           isActive: true,
@@ -362,7 +363,7 @@ export default function ServiceCreation() {
     }
 
     return out;
-  }, [categories, services]);
+  }, [categories, services, t]);
 
   const avgServicesPerCategory = useMemo(() => {
     const count = categories.length || 1;
@@ -376,38 +377,40 @@ export default function ServiceCreation() {
   }, [packages]);
 
   const closeModal = () => {
-    setModalType("none");
-    setError("");
-    setEditingBrandSpecification(null);
-    setSelectedServiceSpecificationIds([]);
+    flushSync(() => {
+      setModalType("none");
+      setError("");
+      setEditingBrandSpecification(null);
+      setSelectedServiceSpecificationIds([]);
+    });
   };
 
   const openCategoryModal = (item?: ServiceCategoryItem) => {
-    setError("");
-    setEditingCategory(item || null);
-    if (item) {
-      setCategoryForm({
-        id: item.id,
-        categoryCode: item.categoryCode,
-        nameEn: item.nameEn,
-        nameAr: item.nameAr,
-        descriptionEn: item.descriptionEn || "",
-        descriptionAr: item.descriptionAr || "",
-      });
-    } else {
-      setCategoryForm({
-        ...EMPTY_CATEGORY_FORM,
-        categoryCode: makeNextCode(categories.map((c) => c.categoryCode), "CAT"),
-      });
-    }
-    setModalType("category");
+    const nextForm: CategoryFormState = item
+      ? {
+          id: item.id,
+          categoryCode: item.categoryCode,
+          nameEn: item.nameEn,
+          nameAr: item.nameAr,
+          descriptionEn: item.descriptionEn || "",
+          descriptionAr: item.descriptionAr || "",
+        }
+      : {
+          ...EMPTY_CATEGORY_FORM,
+          categoryCode: makeNextCode(categories.map((c) => c.categoryCode), "CAT"),
+        };
+
+    flushSync(() => {
+      setError("");
+      setEditingCategory(item || null);
+      setCategoryForm(nextForm);
+      setModalType("category");
+    });
   };
 
   const openServiceModal = (item?: ServiceCatalogItem) => {
-    setError("");
-    setEditingService(item || null);
-    if (item) {
-      setServiceForm({
+    const nextForm: ServiceFormState = item
+      ? {
         id: item.id,
         categoryId: item.categoryId || "",
         serviceCode: item.serviceCode,
@@ -422,23 +425,25 @@ export default function ServiceCreation() {
         coupePrice: String(item.coupePrice ?? ""),
         otherPrice: String(item.otherPrice ?? ""),
         specificationId: item.specificationId || "",
-      });
-      setSelectedServiceSpecificationIds(resolveServiceSpecificationIds(item, brandSpecifications));
-    } else {
-      setServiceForm({
+      }
+      : {
         ...EMPTY_SERVICE_FORM,
         serviceCode: makeNextCode(services.map((s) => s.serviceCode), "SVC"),
-      });
-      setSelectedServiceSpecificationIds([]);
-    }
-    setModalType("service");
+      };
+    const nextSpecifications = item ? resolveServiceSpecificationIds(item, brandSpecifications) : [];
+
+    flushSync(() => {
+      setError("");
+      setEditingService(item || null);
+      setServiceForm(nextForm);
+      setSelectedServiceSpecificationIds(nextSpecifications);
+      setModalType("service");
+    });
   };
 
   const openPackageModal = (item?: ServiceCatalogItem) => {
-    setError("");
-    setEditingPackage(item || null);
-    if (item) {
-      setPackageForm({
+    const nextForm: PackageFormState = item
+      ? {
         id: item.id,
         packageCode: item.serviceCode,
         nameEn: item.name,
@@ -452,35 +457,41 @@ export default function ServiceCreation() {
         coupePrice: String(item.coupePrice ?? ""),
         otherPrice: String(item.otherPrice ?? ""),
         includedServiceCodes: item.includedServiceCodes || [],
-      });
-    } else {
-      setPackageForm({
+      }
+      : {
         ...EMPTY_PACKAGE_FORM,
         packageCode: makeNextCode(packages.map((p) => p.serviceCode), "PKG"),
-      });
-    }
-    setModalType("package");
+      };
+
+    flushSync(() => {
+      setError("");
+      setEditingPackage(item || null);
+      setPackageForm(nextForm);
+      setModalType("package");
+    });
   };
 
   const openSpecificationModal = (item?: ServiceBrandSpecificationItem) => {
-    setError("");
-    setEditingBrandSpecification(item || null);
-    if (item) {
-      setBrandSpecificationForm({
+    const nextForm: BrandSpecificationFormState = item
+      ? {
         id: item.id,
         specificationCode: item.specificationCode,
         brandName: item.brandName,
         colorHex: item.colorHex || "#1F2937",
-      });
-      setSpecificationBrands(mapSpecificationBrands(item.specifications));
-    } else {
-      setBrandSpecificationForm({
+      }
+      : {
         ...EMPTY_BRAND_SPECIFICATION_FORM,
         specificationCode: makeNextCode(brandSpecifications.map((specification) => specification.specificationCode), "SPC"),
-      });
-      setSpecificationBrands([createEmptySpecificationBrand()]);
-    }
-    setModalType("specification");
+      };
+    const nextBrands = item ? mapSpecificationBrands(item.specifications) : [createEmptySpecificationBrand()];
+
+    flushSync(() => {
+      setError("");
+      setEditingBrandSpecification(item || null);
+      setBrandSpecificationForm(nextForm);
+      setSpecificationBrands(nextBrands);
+      setModalType("specification");
+    });
   };
 
   const validateCategory = () => {
@@ -530,16 +541,16 @@ export default function ServiceCreation() {
 
       if (categoryForm.id) {
         await updateServiceCategoryItem({ id: categoryForm.id, ...payload });
-        setBanner({ message: "Category updated successfully." });
+        setBanner({ message: t("Category updated successfully.") });
       } else {
         await createServiceCategoryItem(payload);
-        setBanner({ message: "Category created successfully." });
+        setBanner({ message: t("Category created successfully.") });
       }
 
       closeModal();
       await loadData();
     } catch (e: any) {
-      setError(String(e?.message || "Failed to save category"));
+      setError(String(e?.message || t("Failed to save category")));
     } finally {
       setSaving(false);
     }
@@ -611,16 +622,16 @@ export default function ServiceCreation() {
 
       if (serviceForm.id) {
         await updateServiceCatalogItem({ id: serviceForm.id, ...payload });
-        setBanner({ message: "Service updated successfully." });
+        setBanner({ message: t("Service updated successfully.") });
       } else {
         await createServiceCatalogItem(payload);
-        setBanner({ message: "Service created successfully." });
+        setBanner({ message: t("Service created successfully.") });
       }
 
       closeModal();
       await loadData();
     } catch (e: any) {
-      setError(String(e?.message || "Failed to save service"));
+      setError(String(e?.message || t("Failed to save service")));
     } finally {
       setSaving(false);
     }
@@ -661,16 +672,16 @@ export default function ServiceCreation() {
 
       if (packageForm.id) {
         await updateServiceCatalogItem({ id: packageForm.id, ...payload });
-        setBanner({ message: "Package updated successfully." });
+        setBanner({ message: t("Package updated successfully.") });
       } else {
         await createServiceCatalogItem(payload);
-        setBanner({ message: "Package created successfully." });
+        setBanner({ message: t("Package created successfully.") });
       }
 
       closeModal();
       await loadData();
     } catch (e: any) {
-      setError(String(e?.message || "Failed to save package"));
+      setError(String(e?.message || t("Failed to save package")));
     } finally {
       setSaving(false);
     }
@@ -693,7 +704,7 @@ export default function ServiceCreation() {
         }
 
         await deleteServiceCategoryItem(pendingDelete.item.id);
-        setBanner({ message: "Category deleted successfully." });
+        setBanner({ message: t("Category deleted successfully.") });
       } else if (pendingDelete.type === "specification") {
         const isAssigned = services.some((service) => service.specificationId === pendingDelete.item.id);
         if (isAssigned) {
@@ -706,10 +717,10 @@ export default function ServiceCreation() {
         }
 
         await deleteServiceBrandSpecificationItem(pendingDelete.item.id);
-        setBanner({ message: "Brand specification deleted successfully." });
+        setBanner({ message: t("Brand specification deleted successfully.") });
       } else {
         await deleteServiceCatalogItem(pendingDelete.item.id);
-        setBanner({ message: `${pendingDelete.item.type === "package" ? "Package" : "Service"} deleted successfully.` });
+        setBanner({ message: `${pendingDelete.item.type === "package" ? t("Package") : t("Service")} ${t("deleted successfully.")}` });
       }
 
       setPendingDelete(null);
@@ -768,13 +779,13 @@ export default function ServiceCreation() {
       setBanner({
         message:
           sanitized.length > 0
-            ? "Brand specification saved successfully."
-            : "Brand specification cleared successfully.",
+            ? t("Brand specification saved successfully.")
+            : t("Brand specification cleared successfully."),
       });
       closeModal();
       await loadData();
     } catch (e: any) {
-      setError(String(e?.message || "Failed to save brand specification"));
+      setError(String(e?.message || t("Failed to save brand specification")));
     } finally {
       setSaving(false);
     }
@@ -791,16 +802,37 @@ export default function ServiceCreation() {
     </div>
   );
 
+  const switchTab = (tab: Tab) => {
+    flushSync(() => {
+      setActiveTab(tab);
+    });
+  };
+
   return (
     <div className="sc2-page">
+      <header className="sc2-page-header">
+        <div className="sc2-page-header-left">
+          <p className="sc2-kicker">{t("Service Intelligence")}</p>
+          <h1>
+            <i className="fas fa-tools"></i> {t("Service Creation")}
+          </h1>
+          <p className="sc2-sub">{t("Configure services, packages, and brand specifications with bilingual visibility.")}</p>
+        </div>
+        <div className="sc2-page-header-right">
+          <button className="sc2-btn blue sc2-refresh" onClick={() => void loadData()} disabled={loading || saving}>
+            <i className="fas fa-sync"></i> {loading ? t("Loading...") : t("Refresh")}
+          </button>
+        </div>
+      </header>
+
       <div className="sc2-tabs">
-        <button className={activeTab === "services" ? "active" : ""} onClick={() => setActiveTab("services")}>
+        <button className={activeTab === "services" ? "active" : ""} onClick={() => switchTab("services")}>
           <i className="fas fa-cog"></i> {t("Services")}
         </button>
-        <button className={activeTab === "packages" ? "active" : ""} onClick={() => setActiveTab("packages")}>
+        <button className={activeTab === "packages" ? "active" : ""} onClick={() => switchTab("packages")}>
           <i className="fas fa-suitcase"></i> {t("Packages")}
         </button>
-        <button className={activeTab === "specifications" ? "active" : ""} onClick={() => setActiveTab("specifications")}>
+        <button className={activeTab === "specifications" ? "active" : ""} onClick={() => switchTab("specifications")}>
           <i className="fas fa-palette"></i> {t("Service Specification")}
         </button>
       </div>
@@ -842,7 +874,7 @@ export default function ServiceCreation() {
                 <div className="sc2-category-title">
                   <i className="fas fa-folder"></i>
                   <span>{displayBilingual(row.category.nameEn, row.category.nameAr)}</span>
-                  <small>{row.services.length} services</small>
+                  <small>{row.services.length} {t("services")}</small>
                 </div>
                 {row.category.id !== "uncategorized" && (
                   <div className="sc2-inline-actions">
@@ -877,7 +909,7 @@ export default function ServiceCreation() {
                         </PermissionGate>
                         <PermissionGate moduleId="joborder" optionId="joborder_create">
                           <button className="sc2-mini-btn warn" onClick={() => openServiceModal(service)}>
-                            {service.specificationId ? "Change Brand Spec" : "Set Brand Spec"}
+                            {service.specificationId ? t("Change Brand Spec") : t("Set Brand Spec")}
                           </button>
                         </PermissionGate>
                         <PermissionGate moduleId="joborder" optionId="joborder_create">
@@ -901,10 +933,10 @@ export default function ServiceCreation() {
                             className="sc2-chip"
                             style={brand.colorHex ? { borderColor: brand.colorHex, color: brand.colorHex } : undefined}
                           >
-                            Brand: {brand.name}
+                            {t("Brand")}: {brand.name}
                           </span>
                         ))}
-                        <span className="sc2-chip">{service.specifications.length} brands</span>
+                        <span className="sc2-chip">{service.specifications.length} {t("brands")}</span>
                       </div>
                     )}
                   </div>
@@ -1003,12 +1035,12 @@ export default function ServiceCreation() {
                 <div className="sc2-inline-actions">
                   <PermissionGate moduleId="joborder" optionId="joborder_create">
                     <button className="sc2-mini-btn warn" onClick={() => openSpecificationModal(specification)}>
-                      Edit
+                      {t("Edit")}
                     </button>
                   </PermissionGate>
                   <PermissionGate moduleId="joborder" optionId="joborder_create">
                     <button className="sc2-mini-btn danger" onClick={() => setPendingDelete({ type: "specification", item: specification })}>
-                      Delete
+                      {t("Delete")}
                     </button>
                   </PermissionGate>
                 </div>
@@ -1048,26 +1080,26 @@ export default function ServiceCreation() {
             {modalType === "category" && (
               <>
                 <div className="sc2-modal-header">
-                  <h3><i className="fas fa-folder-plus"></i> {editingCategory ? "Edit Category" : "Add New Category"}</h3>
+                  <h3><i className="fas fa-folder-plus"></i> {editingCategory ? t("Edit Category") : t("Add New Category")}</h3>
                   <button onClick={closeModal}>✕</button>
                 </div>
                 <div className="sc2-modal-body">
                   <div className="sc2-grid-2">
                     <label>
                       <span>{t("English Name *")}</span>
-                      <input value={categoryForm.nameEn} onChange={(e) => setCategoryForm((p) => ({ ...p, nameEn: e.target.value }))} placeholder="Category name in English" />
+                      <input value={categoryForm.nameEn} onChange={(e) => setCategoryForm((p) => ({ ...p, nameEn: e.target.value }))} placeholder={t("Category name in English")} />
                     </label>
                     <label>
-                      <span>الاسم بالعربية *</span>
-                      <input value={categoryForm.nameAr} onChange={(e) => setCategoryForm((p) => ({ ...p, nameAr: e.target.value }))} placeholder="اسم الفئة بالعربية" />
+                      <span>{t("Arabic Name *")}</span>
+                      <input value={categoryForm.nameAr} onChange={(e) => setCategoryForm((p) => ({ ...p, nameAr: e.target.value }))} placeholder={t("Category name in Arabic")} />
                     </label>
                     <label>
                       <span>{t("English Description")}</span>
-                      <textarea value={categoryForm.descriptionEn} onChange={(e) => setCategoryForm((p) => ({ ...p, descriptionEn: e.target.value }))} placeholder="Category description in English" />
+                      <textarea value={categoryForm.descriptionEn} onChange={(e) => setCategoryForm((p) => ({ ...p, descriptionEn: e.target.value }))} placeholder={t("Category description in English")} />
                     </label>
                     <label>
-                      <span>الوصف بالعربية</span>
-                      <textarea value={categoryForm.descriptionAr} onChange={(e) => setCategoryForm((p) => ({ ...p, descriptionAr: e.target.value }))} placeholder="وصف الفئة بالعربية" />
+                      <span>{t("Arabic Description")}</span>
+                      <textarea value={categoryForm.descriptionAr} onChange={(e) => setCategoryForm((p) => ({ ...p, descriptionAr: e.target.value }))} placeholder={t("Category description in Arabic")} />
                     </label>
                   </div>
                 </div>
@@ -1077,7 +1109,7 @@ export default function ServiceCreation() {
             {modalType === "service" && (
               <>
                 <div className="sc2-modal-header">
-                  <h3><i className="fas fa-plus-circle"></i> {editingService ? "Edit Service" : "Add New Service"}</h3>
+                  <h3><i className="fas fa-plus-circle"></i> {editingService ? t("Edit Service") : t("Add New Service")}</h3>
                   <button onClick={closeModal}>✕</button>
                 </div>
                 <div className="sc2-modal-body">
@@ -1088,7 +1120,7 @@ export default function ServiceCreation() {
                         value={serviceForm.categoryId}
                         onChange={(e) => setServiceForm((p) => ({ ...p, categoryId: e.target.value }))}
                       >
-                        <option value="">-- Select a category --</option>
+                        <option value="">{t("Select a category")}</option>
                         {categories.map((cat) => (
                           <option key={cat.id} value={cat.id}>{cat.nameEn} / {cat.nameAr}</option>
                         ))}
@@ -1097,7 +1129,7 @@ export default function ServiceCreation() {
 
                     <label>
                       <span>{t("Service ID *")}</span>
-                      <input value={serviceForm.serviceCode} onChange={(e) => setServiceForm((p) => ({ ...p, serviceCode: e.target.value.toUpperCase() }))} placeholder="e.g. SVC001" />
+                      <input value={serviceForm.serviceCode} onChange={(e) => setServiceForm((p) => ({ ...p, serviceCode: e.target.value.toUpperCase() }))} placeholder={t("e.g. SVC001")} />
                       <small>{t("Auto-generated if left empty")}</small>
                     </label>
 
@@ -1135,19 +1167,19 @@ export default function ServiceCreation() {
                   <div className="sc2-grid-2">
                     <label>
                       <span>{t("English Name *")}</span>
-                      <input value={serviceForm.nameEn} onChange={(e) => setServiceForm((p) => ({ ...p, nameEn: e.target.value }))} placeholder="Service name in English" />
+                      <input value={serviceForm.nameEn} onChange={(e) => setServiceForm((p) => ({ ...p, nameEn: e.target.value }))} placeholder={t("Service name in English")} />
                     </label>
                     <label>
-                      <span>الاسم بالعربية *</span>
-                      <input value={serviceForm.nameAr} onChange={(e) => setServiceForm((p) => ({ ...p, nameAr: e.target.value }))} placeholder="اسم الخدمة بالعربية" />
+                      <span>{t("Arabic Name *")}</span>
+                      <input value={serviceForm.nameAr} onChange={(e) => setServiceForm((p) => ({ ...p, nameAr: e.target.value }))} placeholder={t("Service name in Arabic")} />
                     </label>
                     <label>
                       <span>{t("English Description")}</span>
-                      <textarea value={serviceForm.descriptionEn} onChange={(e) => setServiceForm((p) => ({ ...p, descriptionEn: e.target.value }))} placeholder="Service description in English" />
+                      <textarea value={serviceForm.descriptionEn} onChange={(e) => setServiceForm((p) => ({ ...p, descriptionEn: e.target.value }))} placeholder={t("Service description in English")} />
                     </label>
                     <label>
-                      <span>الوصف بالعربية</span>
-                      <textarea value={serviceForm.descriptionAr} onChange={(e) => setServiceForm((p) => ({ ...p, descriptionAr: e.target.value }))} placeholder="وصف الخدمة بالعربية" />
+                      <span>{t("Arabic Description")}</span>
+                      <textarea value={serviceForm.descriptionAr} onChange={(e) => setServiceForm((p) => ({ ...p, descriptionAr: e.target.value }))} placeholder={t("Service description in Arabic")} />
                     </label>
                   </div>
 
@@ -1167,33 +1199,33 @@ export default function ServiceCreation() {
             {modalType === "package" && (
               <>
                 <div className="sc2-modal-header">
-                  <h3><i className="fas fa-suitcase"></i> {editingPackage ? "Edit Package" : "Add New Package"}</h3>
+                  <h3><i className="fas fa-suitcase"></i> {editingPackage ? t("Edit Package") : t("Add New Package")}</h3>
                   <button onClick={closeModal}>✕</button>
                 </div>
                 <div className="sc2-modal-body">
                   <div className="sc2-grid-2">
                     <label>
                       <span>{t("English Name *")}</span>
-                      <input value={packageForm.nameEn} onChange={(e) => setPackageForm((p) => ({ ...p, nameEn: e.target.value }))} placeholder="Package name in English" />
+                      <input value={packageForm.nameEn} onChange={(e) => setPackageForm((p) => ({ ...p, nameEn: e.target.value }))} placeholder={t("Package name in English")} />
                     </label>
                     <label>
-                      <span>الاسم بالعربية *</span>
-                      <input value={packageForm.nameAr} onChange={(e) => setPackageForm((p) => ({ ...p, nameAr: e.target.value }))} placeholder="اسم الباقة بالعربية" />
+                      <span>{t("Arabic Name *")}</span>
+                      <input value={packageForm.nameAr} onChange={(e) => setPackageForm((p) => ({ ...p, nameAr: e.target.value }))} placeholder={t("Package name in Arabic")} />
                     </label>
                     <label>
                       <span>{t("English Description")}</span>
-                      <textarea value={packageForm.descriptionEn} onChange={(e) => setPackageForm((p) => ({ ...p, descriptionEn: e.target.value }))} placeholder="Package description in English" />
+                      <textarea value={packageForm.descriptionEn} onChange={(e) => setPackageForm((p) => ({ ...p, descriptionEn: e.target.value }))} placeholder={t("Package description in English")} />
                     </label>
                     <label>
-                      <span>الوصف بالعربية</span>
-                      <textarea value={packageForm.descriptionAr} onChange={(e) => setPackageForm((p) => ({ ...p, descriptionAr: e.target.value }))} placeholder="وصف الباقة بالعربية" />
+                      <span>{t("Arabic Description")}</span>
+                      <textarea value={packageForm.descriptionAr} onChange={(e) => setPackageForm((p) => ({ ...p, descriptionAr: e.target.value }))} placeholder={t("Package description in Arabic")} />
                     </label>
                   </div>
 
                   <div className="sc2-grid-1">
                     <label>
                       <span>{t("Package ID *")}</span>
-                      <input value={packageForm.packageCode} onChange={(e) => setPackageForm((p) => ({ ...p, packageCode: e.target.value.toUpperCase() }))} placeholder="e.g. PKG001" />
+                      <input value={packageForm.packageCode} onChange={(e) => setPackageForm((p) => ({ ...p, packageCode: e.target.value.toUpperCase() }))} placeholder={t("e.g. PKG001")} />
                     </label>
                   </div>
 
@@ -1241,14 +1273,14 @@ export default function ServiceCreation() {
             {modalType === "specification" && (
               <>
                 <div className="sc2-modal-header">
-                  <h3>{editingBrandSpecification ? t("TM Edit Brand") : t("TM Add Brand")}</h3>
+                  <h3>{editingBrandSpecification ? t("Edit Brand") : t("Add Brand")}</h3>
                   <button onClick={closeModal}>✕</button>
                 </div>
                 <div className="sc2-modal-body sc2-brand-modal-body">
                   <div className="sc2-grid-2">
                     <label>
                       <span>{t("Brand Name")}</span>
-                      <input value={brandSpecificationForm.brandName} onChange={(e) => setBrandSpecificationForm((p) => ({ ...p, brandName: e.target.value }))} placeholder="Brand name" />
+                      <input value={brandSpecificationForm.brandName} onChange={(e) => setBrandSpecificationForm((p) => ({ ...p, brandName: e.target.value }))} placeholder={t("Brand name")} />
                     </label>
                     <label>
                       <span>{t("Brand Color")}</span>
@@ -1445,7 +1477,7 @@ export default function ServiceCreation() {
             <div className="sc2-modal-body">
               <p>
                 {t("You are about to delete")} <strong data-no-translate="true">{pendingDelete.type === "category" ? displayBilingual(pendingDelete.item.nameEn, pendingDelete.item.nameAr) : pendingDelete.type === "specification" ? pendingDelete.item.brandName : displayBilingual(pendingDelete.item.name, pendingDelete.item.nameAr)}</strong>.
-                {t("This action cannot be undone.")}
+                {" "}{t("This action cannot be undone.")}
               </p>
             </div>
             <div className="sc2-modal-actions">

@@ -1842,3 +1842,334 @@
     max-width: 100% !important;
   }
 }
+
+/* ================================================================
+   DAILY REPORT PREMIUM SHELL — Service Execution Module
+   Exact cube-grid background matching DailyReport flavor-technical
+   ================================================================ */
+.service-execution-wrapper {
+  --dr-bg-a: #f8f7f2;
+  --dr-bg-b: #eef2ff;
+  --dr-panel: rgba(255, 255, 255, 0.84);
+  --dr-border: rgba(15, 23, 42, 0.11);
+  --dr-text: #111827;
+  --dr-muted: #4b5563;
+  --dr-shadow: 0 24px 55px rgba(15, 23, 42, 0.12);
+  --dr-gold: #a16207;
+  --dr-brand: #0e7490;
+  background:
+    radial-gradient(1200px 380px at 8% -8%, rgba(161, 98, 7, 0.14), transparent 60%),
+    radial-gradient(1200px 380px at 100% -20%, rgba(14, 116, 144, 0.17), transparent 55%),
+    linear-gradient(135deg, var(--dr-bg-a), var(--dr-bg-b)) !important;
+  border: 1px solid var(--dr-border) !important;
+  border-radius: 26px !important;
+  box-shadow: var(--dr-shadow) !important;
+  color: var(--dr-text) !important;
+  min-height: calc(100vh - 120px) !important;
+  position: relative !important;
+  overflow: hidden !important;
+  animation: sem-fade-in 260ms ease-out;
+}
+
+.service-execution-wrapper::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.06) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.045) 1px, transparent 1px);
+  background-size: 20px 20px;
+  pointer-events: none;
+  mask-image: none;
+  z-index: 0;
+}
+
+.service-execution-wrapper > * {
+  position: relative;
+  z-index: 1;
+}
+
+/* Transparent inner container so shell shows through */
+.service-execution-wrapper .app-container,
+.service-execution-wrapper .service-details-screen {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+/* Premium header */
+.service-execution-wrapper .app-header {
+  background: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06) !important;
+  padding: 20px 24px !important;
+  margin-bottom: 18px;
+}
+
+.service-execution-wrapper .header-left h1 {
+  font-size: 22px !important;
+  font-weight: 900 !important;
+  background: linear-gradient(135deg, #0f172a 0%, #0e7490 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.3px;
+}
+
+/* Premium details header */
+.service-execution-wrapper .service-details-header {
+  background: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.06) !important;
+}
+
+.service-execution-wrapper .service-details-title-container h2 {
+  background: linear-gradient(135deg, #0f172a, #0e7490);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-size: 18px !important;
+  font-weight: 900 !important;
+}
+
+.service-execution-wrapper .service-details-title-container h2 i {
+  -webkit-text-fill-color: var(--dr-brand);
+}
+
+/* Tabs premium glass */
+.service-execution-wrapper .task-tab {
+  background: rgba(255, 255, 255, 0.72) !important;
+  backdrop-filter: blur(8px) !important;
+  border: 1px solid rgba(15, 23, 42, 0.09) !important;
+  border-radius: 14px !important;
+}
+
+.service-execution-wrapper .task-tab.active {
+  background: rgba(14, 116, 144, 0.12) !important;
+  border-color: rgba(14, 116, 144, 0.35) !important;
+  color: #0e7490 !important;
+  box-shadow: 0 8px 24px rgba(14, 116, 144, 0.14) !important;
+}
+
+/* Search premium */
+.service-execution-wrapper .search-container {
+  background: rgba(255, 255, 255, 0.82) !important;
+  backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(15, 23, 42, 0.09) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.06) !important;
+}
+
+/* Results section glass */
+.service-execution-wrapper .results-section {
+  background: rgba(255, 255, 255, 0.78) !important;
+  backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(15, 23, 42, 0.09) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.07) !important;
+}
+
+.service-execution-wrapper .section-header {
+  background: linear-gradient(90deg, rgba(14, 116, 144, 0.07), rgba(161, 98, 7, 0.04)) !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.07) !important;
+  border-radius: 16px 16px 0 0 !important;
+}
+
+.service-execution-wrapper .section-header h2 {
+  background: linear-gradient(135deg, #0f172a, #0e7490);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-size: 15px !important;
+}
+
+.service-execution-wrapper .section-header h2 i {
+  -webkit-text-fill-color: var(--dr-brand);
+}
+
+.service-execution-wrapper .job-order-table thead th {
+  background: rgba(248, 250, 255, 0.92) !important;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+/* Detail sub-cards glass */
+.service-execution-wrapper .epm-detail-card,
+.service-execution-wrapper .pim-detail-card {
+  background: rgba(255, 255, 255, 0.84) !important;
+  backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(15, 23, 42, 0.09) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06) !important;
+}
+
+.service-execution-wrapper .epm-detail-card h3,
+.service-execution-wrapper .pim-detail-card h3 {
+  background: linear-gradient(90deg, rgba(14, 116, 144, 0.08), transparent) !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.07) !important;
+  border-radius: 16px 16px 0 0 !important;
+  color: #0f172a !important;
+}
+
+.service-execution-wrapper .epm-detail-card h3 i,
+.service-execution-wrapper .pim-detail-card h3 i {
+  color: var(--dr-brand) !important;
+}
+
+/* ============================================================
+   PREMIUM CANCEL MODAL
+   ============================================================ */
+.service-execution-wrapper .cancel-modal-overlay {
+  background: rgba(15, 23, 42, 0.55) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.service-execution-wrapper .cancel-modal {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.5) inset,
+    0 32px 80px rgba(15, 23, 42, 0.28) !important;
+  border-radius: 22px !important;
+}
+
+.service-execution-wrapper .cancel-modal-header {
+  background: linear-gradient(135deg, rgba(220, 38, 38, 0.06), rgba(220, 38, 38, 0.03)) !important;
+  border-bottom: 1px solid rgba(220, 38, 38, 0.12) !important;
+  padding: 20px 22px !important;
+}
+
+.service-execution-wrapper .cancel-modal-header h3 {
+  font-size: 16px !important;
+  font-weight: 900 !important;
+}
+
+.service-execution-wrapper .cancel-modal-body {
+  padding: 20px 22px !important;
+}
+
+.service-execution-wrapper .cancel-warning {
+  border-radius: 16px !important;
+  padding: 16px !important;
+}
+
+.service-execution-wrapper .cancel-modal-actions {
+  padding-top: 6px;
+}
+
+/* ============================================================
+   PREMIUM SEM MODAL (Add Service modal)
+   ============================================================ */
+.sem-modal-overlay {
+  background: rgba(15, 23, 42, 0.55) !important;
+  backdrop-filter: blur(10px) !important;
+}
+
+.sem-modal {
+  background: rgba(255, 255, 255, 0.97) !important;
+  border: 1px solid rgba(255, 255, 255, 0.7) !important;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.5) inset,
+    0 32px 80px rgba(15, 23, 42, 0.28) !important;
+  border-radius: 22px !important;
+}
+
+.sem-modal-header {
+  background: linear-gradient(135deg, rgba(14, 116, 144, 0.09), rgba(161, 98, 7, 0.06)) !important;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
+  padding: 20px 22px !important;
+}
+
+.sem-modal-title {
+  font-size: 16px !important;
+  font-weight: 900 !important;
+  background: linear-gradient(135deg, #0f172a, #0e7490);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.sem-modal-close {
+  background: rgba(255, 255, 255, 0.8) !important;
+  border: 1px solid rgba(15, 23, 42, 0.12) !important;
+  border-radius: 12px !important;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sem-modal-close:hover {
+  background: rgba(220, 38, 38, 0.08) !important;
+  color: #dc2626;
+}
+
+.sem-modal-body {
+  padding: 20px 22px !important;
+}
+
+.sem-modal-actions {
+  background: rgba(248, 247, 242, 0.6) !important;
+  border-top: 1px solid rgba(15, 23, 42, 0.08) !important;
+  padding: 16px 22px !important;
+}
+
+/* Actions dropdown premium */
+.service-execution-wrapper .action-dropdown-menu-fixed {
+  background: rgba(255, 255, 255, 0.97) !important;
+  backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(15, 23, 42, 0.09) !important;
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18) !important;
+  border-radius: 16px !important;
+}
+
+.service-execution-wrapper .dropdown-item {
+  font-weight: 700 !important;
+}
+
+.service-execution-wrapper .dropdown-item:hover {
+  background: rgba(14, 116, 144, 0.06) !important;
+}
+
+/* Footer */
+.service-execution-wrapper .service-footer {
+  color: var(--dr-muted) !important;
+  font-size: 12px;
+}
+
+/* Mobile */
+@media (max-width: 760px) {
+  .service-execution-wrapper {
+    border-radius: 16px !important;
+  }
+
+  .service-execution-wrapper .app-header,
+  .service-execution-wrapper .service-details-header {
+    border-radius: 14px !important;
+    padding: 14px 16px !important;
+  }
+
+  .service-execution-wrapper .header-left h1 {
+    font-size: 17px !important;
+  }
+
+  .service-execution-wrapper .service-details-title-container h2 {
+    font-size: 15px !important;
+  }
+
+  .service-execution-wrapper .cancel-modal,
+  .sem-modal {
+    border-radius: 18px !important;
+  }
+}
+
+@keyframes sem-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
