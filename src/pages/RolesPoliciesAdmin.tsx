@@ -424,6 +424,20 @@ const MODULE_DEFINITIONS = [
     category: "core",
     options: [{ id: "rolespolicies_list", label: "Show Roles & Policies page in sidebar", prefix: "-" }],
   },
+
+  {
+    id: "campaignaudience",
+    title: "Campaign Audience",
+    icon: "fas fa-bullhorn",
+    category: "core",
+    options: [
+      { id: "campaignaudience_list", label: "Show Campaign Audience in sidebar", prefix: "-" },
+      { id: "campaignaudience_import", label: "Import Leads", prefix: "a." },
+      { id: "campaignaudience_view", label: "View / Search Leads", prefix: "b." },
+      { id: "campaignaudience_export", label: "Export Leads", prefix: "c." },
+      { id: "campaignaudience_delete", label: "Delete Leads / Batches", prefix: "d." },
+    ],
+  },
 ] as const;
 
 type PermissionsState = Record<
@@ -1244,20 +1258,26 @@ export default function RoleAccessControl() {
 
   return (
     <div className="rac-page">
-      <style>{`
-        .rac-page, .rac-page * {
-          color: #000 !important;
-        }
-        .rac-page .rac-create-role-btn,
-        .rac-page .rac-create-role-btn * {
-          color: #fff !important;
-        }
-      `}</style>
+      <div className="rac-page-bg" aria-hidden="true">
+        <div className="rac-bg-orb-a" />
+        <div className="rac-bg-orb-b" />
+        <div className="rac-bg-grid" />
+      </div>
       <div className="rac-container">
         <header className="rac-header">
-          <div>
+          <div className="rac-header-text">
             <h1>{t("roleAccessControl")}</h1>
             <p>{t("manageOptionLevelPermissions")}</p>
+          </div>
+          <div className="rac-header-actions">
+            <button
+              type="button"
+              className="rac-btn rac-btn-green"
+              onClick={() => setShowCreateRole(true)}
+              disabled={loading}
+            >
+              <i className="fas fa-plus" /> {t("createNewRole")}
+            </button>
           </div>
         </header>
 
@@ -1406,103 +1426,43 @@ export default function RoleAccessControl() {
         </section>
       </div>
 
-      {/* Create role modal (inline styles so you don't need new CSS) */}
+      {/* Create role modal */}
       {showCreateRole && (
-        <div
-          onClick={() => setShowCreateRole(false)}
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(15,23,42,0.35)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            padding: 16,
-            zIndex: 9999,
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              width: "min(520px, 100%)",
-              borderRadius: 16,
-              border: "1px solid rgba(15,23,42,0.12)",
-              background: "#ffffff",
-              boxShadow: "0 18px 50px rgba(15,23,42,0.20)",
-              padding: 16,
-              color: "#0f172a",
-            }}
-          >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-              <div style={{ fontWeight: 800, fontSize: 16 }}>{t("createNewRole")}</div>
-              <button
-                type="button"
-                onClick={() => setShowCreateRole(false)}
-                style={{
-                  background: "transparent",
-                  border: "none",
-                  color: "rgba(15,23,42,0.65)",
-                  fontSize: 18,
-                  cursor: "pointer",
-                }}
-              >
-                ✕
+        <div className="rac-modal-overlay" onClick={() => setShowCreateRole(false)}>
+          <div className="rac-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="rac-modal-head">
+              <h3><i className="fas fa-user-plus" style={{ marginRight: 8 }} />{t("createNewRole")}</h3>
+              <button type="button" className="rac-modal-close" onClick={() => setShowCreateRole(false)} aria-label="Close">
+                <i className="fas fa-times" />
               </button>
             </div>
-
-            <div style={{ marginTop: 12, display: "grid", gap: 10 }}>
-              <div>
-                <div style={{ fontSize: 12, color: "rgba(15,23,42,0.65)", marginBottom: 6 }}>{t("roleName")} *</div>
+            <div className="rac-modal-body">
+              <div className="rac-form-field">
+                <label htmlFor="rac-new-role-name">{t("roleName")} *</label>
                 <input
+                  id="rac-new-role-name"
                   value={newRoleName}
                   onChange={(e) => setNewRoleName(e.target.value)}
                   placeholder={t("egCashier")}
-                  style={{
-                    width: "100%",
-                    padding: "12px",
-                    borderRadius: 12,
-                    border: "1px solid rgba(15,23,42,0.14)",
-                    background: "#fff",
-                    color: "#0f172a",
-                  }}
                 />
               </div>
-
-              <div>
-                <div style={{ fontSize: 12, color: "rgba(15,23,42,0.65)", marginBottom: 6 }}>{t("description")}</div>
+              <div className="rac-form-field">
+                <label htmlFor="rac-new-role-desc">{t("description")}</label>
                 <input
+                  id="rac-new-role-desc"
                   value={newRoleDesc}
                   onChange={(e) => setNewRoleDesc(e.target.value)}
                   placeholder={t("optional")}
-                  style={{
-                    width: "100%",
-                    padding: "12px",
-                    borderRadius: 12,
-                    border: "1px solid rgba(15,23,42,0.14)",
-                    background: "#fff",
-                    color: "#0f172a",
-                  }}
                 />
               </div>
-
-              <div style={{ display: "flex", gap: 10, justifyContent: "flex-end", flexWrap: "wrap", marginTop: 6 }}>
-                <button
-                  type="button"
-                  className="rac-btn rac-btn-ghost"
-                  onClick={() => setShowCreateRole(false)}
-                  disabled={loading}
-                >
-                  {t("cancel")}
-                </button>
-                <button
-                  type="button"
-                  className="rac-btn rac-btn-primary rac-create-role-btn"
-                  onClick={() => void createRole()}
-                  disabled={loading}
-                >
-                  <i className="fas fa-plus" /> {loading ? t("creating") : t("createRole")}
-                </button>
-              </div>
+            </div>
+            <div className="rac-modal-footer">
+              <button type="button" className="rac-btn rac-btn-ghost" onClick={() => setShowCreateRole(false)} disabled={loading}>
+                {t("cancel")}
+              </button>
+              <button type="button" className="rac-btn rac-btn-primary" onClick={() => void createRole()} disabled={loading}>
+                <i className="fas fa-plus" /> {loading ? t("creating") : t("createRole")}
+              </button>
             </div>
           </div>
         </div>

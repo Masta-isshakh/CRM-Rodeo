@@ -305,7 +305,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       users: usersRead,
       departments: departmentsRead,
       rolespolicies: rolesRead && listOn("rolespolicies", "rolespolicies_list"),
-      campaignaudience: isAdminGroup,
+      campaignaudience: isAdminGroup || (isModuleEnabled("campaignaudience", true) && canOption("campaignaudience", "campaignaudience_list", true)),
       dbcleanup: isAdminGroup,
     };
   }, [isAdminGroup, can, canOption, isModuleEnabled]);

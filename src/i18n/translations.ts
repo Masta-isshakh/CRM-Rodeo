@@ -20,6 +20,7 @@ const PHRASES_EN_AR: Array<[string, string]> = [
   ["Internal Chat", "الدردشة الداخلية"],
   ["Email Inbox", "صندوق البريد الإلكتروني"],
   ["Inspection", "الفحص"],
+  ["Campaign Audience", "جمهور الحملة"],
   ["User Management", "إدارة المستخدمين"],
   ["Departments", "الأقسام"],
   ["Roles & Policies", "الأدوار والسياسات"],
