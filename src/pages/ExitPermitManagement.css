@@ -1437,3 +1437,215 @@
     max-width: 100% !important;
   }
 }
+
+/* ======================================================================
+   DAILY REPORT PREMIUM SHELL — applied to Exit Permit Management
+   ====================================================================== */
+:root {
+  --dr-bg-a: #f0f4ff;
+  --dr-bg-b: #e8f4fa;
+}
+
+.epm-container {
+  position: relative;
+  background:
+    radial-gradient(1200px 380px at 8% -8%, rgba(37, 99, 235, 0.12), transparent 60%),
+    radial-gradient(1200px 380px at 100% -20%, rgba(14, 116, 144, 0.14), transparent 55%),
+    linear-gradient(135deg, var(--dr-bg-a), var(--dr-bg-b)) !important;
+  border-radius: 26px !important;
+  overflow: visible;
+}
+
+.epm-container::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+  background-size: 20px 20px;
+  border-radius: 26px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.epm-container > * { position: relative; z-index: 1; }
+
+/* Premium header */
+.epm-container .epm-header {
+  background:
+    linear-gradient(135deg, rgba(255,255,255,0.92) 0%, rgba(240,248,255,0.85) 100%) !important;
+  backdrop-filter: blur(16px) !important;
+  -webkit-backdrop-filter: blur(16px) !important;
+  border: 1px solid rgba(255,255,255,0.6) !important;
+  box-shadow: 0 8px 32px rgba(37,99,235,0.10), 0 2px 8px rgba(15,23,42,0.06) !important;
+}
+
+.epm-container .epm-header-left h1 {
+  background: linear-gradient(135deg, #0f172a 0%, #1e40af 60%, #0e7490 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-size: 22px !important;
+  font-weight: 950 !important;
+}
+
+/* Glass search + results */
+.epm-container .epm-search-section,
+.epm-container .epm-results-section {
+  background: rgba(255,255,255,0.72) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border: 1px solid rgba(255,255,255,0.5) !important;
+  box-shadow: 0 8px 32px rgba(15,23,42,0.08) !important;
+}
+
+/* Premium card title headers */
+.epm-detail-card h3,
+.pim-detail-card h3 {
+  margin: 0 !important;
+  padding: 14px 18px !important;
+  font-size: 15px !important;
+  font-weight: 950 !important;
+  letter-spacing: 0.3px !important;
+  border-radius: 18px 18px 0 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 10px !important;
+  border-bottom: 1px solid rgba(255,255,255,0.25) !important;
+  color: #fff !important;
+  background: linear-gradient(135deg, #0f172a 0%, #1e40af 70%, #0e7490 100%) !important;
+}
+
+.epm-detail-card h3 i,
+.pim-detail-card h3 i {
+  width: 32px !important;
+  height: 32px !important;
+  border-radius: 12px !important;
+  background: rgba(255,255,255,0.18) !important;
+  border: 1px solid rgba(255,255,255,0.25) !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 14px !important;
+  color: #fff !important;
+}
+
+/* Unique accent per card position */
+.epm-detail-card:nth-child(2) h3,
+.pim-detail-card:nth-child(2) h3 { background: linear-gradient(135deg, #065f46 0%, #059669 100%) !important; }
+.epm-detail-card:nth-child(3) h3,
+.pim-detail-card:nth-child(3) h3 { background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important; }
+.epm-detail-card:nth-child(4) h3,
+.pim-detail-card:nth-child(4) h3 { background: linear-gradient(135deg, #0e7490 0%, #0284c7 100%) !important; }
+.epm-detail-card:nth-child(5) h3,
+.pim-detail-card:nth-child(5) h3 { background: linear-gradient(135deg, #b45309 0%, #d97706 100%) !important; }
+.epm-detail-card:nth-child(6) h3,
+.pim-detail-card:nth-child(6) h3 { background: linear-gradient(135deg, #be123c 0%, #e11d48 100%) !important; }
+.epm-detail-card:nth-child(7) h3,
+.pim-detail-card:nth-child(7) h3 { background: linear-gradient(135deg, #1e3a5f 0%, #334155 100%) !important; }
+.epm-detail-card:nth-child(8) h3,
+.pim-detail-card:nth-child(8) h3 { background: linear-gradient(135deg, #065f46 0%, #10b981 100%) !important; }
+
+/* Additional services header */
+.epm-additional-services .epm-additional-header {
+  padding: 14px 18px !important;
+  font-size: 14px !important;
+  font-weight: 950 !important;
+  color: #fff !important;
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%) !important;
+}
+
+/* Premium detail cards */
+.epm-detail-card,
+.pim-detail-card {
+  background: rgba(255,255,255,0.82) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+  border: 1px solid rgba(255,255,255,0.5) !important;
+  box-shadow: 0 8px 32px rgba(15,23,42,0.08), 0 1px 4px rgba(15,23,42,0.06) !important;
+  border-radius: 20px !important;
+  overflow: hidden !important;
+}
+
+/* Details screen header */
+.epm-details-header,
+.pim-details-header {
+  background: rgba(255,255,255,0.85) !important;
+  backdrop-filter: blur(14px) !important;
+  -webkit-backdrop-filter: blur(14px) !important;
+  border: 1px solid rgba(255,255,255,0.6) !important;
+  box-shadow: 0 8px 32px rgba(37,99,235,0.10) !important;
+  border-radius: 20px !important;
+  margin-bottom: 16px !important;
+}
+
+.epm-details-header h2,
+.pim-details-header h2 {
+  background: linear-gradient(135deg, #0f172a 0%, #1e40af 60%, #0e7490 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-size: 18px !important;
+  font-weight: 950 !important;
+}
+
+/* Premium exit permit modal */
+.epm-exit-permit-modal-content {
+  border-radius: 22px !important;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.5) inset,
+    0 32px 80px rgba(15,23,42,0.28),
+    0 8px 24px rgba(37,99,235,0.12) !important;
+  border: 1px solid rgba(255,255,255,0.4) !important;
+}
+
+.epm-exit-permit-modal-content h3 {
+  background: linear-gradient(135deg, #0f172a 0%, #1e40af 60%, #0e7490 100%) !important;
+  color: #fff !important;
+  padding: 18px 20px !important;
+  font-size: 15.5px !important;
+  border-radius: 22px 22px 0 0 !important;
+  -webkit-text-fill-color: #fff !important;
+}
+
+.epm-exit-permit-modal-content h3 i { color: rgba(255,255,255,0.9) !important; }
+
+/* Premium cancel modal */
+.cancel-modal {
+  border-radius: 22px !important;
+  box-shadow:
+    0 0 0 1px rgba(255,255,255,0.5) inset,
+    0 32px 80px rgba(15,23,42,0.28) !important;
+}
+
+.cancel-modal-header {
+  background: linear-gradient(135deg, #7f1d1d 0%, #dc2626 100%) !important;
+  border-radius: 22px 22px 0 0 !important;
+  padding: 18px 20px !important;
+}
+
+.cancel-modal-header h3 { color: #fff !important; font-size: 15.5px !important; }
+.cancel-modal-header h3 i { color: rgba(255,255,255,0.85) !important; }
+
+/* Fade-in animation */
+@keyframes epm-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.epm-details-screen { animation: epm-fade-in 0.22s ease; }
+
+/* Mobile premium improvements */
+@media (max-width: 760px) {
+  .epm-container .epm-header-left h1 { font-size: 16px !important; }
+
+  .epm-detail-card h3,
+  .pim-detail-card h3 {
+    font-size: 13.5px !important;
+    padding: 12px 14px !important;
+  }
+
+  .epm-details-header h2,
+  .pim-details-header h2 { font-size: 14px !important; }
+}
