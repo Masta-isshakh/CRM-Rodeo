@@ -157,11 +157,20 @@ export default function InventoryManagement({ permissions }: PageProps) {
   const [checkoutQty, setCheckoutQty]           = useState<Record<string, number>>({});
   const [recentTx, setRecentTx]                 = useState<InvTransaction[]>([]);
   const [storeLoading, setStoreLoading]         = useState(false);
+  const categoriesCacheRef = useRef<InvCategory[]>([]);
+  const allSubcategoriesCacheRef = useRef<InvSubcategory[]>([]);
+  const subcategoriesCacheRef = useRef<Map<string, InvSubcategory[]>>(new Map());
+  const productsCacheRef = useRef<Map<string, { products: InvProduct[]; transactions: InvTransaction[] }>>(new Map());
+  const recentTxCacheRef = useRef<InvTransaction[]>([]);
 
   // ────────────────────────────────────────────────────────────────────────────
   // LOAD FUNCTIONS
   // ────────────────────────────────────────────────────────────────────────────
   const loadCategories = async () => {
+    if (categoriesCacheRef.current.length > 0) {
+      setCategories(categoriesCacheRef.current);
+      setAllSubcategories(allSubcategoriesCacheRef.current);
+    }
     setLoading(true);
     try {
       const [catRes, subRes] = await Promise.all([
@@ -171,16 +180,20 @@ export default function InventoryManagement({ permissions }: PageProps) {
       const cats = (catRes.data ?? [])
         .filter((c) => c.isActive !== false)
         .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
+      categoriesCacheRef.current = cats;
       setCategories(cats);
-      setAllSubcategories((subRes.data ?? []).filter((s) => s.isActive !== false));
+      allSubcategoriesCacheRef.current = (subRes.data ?? []).filter((s) => s.isActive !== false);
+      setAllSubcategories(allSubcategoriesCacheRef.current);
     } catch (e: any) {
-      setStatus({ msg: e?.message ?? "Failed to load categories", type: "error" });
+      setStatus({ msg: e?.message ?? t("Failed to load categories"), type: "error" });
     } finally {
       setLoading(false);
     }
   };
 
   const loadSubcategories = async (categoryId: string) => {
+    const cached = subcategoriesCacheRef.current.get(categoryId);
+    if (cached) setSubcategories(cached);
     setLoading(true);
     try {
       const res = await client.models.InventorySubcategory.list({
@@ -188,15 +201,21 @@ export default function InventoryManagement({ permissions }: PageProps) {
         limit: 1000,
       });
       const subs = (res.data ?? []).sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
+      subcategoriesCacheRef.current.set(categoryId, subs);
       setSubcategories(subs);
     } catch (e: any) {
-      setStatus({ msg: e?.message ?? "Failed to load subcategories", type: "error" });
+      setStatus({ msg: e?.message ?? t("Failed to load subcategories"), type: "error" });
     } finally {
       setLoading(false);
     }
   };
 
   const loadProducts = async (subcategoryId: string) => {
+    const cached = productsCacheRef.current.get(subcategoryId);
+    if (cached) {
+      setProducts(cached.products);
+      setTransactions(cached.transactions);
+    }
     setLoading(true);
     try {
       const [prodRes, txRes] = await Promise.all([
@@ -214,21 +233,25 @@ export default function InventoryManagement({ permissions }: PageProps) {
       const txs = (txRes.data ?? []).sort(
         (a, b) => new Date(b.createdAt ?? "").getTime() - new Date(a.createdAt ?? "").getTime()
       );
-      setTransactions(txs.slice(0, 30));
+      const recent = txs.slice(0, 30);
+      productsCacheRef.current.set(subcategoryId, { products: prods, transactions: recent });
+      setTransactions(recent);
     } catch (e: any) {
-      setStatus({ msg: e?.message ?? "Failed to load products", type: "error" });
+      setStatus({ msg: e?.message ?? t("Failed to load products"), type: "error" });
     } finally {
       setLoading(false);
     }
   };
 
   const loadRecentTx = async () => {
+    if (recentTxCacheRef.current.length > 0) setRecentTx(recentTxCacheRef.current);
     try {
       const res = await client.models.InventoryTransaction.list({ limit: 50 });
       const txs = (res.data ?? []).sort(
         (a, b) => new Date(b.createdAt ?? "").getTime() - new Date(a.createdAt ?? "").getTime()
       );
-      setRecentTx(txs.slice(0, 20));
+      recentTxCacheRef.current = txs.slice(0, 20);
+      setRecentTx(recentTxCacheRef.current);
     } catch {
       /* silent */
     }
@@ -255,18 +278,24 @@ export default function InventoryManagement({ permissions }: PageProps) {
   const goToSubcategories = (cat: InvCategory) => {
     setSelectedCategory(cat);
     setProductsView("subcategories");
-    setSubcategories([]);
     setSearchQuery("");
-    loadSubcategories(cat.id);
+    const instantSubs = allSubcategoriesCacheRef.current
+      .filter((s) => s.categoryId === cat.id && s.isActive !== false)
+      .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
+    setSubcategories(instantSubs);
+    void loadSubcategories(cat.id);
   };
 
   const goToProducts = (sub: InvSubcategory) => {
     setSelectedSubcategory(sub);
     setProductsView("products");
-    setProducts([]);
-    setTransactions([]);
     setSearchQuery("");
-    loadProducts(sub.id);
+    const cached = productsCacheRef.current.get(sub.id);
+    if (cached) {
+      setProducts(cached.products);
+      setTransactions(cached.transactions);
+    }
+    void loadProducts(sub.id);
   };
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -308,10 +337,10 @@ export default function InventoryManagement({ permissions }: PageProps) {
         });
       }
       setShowCatModal(false);
-      setStatus({ msg: editingCat ? "Category updated." : "Category created.", type: "success" });
+      setStatus({ msg: editingCat ? t("Category updated.") : t("Category created."), type: "success" });
       await loadCategories();
     } catch (e: any) {
-      setStatus({ msg: e?.message ?? "Save failed", type: "error" });
+      setStatus({ msg: e?.message ?? t("Save failed"), type: "error" });
     } finally {
       setSaving(false);
     }
@@ -327,10 +356,10 @@ export default function InventoryManagement({ permissions }: PageProps) {
         updatedAt: new Date().toISOString(),
       });
       setDeleteTarget(null);
-      setStatus({ msg: "Category removed.", type: "success" });
+      setStatus({ msg: t("Category removed."), type: "success" });
       await loadCategories();
     } catch (e: any) {
-      setStatus({ msg: e?.message ?? "Delete failed", type: "error" });
+      setStatus({ msg: e?.message ?? t("Delete failed"), type: "error" });
     } finally {
       setSaving(false);
     }
@@ -379,10 +408,10 @@ export default function InventoryManagement({ permissions }: PageProps) {
         });
       }
       setShowSubModal(false);
-      setStatus({ msg: editingSub ? "Subcategory updated." : "Subcategory created.", type: "success" });
+      setStatus({ msg: editingSub ? t("Subcategory updated.") : t("Subcategory created."), type: "success" });
       await loadSubcategories(selectedCategory.id);
     } catch (e: any) {
-      setStatus({ msg: e?.message ?? "Save failed", type: "error" });
+      setStatus({ msg: e?.message ?? t("Save failed"), type: "error" });
     } finally {
       setSaving(false);
     }
@@ -399,10 +428,10 @@ export default function InventoryManagement({ permissions }: PageProps) {
         updatedAt: new Date().toISOString(),
       });
       setDeleteTarget(null);
-      setStatus({ msg: "Subcategory removed.", type: "success" });
+      setStatus({ msg: t("Subcategory removed."), type: "success" });
       if (selectedCategory) await loadSubcategories(selectedCategory.id);
     } catch (e: any) {
-      setStatus({ msg: e?.message ?? "Delete failed", type: "error" });
+      setStatus({ msg: e?.message ?? t("Delete failed"), type: "error" });
     } finally {
       setSaving(false);
     }
@@ -448,10 +477,10 @@ export default function InventoryManagement({ permissions }: PageProps) {
         updatedAt: new Date().toISOString(),
       });
       setShowFieldsModal(false);
-      setStatus({ msg: "Field definitions saved.", type: "success" });
+      setStatus({ msg: t("Field definitions saved."), type: "success" });
       if (selectedCategory) await loadSubcategories(selectedCategory.id);
     } catch (e: any) {
-      setStatus({ msg: e?.message ?? "Save failed", type: "error" });
+      setStatus({ msg: e?.message ?? t("Save failed"), type: "error" });
     } finally {
       setSaving(false);
     }
@@ -491,7 +520,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
   const addProductByQuantity = async () => {
     if (!activeModalSubcategory || !modalCategory) return;
     const name = prodName.trim();
-    if (!name) { setStatus({ msg: "Please enter a product name.", type: "error" }); return; }
+    if (!name) { setStatus({ msg: t("Please enter a product name."), type: "error" }); return; }
     const qty = Math.max(1, Number(prodQty) || 1);
     setSaving(true);
     try {
@@ -529,14 +558,14 @@ export default function InventoryManagement({ permissions }: PageProps) {
       }
 
       setShowAddProdModal(false);
-      setStatus({ msg: `Added ${qty} unit(s) of "${name}".`, type: "success" });
+      setStatus({ msg: `${t("Added")} ${qty} ${t("unit(s) of")} "${name}".`, type: "success" });
       if (selectedSubcategory && selectedSubcategory.id === activeModalSubcategory.id && productsView === "products") {
         await loadProducts(activeModalSubcategory.id);
       } else if (modalCategory) {
         await loadSubcategories(modalCategory.id);
       }
     } catch (e: any) {
-      setStatus({ msg: e?.message ?? "Failed to add product", type: "error" });
+      setStatus({ msg: e?.message ?? t("Failed to add product"), type: "error" });
     } finally {
       setSaving(false);
     }
@@ -549,7 +578,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
     const serial = scanInput.trim();
     if (!serial) return;
     if (scannedItems.some((s) => s.serial === serial)) {
-      setStatus({ msg: `"${serial}" is already in the scan list.`, type: "info" });
+      setStatus({ msg: `"${serial}" ${t("is already in the scan list.")}`, type: "info" });
       setScanInput("");
       return;
     }
@@ -569,7 +598,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
   const processScannedItems = async () => {
     if (!activeModalSubcategory || !modalCategory) return;
     const valid = scannedItems.filter((s) => s.serial.trim());
-    if (!valid.length) { setStatus({ msg: "No items to process.", type: "error" }); return; }
+    if (!valid.length) { setStatus({ msg: t("No items to process."), type: "error" }); return; }
     setSaving(true);
     try {
       const actor = (await getCurrentUser()).signInDetails?.loginId ?? "";
@@ -606,14 +635,14 @@ export default function InventoryManagement({ permissions }: PageProps) {
         }
       }
       setShowAddProdModal(false);
-      setStatus({ msg: `${valid.length} item(s) added via scan.`, type: "success" });
+      setStatus({ msg: `${valid.length} ${t("item(s) added via scan.")}`, type: "success" });
       if (selectedSubcategory && selectedSubcategory.id === activeModalSubcategory.id && productsView === "products") {
         await loadProducts(activeModalSubcategory.id);
       } else if (modalCategory) {
         await loadSubcategories(modalCategory.id);
       }
     } catch (e: any) {
-      setStatus({ msg: e?.message ?? "Failed to process scan", type: "error" });
+      setStatus({ msg: e?.message ?? t("Failed to process scan"), type: "error" });
     } finally {
       setSaving(false);
     }
@@ -639,7 +668,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
     const qty = Math.max(1, Number(draft.qty) || 1);
 
     if (!name) {
-      setStatus({ msg: `Enter a product name for ${sub.name ?? "this subcategory"}.`, type: "error" });
+      setStatus({ msg: `${t("Enter a product name for")} ${sub.name ?? t("this subcategory")}.`, type: "error" });
       return;
     }
 
@@ -676,9 +705,9 @@ export default function InventoryManagement({ permissions }: PageProps) {
       }
 
       setQuickDraft(sub.id, { name: "", qty: 1 });
-      setStatus({ msg: `Quick added ${qty} unit(s) of "${name}" in ${sub.name}.`, type: "success" });
+      setStatus({ msg: `${t("Quick added")} ${qty} ${t("unit(s) of")} "${name}" ${t("in")} ${sub.name}.`, type: "success" });
     } catch (e: any) {
-      setStatus({ msg: e?.message ?? "Quick add failed", type: "error" });
+      setStatus({ msg: e?.message ?? t("Quick add failed"), type: "error" });
     } finally {
       setSaving(false);
     }
@@ -698,10 +727,10 @@ export default function InventoryManagement({ permissions }: PageProps) {
         updatedAt: new Date().toISOString(),
       });
       setDeleteTarget(null);
-      setStatus({ msg: "Product removed.", type: "success" });
+      setStatus({ msg: t("Product removed."), type: "success" });
       if (selectedSubcategory) await loadProducts(selectedSubcategory.id);
     } catch (e: any) {
-      setStatus({ msg: e?.message ?? "Delete failed", type: "error" });
+      setStatus({ msg: e?.message ?? t("Delete failed"), type: "error" });
     } finally {
       setSaving(false);
     }
@@ -719,6 +748,27 @@ export default function InventoryManagement({ permissions }: PageProps) {
   // ────────────────────────────────────────────────────────────────────────────
   const selectStoreCategory = async (cat: InvCategory) => {
     setStoreCategory(cat);
+    const instantSubs = allSubcategoriesCacheRef.current
+      .filter((s) => s.categoryId === cat.id && s.isActive !== false)
+      .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
+    if (instantSubs.length > 0) {
+      setStoreSubcats(instantSubs);
+      if (instantSubs.length === 1) {
+        setStoreSubcategory(instantSubs[0]);
+        setStoreStep("products");
+        const cached = productsCacheRef.current.get(instantSubs[0].id);
+        if (cached) {
+          setStoreProducts(cached.products.filter((p) => (p.availableQuantity ?? 0) > 0));
+          const initialCached: Record<string, number> = {};
+          cached.products.forEach((p) => {
+            initialCached[p.id] = 1;
+          });
+          setCheckoutQty(initialCached);
+        }
+      } else {
+        setStoreStep("subcategory");
+      }
+    }
     setStoreLoading(true);
     try {
       const res = await client.models.InventorySubcategory.list({
@@ -728,12 +778,12 @@ export default function InventoryManagement({ permissions }: PageProps) {
       const subs = (res.data ?? []).sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
       setStoreSubcats(subs);
       if (subs.length === 1) {
-        selectStoreSubcategory(subs[0]);
+        void selectStoreSubcategory(subs[0]);
       } else {
         setStoreStep("subcategory");
       }
     } catch (e: any) {
-      setStatus({ msg: e?.message ?? "Load failed", type: "error" });
+      setStatus({ msg: e?.message ?? t("Load failed"), type: "error" });
     } finally {
       setStoreLoading(false);
     }
@@ -741,6 +791,14 @@ export default function InventoryManagement({ permissions }: PageProps) {
 
   const selectStoreSubcategory = async (sub: InvSubcategory) => {
     setStoreSubcategory(sub);
+    const cached = productsCacheRef.current.get(sub.id);
+    if (cached) {
+      setStoreProducts(cached.products.filter((p) => (p.availableQuantity ?? 0) > 0));
+      const initialCached: Record<string, number> = {};
+      cached.products.forEach((p) => { initialCached[p.id] = 1; });
+      setCheckoutQty(initialCached);
+      setStoreStep("products");
+    }
     setStoreLoading(true);
     try {
       const res = await client.models.InventoryProduct.list({
@@ -756,7 +814,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
       setCheckoutQty(initial);
       setStoreStep("products");
     } catch (e: any) {
-      setStatus({ msg: e?.message ?? "Load failed", type: "error" });
+      setStatus({ msg: e?.message ?? t("Load failed"), type: "error" });
     } finally {
       setStoreLoading(false);
     }
@@ -765,8 +823,8 @@ export default function InventoryManagement({ permissions }: PageProps) {
   const checkoutProduct = async (product: InvProduct) => {
     const qty = checkoutQty[product.id] ?? 1;
     const available = product.availableQuantity ?? 0;
-    if (qty < 1) { setStatus({ msg: "Quantity must be at least 1.", type: "error" }); return; }
-    if (qty > available) { setStatus({ msg: `Only ${available} unit(s) available.`, type: "error" }); return; }
+    if (qty < 1) { setStatus({ msg: t("Quantity must be at least 1."), type: "error" }); return; }
+    if (qty > available) { setStatus({ msg: `${t("Only")} ${available} ${t("unit(s) available.")}`, type: "error" }); return; }
     setSaving(true);
     try {
       const actor = (await getCurrentUser()).signInDetails?.loginId ?? "";
@@ -789,12 +847,12 @@ export default function InventoryManagement({ permissions }: PageProps) {
         createdAt: now,
         createdBy: actor,
       });
-      setStatus({ msg: `Checked out ${qty} unit(s) of "${product.name}".`, type: "success" });
+      setStatus({ msg: `${t("Checked out")} ${qty} ${t("unit(s) of")} "${product.name}".`, type: "success" });
       // Refresh store products
       if (storeSubcategory) await selectStoreSubcategory(storeSubcategory);
       await loadRecentTx();
     } catch (e: any) {
-      setStatus({ msg: e?.message ?? "Checkout failed", type: "error" });
+      setStatus({ msg: e?.message ?? t("Checkout failed"), type: "error" });
     } finally {
       setSaving(false);
     }
@@ -874,28 +932,28 @@ export default function InventoryManagement({ permissions }: PageProps) {
             <>
               <div className="inv-section-header">
                 <div className="inv-section-title">
-                  <h2><i className="fas fa-layer-group" style={{ marginRight: 8 }} />Product Inventory</h2>
-                  <p>Manage product categories, subcategories, and stock</p>
+                  <h2><i className="fas fa-layer-group" style={{ marginRight: 8 }} />{t("Product Inventory")}</h2>
+                  <p>{t("Manage product categories, subcategories, and stock")}</p>
                 </div>
                 {canCreate && (
                   <div className="inv-header-actions">
                     <button className="inv-btn inv-btn-primary" type="button" onClick={openAddCategory}>
-                      <i className="fas fa-plus" /> Add Category
+                      <i className="fas fa-plus" /> {t("Add Category")}
                     </button>
                     <button className="inv-btn inv-btn-secondary" type="button" onClick={loadCategories} disabled={loading}>
-                      <i className="fas fa-rotate-right" /> Refresh
+                      <i className="fas fa-rotate-right" /> {t("Refresh")}
                     </button>
                   </div>
                 )}
               </div>
 
-              {loading && <div className="inv-loading"><i className="fas fa-circle-notch fa-spin" /> Loading...</div>}
+              {loading && <div className="inv-loading"><i className="fas fa-circle-notch fa-spin" /> {t("Loading...")}</div>}
 
               {!loading && categories.length === 0 && (
                 <div className="inv-empty-state">
                   <i className="fas fa-boxes-stacked" />
-                  <h4>No categories yet</h4>
-                  <p>{canCreate ? 'Click "Add Category" to create your first category.' : 'No inventory categories have been created.'}</p>
+                  <h4>{t("No categories yet")}</h4>
+                  <p>{canCreate ? t('Click "Add Category" to create your first category.') : t("No inventory categories have been created.")}</p>
                 </div>
               )}
 
@@ -924,17 +982,17 @@ export default function InventoryManagement({ permissions }: PageProps) {
                         </div>
                         <div className="inv-card-counts">
                           <span className="inv-count-badge">
-                            <i className="fas fa-sitemap" /> {subCount} Subcategor{subCount !== 1 ? "ies" : "y"}
+                            <i className="fas fa-sitemap" /> {subCount} {subCount !== 1 ? t("Subcategories") : t("Subcategory")}
                           </span>
                         </div>
                         <div className="inv-card-footer" onClick={(e) => e.stopPropagation()}>
-                          <span className="inv-card-enter-hint">Click to explore →</span>
+                          <span className="inv-card-enter-hint">{t("Click to explore")} →</span>
                           <div className="inv-card-actions">
                             {canCreate && (
                               <button
                                 type="button"
                                 className="inv-btn-icon"
-                                title="Edit category"
+                                title={t("Edit category")}
                                 onClick={() => openEditCategory(cat)}
                               >
                                 <i className="fas fa-pen" />
@@ -944,7 +1002,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                               <button
                                 type="button"
                                 className="inv-btn-icon danger"
-                                title="Delete category"
+                                title={t("Delete category")}
                                 onClick={() => setDeleteTarget({ type: "category", item: cat, label: cat.name ?? "" })}
                               >
                                 <i className="fas fa-trash" />
@@ -979,16 +1037,16 @@ export default function InventoryManagement({ permissions }: PageProps) {
 
               <div className="inv-section-header">
                 <div className="inv-section-title">
-                  <h2><i className="fas fa-sitemap" style={{ marginRight: 8 }} />Subcategories</h2>
-                  <p>Subcategories inside <strong>{selectedCategory.name}</strong></p>
+                  <h2><i className="fas fa-sitemap" style={{ marginRight: 8 }} />{t("Subcategories")}</h2>
+                  <p>{t("Subcategories inside")} <strong>{selectedCategory.name}</strong></p>
                 </div>
                 <div className="inv-header-actions">
                   <button className="inv-btn inv-btn-secondary" type="button" onClick={goToCategories}>
-                    <i className="fas fa-arrow-left" /> Back
+                    <i className="fas fa-arrow-left" /> {t("Back")}
                   </button>
                   {canCreate && (
                     <button className="inv-btn inv-btn-primary" type="button" onClick={openAddSubcategory}>
-                      <i className="fas fa-plus" /> Add Subcategory
+                      <i className="fas fa-plus" /> {t("Add Subcategory")}
                     </button>
                   )}
                   {canCreate && (
@@ -997,21 +1055,21 @@ export default function InventoryManagement({ permissions }: PageProps) {
                       type="button"
                       onClick={() => openAddProdModal({ category: selectedCategory, subcategory: subcategories[0] ?? null })}
                       disabled={subcategories.length === 0}
-                      title={subcategories.length === 0 ? "Create at least one subcategory first" : "Add product directly in this category"}
+                      title={subcategories.length === 0 ? t("Create at least one subcategory first") : t("Add product directly in this category")}
                     >
-                      <i className="fas fa-box-open" /> Add Product
+                      <i className="fas fa-box-open" /> {t("Add Product")}
                     </button>
                   )}
                 </div>
               </div>
 
-              {loading && <div className="inv-loading"><i className="fas fa-circle-notch fa-spin" /> Loading...</div>}
+              {loading && <div className="inv-loading"><i className="fas fa-circle-notch fa-spin" /> {t("Loading...")}</div>}
 
               {!loading && subcategories.length === 0 && (
                 <div className="inv-empty-state">
                   <i className="fas fa-sitemap" />
-                  <h4>No subcategories yet</h4>
-                  <p>{canCreate ? 'Click "Add Subcategory" to create one.' : 'No subcategories in this category.'}</p>
+                  <h4>{t("No subcategories yet")}</h4>
+                  <p>{canCreate ? t('Click "Add Subcategory" to create one.') : t("No subcategories in this category.")}</p>
                 </div>
               )}
 
@@ -1041,7 +1099,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                         </div>
                         <div className="inv-card-counts">
                           <span className="inv-count-badge green">
-                            <i className="fas fa-sliders" /> {fields.length} Custom Field{fields.length !== 1 ? "s" : ""}
+                            <i className="fas fa-sliders" /> {fields.length} {fields.length !== 1 ? t("Custom Fields") : t("Custom Field")}
                           </span>
                         </div>
                         {canCreate && (
@@ -1049,7 +1107,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                             <input
                               type="text"
                               value={quick.name}
-                              placeholder="Quick product name"
+                              placeholder={t("Quick product name")}
                               onChange={(e) => setQuickDraft(sub.id, { name: e.target.value })}
                             />
                             <input
@@ -1064,17 +1122,17 @@ export default function InventoryManagement({ permissions }: PageProps) {
                               disabled={saving || !quick.name.trim()}
                               onClick={() => quickAddProductToSubcategory(sub)}
                             >
-                              <i className="fas fa-bolt" /> Quick Add
+                              <i className="fas fa-bolt" /> {t("Quick Add")}
                             </button>
                           </div>
                         )}
                         <div className="inv-card-footer" onClick={(e) => e.stopPropagation()}>
-                          <span className="inv-card-enter-hint">Click to view products →</span>
+                          <span className="inv-card-enter-hint">{t("Click to view products")} →</span>
                           <div className="inv-card-actions">
                             <button
                               type="button"
                               className="inv-btn-icon green"
-                              title="Manage custom fields"
+                              title={t("Manage custom fields")}
                               onClick={() => openFieldsModal(sub)}
                             >
                               <i className="fas fa-sliders" />
@@ -1083,7 +1141,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                               <button
                                 type="button"
                                 className="inv-btn-icon"
-                                title="Edit subcategory"
+                                title={t("Edit subcategory")}
                                 onClick={() => openEditSubcategory(sub)}
                               >
                                 <i className="fas fa-pen" />
@@ -1093,7 +1151,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                               <button
                                 type="button"
                                 className="inv-btn-icon danger"
-                                title="Delete subcategory"
+                                title={t("Delete subcategory")}
                                 onClick={() => setDeleteTarget({ type: "subcategory", item: sub, label: sub.name ?? "" })}
                               >
                                 <i className="fas fa-trash" />
@@ -1138,8 +1196,8 @@ export default function InventoryManagement({ permissions }: PageProps) {
 
               <div className="inv-section-header">
                 <div className="inv-section-title">
-                  <h2><i className="fas fa-box" style={{ marginRight: 8 }} />Products</h2>
-                  <p>Showing products in <strong>{selectedSubcategory.name}</strong></p>
+                  <h2><i className="fas fa-box" style={{ marginRight: 8 }} />{t("Products")}</h2>
+                  <p>{t("Showing products in")} <strong>{selectedSubcategory.name}</strong></p>
                 </div>
                 <div className="inv-header-actions">
                   <button
@@ -1147,7 +1205,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                     type="button"
                     onClick={() => goToSubcategories(selectedCategory)}
                   >
-                    <i className="fas fa-arrow-left" /> Back
+                    <i className="fas fa-arrow-left" /> {t("Back")}
                   </button>
                   {canCreate && (
                     <button
@@ -1155,7 +1213,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                       type="button"
                       onClick={() => openAddProdModal({ category: selectedCategory, subcategory: selectedSubcategory })}
                     >
-                      <i className="fas fa-plus" /> Add Products
+                      <i className="fas fa-plus" /> {t("Add Products")}
                     </button>
                   )}
                   <button
@@ -1164,7 +1222,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                     onClick={() => loadProducts(selectedSubcategory.id)}
                     disabled={loading}
                   >
-                    <i className="fas fa-rotate-right" /> Refresh
+                    <i className="fas fa-rotate-right" /> {t("Refresh")}
                   </button>
                 </div>
               </div>
@@ -1173,7 +1231,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                 <i className="fas fa-search" />
                 <input
                   type="text"
-                  placeholder="Search by name, serial or barcode…"
+                  placeholder={t("Search by name, serial or barcode...")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -1184,13 +1242,13 @@ export default function InventoryManagement({ permissions }: PageProps) {
                 )}
               </div>
 
-              {loading && <div className="inv-loading"><i className="fas fa-circle-notch fa-spin" /> Loading...</div>}
+              {loading && <div className="inv-loading"><i className="fas fa-circle-notch fa-spin" /> {t("Loading...")}</div>}
 
               {!loading && filteredProducts.length === 0 && (
                 <div className="inv-empty-state">
                   <i className="fas fa-box-open" />
-                  <h4>{searchQuery ? "No products match your search" : "No products yet"}</h4>
-                  <p>{canCreate && !searchQuery ? 'Click "Add Products" to add stock.' : ""}</p>
+                  <h4>{searchQuery ? t("No products match your search") : t("No products yet")}</h4>
+                  <p>{canCreate && !searchQuery ? t('Click "Add Products" to add stock.') : ""}</p>
                 </div>
               )}
 
@@ -1199,14 +1257,14 @@ export default function InventoryManagement({ permissions }: PageProps) {
                   <table className="inv-table">
                     <thead>
                       <tr>
-                        <th>Product Name</th>
-                        <th>Serial / Barcode</th>
-                        <th>Available</th>
-                        <th>Total Added</th>
+                        <th>{t("Product Name")}</th>
+                        <th>{t("Serial / Barcode")}</th>
+                        <th>{t("Available")}</th>
+                        <th>{t("Total Added")}</th>
                         {currentFieldDefs().map((f) => (
                           <th key={f.key}>{f.label}</th>
                         ))}
-                        <th>Notes</th>
+                        <th>{t("Notes")}</th>
                         {canDelete && <th style={{ width: 60 }}></th>}
                       </tr>
                     </thead>
@@ -1219,8 +1277,8 @@ export default function InventoryManagement({ permissions }: PageProps) {
                           <tr key={prod.id}>
                             <td style={{ fontWeight: 600 }}>{prod.name}</td>
                             <td className="mono">
-                              {prod.serialNumber && <div>S/N: {prod.serialNumber}</div>}
-                              {prod.barcode && <div>QR: {prod.barcode}</div>}
+                              {prod.serialNumber && <div>{t("S/N:")} {prod.serialNumber}</div>}
+                              {prod.barcode && <div>{t("QR:")} {prod.barcode}</div>}
                               {!prod.serialNumber && !prod.barcode && <span style={{ color: "#9ba8b9" }}>—</span>}
                             </td>
                             <td>
@@ -1228,7 +1286,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                                 {available <= 0 && <i className="fas fa-circle-exclamation" />}
                                 {available > 0 && available <= 5 && <i className="fas fa-triangle-exclamation" />}
                                 {available > 5 && <i className="fas fa-check-circle" />}
-                                {" "}{available} unit{available !== 1 ? "s" : ""}
+                                {" "}{available} {available !== 1 ? t("units") : t("unit")}
                               </span>
                             </td>
                             <td style={{ color: "#6d7d90" }}>{prod.quantity ?? 0}</td>
@@ -1245,7 +1303,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                                 <button
                                   type="button"
                                   className="inv-btn-icon danger"
-                                  title="Delete product"
+                                  title={t("Delete product")}
                                   onClick={() => setDeleteTarget({ type: "product", item: prod, label: prod.name ?? "" })}
                                 >
                                   <i className="fas fa-trash" />
@@ -1263,17 +1321,17 @@ export default function InventoryManagement({ permissions }: PageProps) {
               {/* Recent Transactions */}
               {transactions.length > 0 && (
                 <div className="inv-tx-section">
-                  <h3><i className="fas fa-clock-rotate-left" style={{ marginRight: 8 }} />Recent Transactions</h3>
+                  <h3><i className="fas fa-clock-rotate-left" style={{ marginRight: 8 }} />{t("Recent Transactions")}</h3>
                   <div className="inv-table-wrap">
                     <table className="inv-table">
                       <thead>
                         <tr>
-                          <th>Product</th>
-                          <th>Type</th>
-                          <th>Quantity</th>
-                          <th>By</th>
-                          <th>Date</th>
-                          <th>Notes</th>
+                          <th>{t("Product")}</th>
+                          <th>{t("Type")}</th>
+                          <th>{t("Quantity")}</th>
+                          <th>{t("By")}</th>
+                          <th>{t("Date")}</th>
+                          <th>{t("Notes")}</th>
                         </tr>
                       </thead>
                       <tbody>
@@ -1283,9 +1341,9 @@ export default function InventoryManagement({ permissions }: PageProps) {
                             <td>
                               <span className={`inv-tx-badge ${tx.transactionType === "ADD" ? "add" : "checkout"}`}>
                                 {tx.transactionType === "ADD" ? (
-                                  <><i className="fas fa-plus" /> Add Stock</>
+                                  <><i className="fas fa-plus" /> {t("Add Stock")}</>
                                 ) : (
-                                  <><i className="fas fa-cart-arrow-down" /> Checkout</>
+                                  <><i className="fas fa-cart-arrow-down" /> {t("Checkout")}</>
                                 )}
                               </span>
                             </td>
@@ -1313,12 +1371,12 @@ export default function InventoryManagement({ permissions }: PageProps) {
 
           <div className="inv-section-header">
             <div className="inv-section-title">
-              <h2><i className="fas fa-store" style={{ marginRight: 8 }} />Store — Product Checkout</h2>
-              <p>Select a product category, then choose what to retrieve from inventory</p>
+              <h2><i className="fas fa-store" style={{ marginRight: 8 }} />{t("Store - Product Checkout")}</h2>
+              <p>{t("Select a product category, then choose what to retrieve from inventory")}</p>
             </div>
             {storeStep !== "category" && (
               <button className="inv-btn inv-btn-secondary" type="button" onClick={resetStore}>
-                <i className="fas fa-rotate-left" /> Start Over
+                <i className="fas fa-rotate-left" /> {t("Start Over")}
               </button>
             )}
           </div>
@@ -1327,28 +1385,28 @@ export default function InventoryManagement({ permissions }: PageProps) {
           <div className="inv-store-wizard">
             <div className={`inv-wizard-step ${storeStep === "category" ? "active" : storeCategory ? "done" : ""}`}>
               <span className="inv-wizard-step-num">{storeCategory ? <i className="fas fa-check" /> : "1"}</span>
-              Select Category
+              {t("Select Category")}
             </div>
             <div className={`inv-wizard-step ${storeStep === "subcategory" ? "active" : storeSubcategory ? "done" : ""}`}>
               <span className="inv-wizard-step-num">{storeSubcategory ? <i className="fas fa-check" /> : "2"}</span>
-              Select Subcategory
+              {t("Select Subcategory")}
             </div>
             <div className={`inv-wizard-step ${storeStep === "products" ? "active" : ""}`}>
               <span className="inv-wizard-step-num">3</span>
-              Checkout Products
+              {t("Checkout Products")}
             </div>
           </div>
 
           {/* ── Step 1: Category */}
           {storeStep === "category" && (
             <div className="inv-store-section">
-              <h3>Which category do you want to retrieve products from?</h3>
-              {loading && <div className="inv-loading"><i className="fas fa-circle-notch fa-spin" /> Loading...</div>}
+              <h3>{t("Which category do you want to retrieve products from?")}</h3>
+              {loading && <div className="inv-loading"><i className="fas fa-circle-notch fa-spin" /> {t("Loading...")}</div>}
               {!loading && categories.length === 0 && (
                 <div className="inv-empty-state">
                   <i className="fas fa-box-open" />
-                  <h4>No inventory categories</h4>
-                  <p>Ask an admin to set up product categories first.</p>
+                  <h4>{t("No inventory categories")}</h4>
+                  <p>{t("Ask an admin to set up product categories first.")}</p>
                 </div>
               )}
               <div className="inv-store-grid">
@@ -1376,16 +1434,16 @@ export default function InventoryManagement({ permissions }: PageProps) {
               <div className="inv-store-breadcrumb">
                 <strong><i className="fas fa-folder-open" /> {storeCategory.name}</strong>
                 <span style={{ marginLeft: 8, color: "#9ba8b9" }}>›</span>
-                <span style={{ marginLeft: 8 }}>Select a subcategory</span>
+                <span style={{ marginLeft: 8 }}>{t("Select a subcategory")}</span>
               </div>
               <br />
-              <h3>Which subcategory do you want to retrieve products from?</h3>
-              {storeLoading && <div className="inv-loading"><i className="fas fa-circle-notch fa-spin" /> Loading...</div>}
+              <h3>{t("Which subcategory do you want to retrieve products from?")}</h3>
+              {storeLoading && <div className="inv-loading"><i className="fas fa-circle-notch fa-spin" /> {t("Loading...")}</div>}
               {!storeLoading && storeSubcats.length === 0 && (
                 <div className="inv-empty-state">
                   <i className="fas fa-sitemap" />
-                  <h4>No subcategories</h4>
-                  <p>This category has no subcategories with products.</p>
+                  <h4>{t("No subcategories")}</h4>
+                  <p>{t("This category has no subcategories with products.")}</p>
                 </div>
               )}
               <div className="inv-store-grid">
@@ -1406,7 +1464,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
               </div>
               <div style={{ marginTop: 16 }}>
                 <button className="inv-btn inv-btn-secondary" type="button" onClick={resetStore}>
-                  <i className="fas fa-arrow-left" /> Back to Categories
+                  <i className="fas fa-arrow-left" /> {t("Back to Categories")}
                 </button>
               </div>
             </div>
@@ -1420,18 +1478,18 @@ export default function InventoryManagement({ permissions }: PageProps) {
                 <span style={{ margin: "0 8px", color: "#9ba8b9" }}>›</span>
                 <strong><i className="fas fa-tag" /> {storeSubcategory.name}</strong>
                 <span style={{ margin: "0 8px", color: "#9ba8b9" }}>›</span>
-                <span>Available Products</span>
+                <span>{t("Available Products")}</span>
               </div>
               <br />
-              <h3>Select quantity to check out</h3>
+              <h3>{t("Select quantity to check out")}</h3>
 
-              {storeLoading && <div className="inv-loading"><i className="fas fa-circle-notch fa-spin" /> Loading...</div>}
+              {storeLoading && <div className="inv-loading"><i className="fas fa-circle-notch fa-spin" /> {t("Loading...")}</div>}
 
               {!storeLoading && storeProducts.length === 0 && (
                 <div className="inv-empty-state">
                   <i className="fas fa-box-open" />
-                  <h4>No products available for checkout</h4>
-                  <p>All products in this subcategory are out of stock or unavailable.</p>
+                  <h4>{t("No products available for checkout")}</h4>
+                  <p>{t("All products in this subcategory are out of stock or unavailable.")}</p>
                 </div>
               )}
 
@@ -1448,11 +1506,11 @@ export default function InventoryManagement({ permissions }: PageProps) {
                     </div>
                     <div className="inv-checkout-stock">
                       <span className={`inv-stock-badge ${stockClass(available)}`}>
-                        {available} available
+                        {available} {t("available")}
                       </span>
                     </div>
                     <div className="inv-checkout-qty">
-                      <label htmlFor={`qty-${prod.id}`} style={{ fontSize: 12, color: "#6d7d90" }}>Qty:</label>
+                      <label htmlFor={`qty-${prod.id}`} style={{ fontSize: 12, color: "#6d7d90" }}>{t("Qty:")}</label>
                       <input
                         id={`qty-${prod.id}`}
                         type="number"
@@ -1470,7 +1528,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                       disabled={saving || available <= 0}
                       onClick={() => checkoutProduct(prod)}
                     >
-                      <i className="fas fa-cart-arrow-down" /> Checkout
+                      <i className="fas fa-cart-arrow-down" /> {t("Checkout")}
                     </button>
                   </div>
                 );
@@ -1482,7 +1540,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                   type="button"
                   onClick={() => { setStoreStep("subcategory"); setStoreSubcategory(null); }}
                 >
-                  <i className="fas fa-arrow-left" /> Back to Subcategories
+                  <i className="fas fa-arrow-left" /> {t("Back to Subcategories")}
                 </button>
               </div>
             </div>
@@ -1491,16 +1549,16 @@ export default function InventoryManagement({ permissions }: PageProps) {
           {/* Recent Transactions */}
           {recentTx.length > 0 && (
             <div className="inv-tx-section">
-              <h3><i className="fas fa-clock-rotate-left" style={{ marginRight: 8 }} />Recent Store Activity</h3>
+              <h3><i className="fas fa-clock-rotate-left" style={{ marginRight: 8 }} />{t("Recent Store Activity")}</h3>
               <div className="inv-table-wrap">
                 <table className="inv-table">
                   <thead>
                     <tr>
-                      <th>Product</th>
-                      <th>Type</th>
-                      <th>Qty</th>
-                      <th>Checked Out By</th>
-                      <th>Date</th>
+                      <th>{t("Product")}</th>
+                      <th>{t("Type")}</th>
+                      <th>{t("Qty")}</th>
+                      <th>{t("Checked Out By")}</th>
+                      <th>{t("Date")}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1509,7 +1567,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                         <td style={{ fontWeight: 600 }}>{tx.productName || "—"}</td>
                         <td>
                           <span className={`inv-tx-badge ${tx.transactionType === "ADD" ? "add" : "checkout"}`}>
-                            {tx.transactionType === "ADD" ? "Add Stock" : "Checkout"}
+                            {tx.transactionType === "ADD" ? t("Add Stock") : t("Checkout")}
                           </span>
                         </td>
                         <td>{tx.quantity}</td>
@@ -1534,36 +1592,36 @@ export default function InventoryManagement({ permissions }: PageProps) {
         <div className="inv-modal-overlay" onClick={() => !saving && setShowCatModal(false)}>
           <div className="inv-modal" onClick={(e) => e.stopPropagation()}>
             <div className="inv-modal-header">
-              <h3>{editingCat ? "Edit Category" : "New Category"}</h3>
+              <h3>{editingCat ? t("Edit Category") : t("New Category")}</h3>
               <button type="button" className="inv-modal-close" onClick={() => !saving && setShowCatModal(false)}>✕</button>
             </div>
             <div className="inv-modal-body">
               <div className="inv-form-group">
-                <label>Category Name <span className="req">*</span></label>
+                <label>{t("Category Name")} <span className="req">*</span></label>
                 <input
                   type="text"
                   value={catName}
                   onChange={(e) => setCatName(e.target.value)}
-                  placeholder="e.g. Electronics, Lubricants, Tools…"
+                  placeholder={t("e.g. Electronics, Lubricants, Tools...")}
                   autoFocus
                 />
               </div>
               <div className="inv-form-group">
-                <label>Description</label>
+                <label>{t("Description")}</label>
                 <textarea
                   value={catDesc}
                   onChange={(e) => setCatDesc(e.target.value)}
-                  placeholder="Optional description…"
+                  placeholder={t("Optional description...")}
                   rows={3}
                 />
               </div>
             </div>
             <div className="inv-modal-footer">
               <button type="button" className="inv-btn inv-btn-secondary" onClick={() => setShowCatModal(false)} disabled={saving}>
-                Cancel
+                {t("Cancel")}
               </button>
               <button type="button" className="inv-btn inv-btn-primary" onClick={saveCategory} disabled={saving || !catName.trim()}>
-                {saving ? <><i className="fas fa-circle-notch fa-spin" /> Saving…</> : editingCat ? "Save Changes" : "Create Category"}
+                {saving ? <><i className="fas fa-circle-notch fa-spin" /> {t("Saving...")}</> : editingCat ? t("Save Changes") : t("Create Category")}
               </button>
             </div>
           </div>
@@ -1575,42 +1633,42 @@ export default function InventoryManagement({ permissions }: PageProps) {
         <div className="inv-modal-overlay" onClick={() => !saving && setShowSubModal(false)}>
           <div className="inv-modal" onClick={(e) => e.stopPropagation()}>
             <div className="inv-modal-header">
-              <h3>{editingSub ? "Edit Subcategory" : "New Subcategory"}</h3>
+              <h3>{editingSub ? t("Edit Subcategory") : t("New Subcategory")}</h3>
               <button type="button" className="inv-modal-close" onClick={() => !saving && setShowSubModal(false)}>✕</button>
             </div>
             <div className="inv-modal-body">
               <p style={{ margin: "0 0 16px", fontSize: 13, color: "#6d7d90" }}>
-                Inside category: <strong>{selectedCategory?.name}</strong>
+                {t("Inside category:")} <strong>{selectedCategory?.name}</strong>
               </p>
               <div className="inv-form-group">
-                <label>Subcategory Name <span className="req">*</span></label>
+                <label>{t("Subcategory Name")} <span className="req">*</span></label>
                 <input
                   type="text"
                   value={subName}
                   onChange={(e) => setSubName(e.target.value)}
-                  placeholder="e.g. Motor Oil, Filters, Brake Pads…"
+                  placeholder={t("e.g. Motor Oil, Filters, Brake Pads...")}
                   autoFocus
                 />
               </div>
               <div className="inv-form-group">
-                <label>Description</label>
+                <label>{t("Description")}</label>
                 <textarea
                   value={subDesc}
                   onChange={(e) => setSubDesc(e.target.value)}
-                  placeholder="Optional description…"
+                  placeholder={t("Optional description...")}
                   rows={3}
                 />
               </div>
               <p style={{ margin: "0", fontSize: 12, color: "#9ba8b9" }}>
-                <i className="fas fa-info-circle" /> You can define custom product fields for this subcategory after creating it.
+                <i className="fas fa-info-circle" /> {t("You can define custom product fields for this subcategory after creating it.")}
               </p>
             </div>
             <div className="inv-modal-footer">
               <button type="button" className="inv-btn inv-btn-secondary" onClick={() => setShowSubModal(false)} disabled={saving}>
-                Cancel
+                {t("Cancel")}
               </button>
               <button type="button" className="inv-btn inv-btn-primary" onClick={saveSubcategory} disabled={saving || !subName.trim()}>
-                {saving ? <><i className="fas fa-circle-notch fa-spin" /> Saving…</> : editingSub ? "Save Changes" : "Create Subcategory"}
+                {saving ? <><i className="fas fa-circle-notch fa-spin" /> {t("Saving...")}</> : editingSub ? t("Save Changes") : t("Create Subcategory")}
               </button>
             </div>
           </div>
@@ -1622,20 +1680,20 @@ export default function InventoryManagement({ permissions }: PageProps) {
         <div className="inv-modal-overlay" onClick={() => !saving && setShowFieldsModal(false)}>
           <div className="inv-modal wide" onClick={(e) => e.stopPropagation()}>
             <div className="inv-modal-header">
-              <h3><i className="fas fa-sliders" style={{ marginRight: 8 }} />Custom Fields — {fieldsSub.name}</h3>
+              <h3><i className="fas fa-sliders" style={{ marginRight: 8 }} />{t("Custom Fields")} — {fieldsSub.name}</h3>
               <button type="button" className="inv-modal-close" onClick={() => !saving && setShowFieldsModal(false)}>✕</button>
             </div>
             <div className="inv-modal-body">
               <p style={{ margin: "0 0 14px", fontSize: 13, color: "#6d7d90" }}>
-                Define the data fields that will appear on every product in <strong>{fieldsSub.name}</strong>.
-                These fields will be available when adding products by quantity.
+                {t("Define the data fields that will appear on every product in")} <strong>{fieldsSub.name}</strong>.
+                {t("These fields will be available when adding products by quantity.")}
               </p>
 
               {fieldDefs.length === 0 && (
                 <div className="inv-empty-state" style={{ padding: "20px 0" }}>
                   <i className="fas fa-th-list" />
-                  <h4>No custom fields defined</h4>
-                  <p>Click "Add Field" to add your first custom field.</p>
+                  <h4>{t("No custom fields defined")}</h4>
+                  <p>{t('Click "Add Field" to add your first custom field.')}</p>
                 </div>
               )}
 
@@ -1644,33 +1702,33 @@ export default function InventoryManagement({ permissions }: PageProps) {
                   <div key={fd.key} className="inv-field-row">
                     <input
                       type="text"
-                      placeholder="Field label (e.g. Color)"
+                      placeholder={t("Field label (e.g. Color)")}
                       value={fd.label}
                       onChange={(e) => updateFieldDef(idx, { label: e.target.value })}
                     />
                     <select
                       value={fd.type}
                       onChange={(e) => updateFieldDef(idx, { type: e.target.value as FieldType })}
-                      title="Field type"
+                      title={t("Field type")}
                     >
-                      <option value="string">Text (string)</option>
-                      <option value="number">Number</option>
-                      <option value="boolean">Yes/No (boolean)</option>
-                      <option value="date">Date</option>
-                      <option value="email">Email</option>
+                      <option value="string">{t("Text (string)")}</option>
+                      <option value="number">{t("Number")}</option>
+                      <option value="boolean">{t("Yes/No (boolean)")}</option>
+                      <option value="date">{t("Date")}</option>
+                      <option value="email">{t("Email")}</option>
                     </select>
-                    <label className="inv-field-required-cb" title="Mark as required">
+                    <label className="inv-field-required-cb" title={t("Mark as required")}> 
                       <input
                         type="checkbox"
                         checked={fd.required}
                         onChange={(e) => updateFieldDef(idx, { required: e.target.checked })}
                       />
-                      Required
+                      {t("Required")}
                     </label>
                     <button
                       type="button"
                       className="inv-btn-icon danger"
-                      title="Remove field"
+                      title={t("Remove field")}
                       onClick={() => removeFieldDef(idx)}
                     >
                       <i className="fas fa-times" />
@@ -1680,15 +1738,15 @@ export default function InventoryManagement({ permissions }: PageProps) {
               </div>
 
               <button type="button" className="inv-btn inv-btn-secondary" onClick={addFieldDef} style={{ marginTop: 8 }}>
-                <i className="fas fa-plus" /> Add Field
+                <i className="fas fa-plus" /> {t("Add Field")}
               </button>
             </div>
             <div className="inv-modal-footer">
               <button type="button" className="inv-btn inv-btn-secondary" onClick={() => setShowFieldsModal(false)} disabled={saving}>
-                Cancel
+                {t("Cancel")}
               </button>
               <button type="button" className="inv-btn inv-btn-success" onClick={saveFieldDefs} disabled={saving}>
-                {saving ? <><i className="fas fa-circle-notch fa-spin" /> Saving…</> : <><i className="fas fa-save" /> Save Field Definitions</>}
+                {saving ? <><i className="fas fa-circle-notch fa-spin" /> {t("Saving...")}</> : <><i className="fas fa-save" /> {t("Save Field Definitions")}</>}
               </button>
             </div>
           </div>
@@ -1702,29 +1760,29 @@ export default function InventoryManagement({ permissions }: PageProps) {
             <div className="inv-modal-header">
               <h3>
                 <i className="fas fa-plus-circle" style={{ marginRight: 8 }} />
-                Add Products{activeModalSubcategory ? ` to ${activeModalSubcategory.name}` : ` in ${modalCategory.name}`}
+                {t("Add Products")}{activeModalSubcategory ? ` ${t("to")} ${activeModalSubcategory.name}` : ` ${t("in")} ${modalCategory.name}`}
               </h3>
               <button type="button" className="inv-modal-close" onClick={() => !saving && setShowAddProdModal(false)}>✕</button>
             </div>
             <div className="inv-modal-body">
               <div className="inv-form-row" style={{ marginBottom: 10 }}>
                 <div className="inv-form-group">
-                  <label>Category</label>
+                  <label>{t("Category")}</label>
                   <input type="text" value={modalCategory.name ?? ""} readOnly />
                 </div>
                 <div className="inv-form-group">
-                  <label>Subcategory <span className="req">*</span></label>
+                  <label>{t("Subcategory")} <span className="req">*</span></label>
                   <select
                     value={activeModalSubcategory?.id ?? ""}
                     onChange={(e) => setModalSubcategoryId(e.target.value)}
                   >
-                    <option value="">Select subcategory...</option>
+                    <option value="">{t("Select subcategory...")}</option>
                     {modalCategorySubcategories.map((sub) => (
                       <option key={sub.id} value={sub.id}>{sub.name}</option>
                     ))}
                   </select>
                   {modalCategorySubcategories.length === 0 && (
-                    <p className="inv-form-hint">No subcategories found. Create a subcategory first.</p>
+                    <p className="inv-form-hint">{t("No subcategories found. Create a subcategory first.")}</p>
                   )}
                 </div>
               </div>
@@ -1736,7 +1794,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                   className={`inv-mode-btn${addMode === "quantity" ? " active" : ""}`}
                   onClick={() => setAddMode("quantity")}
                 >
-                  <i className="fas fa-hashtag" /> By Quantity
+                  <i className="fas fa-hashtag" /> {t("By Quantity")}
                 </button>
                 {canScan && (
                   <button
@@ -1744,7 +1802,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                     className={`inv-mode-btn${addMode === "scan" ? " active" : ""}`}
                     onClick={() => { setAddMode("scan"); setTimeout(() => scanRef.current?.focus(), 100); }}
                   >
-                    <i className="fas fa-barcode" /> By Scanning
+                    <i className="fas fa-barcode" /> {t("By Scanning")}
                   </button>
                 )}
               </div>

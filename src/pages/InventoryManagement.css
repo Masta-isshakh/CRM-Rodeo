@@ -1206,6 +1206,252 @@ html[data-theme="dark"] .inv-modal-footer {
   border-top-color: rgba(148, 163, 184, 0.12);
 }
 
+/* ======================================================================
+   DAILY REPORT PREMIUM SHELL — applied to Inventory Management
+   ====================================================================== */
+:root {
+  --dr-bg-a: #f0f4ff;
+  --dr-bg-b: #e8f4fa;
+}
+
+.inv-page {
+  position: relative;
+  background:
+    radial-gradient(1200px 380px at 8% -8%, rgba(37, 99, 235, 0.12), transparent 60%),
+    radial-gradient(1200px 380px at 100% -20%, rgba(14, 116, 144, 0.14), transparent 55%),
+    linear-gradient(135deg, var(--dr-bg-a), var(--dr-bg-b)) !important;
+  border-radius: 26px !important;
+  overflow: visible;
+}
+
+.inv-page::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(to right, rgba(15, 23, 42, 0.055) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(15, 23, 42, 0.04) 1px, transparent 1px);
+  background-size: 20px 20px;
+  border-radius: 26px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.inv-page > * {
+  position: relative;
+  z-index: 1;
+}
+
+.inv-tabs,
+.inv-section-header,
+.inv-search-bar,
+.inv-table-wrap,
+.inv-store-section,
+.inv-status,
+.inv-card,
+.inv-store-card,
+.inv-modal {
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+
+.inv-tabs,
+.inv-section-header,
+.inv-search-bar,
+.inv-table-wrap,
+.inv-store-section,
+.inv-status,
+.inv-card,
+.inv-store-card {
+  background: rgba(255, 255, 255, 0.8) !important;
+  border: 1px solid rgba(255, 255, 255, 0.56) !important;
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.08), 0 1px 4px rgba(15, 23, 42, 0.05) !important;
+}
+
+.inv-section-title h2,
+.inv-store-section h3,
+.inv-tx-section h3 {
+  background: linear-gradient(135deg, #0f172a 0%, #1e40af 60%, #0e7490 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 950 !important;
+}
+
+.inv-section-title h2 {
+  font-size: 24px !important;
+}
+
+.inv-tabs {
+  padding: 8px;
+  border-radius: 18px;
+  border-bottom: none !important;
+}
+
+.inv-tab-btn {
+  border-radius: 12px !important;
+  font-weight: 800 !important;
+}
+
+.inv-tab-btn.active {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.08), rgba(30, 64, 175, 0.12)) !important;
+  box-shadow: 0 8px 18px rgba(30, 64, 175, 0.12);
+}
+
+/* Premium card title areas */
+.inv-card {
+  overflow: hidden;
+}
+
+.inv-card-header {
+  margin: -18px -18px 14px;
+  padding: 16px 18px;
+  border-radius: 18px 18px 16px 16px;
+  color: #fff;
+  background: linear-gradient(135deg, #0f172a 0%, #1e40af 70%, #0e7490 100%);
+  box-shadow: inset 0 -1px 0 rgba(255,255,255,0.18);
+}
+
+.inv-grid .inv-card:nth-child(2n) .inv-card-header {
+  background: linear-gradient(135deg, #065f46 0%, #059669 100%);
+}
+
+.inv-grid .inv-card:nth-child(3n) .inv-card-header {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+}
+
+.inv-grid .inv-card:nth-child(4n) .inv-card-header {
+  background: linear-gradient(135deg, #b45309 0%, #d97706 100%);
+}
+
+.inv-card-name,
+.inv-card-desc {
+  color: #fff !important;
+}
+
+.inv-card-desc {
+  opacity: 0.86;
+}
+
+.inv-card-icon {
+  background: rgba(255,255,255,0.18) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255,255,255,0.25);
+}
+
+.inv-store-section {
+  border-radius: 20px !important;
+}
+
+.inv-store-breadcrumb,
+.inv-store-wizard {
+  background: rgba(255,255,255,0.72);
+  border-radius: 16px;
+  padding: 10px 12px;
+}
+
+.inv-modal-overlay {
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.inv-modal {
+  border-radius: 22px !important;
+  border: 1px solid rgba(255,255,255,0.42) !important;
+  box-shadow: 0 0 0 1px rgba(255,255,255,0.45) inset, 0 32px 80px rgba(15, 23, 42, 0.28) !important;
+}
+
+.inv-modal-header {
+  margin-bottom: 0;
+  padding: 18px 20px !important;
+  background: linear-gradient(135deg, #0f172a 0%, #1e40af 60%, #0e7490 100%);
+  border-radius: 22px 22px 0 0;
+}
+
+.inv-modal-header h3 {
+  color: #fff !important;
+  font-size: 16px !important;
+  font-weight: 950 !important;
+}
+
+.inv-modal-close {
+  background: rgba(255,255,255,0.14) !important;
+  color: #fff !important;
+  border: 1px solid rgba(255,255,255,0.24);
+}
+
+.inv-modal-close:hover {
+  background: rgba(255,255,255,0.22) !important;
+}
+
+.inv-btn,
+.inv-btn-icon,
+.inv-mode-btn {
+  border-radius: 12px !important;
+  font-weight: 800 !important;
+}
+
+.inv-status.success {
+  background: rgba(16, 185, 129, 0.12) !important;
+}
+
+.inv-status.error {
+  background: rgba(239, 68, 68, 0.1) !important;
+}
+
+@keyframes inv-fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.inv-grid,
+.inv-table-wrap,
+.inv-store-section,
+.inv-modal {
+  animation: inv-fade-in 0.22s ease;
+}
+
+@media (max-width: 760px) {
+  .inv-page {
+    padding: 12px 12px 28px;
+  }
+
+  .inv-section-title h2 {
+    font-size: 18px !important;
+  }
+
+  .inv-tabs {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .inv-tab-btn {
+    flex: 1 1 160px;
+    justify-content: center;
+  }
+
+  .inv-card-header {
+    margin: -18px -18px 12px;
+    padding: 14px 16px;
+  }
+
+  .inv-form-row,
+  .inv-quick-add,
+  .inv-field-row {
+    grid-template-columns: 1fr !important;
+  }
+
+  .inv-checkout-row {
+    align-items: stretch;
+  }
+
+  .inv-checkout-stock,
+  .inv-checkout-qty,
+  .inv-checkout-row .inv-btn {
+    width: 100%;
+  }
+}
+
 html[data-theme="dark"] .inv-form-group label {
   color: #cbd5e1;
 }

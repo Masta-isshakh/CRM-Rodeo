@@ -1,7 +1,7 @@
 // src/pages/UserAdmin.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@aws-amplify/ui-react";
-import { createPortal } from "react-dom";
+import { createPortal, flushSync } from "react-dom";
 import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 import { useLanguage } from "../i18n/LanguageContext";
 
@@ -194,7 +194,7 @@ export default function Users(_: PageProps) {
   ] as const;
 
   if (!canAccessUsersAdmin) {
-    return <div style={{ padding: 24 }}>You don’t have access to this page.</div>;
+    return <div style={{ padding: 24 }}>{t("youDontHaveAccessToThisPage")}</div>;
   }
 
   // Invite modal state
@@ -828,21 +828,23 @@ export default function Users(_: PageProps) {
   };
 
   const openDetailsModal = (u: UserRow) => {
-    setDetailsUser(u);
-    setDetailsEditing(false);
-    setEditFirstName(u.fullName ? u.fullName.split(" ")[0] : "");
-    setEditLastName(u.fullName ? u.fullName.split(" ").slice(1).join(" ") : "");
-    setEditDepartmentKey(String(u.departmentKey ?? ""));
-    setEditRoleKey(String((u as any).roleId ?? ""));
-    setEditMobileNumber(u.mobileNumber ?? "");
-    setEditEmployeeId(normalizeEmployeeId(String((u as any).employeeId ?? "")));
-    setEditLineManagerEmail(String((u as any).lineManagerEmail ?? "").trim().toLowerCase());
-    const nextIsActive = Boolean((u as any).isActive ?? true);
-    const nextDashboardEnabled = Boolean((u as any).dashboardAccessEnabled ?? true);
-    setEditIsActive(nextIsActive);
-    setEditDashboardAccessEnabled(nextIsActive ? nextDashboardEnabled : false);
-    setDetailsStatus("");
-    setDetailsOpen(true);
+    flushSync(() => {
+      setDetailsUser(u);
+      setDetailsEditing(false);
+      setEditFirstName(u.fullName ? u.fullName.split(" ")[0] : "");
+      setEditLastName(u.fullName ? u.fullName.split(" ").slice(1).join(" ") : "");
+      setEditDepartmentKey(String(u.departmentKey ?? ""));
+      setEditRoleKey(String((u as any).roleId ?? ""));
+      setEditMobileNumber(u.mobileNumber ?? "");
+      setEditEmployeeId(normalizeEmployeeId(String((u as any).employeeId ?? "")));
+      setEditLineManagerEmail(String((u as any).lineManagerEmail ?? "").trim().toLowerCase());
+      const nextIsActive = Boolean((u as any).isActive ?? true);
+      const nextDashboardEnabled = Boolean((u as any).dashboardAccessEnabled ?? true);
+      setEditIsActive(nextIsActive);
+      setEditDashboardAccessEnabled(nextIsActive ? nextDashboardEnabled : false);
+      setDetailsStatus("");
+      setDetailsOpen(true);
+    });
   };
 
   const saveUserChanges = async () => {
@@ -1094,7 +1096,7 @@ export default function Users(_: PageProps) {
         throw new Error(t("passwordResetNotDispatched"));
       }
 
-      setDetailsStatus(`Reset password email sent to ${targetEmail}.`);
+      setDetailsStatus(`${t("resetPasswordEmailSentTo")} ${targetEmail}.`);
 
       if (!roleName && !roleId) {
         console.warn("sendResetPassword: user has no role assigned");
@@ -1168,6 +1170,11 @@ export default function Users(_: PageProps) {
 
   return (
     <div className="ums-page">
+      <div className="ums-page-bg" aria-hidden="true">
+        <span className="ums-bg-orb ums-bg-orb-a" />
+        <span className="ums-bg-orb ums-bg-orb-b" />
+        <span className="ums-bg-grid" />
+      </div>
       {!detailsOpen && portalDropdown}
 
       <ConfirmationPopup
@@ -1214,13 +1221,13 @@ export default function Users(_: PageProps) {
         )}
 
         {detailsOpen && detailsUser ? (
-          <div className="ums-card ums-details-page" role="region" aria-label="Edit user details">
+          <div className="ums-card ums-details-page" role="region" aria-label={t("editUserDetails")}>
             <div className="ums-details-page-head">
               <div className="ums-details-page-title-wrap">
                 <h3><span className="ums-section-icon" aria-hidden>●</span>{t("userDetails")}</h3>
                 <div className="ums-details-page-sub">{t("viewAndManageUserAccountSettings")}</div>
               </div>
-              <button className="ums-back-btn" onClick={() => setDetailsOpen(false)} aria-label="Back to users list">
+              <button className="ums-back-btn" onClick={() => setDetailsOpen(false)} aria-label={t("backToUsersList")}>
                 {t("backToUsers")}
               </button>
             </div>
@@ -1249,7 +1256,7 @@ export default function Users(_: PageProps) {
                           className="ums-input"
                           value={editEmployeeId}
                           onChange={(e) => setEditEmployeeId(normalizeEmployeeId(e.target.value))}
-                          placeholder="EMP001"
+                          placeholder={t("employeeIdExample")}
                         />
                       ) : (
                         <div className="ums-static-value">{String((detailsUser as any).employeeId ?? "").trim() || "—"}</div>
@@ -1296,7 +1303,7 @@ export default function Users(_: PageProps) {
                           className="ums-input"
                           value={editMobileNumber}
                           onChange={(e) => setEditMobileNumber(e.target.value)}
-                          placeholder="+974 1234 5678"
+                          placeholder={t("phoneExample")}
                         />
                       ) : (
                         <div className="ums-static-value">{editMobileNumber || "—"}</div>
@@ -1391,7 +1398,7 @@ export default function Users(_: PageProps) {
                         <div className="ums-toggle-title">{t("userStatus")}</div>
                         <div className="ums-toggle-sub">{t("inactiveUsersBlockedFromAccess")}</div>
                       </div>
-                      <label className="ums-switch" aria-label="Toggle user active status">
+                      <label className="ums-switch" aria-label={t("toggleUserActiveStatus")}>
                         <input
                           type="checkbox"
                           checked={editIsActive}
@@ -1411,7 +1418,7 @@ export default function Users(_: PageProps) {
                         <div className="ums-toggle-title">{t("dashboardAccess")}</div>
                         <div className="ums-toggle-sub">{t("disabledUsersCannotAccessDashboard")}</div>
                       </div>
-                      <label className="ums-switch" aria-label="Toggle dashboard access">
+                      <label className="ums-switch" aria-label={t("toggleDashboardAccess")}>
                         <input
                           type="checkbox"
                           checked={editDashboardAccessEnabled}
@@ -1489,7 +1496,7 @@ export default function Users(_: PageProps) {
           </div>
 
           <div className="ums-showing">
-            Showing {from}-{to} of {total} {t("users")}
+            {t("Showing")} {from}-{to} {t("of")} {total} {t("users")}
           </div>
         </div>
 
@@ -1503,7 +1510,7 @@ export default function Users(_: PageProps) {
             }}
           >
             <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 6 }}>
-              RBAC self-check (dev only)
+              {t("rbacSelfCheckDevOnly")}
             </div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 8, fontSize: 12 }}>
               {rbacSelfCheckRows.map((item) => (
@@ -1586,38 +1593,38 @@ export default function Users(_: PageProps) {
 
                   return (
                     <tr key={u.id}>
-                      <td data-label="Employee ID" className="ums-mono">{row.empId}</td>
-                      <td data-label="Employee Name" className="ums-name">{u.fullName ?? "—"}</td>
-                      <td data-label="Email Address" className="ums-email">{u.email ?? "—"}</td>
-                      <td data-label="Mobile Number" className="ums-muted">{row.mobile || "—"}</td>
+                      <td data-label={t("employeeID")} className="ums-mono">{row.empId}</td>
+                      <td data-label={t("employeeName")} className="ums-name">{u.fullName ?? "—"}</td>
+                      <td data-label={t("emailAddress")} className="ums-email">{u.email ?? "—"}</td>
+                      <td data-label={t("mobileNumber")} className="ums-muted">{row.mobile || "—"}</td>
 
-                      <td data-label="Department">
+                      <td data-label={t("department")}>
                         <span className="pill pill-dept">{row.deptName}</span>
                       </td>
 
-                      <td data-label="Role">
+                      <td data-label={t("role")}>
                         <span className="pill pill-role">{row.roleName}</span>
                       </td>
 
-                      <td data-label="Line Manager" className="ums-muted">
+                      <td data-label={t("lineManager")} className="ums-muted">
                         <span className="ums-line-manager-cell" title={row.lineManagerDisplay}>
                           {row.lineManagerDisplay}
                         </span>
                       </td>
 
-                      <td data-label="User Status">
+                      <td data-label={t("userStatus")}>
                         <span className={`pill ${active ? "pill-active" : "pill-inactive"}`}>
                           {active ? t("Active") : t("Inactive")}
                         </span>
                       </td>
 
-                      <td data-label="Dashboard Access">
+                      <td data-label={t("dashboardAccess")}>
                         <span className={`pill ${dashAllowed ? "pill-allowed" : "pill-blocked"}`}>
                           {dashAllowed ? t("allowed") : t("blocked")}
                         </span>
                       </td>
 
-                      <td data-label="Actions" className="ums-actions-cell">
+                      <td data-label={t("Actions")} className="ums-actions-cell">
                         {!isRootAdminRow && (canEditUsers || canDeleteUsers) && (
                           <PermissionGate moduleId="users" optionId="users_edit">
                             <button
@@ -1658,7 +1665,7 @@ export default function Users(_: PageProps) {
             <div className="ums-modal">
               <div className="ums-modal-head">
                 <h3>{t("addNewUser")}</h3>
-                <button className="ums-modal-close" onClick={() => setInviteOpen(false)} aria-label="Close">
+                <button className="ums-modal-close" onClick={() => setInviteOpen(false)} aria-label={t("Close")}>
                   ✕
                 </button>
               </div>
@@ -1671,7 +1678,7 @@ export default function Users(_: PageProps) {
                       className="ums-input"
                       value={employeeId}
                       onChange={(e) => setEmployeeId(normalizeEmployeeId(e.target.value))}
-                      placeholder="EMP001"
+                      placeholder={t("employeeIdExample")}
                     />
                   </div>
 
@@ -1712,7 +1719,7 @@ export default function Users(_: PageProps) {
                       className="ums-input"
                       value={mobileNumber}
                       onChange={(e) => setMobileNumber(e.target.value)}
-                      placeholder="+974 1234 5678"
+                      placeholder={t("phoneExample")}
                     />
                     <div className="ums-field-hint">{t("tipQatarFormat")}</div>
                   </div>
