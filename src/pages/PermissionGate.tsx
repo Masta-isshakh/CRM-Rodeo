@@ -455,12 +455,24 @@ export default function PermissionGate({
   if (loading) return null;
   if (isAdminGroup) return <>{children}</>;
 
-  // 1) Option-level check (includes module enabled gate)
-  const optionAllowed = canOption(moduleId, optionId, true);
-  if (!optionAllowed) return <>{fallback}</>;
-
   const normalizedModule = String(moduleId ?? "").toLowerCase().trim();
   const normalizedOption = String(optionId ?? "").toLowerCase().trim();
+
+  const strictDocumentToggle =
+    (normalizedModule === "payment" && (normalizedOption === "payment_documents" || normalizedOption === "payment_download")) ||
+    (normalizedModule === "qualitycheck" && (normalizedOption === "qualitycheck_documents" || normalizedOption === "qualitycheck_download")) ||
+    (normalizedModule === "exitpermit" && (normalizedOption === "exitpermit_documents" || normalizedOption === "exitpermit_download")) ||
+    (normalizedModule === "inspection" && (normalizedOption === "inspection_documents" || normalizedOption === "inspection_download"));
+
+  // 1) Option-level check (includes module enabled gate)
+  const optionAllowed = canOption(moduleId, optionId, !strictDocumentToggle);
+  if (!optionAllowed) return <>{fallback}</>;
+
+  const optionIsExplicitlyConfigured = hasOptionToggle(moduleId, optionId);
+  if (strictDocumentToggle) {
+    return <>{optionIsExplicitlyConfigured ? children : fallback}</>;
+  }
+
   const optionAuthoritative =
     (normalizedModule === "users" || normalizedModule === "useradmin") &&
     (normalizedOption === "users_list" || normalizedOption === "users_view") ||
@@ -472,7 +484,6 @@ export default function PermissionGate({
 
   // If this exact option is explicitly configured in RoleOptionToggle,
   // option-level RBAC becomes authoritative for visibility.
-  const optionIsExplicitlyConfigured = hasOptionToggle(moduleId, optionId);
   if (optionIsExplicitlyConfigured) {
     return <>{children}</>;
   }

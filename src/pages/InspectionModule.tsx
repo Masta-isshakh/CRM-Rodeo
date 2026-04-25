@@ -1137,9 +1137,11 @@ function InspectionModule({ currentUser }: any) {
                   />
                   {reportHtml && (
                     <div className="inspection-summary-actions">
-                      <button className="btn btn-primary" onClick={downloadReport}>
-                        <i className="fas fa-download"></i> {t("Download Inspection Report")}
-                      </button>
+                      <PermissionGate moduleId="inspection" optionId="inspection_download">
+                        <button className="btn btn-primary" onClick={downloadReport}>
+                          <i className="fas fa-download"></i> {t("Download Inspection Report")}
+                        </button>
+                      </PermissionGate>
                       <div style={{ marginTop: 8, fontSize: 12, opacity: 0.85 }}>
                         {t("Generated:")} {
                           String(
@@ -1199,6 +1201,52 @@ function InspectionModule({ currentUser }: any) {
 
               <PermissionGate moduleId="inspection" optionId="inspection_billing">
                 <UnifiedBillingInvoicesSection order={activeOrder} />
+              </PermissionGate>
+
+              <PermissionGate moduleId="inspection" optionId="inspection_documents">
+                <div className="pim-card pim-detail-card pim-card-full">
+                  <h3><i className="fas fa-folder-open"></i> {t("Documents")}</h3>
+
+                  {Array.isArray(activeOrder?.documents) && activeOrder.documents.length > 0 ? (
+                    <div className="pim-docs">
+                      {activeOrder.documents.map((doc: any, idx: number) => (
+                        <div key={doc.id || idx} className="pim-doc">
+                          <div className="pim-doc-left">
+                            <div className="pim-doc-name">{doc.name || `${t("Document")} ${idx + 1}`}</div>
+                            <div className="pim-doc-meta">
+                              {doc.type ? t(String(doc.type)) : ""}
+                              {doc.category ? ` • ${doc.category}` : ""}
+                              {String(doc?.addedAt ?? doc?.generatedAt ?? doc?.createdAt ?? doc?.uploadedAt ?? doc?.timestamp ?? "").trim()
+                                ? ` • ${t("Generated:")} ${String(doc?.addedAt ?? doc?.generatedAt ?? doc?.createdAt ?? doc?.uploadedAt ?? doc?.timestamp ?? "").trim()}`
+                                : ""}
+                            </div>
+                          </div>
+
+                          <PermissionGate moduleId="inspection" optionId="inspection_download">
+                            <button
+                              type="button"
+                              className="pim-btn pim-btn-primary"
+                              onClick={async () => {
+                                const raw = String(doc.storagePath || doc.url || "").trim();
+                                const linkUrl = raw
+                                  ? (raw.startsWith("http://") || raw.startsWith("https://")
+                                    ? raw
+                                    : await resolveStorageUrl(raw))
+                                  : "";
+                                if (!linkUrl) return;
+                                window.open(linkUrl, "_blank", "noopener,noreferrer");
+                              }}
+                            >
+                              <i className="fas fa-download"></i> {t("Download")}
+                            </button>
+                          </PermissionGate>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="pim-empty-inline">{t("No documents available.")}</div>
+                  )}
+                </div>
               </PermissionGate>
             </div>
 

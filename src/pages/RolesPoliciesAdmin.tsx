@@ -265,6 +265,8 @@ const MODULE_DEFINITIONS = [
       { id: "inspection_viewdetails", label: "View Details", prefix: "b." },
       { id: "inspection_summary", label: "Summary", prefix: "-" },
       { id: "inspection_services", label: "Services", prefix: "-" },
+      { id: "inspection_documents", label: "Documents", prefix: "-" },
+      { id: "inspection_download", label: "Download", prefix: "-" },
       { id: "inspection_start", label: "Start", prefix: "c." },
       { id: "inspection_resume", label: "Resume", prefix: "d." },
       { id: "inspection_complete", label: "Complete", prefix: "e." },

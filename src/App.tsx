@@ -22,6 +22,8 @@ const SESSION_CHECK_TIMEOUT_MS = (() => {
 const SESSION_DEBUG_LOCAL_STORAGE_KEY = "crm.debugSessionCheck";
 const SESSION_CACHE_KEY = "crm.sessionOk";
 const SESSION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+const SESSION_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
+const SESSION_EXPIRES_AT_KEY = "crm.sessionExpiresAt";
 
 type FailedLoginTracker = Record<string, { count: number; lockedUntil: number }>;
 
@@ -511,11 +513,99 @@ function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
 
   const safeSignOut = () => {
     try {
+      window.localStorage.removeItem(SESSION_EXPIRES_AT_KEY);
+      window.sessionStorage.removeItem(SESSION_CACHE_KEY);
+    } catch {
+      // ignore storage errors
+    }
+
+    try {
       signOut?.();
     } catch {
       // ignore sign-out failures and continue rendering
     }
   };
+
+  useEffect(() => {
+    let timeoutId: number | null = null;
+    let intervalId: number | null = null;
+
+    const readExpiry = () => {
+      try {
+        const raw = window.localStorage.getItem(SESSION_EXPIRES_AT_KEY);
+        const parsed = Number(raw ?? "");
+        return Number.isFinite(parsed) ? parsed : null;
+      } catch {
+        return null;
+      }
+    };
+
+    const writeExpiry = (value: number) => {
+      try {
+        window.localStorage.setItem(SESSION_EXPIRES_AT_KEY, String(value));
+      } catch {
+        // ignore storage errors
+      }
+    };
+
+    const clearScheduled = () => {
+      if (timeoutId != null) {
+        window.clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+    };
+
+    const expireNow = () => {
+      onBlocked(tr("Your session expired after 1 hour. Please sign in again."));
+      safeSignOut();
+    };
+
+    const ensureExpiry = () => {
+      const now = Date.now();
+      const existing = readExpiry();
+      const expiresAt = existing && existing > 0 ? existing : now + SESSION_EXPIRY_MS;
+
+      if (!existing) writeExpiry(expiresAt);
+
+      const remainingMs = expiresAt - now;
+      clearScheduled();
+
+      if (remainingMs <= 0) {
+        expireNow();
+        return;
+      }
+
+      timeoutId = window.setTimeout(() => {
+        expireNow();
+      }, remainingMs);
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") ensureExpiry();
+    };
+
+    const onStorage = (event: StorageEvent) => {
+      if (event.key !== SESSION_EXPIRES_AT_KEY) return;
+      const next = Number(event.newValue ?? "");
+      if (!Number.isFinite(next) || next <= Date.now()) {
+        expireNow();
+        return;
+      }
+      ensureExpiry();
+    };
+
+    ensureExpiry();
+    intervalId = window.setInterval(ensureExpiry, 60 * 1000);
+    document.addEventListener("visibilitychange", onVisibility);
+    window.addEventListener("storage", onStorage);
+
+    return () => {
+      clearScheduled();
+      if (intervalId != null) window.clearInterval(intervalId);
+      document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("storage", onStorage);
+    };
+  }, [onBlocked, signOut]);
 
   useEffect(() => {
     let cancelled = false;
@@ -600,5 +690,5 @@ function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
     );
   }
 
-  return <MainLayout signOut={signOut || (() => {})} />;
+  return <MainLayout signOut={safeSignOut} />;
 }

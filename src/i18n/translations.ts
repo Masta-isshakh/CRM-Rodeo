@@ -44,6 +44,7 @@ const PHRASES_EN_AR: Array<[string, string]> = [
   ["Reload application", "إعادة تحميل التطبيق"],
   ["CRM Logo", "شعار CRM"],
   ["Checking your session...", "جارٍ التحقق من جلستك..."],
+  ["Your session expired after 1 hour. Please sign in again.", "انتهت جلستك بعد ساعة واحدة. يرجى تسجيل الدخول مرة أخرى."],
   ["Unexpected error while rendering.", "حدث خطأ غير متوقع أثناء العرض."],
   ["Workspace", "مساحة العمل"],
   ["Verify", "تحقق"],
