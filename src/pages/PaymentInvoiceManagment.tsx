@@ -453,7 +453,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         );
         setShowSuccessPopup(true);
       } catch (e) {
-        setErrorMessage(`Repair failed: ${errMsg(e)}`);
+        setErrorMessage(`${t("Repair failed:")} ${errMsg(e)}`);
         setShowErrorPopup(true);
       } finally {
         setLoading(false);
@@ -755,24 +755,55 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   };
 
   // -------------------- details open/close --------------------
-  const openDetailsView = async (orderNumber: string) => {
+  const openDetailsView = async (orderNumber: string, listOrder?: any) => {
     const orderKey = String(orderNumber ?? "").trim();
     if (!orderKey) return;
 
     const cached = detailsViewCacheRef.current.get(orderKey);
     if (cached) {
-      setPaymentRowsRaw(cached.payRows);
-      setApprovalRequests(cached.approvals);
-      setNormalizedInvoices(cached.invoices);
-      setSelectedOrder(cached.selectedOrder);
-      setShowDetailsScreen(true);
+      flushSync(() => {
+        setPaymentRowsRaw(cached.payRows);
+        setApprovalRequests(cached.approvals);
+        setNormalizedInvoices(cached.invoices);
+        setSelectedOrder(cached.selectedOrder);
+        setShowDetailsScreen(true);
+      });
       return;
+    }
+
+    // Show a lightweight stub immediately while full details are loading.
+    if (listOrder) {
+      flushSync(() => {
+        setPaymentRowsRaw([]);
+        setApprovalRequests([]);
+        setNormalizedInvoices([]);
+        setSelectedOrder({
+          ...listOrder,
+          _backendId: String(listOrder._backendId ?? ""),
+          orderNumber: String(listOrder.id ?? orderKey),
+          billing: {
+            billId: "",
+            totalAmount: fmtQar(toNum(listOrder.paymentTotalAmount)),
+            discount: fmtQar(toNum(listOrder.paymentDiscount)),
+            netAmount: fmtQar(toNum(listOrder.paymentNetAmount)),
+            amountPaid: fmtQar(toNum(listOrder.paymentAmountPaid)),
+            balanceDue: fmtQar(toNum(listOrder.paymentBalanceDue)),
+            paymentMethod: "",
+          },
+          paymentActivityLog: [],
+          documents: [],
+          services: [],
+          _parsed: listOrder._parsed ?? {},
+          _row: null,
+        });
+        setShowDetailsScreen(true);
+      });
     }
 
     setLoading(true);
     try {
       const detailed = await getJobOrderByOrderNumber(orderKey);
-      if (!detailed?._backendId) throw new Error("Order not found in backend.");
+      if (!detailed?._backendId) throw new Error(t("Order not found in backend."));
 
       const rowRes = await client.models.JobOrder.get({ id: detailed._backendId } as any);
       const row = (rowRes as any)?.data ?? null;
@@ -843,10 +874,12 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         approvals,
         invoices,
       });
-      setSelectedOrder(merged);
-      setShowDetailsScreen(true);
+      flushSync(() => {
+        setSelectedOrder(merged);
+        setShowDetailsScreen(true);
+      });
     } catch (e) {
-      setErrorMessage(`Load failed: ${errMsg(e)}`);
+      setErrorMessage(`${t("Load failed:")} ${errMsg(e)}`);
       setShowErrorPopup(true);
     } finally {
       setLoading(false);
@@ -899,14 +932,14 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
       setSuccessMessage(
         <>
-          <span className="pim-pop-title"><i className="fas fa-check-circle" /> Order Cancelled</span>
-          <span className="pim-pop-text">Order <strong>{cancelOrderId}</strong> cancelled successfully.</span>
+          <span className="pim-pop-title"><i className="fas fa-check-circle" /> {t("Order Cancelled")}</span>
+          <span className="pim-pop-text">{t("Order")} <strong>{cancelOrderId}</strong> {t("cancelled successfully.")}</span>
         </>
       );
       setShowSuccessPopup(true);
       closeDetailsView();
     } catch (e) {
-      setErrorMessage(`Cancel failed: ${errMsg(e)}`);
+      setErrorMessage(`${t("Cancel failed:")} ${errMsg(e)}`);
       setShowErrorPopup(true);
     } finally {
       setLoading(false);
@@ -934,12 +967,13 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const snap = computePaymentSnapshot(totalAmount, discount, currentAmountPaid);
 
     if (snap.balanceDue <= 0.00001) {
-      setErrorMessage("This job order is already fully paid. No additional payment is allowed.");
+      setErrorMessage(t("This job order is already fully paid. No additional payment is allowed."));
       setShowErrorPopup(true);
       return;
     }
 
-    setPaymentForm({
+    flushSync(() => {
+      setPaymentForm({
       orderNumber: String(selectedOrder.id),
       jobOrderId: String(selectedOrder._backendId),
       totalAmount,
@@ -953,8 +987,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       transferProofName: "",
       balance: snap.balanceDue,
       discountFloor,
+      });
+      setShowPaymentPopup(true);
     });
-    setShowPaymentPopup(true);
   };
 
   const closePaymentPopup = () => {
@@ -1021,13 +1056,13 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     const validTypes = ["image/jpeg", "image/jpg", "image/png", "application/pdf"];
     if (!validTypes.includes(file.type)) {
-      setErrorMessage("Please upload a valid file (JPG, PNG, or PDF).");
+      setErrorMessage(t("Please upload a valid file (JPG, PNG, or PDF)."));
       setShowErrorPopup(true);
       e.target.value = "";
       return;
     }
     if (file.size > 5 * 1024 * 1024) {
-      setErrorMessage("File size must be less than 5MB.");
+      setErrorMessage(t("File size must be less than 5MB."));
       setShowErrorPopup(true);
       e.target.value = "";
       return;
@@ -1071,17 +1106,17 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     }
 
     if (!method) {
-      setErrorMessage("Please select a payment method.");
+      setErrorMessage(t("Please select a payment method."));
       setShowErrorPopup(true);
       return;
     }
     if (amountToPay <= 0) {
-      setErrorMessage("Please enter a valid payment amount.");
+      setErrorMessage(t("Please enter a valid payment amount."));
       setShowErrorPopup(true);
       return;
     }
     if (method === "Transfer" && !paymentForm.transferProofDataUrl) {
-      setErrorMessage("Please upload proof of transfer.");
+      setErrorMessage(t("Please upload proof of transfer."));
       setShowErrorPopup(true);
       return;
     }
@@ -1092,7 +1127,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const beforePayment = computePaymentSnapshot(totalAmount, discount, currentAmountPaid);
 
     if (beforePayment.balanceDue <= 0.00001) {
-      setErrorMessage("This job order is already fully paid. No additional payment is allowed.");
+      setErrorMessage(t("This job order is already fully paid. No additional payment is allowed."));
       setShowErrorPopup(true);
       return;
     }
@@ -1193,10 +1228,10 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
       setSuccessMessage(
         <>
-          <span className="pim-pop-title"><i className="fas fa-check-circle" /> Payment Recorded</span>
+          <span className="pim-pop-title"><i className="fas fa-check-circle" /> {t("Payment Recorded")}</span>
           <span className="pim-pop-text">
-            Payment <strong>{fmtQar(amountToPay)}</strong> recorded successfully.
-            {method === "Transfer" ? " Transfer proof uploaded to Documents." : ""}
+            {t("Payment")} <strong>{fmtQar(amountToPay)}</strong> {t("recorded successfully.")}
+            {method === "Transfer" ? ` ${t("Transfer proof uploaded to Documents.")}` : ""}
           </span>
         </>
       );
@@ -1206,7 +1241,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       invalidateDetailsCaches(String(paymentForm.orderNumber), String(paymentForm.jobOrderId));
       await refreshDetails();
     } catch (e) {
-      setErrorMessage(`Payment failed: ${errMsg(e)}`);
+      setErrorMessage(`${t("Payment failed:")} ${errMsg(e)}`);
       setShowErrorPopup(true);
     } finally {
       setLoading(false);
@@ -1222,14 +1257,14 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       String(selectedOrder?._row?.status || "").toUpperCase() === "CANCELLED";
 
     if (!isCancelled) {
-      setErrorMessage("Refund can only be initiated for cancelled orders.");
+      setErrorMessage(t("Refund can only be initiated for cancelled orders."));
       setShowErrorPopup(true);
       return;
     }
 
     const paidSum = paymentRowsRaw.reduce((acc, p) => acc + toNum(p.amount), 0);
     if (paidSum <= 0) {
-      setErrorMessage("No payments exist for this order. Refund is not possible.");
+      setErrorMessage(t("No payments exist for this order. Refund is not possible."));
       setShowErrorPopup(true);
       return;
     }
@@ -1275,7 +1310,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     const refundAmount = toNum(refundForm.refundAmount);
     if (refundAmount <= 0) {
-      setErrorMessage("Please enter a valid refund amount.");
+      setErrorMessage(t("Please enter a valid refund amount."));
       setShowErrorPopup(true);
       return;
     }
@@ -1316,15 +1351,15 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       }
 
       if (remaining > 0.00001) {
-        setErrorMessage("Refund could not be fully applied (insufficient payments).");
+        setErrorMessage(t("Refund could not be fully applied (insufficient payments)."));
         setShowErrorPopup(true);
         return;
       }
 
       setSuccessMessage(
         <>
-          <span className="pim-pop-title"><i className="fas fa-check-circle" /> Refund Processed</span>
-          <span className="pim-pop-text">Refund <strong>{fmtQar(refundAmount)}</strong> processed successfully.</span>
+          <span className="pim-pop-title"><i className="fas fa-check-circle" /> {t("Refund Processed")}</span>
+          <span className="pim-pop-text">{t("Refund")} <strong>{fmtQar(refundAmount)}</strong> {t("processed successfully.")}</span>
         </>
       );
       setShowSuccessPopup(true);
@@ -1333,7 +1368,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       invalidateDetailsCaches(String(refundForm.orderNumber), String(refundForm.jobOrderId));
       await refreshDetails();
     } catch (e) {
-      setErrorMessage(`Refund failed: ${errMsg(e)}`);
+      setErrorMessage(`${t("Refund failed:")} ${errMsg(e)}`);
       setShowErrorPopup(true);
     } finally {
       setLoading(false);
@@ -1762,7 +1797,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     if (!selectedOrder) return;
     if (isGeneratingBill) return;
 
-    setIsGeneratingBill(true);
+    flushSync(() => setIsGeneratingBill(true));
     try {
       const billing = selectedOrder?.billing ?? {};
       const billId = String(billing.billId || selectedOrder.id || "BILL");
@@ -1781,7 +1816,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
       const duplicate = existingBills.find((b) => b.billDetails && JSON.stringify(b.billDetails) === JSON.stringify(currDetails));
       if (duplicate) {
-        setBillExistsMessage("Bill with the same payment details already exists in Documents.");
+        setBillExistsMessage(t("Bill with the same payment details already exists in Documents."));
         setShowBillExistsPopup(true);
         return;
       }
@@ -1822,13 +1857,13 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
       await upsertJobOrder(updatedOrder);
 
-      setBillGeneratedMessage("Bill generated successfully and added to Documents.");
+      setBillGeneratedMessage(t("Bill generated successfully and added to Documents."));
       setShowBillGeneratedPopup(true);
 
       invalidateDetailsCaches(String(selectedOrder?.id), String(selectedOrder?._backendId ?? ""));
       await refreshDetails();
     } catch (e) {
-      setErrorMessage(`Bill generation failed: ${errMsg(e)}`);
+      setErrorMessage(`${t("Bill generation failed:")} ${errMsg(e)}`);
       setShowErrorPopup(true);
     } finally {
       setIsGeneratingBill(false);
@@ -1913,10 +1948,10 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       <div className="pim-details-screen jo-details-v3">
         <div className="pim-details-header">
           <div className="pim-details-title-container">
-            <h2><i className="fas fa-clipboard-list"></i> Job Order Details - {selectedOrder.id}</h2>
+            <h2><i className="fas fa-clipboard-list"></i> {t("Job Order Details")} - {selectedOrder.id}</h2>
           </div>
           <button className="pim-btn-close-details" onClick={closeDetailsView} type="button">
-            <i className="fas fa-times"></i> Close Details
+            <i className="fas fa-times"></i> {t("Close Details")}
           </button>
         </div>
 
@@ -1941,7 +1976,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
             <PermissionGate moduleId="payment" optionId="payment_services">
               {approvalRequests.length > 0 && (
                 <div className="pim-card pim-detail-card pim-card-full">
-                  <h3><i className="fas fa-user-check"></i> Service Approval Requests</h3>
+                  <h3><i className="fas fa-user-check"></i> {t("Service Approval Requests")}</h3>
                   <div className="pim-approvals">
                     {approvalRequests.map((r: any) => (
                       <div key={String(r.id)} className={`pim-approval ${approvalStatusClass(r.status)}`}>
@@ -1952,9 +1987,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                           <div className="pim-approval-status">{String(r.status)}</div>
                         </div>
                         <div className="pim-approval-meta">
-                          <div><span>Requested by</span><strong>{displayUser(r.requestedBy)}</strong></div>
-                          <div><span>Requested at</span><strong>{r.requestedAt ? new Date(String(r.requestedAt)).toLocaleString("en-GB") : "—"}</strong></div>
-                          <div><span>Decided by</span><strong>{displayUser(r.decidedBy)}</strong></div>
+                          <div><span>{t("Requested by")}</span><strong>{displayUser(r.requestedBy)}</strong></div>
+                          <div><span>{t("Requested at")}</span><strong>{r.requestedAt ? new Date(String(r.requestedAt)).toLocaleString("en-GB") : "—"}</strong></div>
+                          <div><span>{t("Decided by")}</span><strong>{displayUser(r.decidedBy)}</strong></div>
                         </div>
                         {r.decisionNote ? <div className="pim-approval-note">{String(r.decisionNote)}</div> : null}
                       </div>
@@ -1967,53 +2002,53 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
             <PermissionGate moduleId="payment" optionId="payment_billing">
               <div className="pim-card pim-detail-card pim-card-full bi-unified-card">
                 <div className="pim-card-head-row">
-                  <h3><i className="fas fa-receipt"></i> Billing & Invoices</h3>
+                  <h3><i className="fas fa-receipt"></i> {t("Billing & Invoices")}</h3>
                   <div className="pim-actions">
                     <PermissionGate moduleId="payment" optionId="payment_pay">
                       <button className="pim-btn pim-btn-primary" type="button" onClick={openPaymentPopup} disabled={!canRecordPayment}>
-                        <i className="fas fa-credit-card"></i> Payment
+                        <i className="fas fa-credit-card"></i> {t("Payment")}
                       </button>
                     </PermissionGate>
 
                     <PermissionGate moduleId="payment" optionId="payment_refund">
                       {isCancelled && paymentRowsRaw.reduce((a, p) => a + toNum(p.amount), 0) > 0 && (
                         <button className="pim-btn pim-btn-warn" type="button" onClick={openRefundPopup}>
-                          <i className="fas fa-undo"></i> Refund
+                          <i className="fas fa-undo"></i> {t("Refund")}
                         </button>
                       )}
                     </PermissionGate>
 
                     <PermissionGate moduleId="payment" optionId="payment_generatebill">
                       <button className="pim-btn pim-btn-dark" type="button" onClick={generateBill} disabled={isGeneratingBill}>
-                        <i className="fas fa-file-invoice-dollar"></i> {isGeneratingBill ? "Generating..." : "Generate Bill"}
+                        <i className="fas fa-file-invoice-dollar"></i> {isGeneratingBill ? t("Generating...") : t("Generate Bill")}
                       </button>
                     </PermissionGate>
                   </div>
                 </div>
 
                 <div className="pim-billing-grid bi-summary">
-                  <div className="pim-billing-item bi-row"><span className="bi-label">Bill ID</span><strong className="bi-value">{selectedOrder.billing?.billId || "—"}</strong></div>
-                  <div className="pim-billing-item bi-row"><span className="bi-label">Total</span><strong className="bi-value">{fmtQar(summaryPaymentSnap.totalAmount)}</strong></div>
-                  <div className="pim-billing-item bi-row"><span className="bi-label">Discount</span><strong className="pim-green bi-value">{fmtQar(summaryPaymentSnap.discount)}</strong></div>
-                  <div className="pim-billing-item bi-row"><span className="bi-label">Net</span><strong className="bi-value">{fmtQar(summaryPaymentSnap.netAmount)}</strong></div>
-                  <div className="pim-billing-item bi-row"><span className="bi-label">Paid</span><strong className="pim-green bi-value">{fmtQar(summaryPaymentSnap.amountPaid)}</strong></div>
-                  <div className="pim-billing-item bi-row"><span className="bi-label">Balance Due</span><strong className="pim-red bi-value">{fmtQar(summaryPaymentSnap.balanceDue)}</strong></div>
-                  <div className="pim-billing-item bi-row"><span className="bi-label">Payment Status</span><strong><span className={`pim-badge ${payStatusClass(summaryPaymentSnap.paymentStatusLabel)}`}>{summaryPaymentSnap.paymentStatusLabel}</span></strong></div>
+                  <div className="pim-billing-item bi-row"><span className="bi-label">{t("Bill ID")}</span><strong className="bi-value">{selectedOrder.billing?.billId || "—"}</strong></div>
+                  <div className="pim-billing-item bi-row"><span className="bi-label">{t("Total")}</span><strong className="bi-value">{fmtQar(summaryPaymentSnap.totalAmount)}</strong></div>
+                  <div className="pim-billing-item bi-row"><span className="bi-label">{t("Discount")}</span><strong className="pim-green bi-value">{fmtQar(summaryPaymentSnap.discount)}</strong></div>
+                  <div className="pim-billing-item bi-row"><span className="bi-label">{t("Net")}</span><strong className="bi-value">{fmtQar(summaryPaymentSnap.netAmount)}</strong></div>
+                  <div className="pim-billing-item bi-row"><span className="bi-label">{t("Paid")}</span><strong className="pim-green bi-value">{fmtQar(summaryPaymentSnap.amountPaid)}</strong></div>
+                  <div className="pim-billing-item bi-row"><span className="bi-label">{t("Balance Due")}</span><strong className="pim-red bi-value">{fmtQar(summaryPaymentSnap.balanceDue)}</strong></div>
+                  <div className="pim-billing-item bi-row"><span className="bi-label">{t("Payment Status")}</span><strong><span className={`pim-badge ${payStatusClass(summaryPaymentSnap.paymentStatusLabel)}`}>{t(summaryPaymentSnap.paymentStatusLabel)}</span></strong></div>
                 </div>
 
                 {(serviceAudit.packageLines.length > 0 || serviceAudit.standaloneCount > 0) && (
                   <div className="pim-subcard bi-package-audit-wrap">
                     <div className="pim-subtitle bi-package-audit-title">
-                      <i className="fas fa-boxes"></i> Package Pricing Audit
+                      <i className="fas fa-boxes"></i> {t("Package Pricing Audit")}
                     </div>
 
                     <div className="bi-package-audit-table-wrap">
                       <table className="bi-package-audit-table">
                         <thead>
                           <tr>
-                            <th>Package / Group</th>
-                            <th style={{ textAlign: "center" }}>Included Services</th>
-                            <th style={{ textAlign: "right" }}>Total</th>
+                            <th>{t("Package / Group")}</th>
+                            <th style={{ textAlign: "center" }}>{t("Included Services")}</th>
+                            <th style={{ textAlign: "right" }}>{t("Total")}</th>
                           </tr>
                         </thead>
                         <tbody>
@@ -2029,7 +2064,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                           {serviceAudit.standaloneCount > 0 && (
                             <tr>
                               <td>
-                                <span className="bi-package-name"><i className="fas fa-tools"></i> Individual Services (Non-package)</span>
+                                <span className="bi-package-name"><i className="fas fa-tools"></i> {t("Individual Services (Non-package)")}</span>
                               </td>
                               <td style={{ textAlign: "center" }}>{serviceAudit.standaloneCount}</td>
                               <td style={{ textAlign: "right", fontWeight: 900 }}>{fmtQar(serviceAudit.standaloneTotal)}</td>
@@ -2044,18 +2079,18 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                 <PermissionGate moduleId="payment" optionId="payment_invoices">
                   <div className="pim-subcard bi-invoices-wrap">
                     <div className="pim-subtitle bi-invoices-title">
-                      <i className="fas fa-file-invoice"></i> Invoices ({normalizedInvoices.length})
+                      <i className="fas fa-file-invoice"></i> {t("Invoices (")}{normalizedInvoices.length})
                     </div>
 
                     {normalizedInvoices.length === 0 ? (
-                      <div className="pim-empty-inline">No invoices found in normalized tables.</div>
+                      <div className="pim-empty-inline">{t("No invoices found in normalized tables.")}</div>
                     ) : (
                       <div className="pim-invoices">
                         {normalizedInvoices.map((inv) => (
                           <div key={inv.id} className="pim-invoice bi-invoice-card">
                             <div className="pim-invoice-head">
                               <div className="pim-invoice-left">
-                                <div className="pim-invoice-number">Invoice #{inv.number}</div>
+                                <div className="pim-invoice-number">{t("Invoice")} #{inv.number}</div>
                                 {inv.createdAt ? (
                                   <div className="pim-invoice-date">
                                     {new Date(String(inv.createdAt)).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
@@ -2064,21 +2099,21 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                               </div>
                               <div className="pim-invoice-right">
                                 <div className="pim-invoice-amount">{fmtQar(inv.amount)}</div>
-                                <span className={`pim-badge ${invoiceStatusClass(inv.status)}`}>{inv.status}</span>
+                                <span className={`pim-badge ${invoiceStatusClass(inv.status)}`}>{t(inv.status)}</span>
                               </div>
                             </div>
 
                             <div className="pim-invoice-meta">
-                              <div><span>Discount</span><strong>{fmtQar(inv.discount)}</strong></div>
-                              <div><span>Payment Method</span><strong>{inv.paymentMethod || "—"}</strong></div>
+                              <div><span>{t("Discount")}</span><strong>{fmtQar(inv.discount)}</strong></div>
+                              <div><span>{t("Payment Method")}</span><strong>{inv.paymentMethod ? t(inv.paymentMethod) : "—"}</strong></div>
                             </div>
 
                             <div className="pim-invoice-services">
                               <div className="pim-invoice-services-title">
-                                <i className="fas fa-list-ul"></i> Services Included
+                                <i className="fas fa-list-ul"></i> {t("Services Included")}
                               </div>
                               {inv.services.length === 0 ? (
-                                <div className="pim-empty-inline">No services linked to this invoice.</div>
+                                <div className="pim-empty-inline">{t("No services linked to this invoice.")}</div>
                               ) : (
                                 <ul className="pim-invoice-services-list">
                                   {inv.services.map((s, idx) => {
@@ -2121,18 +2156,18 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
                 <PermissionGate moduleId="payment" optionId="payment_paymentlog">
                   <div className="pim-subcard">
-                    <div className="pim-subtitle"><i className="fas fa-history"></i> Payment Activity Log</div>
+                    <div className="pim-subtitle"><i className="fas fa-history"></i> {t("Payment Activity Log")}</div>
 
                     {Array.isArray(selectedOrder.paymentActivityLog) && selectedOrder.paymentActivityLog.length ? (
                       <div className="pim-table-wrap">
                         <table className="pim-table">
                           <thead>
                             <tr>
-                              <th>Serial</th>
-                              <th>Amount</th>
-                              <th>Method</th>
-                              <th>Cashier</th>
-                              <th>Timestamp</th>
+                              <th>{t("Serial")}</th>
+                              <th>{t("Amount")}</th>
+                              <th>{t("Method")}</th>
+                              <th>{t("Cashier")}</th>
+                              <th>{t("Timestamp")}</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -2149,7 +2184,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                         </table>
                       </div>
                     ) : (
-                      <div className="pim-empty-inline">No payment activity yet.</div>
+                      <div className="pim-empty-inline">{t("No payment activity yet.")}</div>
                     )}
                   </div>
                 </PermissionGate>
@@ -2158,7 +2193,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
             <PermissionGate moduleId="payment" optionId="payment_documents">
               <div className="pim-card pim-detail-card pim-card-full">
-                <h3><i className="fas fa-folder-open"></i> Documents</h3>
+                <h3><i className="fas fa-folder-open"></i> {t("Documents")}</h3>
 
                 {docs.length ? (
                   <div className="pim-docs">
@@ -2185,14 +2220,14 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                               window.open(linkUrl, "_blank", "noopener,noreferrer");
                             }}
                           >
-                            <i className="fas fa-download"></i> Download
+                            <i className="fas fa-download"></i> {t("Download")}
                           </button>
                         </PermissionGate>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <div className="pim-empty-inline">No documents available.</div>
+                  <div className="pim-empty-inline">{t("No documents available.")}</div>
                 )}
               </div>
             </PermissionGate>
@@ -2210,7 +2245,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                 onClose={() => setShowBillGeneratedPopup(false)}
                 message={
                   <>
-                    <span className="pim-pop-title"><i className="fas fa-file-invoice" /> Bill Generated</span>
+                    <span className="pim-pop-title"><i className="fas fa-file-invoice" /> {t("Bill Generated")}</span>
                     <span className="pim-pop-text">{billGeneratedMessage}</span>
                   </>
                 }
@@ -2225,21 +2260,21 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
               <div className="pim-modal-overlay">
                 <div className="pim-modal">
                   <div className="pim-modal-header">
-                    <h3><i className="fas fa-credit-card"></i> Record Payment - {paymentForm.orderNumber}</h3>
-                    <button type="button" className="pim-x" onClick={closePaymentPopup} aria-label="Close">✕</button>
+                    <h3><i className="fas fa-credit-card"></i> {t("Record Payment -")} {paymentForm.orderNumber}</h3>
+                    <button type="button" className="pim-x" onClick={closePaymentPopup} aria-label={t("Close")}>✕</button>
                   </div>
 
                   <div className="pim-modal-body">
                     <div className="pim-kpis">
-                      <div className="pim-kpi"><span>Net</span><strong>{fmtQar(paymentForm.netAmount)}</strong></div>
-                      <div className="pim-kpi"><span>Paid</span><strong className="pim-green">{fmtQar(paymentForm.amountPaid)}</strong></div>
-                      <div className="pim-kpi"><span>Balance</span><strong className="pim-red">{fmtQar(paymentForm.balance)}</strong></div>
+                      <div className="pim-kpi"><span>{t("Net")}</span><strong>{fmtQar(paymentForm.netAmount)}</strong></div>
+                      <div className="pim-kpi"><span>{t("Paid")}</span><strong className="pim-green">{fmtQar(paymentForm.amountPaid)}</strong></div>
+                      <div className="pim-kpi"><span>{t("Balance")}</span><strong className="pim-red">{fmtQar(paymentForm.balance)}</strong></div>
                     </div>
 
                     <div className="pim-form">
                       <PermissionGate moduleId="joborder" optionId="joborder_discount_percent">
                         <div className="pim-field">
-                          <label>Total Discount (QAR)</label>
+                          <label>{t("Total Discount (QAR)")}</label>
                           <input
                             type="number"
                             name="discount"
@@ -2249,10 +2284,10 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                             max={maxDiscountQarUi}
                             step={0.01}
                           />
-                          <div className="pim-help">Max discount: {centralDiscountPercent}% ({fmtQar(maxDiscountQarUi)})</div>
+                          <div className="pim-help">{t("Max discount:")} {centralDiscountPercent}% ({fmtQar(maxDiscountQarUi)})</div>
                         </div>
                         <div className="pim-field">
-                          <label>Total Discount (%)</label>
+                          <label>{t("Total Discount (%)")}</label>
                           <input
                             type="number"
                             name="discountPercent"
@@ -2262,7 +2297,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                             max={centralDiscountPercent}
                             step={0.01}
                           />
-                          <div className="pim-help">Changing either discount field updates the other automatically.</div>
+                          <div className="pim-help">{t("Changing either discount field updates the other automatically.")}</div>
                         </div>
                         {noRemainingDiscountAllowance ? (
                           <div className="pim-help" style={{ color: "#b91c1c", fontWeight: 600 }}>
@@ -2272,23 +2307,23 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                       </PermissionGate>
 
                       <div className="pim-field">
-                        <label>Amount to Pay (QAR) *</label>
+                        <label>{t("Amount to Pay (QAR) *")}</label>
                         <input type="number" name="amountToPay" value={paymentForm.amountToPay} onChange={handlePaymentChange} min={0} step={0.01} required />
                       </div>
 
                       <div className="pim-field">
-                        <label>Payment Method *</label>
+                        <label>{t("Payment Method *")}</label>
                         <select name="paymentMethod" value={paymentForm.paymentMethod} onChange={handlePaymentChange} required>
-                          <option value="">Select</option>
-                          <option value="Cash">Cash</option>
-                          <option value="Card">Card</option>
-                          <option value="Transfer">Transfer</option>
+                          <option value="">{t("Select")}</option>
+                          <option value="Cash">{t("Cash")}</option>
+                          <option value="Card">{t("Card")}</option>
+                          <option value="Transfer">{t("Transfer")}</option>
                         </select>
                       </div>
 
                       {paymentForm.paymentMethod === "Transfer" && (
                         <div className="pim-field">
-                          <label>Upload Transfer Proof *</label>
+                          <label>{t("Upload Transfer Proof *")}</label>
                           <input type="file" accept=".jpg,.jpeg,.png,.pdf" onChange={handleFileUpload} />
                           {paymentForm.transferProofName ? (
                             <div className="pim-file-ok"><i className="fas fa-check-circle"></i> {paymentForm.transferProofName}</div>
@@ -2299,9 +2334,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                   </div>
 
                   <div className="pim-modal-actions">
-                    <button className="pim-btn pim-btn-ghost" type="button" onClick={closePaymentPopup}>Cancel</button>
+                    <button className="pim-btn pim-btn-ghost" type="button" onClick={closePaymentPopup}>{t("Cancel")}</button>
                     <button className="pim-btn pim-btn-success" type="button" onClick={handleSavePayment} disabled={loading}>
-                      <i className="fas fa-check"></i> {loading ? "Saving..." : "Record Payment"}
+                      <i className="fas fa-check"></i> {loading ? t("Saving...") : t("Record Payment")}
                     </button>
                   </div>
                 </div>
@@ -2312,27 +2347,27 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
               <div className="pim-modal-overlay">
                 <div className="pim-modal">
                   <div className="pim-modal-header">
-                    <h3><i className="fas fa-undo"></i> Process Refund - {refundForm.orderNumber}</h3>
-                    <button type="button" className="pim-x" onClick={closeRefundPopup} aria-label="Close">✕</button>
+                    <h3><i className="fas fa-undo"></i> {t("Process Refund -")} {refundForm.orderNumber}</h3>
+                    <button type="button" className="pim-x" onClick={closeRefundPopup} aria-label={t("Close")}>✕</button>
                   </div>
 
                   <div className="pim-modal-body">
                     <div className="pim-kpis">
-                      <div className="pim-kpi"><span>Max Refund</span><strong>{fmtQar(refundForm.maxRefundAmount)}</strong></div>
-                      <div className="pim-kpi"><span>Refund Type</span><strong>{refundForm.refundType}</strong></div>
+                      <div className="pim-kpi"><span>{t("Max Refund")}</span><strong>{fmtQar(refundForm.maxRefundAmount)}</strong></div>
+                      <div className="pim-kpi"><span>{t("Refund Type")}</span><strong>{t(refundForm.refundType)}</strong></div>
                     </div>
 
                     <div className="pim-form">
                       <div className="pim-field">
-                        <label>Refund Type *</label>
+                        <label>{t("Refund Type *")}</label>
                         <select name="refundType" value={refundForm.refundType} onChange={handleRefundChange}>
-                          <option value="Full Refund">Full Refund</option>
-                          <option value="Partial Refund">Partial Refund</option>
+                          <option value="Full Refund">{t("Full Refund")}</option>
+                          <option value="Partial Refund">{t("Partial Refund")}</option>
                         </select>
                       </div>
 
                       <div className="pim-field">
-                        <label>Refund Amount (QAR) *</label>
+                        <label>{t("Refund Amount (QAR) *")}</label>
                         <input
                           type="number"
                           name="refundAmount"
@@ -2343,15 +2378,15 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                           step={0.01}
                           disabled={refundForm.refundType === "Full Refund"}
                         />
-                        <div className="pim-help">Max: {fmtQar(refundForm.maxRefundAmount)}</div>
+                        <div className="pim-help">{t("Max:")} {fmtQar(refundForm.maxRefundAmount)}</div>
                       </div>
                     </div>
                   </div>
 
                   <div className="pim-modal-actions">
-                    <button className="pim-btn pim-btn-ghost" type="button" onClick={closeRefundPopup}>Cancel</button>
+                    <button className="pim-btn pim-btn-ghost" type="button" onClick={closeRefundPopup}>{t("Cancel")}</button>
                     <button className="pim-btn pim-btn-warn" type="button" onClick={handleSaveRefund} disabled={loading}>
-                      <i className="fas fa-check"></i> {loading ? "Saving..." : "Process Refund"}
+                      <i className="fas fa-check"></i> {loading ? t("Saving...") : t("Process Refund")}
                     </button>
                   </div>
                 </div>
@@ -2370,7 +2405,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       <div className="pim-container">
         <header className="pim-header crm-unified-header">
           <div className="pim-header-left">
-            <h1><i className="fas fa-file-invoice-dollar"></i> Payment & Invoice Management</h1>
+            <h1><i className="fas fa-file-invoice-dollar"></i> {t("Payment & Invoice Management")}</h1>
           </div>
         </header>
 
@@ -2380,21 +2415,21 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
             <input
               type="text"
               className="pim-smart-search-input"
-              placeholder="Search by any details"
+              placeholder={t("Search by any details")}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
           <div className="pim-search-stats">
-            Showing unpaid/partially paid only • {filteredOrders.length} shown of {allOrders.length} total
+            {t("Showing unpaid/partially paid only •")} {filteredOrders.length} {t("shown of")} {allOrders.length} {t("total")}
           </div>
         </section>
 
         <section className="pim-results-section">
           <div className="pim-section-header">
-            <h2><i className="fas fa-list"></i> Payment & Invoice Records</h2>
+            <h2><i className="fas fa-list"></i> {t("Payment & Invoice Records")}</h2>
             <div className="pim-pagination-controls">
-              <label htmlFor="pageSizeSelect">Records per page:</label>
+              <label htmlFor="pageSizeSelect">{t("Records per page:")}</label>
               <select
                 id="pageSizeSelect"
                 className="pim-page-size-select"
@@ -2411,8 +2446,8 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
           {paginatedData.length === 0 ? (
             <div className="pim-empty-state">
               <div className="pim-empty-icon"><i className="fas fa-search"></i></div>
-              <div className="pim-empty-text">{loading ? "Loading..." : "No matching job orders found"}</div>
-              <div className="pim-empty-subtext">Try adjusting your search terms.</div>
+              <div className="pim-empty-text">{loading ? t("Loading...") : t("No matching job orders found")}</div>
+              <div className="pim-empty-subtext">{t("Try adjusting your search terms.")}</div>
             </div>
           ) : (
             <>
@@ -2420,15 +2455,15 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                 <table className="pim-job-order-table">
                   <thead>
                     <tr>
-                      <th>Create Date</th>
-                      <th>Job Card ID</th>
-                      <th>Order Type</th>
-                      <th>Customer Name</th>
-                      <th>Mobile</th>
-                      <th>Vehicle Plate</th>
-                      <th>Work Status</th>
-                      <th>Payment Status</th>
-                      <th>Actions</th>
+                      <th>{t("Create Date")}</th>
+                      <th>{t("Job Card ID")}</th>
+                      <th>{t("Order Type")}</th>
+                      <th>{t("Customer Name")}</th>
+                      <th>{t("Mobile")}</th>
+                      <th>{t("Vehicle Plate")}</th>
+                      <th>{t("Work Status")}</th>
+                      <th>{t("Payment Status")}</th>
+                      <th>{t("Actions")}</th>
                     </tr>
                   </thead>
 
@@ -2441,8 +2476,8 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                         <td>{order.customerName}</td>
                         <td>{order.mobile}</td>
                         <td>{order.vehiclePlate}</td>
-                        <td><span className={`pim-badge ${workStatusClass(order.workStatus)}`}>{order.workStatus}</span></td>
-                        <td><span className={`pim-badge ${payStatusClass(order.paymentStatus)}`}>{order.paymentStatus}</span></td>
+                        <td><span className={`pim-badge ${workStatusClass(order.workStatus)}`}>{t(order.workStatus)}</span></td>
+                        <td><span className={`pim-badge ${payStatusClass(order.paymentStatus)}`}>{t(order.paymentStatus)}</span></td>
                         <td>
                           <PermissionGate moduleId="payment" optionId="payment_actions">
                             <div className="action-dropdown-container">
@@ -2451,7 +2486,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                                 className={`btn-action-dropdown ${activeDropdown === order.id ? "active" : ""}`}
                                 onClick={(e) => toggleActionDropdown(order.id, e.currentTarget as HTMLElement)}
                               >
-                                <i className="fas fa-cogs"></i> Actions <i className="fas fa-chevron-down"></i>
+                                <i className="fas fa-cogs"></i> {t("Actions")} <i className="fas fa-chevron-down"></i>
                               </button>
                             </div>
                           </PermissionGate>
@@ -2473,13 +2508,14 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                           onClick={() => {
                             if (!activeDropdown) return;
                             const target = activeDropdown;
+                            const listOrder = paginatedData.find((o) => String(o.id) === String(target));
                             activeDropdownRef.current = null;
                             setActiveDropdown(null);
-                            void openDetailsView(target);
+                            void openDetailsView(target, listOrder);
                           }}
                           type="button"
                         >
-                          <i className="fas fa-eye"></i> View Details
+                          <i className="fas fa-eye"></i> {t("View Details")}
                         </button>
                       </PermissionGate>
 
@@ -2497,7 +2533,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                             }}
                             type="button"
                           >
-                            <i className="fas fa-times-circle"></i> Cancel Order
+                            <i className="fas fa-times-circle"></i> {t("Cancel Order")}
                           </button>
                         </>
                       </PermissionGate>
@@ -2545,20 +2581,20 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         </section>
 
         <footer className="pim-footer">
-          <p>Service Management System © 2023 | Payment & Invoice Management Module</p>
+          <p>{t("Service Management System © 2023 | Payment & Invoice Management Module")}</p>
         </footer>
 
         <div className={`cancel-modal-overlay ${showCancelConfirmation && cancelOrderId ? "active" : ""}`}>
           <div className="cancel-modal">
             <div className="cancel-modal-header">
-              <h3><i className="fas fa-exclamation-triangle"></i> Confirm Cancellation</h3>
+              <h3><i className="fas fa-exclamation-triangle"></i> {t("Confirm Cancellation")}</h3>
             </div>
             <div className="cancel-modal-body">
               <div className="cancel-warning">
                 <i className="fas fa-exclamation-circle"></i>
                 <div className="cancel-warning-text">
-                  <p>You are about to cancel order <strong>{cancelOrderId}</strong>.</p>
-                  <p>This action cannot be undone.</p>
+                  <p>{t("You are about to cancel order")} <strong>{cancelOrderId}</strong>.</p>
+                  <p>{t("This action cannot be undone.")}</p>
                 </div>
               </div>
               <div className="cancel-modal-actions">
@@ -2567,10 +2603,10 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                   onClick={() => { setShowCancelConfirmation(false); setCancelOrderId(null); }}
                   type="button"
                 >
-                  <i className="fas fa-times"></i> Keep Order
+                  <i className="fas fa-times"></i> {t("Keep Order")}
                 </button>
                 <button className="btn-confirm-cancel" onClick={() => void handleCancelOrder()} disabled={loading} type="button">
-                  <i className="fas fa-ban"></i> {loading ? "Cancelling..." : "Cancel Order"}
+                  <i className="fas fa-ban"></i> {loading ? t("Cancelling...") : t("Cancel Order")}
                 </button>
               </div>
             </div>
