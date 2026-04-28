@@ -32,6 +32,7 @@ import {
   sumApprovedPayments,
   toCurrencyNumber,
 } from "../utils/billingFinance";
+import { filterVisibleDocuments } from "../utils/documentVisibility";
 
 import {
   cancelJobOrderByOrderNumber,
@@ -567,6 +568,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     const list = allOrders.filter((o) => {
       const normalizedPay = normalizePaymentStatusLabel(o.paymentEnum, o.paymentStatus);
+      const isCancelled =
+        String(o.workStatus || "").toLowerCase().includes("cancel") ||
+        String(o.statusEnum || "").toUpperCase() === "CANCELLED";
 
       const snap = computePaymentSnapshot(
         o.paymentTotalAmount,
@@ -577,6 +581,10 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       const isFullyPaidByAmounts = hasBalanceSignal
         ? (o.paymentBalanceDue <= 0.00001 || snap.balanceDue <= 0.00001)
         : false;
+
+      if (isCancelled) {
+        return snap.amountPaid > 0.00001;
+      }
 
       if (isFullyPaidByAmounts) return false;
       if (isFullyPaidStatus(o.paymentEnum, o.paymentStatus)) return false;
@@ -1322,6 +1330,8 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     setLoading(true);
     try {
+      const parsed = safeJsonParse<any>(selectedOrder?._parsed ?? selectedOrder?.dataJson, {});
+      const beforePayment = resolveLockedPaymentFinancials(selectedOrder, paymentRowsRaw);
       const payments = [...paymentRowsRaw].sort((a, b) =>
         String(b.paidAt ?? b.createdAt ?? "").localeCompare(String(a.paidAt ?? a.createdAt ?? ""))
       );
@@ -1355,6 +1365,48 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         setShowErrorPopup(true);
         return;
       }
+
+      const netAmount = beforePayment.totalAmount - beforePayment.discount;
+      const afterPaymentAmountPaid = roundMoney(Math.max(0, beforePayment.amountPaid - refundAmount));
+      const afterPayment = computePaymentSnapshot(beforePayment.totalAmount, beforePayment.discount, afterPaymentAmountPaid);
+      const paymentMethod = String(selectedOrder?.billing?.paymentMethod ?? selectedOrder?.paymentMethod ?? "");
+
+      const updatedOrder = {
+        ...selectedOrder,
+        totalAmount: beforePayment.totalAmount,
+        discount: beforePayment.discount,
+        netAmount,
+        amountPaid: afterPayment.amountPaid,
+        balanceDue: afterPayment.balanceDue,
+        paymentMethod,
+        billId: String(selectedOrder?.billing?.billId ?? selectedOrder?.billId ?? ""),
+        billing: {
+          ...(selectedOrder.billing || {}),
+          totalAmount: fmtQar(beforePayment.totalAmount),
+          discount: fmtQar(beforePayment.discount),
+          netAmount: fmtQar(netAmount),
+          amountPaid: fmtQar(afterPayment.amountPaid),
+          balanceDue: fmtQar(afterPayment.balanceDue),
+          paymentMethod,
+        },
+        paymentStatus: afterPayment.paymentStatusLabel,
+        paymentStatusEnum: afterPayment.paymentStatusEnum,
+        dataJson: JSON.stringify({
+          ...parsed,
+          billing: {
+            ...(parsed?.billing || {}),
+            totalAmount: beforePayment.totalAmount,
+            discount: beforePayment.discount,
+            netAmount,
+            amountPaid: afterPayment.amountPaid,
+            balanceDue: afterPayment.balanceDue,
+            paymentMethod,
+          },
+          paymentStatusLabel: afterPayment.paymentStatusLabel,
+        }),
+      };
+
+      await upsertJobOrder(updatedOrder);
 
       setSuccessMessage(
         <>
@@ -1915,7 +1967,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       String(selectedOrder?.workStatus || "").toLowerCase().includes("cancel") ||
       String(selectedOrder?._row?.status || "").toUpperCase() === "CANCELLED";
 
-    const docs: DocItem[] = Array.isArray(selectedOrder.documents) ? selectedOrder.documents : [];
+    const docs: DocItem[] = filterVisibleDocuments(Array.isArray(selectedOrder.documents) ? selectedOrder.documents : [], canOption);
     const detailServices: any[] = Array.isArray(selectedOrder?.services) ? selectedOrder.services : [];
     const createdByDisplay = resolveOrderCreatedBy(selectedOrder, {
       identityToUsernameMap: userLabelMap,
@@ -2421,7 +2473,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
             />
           </div>
           <div className="pim-search-stats">
-            {t("Showing unpaid/partially paid only •")} {filteredOrders.length} {t("shown of")} {allOrders.length} {t("total")}
+            {t("Showing unpaid/partially paid and cancelled-with-refundable-balance •")} {filteredOrders.length} {t("shown of")} {allOrders.length} {t("total")}
           </div>
         </section>
 

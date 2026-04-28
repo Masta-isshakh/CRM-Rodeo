@@ -602,6 +602,7 @@ const PHRASES_EN_AR: Array<[string, string]> = [
   ["Max:", "الحد الأقصى:"],
   ["Payment & Invoice Management", "إدارة المدفوعات والفواتير"],
   ["Showing unpaid/partially paid only •", "عرض غير المدفوع/المدفوع جزئيًا فقط •"],
+  ["Showing unpaid/partially paid and cancelled-with-refundable-balance •", "عرض غير المدفوع/المدفوع جزئيًا والطلبات الملغاة ذات الرصيد القابل للاسترداد •"],
   ["shown of", "معروض من"],
   ["total", "الإجمالي"],
   ["Payment & Invoice Records", "سجلات المدفوعات والفواتير"],

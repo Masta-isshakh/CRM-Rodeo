@@ -44,7 +44,7 @@ const AVATAR_COLORS = [
 // ─── Helpers ────────────────────────────────────────────────────────────────────
 function normalizeEmail(value: string): string {
   return String(value ?? "").trim().toLowerCase();
-}
+} 
 
 function conversationKeyForDirect(a: string, b: string): string {
   const x = normalizeEmail(a);

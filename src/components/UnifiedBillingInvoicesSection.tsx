@@ -1,7 +1,9 @@
 import type { CSSProperties } from "react";
 import { toMoney } from "../utils/paymentStatus";
 import { getPackageGroupKey, resolveDynamicBillingSnapshot } from "../utils/billingFinance";
+import { usePermissions } from "../lib/userPermissions";
 import { useLanguage } from "../i18n/LanguageContext";
+import { canViewBillArtifacts } from "../utils/documentVisibility";
 import "../pages/PaymentInvoiceManagment.css";
 
 type UnifiedBillingInvoicesSectionProps = {
@@ -126,7 +128,9 @@ function buildPackageAuditBreakdown(services: any[]) {
 
 export function UnifiedBillingInvoicesSection({ order, className = "", style, paymentRows }: UnifiedBillingInvoicesSectionProps) {
   const { language, t } = useLanguage();
+  const { canOption } = usePermissions();
   const locale = language === "ar" ? "ar-QA" : "en-QA";
+  const canViewBills = canViewBillArtifacts(canOption);
   const formatMoney = (value: number) =>
     new Intl.NumberFormat(locale, {
       style: "currency",
@@ -138,20 +142,21 @@ export function UnifiedBillingInvoicesSection({ order, className = "", style, pa
   const billing = order?.billing ?? {};
   const dynamicBilling = resolveDynamicBillingSnapshot(order, { paymentRows });
   const paymentSnap = dynamicBilling.paymentSnap;
-  const resolvedBillId =
-    String(
-      dynamicBilling.billId ??
-        order?.billReference ??
-        order?.billing?.billReference ??
-        order?.billing?.billId ??
-        order?.orderNumber ??
-        order?.id ??
-        ""
-    ).trim() || "—";
+  const resolvedBillId = canViewBills
+    ? String(
+        dynamicBilling.billId ??
+          order?.billReference ??
+          order?.billing?.billReference ??
+          order?.billing?.billId ??
+          order?.orderNumber ??
+          order?.id ??
+          ""
+      ).trim() || "—"
+    : "—";
   const serviceAudit = buildPackageAuditBreakdown(Array.isArray(order?.services) ? order.services : []);
   const paymentActivityLog = Array.isArray(order?.paymentActivityLog) ? order.paymentActivityLog : [];
 
-  const invoices: InvoiceUi[] = Array.isArray(billing?.invoices)
+  const invoices: InvoiceUi[] = canViewBills && Array.isArray(billing?.invoices)
     ? billing.invoices.map((inv: any, idx: number) => ({
         id: String(inv?.id ?? idx),
         number: String(inv?.number ?? inv?.invoiceNumber ?? inv?.billReference ?? "—"),
@@ -171,7 +176,7 @@ export function UnifiedBillingInvoicesSection({ order, className = "", style, pa
       </h3>
 
       <div className="pim-billing-grid bi-summary">
-        <div className="pim-billing-item bi-row"><span className="bi-label">{t("Bill ID")}</span><strong className="bi-value">{resolvedBillId}</strong></div>
+        {canViewBills ? <div className="pim-billing-item bi-row"><span className="bi-label">{t("Bill ID")}</span><strong className="bi-value">{resolvedBillId}</strong></div> : null}
         <div className="pim-billing-item bi-row"><span className="bi-label">{t("Total")}</span><strong className="bi-value">{formatMoney(paymentSnap.totalAmount)}</strong></div>
         <div className="pim-billing-item bi-row"><span className="bi-label">{t("Discount")}</span><strong className="pim-green bi-value">{formatMoney(paymentSnap.discount)}</strong></div>
         <div className="pim-billing-item bi-row"><span className="bi-label">{t("Net")}</span><strong className="bi-value">{formatMoney(paymentSnap.netAmount)}</strong></div>
@@ -219,56 +224,58 @@ export function UnifiedBillingInvoicesSection({ order, className = "", style, pa
         </div>
       )}
 
-      <div className="pim-subcard bi-invoices-wrap">
-        <div className="pim-subtitle bi-invoices-title">
-          <i className="fas fa-file-invoice"></i> {t("Invoices")} ({invoices.length})
-        </div>
-
-        {invoices.length === 0 ? (
-          <div className="pim-empty-inline">{t("No invoices found in normalized tables.")}</div>
-        ) : (
-          <div className="pim-invoices">
-            {invoices.map((inv) => (
-              <div key={inv.id} className="pim-invoice bi-invoice-card">
-                <div className="pim-invoice-head">
-                  <div className="pim-invoice-left">
-                    <div className="pim-invoice-number">{t("Invoice #")} {inv.number}</div>
-                    {inv.createdAt ? (
-                      <div className="pim-invoice-date">
-                        {toLocalizedDateTime(inv.createdAt, locale)}
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="pim-invoice-right">
-                    <div className="pim-invoice-amount">{formatMoney(inv.amount)}</div>
-                    <span className={`pim-badge ${getInvoiceStatusClass(inv.status)}`}>{inv.status}</span>
-                  </div>
-                </div>
-
-                <div className="pim-invoice-meta">
-                  <div><span>{t("Discount")}</span><strong>{formatMoney(inv.discount)}</strong></div>
-                  <div><span>{t("Payment Method")}</span><strong>{inv.paymentMethod || "—"}</strong></div>
-                </div>
-
-                <div className="pim-invoice-services">
-                  <div className="pim-invoice-services-title">
-                    <i className="fas fa-list-ul"></i> {t("Services Included")}
-                  </div>
-                  {inv.services.length === 0 ? (
-                    <div className="pim-empty-inline">{t("No services linked to this invoice.")}</div>
-                  ) : (
-                    <ul className="pim-invoice-services-list">
-                      {inv.services.map((serviceName, idx) => (
-                        <li key={idx}><i className="fas fa-check-circle"></i> {serviceName}</li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              </div>
-            ))}
+      {canViewBills && (
+        <div className="pim-subcard bi-invoices-wrap">
+          <div className="pim-subtitle bi-invoices-title">
+            <i className="fas fa-file-invoice"></i> {t("Invoices")} ({invoices.length})
           </div>
-        )}
-      </div>
+
+          {invoices.length === 0 ? (
+            <div className="pim-empty-inline">{t("No invoices found in normalized tables.")}</div>
+          ) : (
+            <div className="pim-invoices">
+              {invoices.map((inv) => (
+                <div key={inv.id} className="pim-invoice bi-invoice-card">
+                  <div className="pim-invoice-head">
+                    <div className="pim-invoice-left">
+                      <div className="pim-invoice-number">{t("Invoice #")} {inv.number}</div>
+                      {inv.createdAt ? (
+                        <div className="pim-invoice-date">
+                          {toLocalizedDateTime(inv.createdAt, locale)}
+                        </div>
+                      ) : null}
+                    </div>
+                    <div className="pim-invoice-right">
+                      <div className="pim-invoice-amount">{formatMoney(inv.amount)}</div>
+                      <span className={`pim-badge ${getInvoiceStatusClass(inv.status)}`}>{inv.status}</span>
+                    </div>
+                  </div>
+
+                  <div className="pim-invoice-meta">
+                    <div><span>{t("Discount")}</span><strong>{formatMoney(inv.discount)}</strong></div>
+                    <div><span>{t("Payment Method")}</span><strong>{inv.paymentMethod || "—"}</strong></div>
+                  </div>
+
+                  <div className="pim-invoice-services">
+                    <div className="pim-invoice-services-title">
+                      <i className="fas fa-list-ul"></i> {t("Services Included")}
+                    </div>
+                    {inv.services.length === 0 ? (
+                      <div className="pim-empty-inline">{t("No services linked to this invoice.")}</div>
+                    ) : (
+                      <ul className="pim-invoice-services-list">
+                        {inv.services.map((serviceName, idx) => (
+                          <li key={idx}><i className="fas fa-check-circle"></i> {serviceName}</li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="pim-subcard">
         <div className="pim-subtitle"><i className="fas fa-history"></i> {t("Payment Activity Log")}</div>

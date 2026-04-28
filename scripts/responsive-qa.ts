@@ -1,5 +1,6 @@
-import fs from "node:fs/promises";
-import path from "node:path";
+/// <reference types="node" />
+import fs from "fs/promises";
+import path from "path";
 import { chromium, type Page } from "playwright";
 
 type ViewportDef = { name: string; width: number; height: number };

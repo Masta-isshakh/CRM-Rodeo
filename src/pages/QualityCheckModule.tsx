@@ -18,6 +18,7 @@ import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummary
 import UnifiedBillingInvoicesSection from "../components/UnifiedBillingInvoicesSection";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
+import { usePermissions } from "../lib/userPermissions";
 import {
   derivePaymentStatusFromFinancials,
   normalizePaymentStatusLabel,
@@ -25,6 +26,7 @@ import {
   pickPaymentEnum,
   pickPaymentLabel,
 } from "../utils/paymentStatus";
+import { filterVisibleDocuments } from "../utils/documentVisibility";
 
 import { getUrl, uploadData } from "aws-amplify/storage";
 
@@ -143,6 +145,7 @@ type DocItem = {
 export default function QualityCheckModule({ currentUser }: { currentUser: any }) {
   const client = useMemo(() => getDataClient(), []);
   const { t } = useLanguage();
+  const { canOption } = usePermissions();
 
   const [loading, setLoading] = useState(false);
 
@@ -957,7 +960,10 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   if (screenState === "details" && selectedOrder) {
     const parsed = safeJsonParse<any>(selectedOrder?._parsed ?? selectedOrder?.dataJson, {});
     const roadmap = Array.isArray(parsed?.roadmap) ? parsed.roadmap : Array.isArray(selectedOrder?.roadmap) ? selectedOrder.roadmap : [];
-    const docs: DocItem[] = Array.isArray(parsed?.documents) ? parsed.documents : Array.isArray(selectedOrder?.documents) ? selectedOrder.documents : [];
+    const docs: DocItem[] = filterVisibleDocuments(
+      Array.isArray(parsed?.documents) ? parsed.documents : Array.isArray(selectedOrder?.documents) ? selectedOrder.documents : [],
+      canOption
+    );
     const createdByDisplay = resolveOrderCreatedBy(selectedOrder, { identityToUsernameMap: userLabelMap, fallback: "—" });
 
     return (

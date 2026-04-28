@@ -27,6 +27,7 @@ import { uploadData } from "aws-amplify/storage";
 
 import { getDataClient } from "../lib/amplifyClient";
 import { matchesSearchQuery, splitSearchTerms } from "../lib/searchUtils";
+import { usePermissions } from "../lib/userPermissions";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
 import {
@@ -35,6 +36,7 @@ import {
   pickPaymentEnum,
   pickPaymentLabel,
 } from "../utils/paymentStatus";
+import { filterVisibleDocuments } from "../utils/documentVisibility";
 import { useLanguage } from "../i18n/LanguageContext";
 
 function safeLower(v: any) {
@@ -1316,7 +1318,8 @@ const VehicleDetailsCard = ({ order }: any) => <UnifiedVehicleInfoCard order={or
 
 const DocumentsCard = ({ order }: any) => {
   const { t } = useLanguage();
-  const documents = Array.isArray(order.documents) ? order.documents : [];
+  const { canOption } = usePermissions();
+  const documents = filterVisibleDocuments(Array.isArray(order.documents) ? order.documents : [], canOption);
   if (documents.length === 0) return null;
 
   return (

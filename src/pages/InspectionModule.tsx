@@ -34,6 +34,7 @@ import { listServiceCatalog, resolveServicePriceForVehicleType, type ServiceCata
 import { resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
 import { usePermissions } from "../lib/userPermissions";
 import { useLanguage } from "../i18n/LanguageContext";
+import { filterVisibleDocuments } from "../utils/documentVisibility";
 import {
   computeCumulativeDiscountAllowance,
   resolveCentralDiscountPercent,
@@ -1207,9 +1208,9 @@ function InspectionModule({ currentUser }: any) {
                 <div className="pim-card pim-detail-card pim-card-full">
                   <h3><i className="fas fa-folder-open"></i> {t("Documents")}</h3>
 
-                  {Array.isArray(activeOrder?.documents) && activeOrder.documents.length > 0 ? (
+                  {filterVisibleDocuments(Array.isArray(activeOrder?.documents) ? activeOrder.documents : [], canOption).length > 0 ? (
                     <div className="pim-docs">
-                      {activeOrder.documents.map((doc: any, idx: number) => (
+                      {filterVisibleDocuments(Array.isArray(activeOrder?.documents) ? activeOrder.documents : [], canOption).map((doc: any, idx: number) => (
                         <div key={doc.id || idx} className="pim-doc">
                           <div className="pim-doc-left">
                             <div className="pim-doc-name">{doc.name || `${t("Document")} ${idx + 1}`}</div>
