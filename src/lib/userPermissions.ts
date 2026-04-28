@@ -47,6 +47,7 @@ export const POLICY_KEYS = [
   "DEPARTMENTS_ADMIN",
   "ROLES_POLICIES_ADMIN",
   "INTERNAL_CHAT",
+  "FILE_SHARING",
   "EMAIL_INBOX",
 ] as const;
 

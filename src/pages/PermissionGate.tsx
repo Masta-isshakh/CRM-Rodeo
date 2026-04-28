@@ -137,6 +137,31 @@ export function resolvePolicyAndOp(moduleId: string, optionId: string): Resolved
     return null;
   }
 
+  // FILE SHARING
+  if (m === "filesharing" || m === "files" || m === "filemanager") {
+    if (
+      o === "filesharing_list" ||
+      o === "filesharing_view" ||
+      o === "filesharing_download" ||
+      o === "filesharing_cross_department"
+    ) {
+      return { policyKey: "FILE_SHARING", op: "canRead" };
+    }
+    if (
+      o === "filesharing_upload" ||
+      o === "filesharing_create" ||
+      o === "filesharing_share" ||
+      o === "filesharing_delete_own" ||
+      o === "filesharing_manage_all"
+    ) {
+      return { policyKey: "FILE_SHARING", op: "canUpdate", fallbackOps: ["canCreate"] };
+    }
+    if (o === "filesharing_delete_any") {
+      return { policyKey: "FILE_SHARING", op: "canDelete" };
+    }
+    return null;
+  }
+
   // EMAIL INBOX
   if (m === "emailinbox" || m === "email") {
     if (o === "emailinbox_list" || o === "emailinbox_open") {

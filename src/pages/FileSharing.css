@@ -1,0 +1,564 @@
+.filesharing-page {
+  display: grid;
+  gap: 16px;
+}
+
+.filesharing-hero {
+  border-radius: 18px;
+  padding: 18px;
+  background: linear-gradient(120deg, #f0f9ff 0%, #ecfeff 50%, #f0fdf4 100%);
+  border: 1px solid rgba(14, 116, 144, 0.18);
+}
+
+.filesharing-hero h1 {
+  margin: 0 0 6px;
+  font-size: 1.45rem;
+  color: #0f172a;
+}
+
+.filesharing-hero p {
+  margin: 0;
+  color: #0f172a;
+  opacity: 0.82;
+}
+
+.filesharing-toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+}
+
+.filesharing-toolbar input,
+.filesharing-toolbar button,
+.filesharing-composer input,
+.filesharing-composer select,
+.filesharing-composer button {
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  padding: 10px 12px;
+  font-size: 0.95rem;
+}
+
+.filesharing-composer {
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #ffffff;
+  padding: 14px;
+  box-shadow: 0 12px 22px rgba(2, 6, 23, 0.06);
+  display: grid;
+  gap: 12px;
+}
+
+.filesharing-composer h2,
+.filesharing-list h2 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+
+/* ─── Drag-drop zone ─────────────────────────────────────── */
+.filesharing-dropzone {
+  border: 2px dashed rgba(14, 165, 233, 0.4);
+  border-radius: 14px;
+  padding: 28px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: #f0f9ff;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  user-select: none;
+}
+
+.filesharing-dropzone:hover,
+.filesharing-dropzone.dragging {
+  background: #e0f2fe;
+  border-color: #0ea5e9;
+}
+
+.filesharing-dropzone i {
+  font-size: 1.8rem;
+  color: #0ea5e9;
+}
+
+.filesharing-dropzone span {
+  font-size: 0.95rem;
+  color: #0369a1;
+  font-weight: 600;
+}
+
+.filesharing-dropzone-sub {
+  font-size: 0.82rem !important;
+  font-weight: 400 !important;
+  color: #64748b !important;
+}
+
+/* ─── Selected files list ────────────────────────────────── */
+.filesharing-selected-files {
+  display: grid;
+  gap: 6px;
+}
+
+.filesharing-selected-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #f8fafc;
+  font-size: 0.9rem;
+}
+
+.filesharing-selected-file i {
+  color: #0ea5e9;
+  width: 16px;
+  text-align: center;
+}
+
+.filesharing-selected-file-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #0f172a;
+}
+
+.filesharing-selected-file-size {
+  color: #64748b;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+.filesharing-progress-bar {
+  width: 60px;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 99px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.filesharing-progress-fill {
+  height: 100%;
+  background: #0ea5e9;
+  border-radius: 99px;
+  transition: width 0.2s;
+}
+
+.filesharing-remove-file {
+  background: none !important;
+  border: none !important;
+  padding: 2px 6px !important;
+  color: #94a3b8;
+  cursor: pointer;
+  font-size: 0.85rem;
+  border-radius: 6px;
+  transition: color 0.15s;
+  flex-shrink: 0;
+}
+
+.filesharing-remove-file:hover {
+  color: #ef4444;
+}
+
+/* ─── Grid / pickers ─────────────────────────────────────── */
+.filesharing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.filesharing-picks {
+  margin-top: 2px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  max-height: 210px;
+  overflow: auto;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.filesharing-picks label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #1e293b;
+}
+
+.filesharing-primary {
+  background: #0ea5e9;
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.filesharing-primary:disabled {
+  background: #94a3b8;
+  cursor: default;
+}
+
+/* ─── File list ──────────────────────────────────────────── */
+.filesharing-list {
+  display: grid;
+  gap: 10px;
+}
+
+.filesharing-item {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 10px;
+  align-items: center;
+  transition: box-shadow 0.15s;
+}
+
+.filesharing-item:hover {
+  box-shadow: 0 4px 16px rgba(2, 6, 23, 0.08);
+}
+
+.filesharing-item-left {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.filesharing-file-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: #f1f5f9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.2rem;
+  color: #64748b;
+  flex-shrink: 0;
+}
+
+.filesharing-file-icon.image { background: #fef3c7; color: #d97706; }
+.filesharing-file-icon.pdf   { background: #fee2e2; color: #ef4444; }
+
+.filesharing-name {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.filesharing-meta {
+  font-size: 0.84rem;
+  color: #475569;
+  margin-top: 2px;
+}
+
+.filesharing-desc {
+  margin-top: 6px;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.filesharing-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.filesharing-item-actions button {
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: background 0.15s;
+}
+
+.filesharing-item-actions button:hover {
+  background: #e2e8f0;
+}
+
+.filesharing-item-actions .danger {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
+}
+
+.filesharing-item-actions .danger:hover {
+  background: #dc2626;
+}
+
+.filesharing-preview-btn {
+  width: 36px !important;
+  padding: 8px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #0ea5e9;
+}
+
+/* ─── Preview modal ──────────────────────────────────────── */
+.filesharing-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(2, 6, 23, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+  padding: 20px;
+  backdrop-filter: blur(4px);
+}
+
+.filesharing-modal {
+  background: #ffffff;
+  border-radius: 18px;
+  overflow: hidden;
+  width: min(90vw, 860px);
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 24px 48px rgba(2, 6, 23, 0.28);
+}
+
+.filesharing-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.1);
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.filesharing-modal-close {
+  border: none;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 4px 10px;
+  cursor: pointer;
+  font-size: 1rem;
+  color: #475569;
+  transition: background 0.15s;
+}
+
+.filesharing-modal-close:hover {
+  background: #e2e8f0;
+}
+
+.filesharing-modal-body {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: #f8fafc;
+}
+
+.filesharing-modal-body img {
+  max-width: 100%;
+  max-height: 70vh;
+  border-radius: 10px;
+  object-fit: contain;
+}
+
+.filesharing-modal-body iframe {
+  width: 100%;
+  height: 70vh;
+  border: none;
+  border-radius: 10px;
+}
+
+/* ─── Misc ───────────────────────────────────────────────── */
+.filesharing-empty {
+  text-align: center;
+  padding: 24px;
+  color: #64748b;
+}
+
+.filesharing-status {
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  padding: 10px 12px;
+  background: #f8fafc;
+}
+
+@media (max-width: 640px) {
+  .filesharing-grid { grid-template-columns: 1fr; }
+  .filesharing-picks { grid-template-columns: 1fr; }
+  .filesharing-item { grid-template-columns: auto 1fr; }
+  .filesharing-item-actions { grid-column: 1 / -1; }
+}
+
+
+.filesharing-hero {
+  border-radius: 18px;
+  padding: 18px;
+  background: linear-gradient(120deg, #f0f9ff 0%, #ecfeff 50%, #f0fdf4 100%);
+  border: 1px solid rgba(14, 116, 144, 0.18);
+}
+
+.filesharing-hero h1 {
+  margin: 0 0 6px;
+  font-size: 1.45rem;
+  color: #0f172a;
+}
+
+.filesharing-hero p {
+  margin: 0;
+  color: #0f172a;
+  opacity: 0.82;
+}
+
+.filesharing-toolbar {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+}
+
+.filesharing-toolbar input,
+.filesharing-toolbar button,
+.filesharing-composer input,
+.filesharing-composer select,
+.filesharing-composer button {
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  padding: 10px 12px;
+  font-size: 0.95rem;
+}
+
+.filesharing-composer {
+  border-radius: 16px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #ffffff;
+  padding: 14px;
+  box-shadow: 0 12px 22px rgba(2, 6, 23, 0.06);
+}
+
+.filesharing-composer h2,
+.filesharing-list h2 {
+  margin: 0 0 12px;
+  font-size: 1.05rem;
+  color: #0f172a;
+}
+
+.filesharing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.filesharing-picks {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  max-height: 210px;
+  overflow: auto;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 12px;
+  padding: 10px;
+}
+
+.filesharing-picks label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: #1e293b;
+}
+
+.filesharing-primary {
+  margin-top: 10px;
+  background: #0ea5e9;
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.filesharing-list {
+  display: grid;
+  gap: 10px;
+}
+
+.filesharing-item {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 12px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 10px;
+}
+
+.filesharing-name {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.filesharing-meta {
+  font-size: 0.84rem;
+  color: #475569;
+  margin-top: 2px;
+}
+
+.filesharing-desc {
+  margin-top: 6px;
+  font-size: 0.9rem;
+  color: #334155;
+}
+
+.filesharing-item-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.filesharing-item-actions button {
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  border-radius: 10px;
+  background: #f8fafc;
+  padding: 8px 12px;
+  cursor: pointer;
+}
+
+.filesharing-item-actions .danger {
+  background: #ef4444;
+  color: #ffffff;
+  border-color: #ef4444;
+}
+
+.filesharing-status {
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  padding: 10px 12px;
+  background: #f8fafc;
+}
+
+.filesharing-empty {
+  border: 1px dashed rgba(15, 23, 42, 0.2);
+  border-radius: 12px;
+  padding: 18px;
+  text-align: center;
+  color: #475569;
+}
+
+@media (max-width: 900px) {
+  .filesharing-grid,
+  .filesharing-picks {
+    grid-template-columns: 1fr;
+  }
+
+  .filesharing-item {
+    grid-template-columns: 1fr;
+  }
+}

@@ -362,6 +362,40 @@ const schema = a
         allow.authenticated().to(["read", "create", "update"]),
       ]),
 
+    FileShareItem: a
+      .model({
+        fileOwner: a.string().required(),
+        ownerEmail: a.string().required(),
+        ownerName: a.string(),
+        ownerDepartmentKey: a.string(),
+        ownerDepartmentName: a.string(),
+
+        displayName: a.string().required(),
+        description: a.string(),
+        storagePath: a.string().required(),
+        contentType: a.string(),
+        sizeBytes: a.integer(),
+
+        visibilityScope: a.enum([
+          "PRIVATE",
+          "DEPARTMENT",
+          "SELECTED_USERS",
+          "SELECTED_DEPARTMENTS",
+          "ORGANIZATION",
+        ]),
+        sharedWithUsersJson: a.string(),
+        sharedWithDepartmentsJson: a.string(),
+
+        downloadCount: a.integer().default(0),
+        createdAt: a.datetime().required(),
+        updatedAt: a.datetime(),
+        updatedBy: a.string(),
+      })
+      .secondaryIndexes((index) => [
+        index("ownerEmail").queryField("fileShareItemsByOwner"),
+      ])
+      .authorization((allow) => [allow.authenticated().to(["read", "create", "update", "delete"])]),
+
     Contact: a
       .model({
         customerId: a.id().required(),

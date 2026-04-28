@@ -156,6 +156,24 @@ const MODULE_DEFINITIONS = [
   },
 
   {
+    id: "filesharing",
+    title: "File Sharing",
+    icon: "fas fa-folder-tree",
+    category: "core",
+    options: [
+      { id: "filesharing_list", label: "Show File Sharing in sidebar", prefix: "-" },
+      { id: "filesharing_view", label: "View shared files", prefix: "a." },
+      { id: "filesharing_upload", label: "Upload files", prefix: "b." },
+      { id: "filesharing_share", label: "Share / change visibility", prefix: "c." },
+      { id: "filesharing_download", label: "Download files", prefix: "d." },
+      { id: "filesharing_delete_own", label: "Delete own files", prefix: "e." },
+      { id: "filesharing_delete_any", label: "Delete any file", prefix: "f." },
+      { id: "filesharing_manage_all", label: "Manage all files", prefix: "g." },
+      { id: "filesharing_cross_department", label: "Cross-department sharing", prefix: "h." },
+    ],
+  },
+
+  {
     id: "emailinbox",
     title: "Email Inbox",
     icon: "fas fa-envelope-open-text",
