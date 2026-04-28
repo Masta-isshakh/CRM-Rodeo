@@ -162,6 +162,16 @@ export function resolvePolicyAndOp(moduleId: string, optionId: string): Resolved
     return null;
   }
 
+  if (m === "pushnotifications" || m === "sms" || m === "notifications") {
+    if (o === "pushnotifications_list" || o === "pushnotifications_view_history") {
+      return { policyKey: "PUSH_NOTIFICATIONS", op: "canRead" };
+    }
+    if (o === "pushnotifications_send" || o === "pushnotifications_compose") {
+      return { policyKey: "PUSH_NOTIFICATIONS", op: "canUpdate", fallbackOps: ["canCreate"] };
+    }
+    return null;
+  }
+
   // EMAIL INBOX
   if (m === "emailinbox" || m === "email") {
     if (o === "emailinbox_list" || o === "emailinbox_open") {

@@ -24,6 +24,9 @@ import { jobOrderPaymentCreate } from "../functions/job-orders/create-payment/re
 import { jobOrderPaymentUpdate } from "../functions/job-orders/update-payment/resource";
 import { jobOrderPaymentDelete } from "../functions/job-orders/delete-payment/resource";
 import { jobOrderPaymentBackfillActors } from "../functions/job-orders/backfill-payment-actors/resource";
+import { sendSms } from "../functions/send-sms/resource";
+import { processSmsEvents } from "../functions/process-sms-events/resource";
+import { processSmsDeliveryStatus } from "../functions/process-sms-delivery-status/resource";
 
 // ✅ MUST MATCH your Cognito group name EXACTLY
 const ADMIN_GROUP = "Admins";
@@ -1150,6 +1153,76 @@ const schema = a
       .authorization((allow) => [allow.authenticated()])
       .handler(a.handler.function(jobOrderPaymentBackfillActors))
       .returns(a.json()),
+
+      // -----------------------------
+      // SMS / Push Notifications
+      // -----------------------------
+      SmsLog: a
+        .model({
+          batchId: a.string(),
+          sentBy: a.string().required(),
+          message: a.string().required(),
+          smsType: a.string(),
+          status: a.string(),
+          recipientCount: a.integer().default(0),
+          sentCount: a.integer().default(0),
+          failedCount: a.integer().default(0),
+          queueProcessedCount: a.integer().default(0),
+          deadLetterCount: a.integer().default(0),
+          lastEventAt: a.datetime(),
+          lastEventType: a.string(),
+          recipientsJson: a.string(),
+          resultsJson: a.string(),
+          createdAt: a.datetime().required(),
+        })
+        .authorization((allow) => [allow.authenticated()]),
+
+      SmsDeliveryEvent: a
+        .model({
+          smsLogId: a.id(),
+          batchId: a.string(),
+          phone: a.string(),
+          normalizedPhone: a.string(),
+          eventType: a.string().required(),
+          status: a.string().required(),
+          smsType: a.string(),
+          snsMessageId: a.string(),
+          queueMessageId: a.string(),
+          receiveCount: a.integer().default(0),
+          errorMessage: a.string(),
+          rawPayloadJson: a.string(),
+          createdAt: a.datetime().required(),
+          processedAt: a.datetime(),
+        })
+        .authorization((allow) => [allow.authenticated()]),
+
+      SmsDeliveryStatus: a
+        .model({
+          snsMessageId: a.string(),
+          phone: a.string(),
+          normalizedPhone: a.string(),
+          status: a.string().required(),
+          statusMessage: a.string(),
+          statusCode: a.string(),
+          priceInUSD: a.float().default(0),
+          rawMessageJson: a.string(),
+          createdAt: a.datetime().required(),
+          processedAt: a.datetime(),
+        })
+        .authorization((allow) => [allow.authenticated()]),
+
+      sendSms: a
+        .mutation()
+        .arguments({
+          phones: a.string().array().required(),
+          message: a.string().required(),
+          smsType: a.string(),
+          batchId: a.string(),
+          smsLogId: a.id(),
+        })
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(sendSms))
+        .returns(a.json()),
   })
   .authorization((allow) => [
     allow.resource(inviteUser),
@@ -1170,6 +1243,9 @@ const schema = a
     allow.resource(jobOrderPaymentUpdate),
     allow.resource(jobOrderPaymentDelete),
     allow.resource(jobOrderPaymentBackfillActors),
+    allow.resource(sendSms),
+    allow.resource(processSmsEvents),
+    allow.resource(processSmsDeliveryStatus),
   ]);
 
 export type Schema = ClientSchema<typeof schema>;

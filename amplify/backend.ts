@@ -1,6 +1,9 @@
 import { defineBackend } from "@aws-amplify/backend";
 import { PolicyStatement, ServicePrincipal } from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
+import * as sns from "aws-cdk-lib/aws-sns";
+import * as sqs from "aws-cdk-lib/aws-sqs";
+import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
 
 import { auth } from "./auth/resource";
 import { customMessage } from "./auth/custom-message/resource";
@@ -20,6 +23,12 @@ import { setUserDepartment } from "./functions/departments/set-user-department/r
 import { adminCognito } from "./functions/adminCognito/resource";
 
 import { myGroups } from "./functions/auth/my-groups/resource";
+import { sendSms } from "./functions/send-sms/resource";
+import { processSmsEvents } from "./functions/process-sms-events/resource";
+import { processSmsDeliveryStatus } from "./functions/process-sms-delivery-status/resource";
+
+const SMS_AUDIT_TOPIC_ARN = "arn:aws:sns:ap-south-1:115246381405:Rodeo_Drive_Topic.fifo";
+const SMS_AUDIT_QUEUE_ARN = "arn:aws:sqs:ap-south-1:115246381405:Rodeo_Drive_Queue.fifo";
 
 const backend = defineBackend({
   auth,
@@ -41,6 +50,9 @@ const backend = defineBackend({
   adminCognito,
 
   myGroups,
+  sendSms,
+  processSmsEvents,
+  processSmsDeliveryStatus,
 });
 
 // ---- myGroups Lambda needs permission to read Cognito groups ----
@@ -72,6 +84,49 @@ adminCognitoFn.addToRolePolicy(
 );
 
 adminCognitoFn.addEnvironment("USERPOOL_ID", backend.auth.resources.userPool.userPoolId);
+
+const sendSmsFn = backend.sendSms.resources.lambda as unknown as lambda.Function;
+const processSmsEventsFn = backend.processSmsEvents.resources.lambda as unknown as lambda.Function;
+
+const importedSmsAuditTopic = sns.Topic.fromTopicArn(sendSmsFn, "ImportedSmsAuditTopic", SMS_AUDIT_TOPIC_ARN);
+const importedSmsAuditQueue = sqs.Queue.fromQueueArn(processSmsEventsFn, "ImportedSmsAuditQueue", SMS_AUDIT_QUEUE_ARN);
+
+sendSmsFn.addToRolePolicy(
+  new PolicyStatement({
+    actions: ["sns:Publish"],
+    resources: ["*"],  // SNS Direct Publish requires * (phone number, not topic)
+  })
+);
+sendSmsFn.addEnvironment("SMS_AUDIT_TOPIC_ARN", SMS_AUDIT_TOPIC_ARN);
+
+processSmsEventsFn.addEnvironment("SMS_AUDIT_TOPIC_ARN", SMS_AUDIT_TOPIC_ARN);
+processSmsEventsFn.addEnvironment("SMS_AUDIT_QUEUE_ARN", SMS_AUDIT_QUEUE_ARN);
+
+// Cross-account SQS permissions: explicit policy for Lambda execution role
+processSmsEventsFn.addToRolePolicy(
+  new PolicyStatement({
+    actions: [
+      "sqs:ReceiveMessage",
+      "sqs:DeleteMessage",
+      "sqs:GetQueueAttributes",
+      "sqs:ChangeMessageVisibility",
+    ],
+    resources: [SMS_AUDIT_QUEUE_ARN],
+  })
+);
+
+processSmsEventsFn.addEventSource(
+  new SqsEventSource(importedSmsAuditQueue, {
+    batchSize: 1,
+    reportBatchItemFailures: true,
+  })
+);
+
+const processSmsDeliveryStatusFn =
+  backend.processSmsDeliveryStatus.resources.lambda as unknown as lambda.Function;
+
+// SMS Delivery Status Lambda permissions
+processSmsDeliveryStatusFn.addEnvironment("SMS_AUDIT_TOPIC_ARN", SMS_AUDIT_TOPIC_ARN);
 
 const customMessageFn = backend.customMessage.resources.lambda as unknown as lambda.Function;
 

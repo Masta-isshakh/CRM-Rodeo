@@ -172,6 +172,18 @@ const MODULE_DEFINITIONS = [
       { id: "filesharing_cross_department", label: "Cross-department sharing", prefix: "h." },
     ],
   },
+  {
+    id: "pushnotifications",
+    title: "Push Notifications",
+    icon: "fas fa-comment-sms",
+    category: "core",
+    options: [
+      { id: "pushnotifications_list", label: "Show Push Notifications in sidebar", prefix: "-" },
+      { id: "pushnotifications_send", label: "Send SMS notifications", prefix: "a." },
+      { id: "pushnotifications_compose", label: "Compose message", prefix: "b." },
+      { id: "pushnotifications_view_history", label: "View send history", prefix: "c." },
+    ],
+  },
 
   {
     id: "emailinbox",

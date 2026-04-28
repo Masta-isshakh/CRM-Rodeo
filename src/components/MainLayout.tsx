@@ -20,6 +20,7 @@ const loadRolesPoliciesAdmin = () => import("../pages/RolesPoliciesAdmin");
 const loadInventoryManagement = () => import("../pages/InventoryManagement");
 const loadInternalChat = () => import("../pages/InternalMessaging");
 const loadFileSharing = () => import("../pages/FileSharing");
+const loadPushNotifications = () => import("../pages/PushNotifications");
 const loadEmailInbox = () => import("../pages/EmailInboxPage");
 const loadCampaignAudienceAdmin = () => import("../pages/CampaignAudienceAdmin");
 
@@ -49,6 +50,7 @@ const RolesPoliciesAdmin = lazy(loadRolesPoliciesAdmin);
 const InventoryManagement = lazy(loadInventoryManagement);
 const InternalChat = lazy(loadInternalChat);
 const FileSharing = lazy(loadFileSharing);
+const PushNotifications = lazy(loadPushNotifications);
 const EmailInbox = lazy(loadEmailInbox);
 const CampaignAudienceAdmin = lazy(loadCampaignAudienceAdmin);
 
@@ -89,6 +91,7 @@ type Page =
   | "inspection"
   | "internalchat"
   | "filesharing"
+    | "pushnotifications"
   | "emailinbox"
   | "campaignaudience"
   | "users"
@@ -116,6 +119,7 @@ const PAGE_LOADERS: Record<Page, () => Promise<unknown>> = {
   inspection: loadInspectionModule,
   internalchat: loadInternalChat,
   filesharing: loadFileSharing,
+    pushnotifications: loadPushNotifications,
   emailinbox: loadEmailInbox,
   campaignaudience: loadCampaignAudienceAdmin,
   users: loadUsers,
@@ -280,6 +284,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       internalchat: (isAdminGroup || canAny("INTERNAL_CHAT").canRead) && listOn("internalchat", "internalchat_list"),
       filesharing: (isAdminGroup || canAny("FILE_SHARING").canRead) && listOn("filesharing", "filesharing_list"),
       emailinbox: (isAdminGroup || canAny("EMAIL_INBOX").canRead) && listOn("emailinbox", "emailinbox_list"),
+        pushnotifications: (isAdminGroup || canAny("PUSH_NOTIFICATIONS").canRead) && listOn("pushnotifications", "pushnotifications_list"),
 
       // Job ecosystem (policy JOB_CARDS)
       jobcards: jobCardsRead && listOn("joborder", "joborder_list"),
@@ -335,6 +340,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.activitylog) pages.push("activitylog");
     if (show.internalchat) pages.push("internalchat");
     if (show.filesharing) pages.push("filesharing");
+      if (show.pushnotifications) pages.push("pushnotifications");
     if (show.emailinbox) pages.push("emailinbox");
     if (show.inventory) pages.push("inventory");
     if (showAdmin.campaignaudience) pages.push("campaignaudience");
@@ -397,6 +403,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !show.calltracking &&
     !show.internalchat &&
     !show.filesharing &&
+      !show.pushnotifications &&
     !show.emailinbox &&
     !showAdmin.campaignaudience &&
     !show.jobcards &&
@@ -435,6 +442,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.activitylog) allowedPages.push("activitylog");
     if (show.internalchat) allowedPages.push("internalchat");
     if (show.filesharing) allowedPages.push("filesharing");
+      if (show.pushnotifications) allowedPages.push("pushnotifications");
     if (show.emailinbox) allowedPages.push("emailinbox");
     if (show.inventory) allowedPages.push("inventory");
     if (showAdmin.campaignaudience) allowedPages.push("campaignaudience");
@@ -463,6 +471,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       (page === "activitylog" && show.activitylog) ||
       (page === "internalchat" && show.internalchat) ||
       (page === "filesharing" && show.filesharing) ||
+        (page === "pushnotifications" && show.pushnotifications) ||
       (page === "emailinbox" && show.emailinbox) ||
       (page === "inventory" && show.inventory) ||
       (page === "campaignaudience" && showAdmin.campaignaudience) ||
@@ -627,6 +636,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     calltracking: t("Call Tracking"),
     internalchat: t("Internal Chat"),
     filesharing: t("File Sharing"),
+      pushnotifications: t("Push Notifications"),
     emailinbox: t("Email Inbox"),
     campaignaudience: t("Campaign Audience"),
     inventory: t("Inventory"),
@@ -775,6 +785,12 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
                 <i className="fas fa-folder-tree" aria-hidden="true" /> {t("File Sharing")}
               </button>
             )}
+
+              {show.pushnotifications && (
+                <button className={page === "pushnotifications" ? "active" : ""} onClick={() => go("pushnotifications")}>
+                  <i className="fas fa-comment-sms" aria-hidden="true" /> {t("Push Notifications")}
+                </button>
+              )}
 
             {show.emailinbox && (
               <button className={page === "emailinbox" ? "active" : ""} onClick={openEmailInbox}>
@@ -1021,6 +1037,16 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
                   fallback={<div className="no-access"><h3>{t("File Sharing is temporarily unavailable.")}</h3></div>}
                 >
                   <FileSharing permissions={canAny("FILE_SHARING")} />
+                </LocalPageErrorBoundary>
+              </PermissionGate>
+            )}
+
+            {page === "pushnotifications" && show.pushnotifications && (
+              <PermissionGate moduleId="pushnotifications" optionId="pushnotifications_list">
+                <LocalPageErrorBoundary
+                  fallback={<div className="no-access"><h3>{t("Push Notifications is temporarily unavailable.")}</h3></div>}
+                >
+                  <PushNotifications permissions={canAny("PUSH_NOTIFICATIONS")} />
                 </LocalPageErrorBoundary>
               </PermissionGate>
             )}
