@@ -1,314 +1,420 @@
-.filesharing-page {
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=Space+Grotesk:wght@500;700&display=swap");
+
+.drive-v2 {
+  --ink: #112235;
+  --muted: #506175;
+  --line: #d4dfec;
+  --panel: #ffffff;
+  --sky: #e8f6ff;
+  --accent: #0077ff;
+  --accent-2: #00a58c;
+  --danger: #cf2f2f;
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  color: var(--ink);
   display: grid;
-  gap: 16px;
+  gap: 14px;
 }
 
-.filesharing-hero {
-  border-radius: 18px;
-  padding: 18px;
-  background: linear-gradient(120deg, #f0f9ff 0%, #ecfeff 50%, #f0fdf4 100%);
-  border: 1px solid rgba(14, 116, 144, 0.18);
+.drive-hero {
+  border-radius: 20px;
+  padding: 18px 22px;
+  border: 1px solid #b9d8ef;
+  background: radial-gradient(circle at 15% 20%, #d8efff 0%, #eaf9ff 45%, #f1fff9 100%);
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1.8fr 1fr;
 }
 
-.filesharing-hero h1 {
-  margin: 0 0 6px;
-  font-size: 1.45rem;
-  color: #0f172a;
-}
-
-.filesharing-hero p {
+.drive-hero h1 {
   margin: 0;
-  color: #0f172a;
-  opacity: 0.82;
+  font-family: "Space Grotesk", sans-serif;
+  letter-spacing: 0.01em;
+  font-size: 1.55rem;
 }
 
-.filesharing-toolbar {
+.drive-hero p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.drive-metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.drive-metrics div {
+  border: 1px solid #c5daeb;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+  padding: 10px;
+  display: grid;
+  gap: 3px;
+}
+
+.drive-metrics strong {
+  font-size: 1rem;
+}
+
+.drive-metrics span {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.drive-toolbar {
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 10px;
 }
 
-.filesharing-toolbar input,
-.filesharing-toolbar button,
+.drive-toolbar input,
+.drive-toolbar button,
 .filesharing-composer input,
 .filesharing-composer select,
-.filesharing-composer button {
+.filesharing-composer button,
+.drive-admin-grid input,
+.drive-admin-grid select,
+.drive-admin-grid button {
+  border: 1px solid var(--line);
   border-radius: 12px;
-  border: 1px solid rgba(15, 23, 42, 0.16);
   padding: 10px 12px;
-  font-size: 0.95rem;
+  font-size: 0.92rem;
+  background: #fff;
 }
 
-.filesharing-composer {
+.drive-shell {
+  display: grid;
+  grid-template-columns: 250px 1fr;
+  gap: 12px;
+}
+
+.drive-sidebar {
   border-radius: 16px;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  background: #ffffff;
-  padding: 14px;
-  box-shadow: 0 12px 22px rgba(2, 6, 23, 0.06);
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, #f8fbff 0%, #f6fffc 100%);
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+  align-content: start;
+}
+
+.drive-sidebar button {
+  border: 1px solid transparent;
+  border-radius: 10px;
+  padding: 9px 10px;
+  background: transparent;
+  color: #24415f;
+  text-align: left;
+  cursor: pointer;
+}
+
+.drive-sidebar button.active,
+.drive-sidebar button:hover {
+  border-color: #b5d2ec;
+  background: #e8f4ff;
+}
+
+.drive-folder-tree {
+  border-top: 1px dashed #bbd1e4;
+  padding-top: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.drive-folder-tree h4 {
+  margin: 4px 0;
+  font-size: 0.86rem;
+  color: #4c6178;
+}
+
+.drive-main {
   display: grid;
   gap: 12px;
 }
 
-.filesharing-composer h2,
-.filesharing-list h2 {
-  margin: 0;
-  font-size: 1.05rem;
-  color: #0f172a;
+.drive-card {
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--panel);
+  padding: 12px;
+  box-shadow: 0 8px 24px rgba(9, 37, 66, 0.06);
 }
 
-/* ─── Drag-drop zone ─────────────────────────────────────── */
-.filesharing-dropzone {
-  border: 2px dashed rgba(14, 165, 233, 0.4);
-  border-radius: 14px;
-  padding: 28px 16px;
+.drive-card-title {
+  font-family: "Space Grotesk", sans-serif;
+  font-weight: 700;
+  font-size: 1rem;
+  margin-bottom: 10px;
+}
+
+.drive-breadcrumb {
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.drive-breadcrumb button {
+  border: 1px solid #c8d8e8;
+  background: #f7fbff;
+  border-radius: 999px;
+  padding: 4px 10px;
+  cursor: pointer;
+  color: #274667;
+}
+
+.filesharing-composer {
+  display: grid;
+  gap: 10px;
+}
+
+.filesharing-dropzone {
+  border: 2px dashed #91bfe4;
+  border-radius: 14px;
+  padding: 24px 12px;
+  display: grid;
+  justify-items: center;
+  gap: 6px;
   background: #f0f9ff;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
-  user-select: none;
 }
 
-.filesharing-dropzone:hover,
-.filesharing-dropzone.dragging {
-  background: #e0f2fe;
-  border-color: #0ea5e9;
+.filesharing-dropzone.dragging,
+.filesharing-dropzone:hover {
+  border-color: #4a9eff;
+  background: #e3f3ff;
 }
 
 .filesharing-dropzone i {
-  font-size: 1.8rem;
-  color: #0ea5e9;
-}
-
-.filesharing-dropzone span {
-  font-size: 0.95rem;
-  color: #0369a1;
-  font-weight: 600;
+  font-size: 1.5rem;
+  color: #117ef5;
 }
 
 .filesharing-dropzone-sub {
-  font-size: 0.82rem !important;
-  font-weight: 400 !important;
-  color: #64748b !important;
+  color: #5c7088;
+  font-size: 0.82rem;
 }
 
-/* ─── Selected files list ────────────────────────────────── */
+.filesharing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.filesharing-picks {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  max-height: 210px;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.filesharing-picks label {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  color: #23415f;
+  font-size: 0.88rem;
+}
+
 .filesharing-selected-files {
   display: grid;
   gap: 6px;
 }
 
 .filesharing-selected-file {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border: 1px solid rgba(15, 23, 42, 0.1);
+  border: 1px solid var(--line);
+  background: #f8fbff;
   border-radius: 10px;
+  display: grid;
+  grid-template-columns: auto 1fr auto auto;
+  align-items: center;
+  gap: 10px;
   padding: 8px 10px;
-  background: #f8fafc;
-  font-size: 0.9rem;
-}
-
-.filesharing-selected-file i {
-  color: #0ea5e9;
-  width: 16px;
-  text-align: center;
-}
-
-.filesharing-selected-file-name {
-  flex: 1;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  color: #0f172a;
 }
 
 .filesharing-selected-file-size {
-  color: #64748b;
-  font-size: 0.82rem;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.filesharing-selected-file-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
 .filesharing-progress-bar {
-  width: 60px;
+  width: 64px;
   height: 6px;
-  background: #e2e8f0;
+  background: #dce7f2;
   border-radius: 99px;
   overflow: hidden;
-  flex-shrink: 0;
 }
 
 .filesharing-progress-fill {
   height: 100%;
-  background: #0ea5e9;
-  border-radius: 99px;
-  transition: width 0.2s;
+  background: linear-gradient(90deg, var(--accent), var(--accent-2));
 }
 
-.filesharing-remove-file {
-  background: none !important;
-  border: none !important;
-  padding: 2px 6px !important;
-  color: #94a3b8;
-  cursor: pointer;
-  font-size: 0.85rem;
-  border-radius: 6px;
-  transition: color 0.15s;
-  flex-shrink: 0;
-}
-
-.filesharing-remove-file:hover {
-  color: #ef4444;
-}
-
-/* ─── Grid / pickers ─────────────────────────────────────── */
-.filesharing-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-}
-
-.filesharing-picks {
-  margin-top: 2px;
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  max-height: 210px;
-  overflow: auto;
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 12px;
-  padding: 10px;
-}
-
-.filesharing-picks label {
+.drive-inline-actions {
   display: flex;
-  align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
-  font-size: 0.9rem;
-  color: #1e293b;
 }
 
 .filesharing-primary {
-  background: #0ea5e9;
-  color: #ffffff;
+  background: linear-gradient(120deg, #0f87ff, #00a690);
+  border: none;
+  color: #fff;
   font-weight: 700;
   cursor: pointer;
-  transition: background 0.15s;
 }
 
 .filesharing-primary:disabled {
-  background: #94a3b8;
+  opacity: 0.5;
   cursor: default;
 }
 
-/* ─── File list ──────────────────────────────────────────── */
 .filesharing-list {
   display: grid;
-  gap: 10px;
+  gap: 8px;
 }
 
 .filesharing-item {
-  border: 1px solid rgba(15, 23, 42, 0.12);
-  border-radius: 14px;
-  background: #ffffff;
-  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 10px;
   display: grid;
   grid-template-columns: auto 1fr auto;
+  align-items: center;
   gap: 10px;
-  align-items: center;
-  transition: box-shadow 0.15s;
-}
-
-.filesharing-item:hover {
-  box-shadow: 0 4px 16px rgba(2, 6, 23, 0.08);
-}
-
-.filesharing-item-left {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  background: #fff;
 }
 
 .filesharing-file-icon {
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  background: #f1f5f9;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.2rem;
-  color: #64748b;
-  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  background: #eff6ff;
+  color: #21547f;
 }
 
-.filesharing-file-icon.image { background: #fef3c7; color: #d97706; }
-.filesharing-file-icon.pdf   { background: #fee2e2; color: #ef4444; }
+.filesharing-file-icon.folder { background: #eefdf4; color: #0b8b4e; }
+.filesharing-file-icon.image { background: #fff3de; color: #b87516; }
+.filesharing-file-icon.pdf { background: #ffe7e7; color: #bd2e2e; }
 
-.filesharing-name {
+.drive-name-link {
+  border: none;
+  background: transparent;
+  color: #123d6a;
+  font-size: 0.97rem;
   font-weight: 700;
-  color: #0f172a;
+  text-align: left;
+  cursor: pointer;
+  padding: 0;
 }
 
 .filesharing-meta {
-  font-size: 0.84rem;
-  color: #475569;
+  color: var(--muted);
+  font-size: 0.82rem;
   margin-top: 2px;
 }
 
 .filesharing-desc {
-  margin-top: 6px;
-  font-size: 0.9rem;
-  color: #334155;
+  color: #32475e;
+  margin-top: 4px;
+  font-size: 0.89rem;
 }
 
 .filesharing-item-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
-  align-items: center;
+  gap: 6px;
 }
 
 .filesharing-item-actions button {
-  border: 1px solid rgba(15, 23, 42, 0.18);
-  border-radius: 10px;
-  background: #f8fafc;
-  padding: 8px 12px;
+  border: 1px solid #c9d8e8;
+  background: #f8fbff;
+  border-radius: 9px;
+  padding: 7px 10px;
   cursor: pointer;
-  font-size: 0.9rem;
-  transition: background 0.15s;
-}
-
-.filesharing-item-actions button:hover {
-  background: #e2e8f0;
 }
 
 .filesharing-item-actions .danger {
-  background: #ef4444;
-  color: #ffffff;
-  border-color: #ef4444;
+  border-color: #f0b4b4;
+  color: #a01f1f;
+  background: #fff0f0;
 }
 
-.filesharing-item-actions .danger:hover {
-  background: #dc2626;
+.drive-admin-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
 }
 
-.filesharing-preview-btn {
-  width: 36px !important;
-  padding: 8px !important;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #0ea5e9;
+.drive-usage-list {
+  display: grid;
+  gap: 8px;
+  max-height: 430px;
+  overflow: auto;
 }
 
-/* ─── Preview modal ──────────────────────────────────────── */
+.drive-usage-row {
+  border: 1px solid #d2deeb;
+  border-radius: 10px;
+  padding: 8px;
+  display: grid;
+  gap: 4px;
+}
+
+.drive-usage-row strong {
+  display: block;
+}
+
+.drive-usage-row span {
+  color: #5f7084;
+  font-size: 0.83rem;
+}
+
+.drive-usage-bar {
+  width: 100%;
+  height: 7px;
+  border-radius: 99px;
+  background: #e2ebf5;
+  overflow: hidden;
+}
+
+.drive-usage-bar span {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #087df4, #00a68d);
+}
+
+.filesharing-empty {
+  border: 1px dashed #bfd3e5;
+  border-radius: 12px;
+  background: #f8fbff;
+  color: #4a6078;
+  padding: 14px;
+}
+
+.filesharing-status {
+  border: 1px solid #b7d4f1;
+  border-radius: 12px;
+  padding: 10px 12px;
+  color: #184871;
+  background: #ebf6ff;
+}
+
 .filesharing-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(2, 6, 23, 0.6);
+  background: rgba(7, 24, 41, 0.62);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -370,6 +476,42 @@
   object-fit: contain;
 }
 
+
+@media (max-width: 1100px) {
+  .drive-hero {
+    grid-template-columns: 1fr;
+  }
+
+  .drive-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .drive-sidebar {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    display: grid;
+  }
+}
+
+@media (max-width: 760px) {
+  .filesharing-grid,
+  .filesharing-picks,
+  .drive-admin-grid,
+  .drive-metrics {
+    grid-template-columns: 1fr;
+  }
+
+  .filesharing-item {
+    grid-template-columns: 1fr;
+  }
+
+  .filesharing-item-actions {
+    justify-content: flex-start;
+  }
+
+  .drive-sidebar {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
 .filesharing-modal-body iframe {
   width: 100%;
   height: 70vh;
@@ -474,6 +616,83 @@
   gap: 8px;
   font-size: 0.9rem;
   color: #1e293b;
+}
+
+.drive-subpanel {
+  border: 1px solid #c7dced;
+  background: #f7fbff;
+  border-radius: 10px;
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.drive-subpanel-title {
+  font-weight: 700;
+  color: #174269;
+}
+
+.drive-link-row,
+.drive-version-row,
+.drive-trend-row {
+  border: 1px solid #d4e2f0;
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px 10px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.drive-link-row span,
+.drive-version-row span {
+  display: block;
+  color: #5a6f86;
+  font-size: 0.82rem;
+}
+
+.drive-top-gap {
+  margin-top: 12px;
+}
+
+.drive-trend-list,
+.drive-alert-list {
+  display: grid;
+  gap: 8px;
+}
+
+.drive-trend-row {
+  grid-template-columns: minmax(0, 2fr) repeat(3, auto);
+  font-size: 0.86rem;
+}
+
+.drive-alert {
+  border-radius: 10px;
+  padding: 8px 10px;
+  border: 1px solid #d0dfef;
+  background: #f7fbff;
+  color: #19466f;
+  font-size: 0.88rem;
+}
+
+.drive-alert.warn {
+  border-color: #f2d394;
+  background: #fff8e7;
+  color: #7e5811;
+}
+
+.drive-alert.error {
+  border-color: #efb6b6;
+  background: #fff0f0;
+  color: #9f1f1f;
+}
+
+.drive-alert.info {
+  border-color: #bbd8ef;
+  background: #edf7ff;
+  color: #165080;
 }
 
 .filesharing-primary {

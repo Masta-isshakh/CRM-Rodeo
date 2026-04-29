@@ -386,6 +386,12 @@ const schema = a
           "SELECTED_DEPARTMENTS",
           "ORGANIZATION",
         ]),
+        folderPath: a.string(),
+        isFolder: a.boolean().default(false),
+        isDeleted: a.boolean().default(false),
+        deletedAt: a.datetime(),
+        deletedBy: a.string(),
+        starredByJson: a.string(),
         sharedWithUsersJson: a.string(),
         sharedWithDepartmentsJson: a.string(),
 
@@ -396,6 +402,58 @@ const schema = a
       })
       .secondaryIndexes((index) => [
         index("ownerEmail").queryField("fileShareItemsByOwner"),
+      ])
+      .authorization((allow) => [allow.authenticated().to(["read", "create", "update", "delete"])]),
+
+    DriveStorageQuota: a
+      .model({
+        userEmail: a.string().required(),
+        quotaMb: a.integer().default(2048),
+        uploadBlocked: a.boolean().default(false),
+        notes: a.string(),
+        updatedAt: a.datetime(),
+        updatedBy: a.string(),
+      })
+      .secondaryIndexes((index) => [
+        index("userEmail").queryField("driveStorageQuotasByUser"),
+      ])
+      .authorization((allow) => [allow.authenticated().to(["read", "create", "update", "delete"])]),
+
+    DriveFileVersion: a
+      .model({
+        fileShareItemId: a.id().required(),
+        ownerEmail: a.string().required(),
+        versionNumber: a.integer().required(),
+        storagePath: a.string().required(),
+        contentType: a.string(),
+        sizeBytes: a.integer(),
+        changeNote: a.string(),
+        createdAt: a.datetime().required(),
+        createdBy: a.string().required(),
+      })
+      .secondaryIndexes((index) => [
+        index("fileShareItemId").queryField("driveFileVersionsByItem"),
+        index("ownerEmail").queryField("driveFileVersionsByOwner"),
+      ])
+      .authorization((allow) => [allow.authenticated().to(["read", "create", "update", "delete"])]),
+
+    DriveShareLink: a
+      .model({
+        fileShareItemId: a.id().required(),
+        token: a.string().required(),
+        createdBy: a.string().required(),
+        displayName: a.string(),
+        storagePath: a.string().required(),
+        expiresAt: a.datetime().required(),
+        revokedAt: a.datetime(),
+        maxDownloads: a.integer(),
+        downloadCount: a.integer().default(0),
+        lastAccessedAt: a.datetime(),
+        createdAt: a.datetime().required(),
+      })
+      .secondaryIndexes((index) => [
+        index("fileShareItemId").queryField("driveShareLinksByItem"),
+        index("token").queryField("driveShareLinkByToken"),
       ])
       .authorization((allow) => [allow.authenticated().to(["read", "create", "update", "delete"])]),
 

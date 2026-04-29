@@ -1,28 +1,41 @@
-import {
-  AppSyncIdentityWithSourceIp,
-  Amplify,
-  generateClient,
-  defineAuth,
-} from "aws-amplify";
-import { Schema } from "../../data/resource";
-import { getAmplifyDataClientConfig, selectVal } from "../../data/client-utils";
+import { Amplify } from "aws-amplify";
+import { generateClient } from "aws-amplify/data";
+import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtime";
+import type { Schema } from "../../data/resource";
 
-export const handler = async (event: any) => {
+type SnsRecord = {
+  messageId?: string;
+  Sns?: {
+    Message?: string;
+    MessageId?: string;
+  };
+};
+
+type SnsEvent = {
+  Records?: SnsRecord[];
+};
+
+async function configureClient() {
+  const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
+  Amplify.configure(resourceConfig, libraryOptions);
+  return generateClient<Schema>();
+}
+
+export const handler = async (event: SnsEvent) => {
   console.log("SMS Delivery Status Event:", JSON.stringify(event, null, 2));
 
   const batchItemFailures: { itemId: string }[] = [];
 
   try {
     // Initialize Amplify
-    const config = await getAmplifyDataClientConfig(process.env);
-    Amplify.configure(config);
-    const client = generateClient<Schema>();
+    const client = await configureClient();
 
     // Handle SNS events
     for (const record of event.Records || []) {
       try {
         // Parse SNS message
-        const message = JSON.parse(record.Sns.Message);
+        const snsMessage = String(record.Sns?.Message ?? "{}");
+        const message = JSON.parse(snsMessage);
         console.log("Parsed Message:", message);
 
         // Extract delivery status information
@@ -73,6 +86,7 @@ export const handler = async (event: any) => {
             statusCode: statusCode || "",
             priceInUSD: priceInUSD ? parseFloat(priceInUSD) : 0,
             rawMessageJson: JSON.stringify(message),
+            createdAt: String(timestamp || new Date().toISOString()),
             processedAt: new Date().toISOString(),
           });
 
@@ -89,7 +103,7 @@ export const handler = async (event: any) => {
       } catch (recordError) {
         console.error("Error processing record:", recordError);
         // Add to failed items only if it's a persistent error
-        const receiveCount = record.Attributes?.ApproximateReceiveCount || 0;
+        const receiveCount = Number(1);
         const maxRetries = parseInt(
           process.env.SMS_DELIVERY_STATUS_MAX_RECEIVE_COUNT || "5",
           10
@@ -106,7 +120,8 @@ export const handler = async (event: any) => {
               statusMessage: `Failed after ${receiveCount} attempts: ${
                 recordError instanceof Error ? recordError.message : "Unknown error"
               }`,
-              rawMessageJson: JSON.stringify(event.Records[0]?.Sns || {}),
+              rawMessageJson: JSON.stringify(event.Records?.[0]?.Sns || {}),
+              createdAt: new Date().toISOString(),
               processedAt: new Date().toISOString(),
             });
           } catch (dlError) {
@@ -115,7 +130,7 @@ export const handler = async (event: any) => {
         } else {
           // Retry this message
           batchItemFailures.push({
-            itemId: record.messageId || record.Sns.MessageId,
+            itemId: record.messageId || record.Sns?.MessageId || "unknown",
           });
         }
       }
@@ -128,7 +143,7 @@ export const handler = async (event: any) => {
     // Return all records as failed for retry
     return {
       batchItemFailures: (event.Records || []).map((record: any) => ({
-        itemId: record.messageId || record.Sns.MessageId,
+        itemId: record.messageId || record.Sns?.MessageId || "unknown",
       })),
     };
   }
