@@ -19,7 +19,7 @@ const loadDepartmentsAdmin = () => import("../pages/DepartmentsAdmin");
 const loadRolesPoliciesAdmin = () => import("../pages/RolesPoliciesAdmin");
 const loadInventoryManagement = () => import("../pages/InventoryManagement");
 const loadInternalChat = () => import("../pages/InternalMessaging");
-const loadFileSharing = () => import("../pages/FileSharing");
+const loadFileSharing = () => import("../pages/FileSharing.tsx");
 const loadPushNotifications = () => import("../pages/PushNotifications");
 const loadEmailInbox = () => import("../pages/EmailInboxPage");
 const loadCampaignAudienceAdmin = () => import("../pages/CampaignAudienceAdmin");
