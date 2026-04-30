@@ -1,0 +1,69 @@
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Segoe UI", Arial, sans-serif;
+  background: radial-gradient(circle at top right, #daf2ff 0%, #f2fcff 45%, #ecfff7 100%);
+  display: grid;
+  place-items: center;
+  color: #133554;
+}
+
+.share-page {
+  width: min(560px, 92vw);
+}
+
+.share-card {
+  background: #ffffff;
+  border: 1px solid #c6dced;
+  border-radius: 16px;
+  padding: 22px;
+  box-shadow: 0 12px 34px rgba(6, 34, 64, 0.1);
+  display: grid;
+  gap: 12px;
+}
+
+.share-card h1 {
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.status {
+  margin: 0;
+  font-weight: 600;
+}
+
+.status.ok {
+  color: #0d7a4a;
+}
+
+.status.error {
+  color: #a32727;
+}
+
+.meta {
+  font-size: 0.92rem;
+  display: grid;
+  gap: 6px;
+  color: #35536f;
+}
+
+.download-btn {
+  border: none;
+  border-radius: 11px;
+  padding: 11px 14px;
+  font-weight: 700;
+  cursor: pointer;
+  color: #fff;
+  background: linear-gradient(120deg, #0e85ff, #0aa27d);
+}
+
+.download-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #516b82;
+}

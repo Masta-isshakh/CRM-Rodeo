@@ -1,0 +1,80 @@
+import { CognitoIdentityProviderClient, CreateGroupCommand, DeleteGroupCommand, GetGroupCommand, ListUsersInGroupCommand, AdminAddUserToGroupCommand, AdminRemoveUserFromGroupCommand, } from "@aws-sdk/client-cognito-identity-provider";
+import { Amplify } from "aws-amplify";
+import { generateClient } from "aws-amplify/data";
+import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtime";
+import { toDeptKey, keyToLabel } from "../_shared/departmentKey";
+import { canPerformDepartmentAction } from "../_shared/rbac";
+const cognito = new CognitoIdentityProviderClient();
+export const handler = async (event) => {
+    const userPoolId = process.env.AMPLIFY_AUTH_USERPOOL_ID;
+    if (!userPoolId)
+        throw new Error("Missing AMPLIFY_AUTH_USERPOOL_ID");
+    const allowed = await canPerformDepartmentAction(event, "departments_rename", "canUpdate");
+    if (!allowed)
+        throw new Error("Not authorized to rename departments. Check roles and policies configuration.");
+    const oldKey = event.arguments.oldKey.trim();
+    const newName = event.arguments.newName.trim();
+    if (!oldKey || !newName)
+        throw new Error("oldKey and newName are required");
+    const newKey = toDeptKey(newName);
+    // ensure old exists
+    await cognito.send(new GetGroupCommand({ UserPoolId: userPoolId, GroupName: oldKey }));
+    // create new if missing
+    try {
+        await cognito.send(new GetGroupCommand({ UserPoolId: userPoolId, GroupName: newKey }));
+    }
+    catch (e) {
+        await cognito.send(new CreateGroupCommand({
+            UserPoolId: userPoolId,
+            GroupName: newKey,
+            Description: newName,
+        }));
+    }
+    // migrate users
+    let token = undefined;
+    const usernames = [];
+    do {
+        const res = await cognito.send(new ListUsersInGroupCommand({
+            UserPoolId: userPoolId,
+            GroupName: oldKey,
+            NextToken: token,
+            Limit: 60,
+        }));
+        token = res.NextToken;
+        for (const u of res.Users ?? []) {
+            if (u.Username)
+                usernames.push(u.Username);
+        }
+    } while (token);
+    for (const username of usernames) {
+        await cognito.send(new AdminAddUserToGroupCommand({ UserPoolId: userPoolId, Username: username, GroupName: newKey }));
+        await cognito.send(new AdminRemoveUserFromGroupCommand({ UserPoolId: userPoolId, Username: username, GroupName: oldKey }));
+    }
+    // update Data mappings
+    const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env);
+    Amplify.configure(resourceConfig, libraryOptions);
+    const dataClient = generateClient();
+    // update DepartmentRoleLink rows
+    const links = await dataClient.models.DepartmentRoleLink.list({ limit: 5000 });
+    const toUpdate = (links.data ?? []).filter((l) => l.departmentKey === oldKey);
+    for (const row of toUpdate) {
+        await dataClient.models.DepartmentRoleLink.update({
+            id: row.id,
+            departmentKey: newKey,
+            departmentName: newName,
+        });
+    }
+    // update UserProfile rows
+    const profiles = await dataClient.models.UserProfile.list({ limit: 5000 });
+    const affected = (profiles.data ?? []).filter((p) => p.departmentKey === oldKey);
+    for (const p of affected) {
+        await dataClient.models.UserProfile.update({
+            id: p.id,
+            departmentKey: newKey,
+            departmentName: newName || keyToLabel(newKey),
+        });
+    }
+    // delete old group (after migration)
+    await cognito.send(new DeleteGroupCommand({ UserPoolId: userPoolId, GroupName: oldKey }));
+    return { ok: true, oldKey, newKey, newName, movedUsers: usernames.length };
+};

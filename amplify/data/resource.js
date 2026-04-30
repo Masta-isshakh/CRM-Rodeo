@@ -1,24 +1,20 @@
 // amplify/data/resource.ts
-import { a, defineData, type ClientSchema } from "@aws-amplify/backend";
+import { a, defineData } from "@aws-amplify/backend";
 import { myGroups } from "../functions/auth/my-groups/resource";
 import { adminCognito } from "../functions/adminCognito/resource";
-
 // functions
 import { inviteUser } from "../functions/invite-user/resource";
 import { setUserActive } from "../functions/set-user-active/resource";
 import { deleteUser } from "../functions/delete-user/resource";
 import { updateUserProfile } from "../functions/update-user-profile/resource";
-
 import { listDepartments } from "../functions/departments/list-departments/resource";
 import { createDepartment } from "../functions/departments/create-department/resource";
 import { deleteDepartment } from "../functions/departments/delete-department/resource";
 import { renameDepartment } from "../functions/departments/rename-department/resource";
 import { setUserDepartment } from "../functions/departments/set-user-department/resource";
-
 // ✅ Job Orders (Job Cards) module
 import { jobOrderSave } from "../functions/job-orders/save-job-order/resource";
 import { jobOrderDelete } from "../functions/job-orders/delete-job-order/resource";
-
 // ✅ Payments module (separate model + audited mutations)
 import { jobOrderPaymentCreate } from "../functions/job-orders/create-payment/resource";
 import { jobOrderPaymentUpdate } from "../functions/job-orders/update-payment/resource";
@@ -29,17 +25,15 @@ import { processSmsEvents } from "../functions/process-sms-events/resource";
 import { resolveDriveShareLink } from "../functions/resolve-drive-share-link/resource";
 import { driveRetentionCleanup } from "../functions/drive-retention-cleanup/resource";
 import { processSmsDeliveryStatus } from "../functions/process-sms-delivery-status/resource";
-
 // ✅ MUST MATCH your Cognito group name EXACTLY
 const ADMIN_GROUP = "Admins";
-
 const schema = a
-  .schema({
+    .schema({
     // -----------------------------
     // USER PROFILE
     // -----------------------------
     UserProfile: a
-      .model({
+        .model({
         employeeId: a.string(),
         email: a.string().required(),
         fullName: a.string().required(),
@@ -49,10 +43,8 @@ const schema = a
         lastFailedLoginAt: a.datetime(),
         createdAt: a.datetime(),
         mobileNumber: a.string(),
-
         // owner: `${sub}::${email}`
         profileOwner: a.string().required(),
-
         // Department = Cognito group key
         departmentKey: a.string(),
         departmentName: a.string(),
@@ -60,80 +52,71 @@ const schema = a
         roleName: a.string(),
         lineManagerEmail: a.string(),
         lineManagerName: a.string(),
-      })
-      .authorization((allow) => [
+    })
+        .authorization((allow) => [
         allow.ownerDefinedIn("profileOwner"),
         allow.group(ADMIN_GROUP),
         allow.authenticated().to(["read"]),
-      ]),
-
+    ]),
     // -----------------------------
     // RBAC MODELS
     // -----------------------------
     AppRole: a
-      .model({
+        .model({
         name: a.string().required(),
         description: a.string(),
         isActive: a.boolean().default(true),
         createdAt: a.datetime(),
-      })
-      .authorization((allow) => [allow.authenticated()]),
-
+    })
+        .authorization((allow) => [allow.authenticated()]),
     RolePolicy: a
-      .model({
+        .model({
         roleId: a.id().required(),
         policyKey: a.string().required(),
-
         canRead: a.boolean().default(false),
         canCreate: a.boolean().default(false),
         canUpdate: a.boolean().default(false),
         canDelete: a.boolean().default(false),
         canApprove: a.boolean().default(false),
-
         createdAt: a.datetime(),
-      })
-      .authorization((allow) => [allow.authenticated()]),
-
+    })
+        .authorization((allow) => [allow.authenticated()]),
     DepartmentRoleLink: a
-      .model({
+        .model({
         departmentKey: a.string().required(),
         departmentName: a.string(),
         roleId: a.id().required(),
         createdAt: a.datetime(),
-      })
-      .authorization((allow) => [allow.authenticated()]),
-
-
+    })
+        .authorization((allow) => [allow.authenticated()]),
     // ✅ OPTION-LEVEL RBAC (CORRECTLY PLACED)
     RoleOptionToggle: a
-      .model({
+        .model({
         roleId: a.id().required(),
         key: a.string().required(), // "PAYMENT::PAYMENT_PAY"
         enabled: a.boolean().default(true),
         createdAt: a.datetime(),
         updatedAt: a.datetime(),
         updatedBy: a.string(),
-      })
-      .secondaryIndexes((index) => [index("roleId").queryField("roleOptionTogglesByRole")])
-      .authorization((allow) => [allow.authenticated()]),
-
+    })
+        .secondaryIndexes((index) => [index("roleId").queryField("roleOptionTogglesByRole")])
+        .authorization((allow) => [allow.authenticated()]),
     RoleOptionNumber: a
-      .model({
+        .model({
         roleId: a.id().required(),
         key: a.string().required(), // "PAYMENT::PAYMENT_DISCOUNT_PERCENT"
         value: a.float().required(),
         createdAt: a.datetime(),
         updatedAt: a.datetime(),
         updatedBy: a.string(),
-      })
-      .secondaryIndexes((index) => [index("roleId").queryField("roleOptionNumbersByRole")])
-      .authorization((allow) => [allow.authenticated()]),
-
+    })
+        .secondaryIndexes((index) => [index("roleId").queryField("roleOptionNumbersByRole")])
+        .authorization((allow) => [allow.authenticated()]),
     // -----------------------------
     // CRM MODELS
     // -----------------------------
     Customer: a
-      .model({
+        .model({
         name: a.string().required(),
         lastname: a.string().required(),
         email: a.string(),
@@ -147,26 +130,23 @@ const schema = a
         heardFromOtherNote: a.string(),
         createdBy: a.string(),
         createdAt: a.datetime(),
-
         contacts: a.hasMany("Contact", "customerId"),
         deals: a.hasMany("Deal", "customerId"),
         tickets: a.hasMany("Ticket", "customerId"),
         vehicles: a.hasMany("Vehicle", "customerId"),
-      })
-      .secondaryIndexes((index) => [
+    })
+        .secondaryIndexes((index) => [
         index("phone").queryField("customersByPhone"),
         index("email").queryField("customersByEmail"),
         index("name").queryField("customersByName"),
         index("lastname").queryField("customersByLastname"),
-      ])
-      .authorization((allow) => [allow.authenticated()]),
-
+    ])
+        .authorization((allow) => [allow.authenticated()]),
     Vehicle: a
-      .model({
+        .model({
         vehicleId: a.string().required(),
         customerId: a.id().required(),
         ownedBy: a.string().required(),
-
         make: a.string().required(),
         model: a.string().required(),
         year: a.string(),
@@ -175,23 +155,19 @@ const schema = a
         plateNumber: a.string().required(),
         vin: a.string(),
         notes: a.string(),
-
         completedServicesCount: a.integer().default(0),
-
         createdBy: a.string(),
         createdAt: a.datetime(),
         updatedAt: a.datetime(),
-
         customer: a.belongsTo("Customer", "customerId"),
-      })
-      .secondaryIndexes((index) => [
+    })
+        .secondaryIndexes((index) => [
         index("customerId").queryField("vehiclesByCustomer"),
         index("plateNumber").queryField("vehiclesByPlateNumber"),
-      ])
-      .authorization((allow) => [allow.authenticated()]),
-
+    ])
+        .authorization((allow) => [allow.authenticated()]),
     Employee: a
-      .model({
+        .model({
         firstName: a.string().required(),
         lastName: a.string().required(),
         position: a.string(),
@@ -199,11 +175,10 @@ const schema = a
         phone: a.string(),
         salary: a.integer(),
         createdAt: a.datetime(),
-      })
-      .authorization((allow) => [allow.authenticated()]),
-
+    })
+        .authorization((allow) => [allow.authenticated()]),
     ServiceCategory: a
-      .model({
+        .model({
         categoryCode: a.string().required(),
         nameEn: a.string().required(),
         nameAr: a.string().required(),
@@ -212,12 +187,11 @@ const schema = a
         isActive: a.boolean().default(true),
         createdAt: a.datetime(),
         updatedAt: a.datetime(),
-      })
-      .secondaryIndexes((index) => [index("categoryCode").queryField("serviceCategoryByCode")])
-      .authorization((allow) => [allow.authenticated()]),
-
+    })
+        .secondaryIndexes((index) => [index("categoryCode").queryField("serviceCategoryByCode")])
+        .authorization((allow) => [allow.authenticated()]),
     ServiceBrandSpecification: a
-      .model({
+        .model({
         specificationCode: a.string().required(),
         brandName: a.string().required(),
         colorHex: a.string().required(),
@@ -225,12 +199,11 @@ const schema = a
         isActive: a.boolean().default(true),
         createdAt: a.datetime(),
         updatedAt: a.datetime(),
-      })
-      .secondaryIndexes((index) => [index("specificationCode").queryField("serviceBrandSpecificationByCode")])
-      .authorization((allow) => [allow.authenticated()]),
-
+    })
+        .secondaryIndexes((index) => [index("specificationCode").queryField("serviceBrandSpecificationByCode")])
+        .authorization((allow) => [allow.authenticated()]),
     ServiceCatalog: a
-      .model({
+        .model({
         serviceCode: a.string().required(),
         name: a.string().required(),
         nameAr: a.string(),
@@ -259,26 +232,24 @@ const schema = a
         isActive: a.boolean().default(true),
         createdAt: a.datetime(),
         updatedAt: a.datetime(),
-      })
-      .secondaryIndexes((index) => [
+    })
+        .secondaryIndexes((index) => [
         index("serviceCode").queryField("serviceCatalogByCode"),
         index("type").queryField("serviceCatalogByType"),
         index("categoryId").queryField("serviceCatalogByCategory"),
-      ])
-      .authorization((allow) => [allow.authenticated()]),
-
+    ])
+        .authorization((allow) => [allow.authenticated()]),
     ActivityLog: a
-      .model({
+        .model({
         entityType: a.string().required(),
         entityId: a.string().required(),
         action: a.string().required(),
         message: a.string().required(),
         createdAt: a.datetime().required(),
-      })
-      .authorization((allow) => [allow.authenticated()]),
-
+    })
+        .authorization((allow) => [allow.authenticated()]),
     CampaignAudienceImportBatch: a
-      .model({
+        .model({
         batchId: a.string().required(),
         fileName: a.string().required(),
         sheetName: a.string().required(),
@@ -293,22 +264,19 @@ const schema = a
         importedAt: a.datetime().required(),
         completedAt: a.datetime(),
         createdBy: a.string(),
-      })
-      .secondaryIndexes((index) => [
+    })
+        .secondaryIndexes((index) => [
         index("batchId").queryField("campaignImportBatchByBatchId"),
         index("importedAt").queryField("campaignImportBatchesByImportedAt"),
-      ])
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update", "delete"])]),
-
+    ])
+        .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update", "delete"])]),
     CampaignAudienceLead: a
-      .model({
+        .model({
         importBatchId: a.string().required(),
         sourceFileName: a.string().required(),
         sourceSheetName: a.string().required(),
         sourceRowNumber: a.integer().required(),
-
         dedupeKey: a.string().required(),
-
         customerName: a.string(),
         customerNameLower: a.string(),
         mobileNumber: a.string().required(),
@@ -316,26 +284,23 @@ const schema = a
         serviceName: a.string().required(),
         serviceNameLower: a.string().required(),
         serviceDate: a.date().required(),
-
         vehiclePlateNumber: a.string(),
         vehicleMake: a.string(),
         vehicleModel: a.string(),
         notes: a.string(),
-
         rawJson: a.string().required(),
         importedAt: a.datetime().required(),
-      })
-      .secondaryIndexes((index) => [
+    })
+        .secondaryIndexes((index) => [
         index("importBatchId").queryField("campaignLeadsByBatchId"),
         index("dedupeKey").queryField("campaignLeadsByDedupeKey"),
         index("normalizedMobileNumber").queryField("campaignLeadsByMobileNumber"),
         index("serviceNameLower").queryField("campaignLeadsByServiceName"),
         index("serviceDate").queryField("campaignLeadsByServiceDate"),
-      ])
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update", "delete"])]),
-
+    ])
+        .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update", "delete"])]),
     InternalChatMessage: a
-      .model({
+        .model({
         messageOwner: a.string().required(),
         conversationKey: a.string().required(),
         channelType: a.enum(["GLOBAL", "DIRECT"]),
@@ -345,48 +310,44 @@ const schema = a
         body: a.string().required(),
         createdAt: a.datetime().required(),
         editedAt: a.datetime(),
-      })
-      .secondaryIndexes((index) => [index("conversationKey").queryField("internalChatMessagesByConversation")])
-      .authorization((allow) => [
+    })
+        .secondaryIndexes((index) => [index("conversationKey").queryField("internalChatMessagesByConversation")])
+        .authorization((allow) => [
         allow.ownerDefinedIn("messageOwner"),
         allow.group(ADMIN_GROUP),
         allow.authenticated().to(["read", "create"]),
-      ]),
-
+    ]),
     // Tracks when each user last read a conversation — used for "seen" receipts
     ChatReadReceipt: a
-      .model({
+        .model({
         conversationKey: a.string().required(),
         readerEmail: a.string().required(),
         lastReadAt: a.datetime().required(),
-      })
-      .secondaryIndexes((index) => [
+    })
+        .secondaryIndexes((index) => [
         index("conversationKey").queryField("chatReadReceiptsByConversation"),
-      ])
-      .authorization((allow) => [
+    ])
+        .authorization((allow) => [
         allow.authenticated().to(["read", "create", "update"]),
-      ]),
-
+    ]),
     FileShareItem: a
-      .model({
+        .model({
         fileOwner: a.string().required(),
         ownerEmail: a.string().required(),
         ownerName: a.string(),
         ownerDepartmentKey: a.string(),
         ownerDepartmentName: a.string(),
-
         displayName: a.string().required(),
         description: a.string(),
         storagePath: a.string().required(),
         contentType: a.string(),
         sizeBytes: a.integer(),
-
         visibilityScope: a.enum([
-          "PRIVATE",
-          "DEPARTMENT",
-          "SELECTED_USERS",
-          "SELECTED_DEPARTMENTS",
-          "ORGANIZATION",
+            "PRIVATE",
+            "DEPARTMENT",
+            "SELECTED_USERS",
+            "SELECTED_DEPARTMENTS",
+            "ORGANIZATION",
         ]),
         folderPath: a.string(),
         isFolder: a.boolean().default(false),
@@ -396,33 +357,30 @@ const schema = a
         starredByJson: a.string(),
         sharedWithUsersJson: a.string(),
         sharedWithDepartmentsJson: a.string(),
-
         downloadCount: a.integer().default(0),
         createdAt: a.datetime().required(),
         updatedAt: a.datetime(),
         updatedBy: a.string(),
-      })
-      .secondaryIndexes((index) => [
+    })
+        .secondaryIndexes((index) => [
         index("ownerEmail").queryField("fileShareItemsByOwner"),
-      ])
-      .authorization((allow) => [allow.authenticated().to(["read", "create", "update", "delete"])]),
-
+    ])
+        .authorization((allow) => [allow.authenticated().to(["read", "create", "update", "delete"])]),
     DriveStorageQuota: a
-      .model({
+        .model({
         userEmail: a.string().required(),
         quotaMb: a.integer().default(2048),
         uploadBlocked: a.boolean().default(false),
         notes: a.string(),
         updatedAt: a.datetime(),
         updatedBy: a.string(),
-      })
-      .secondaryIndexes((index) => [
+    })
+        .secondaryIndexes((index) => [
         index("userEmail").queryField("driveStorageQuotasByUser"),
-      ])
-      .authorization((allow) => [allow.authenticated().to(["read", "create", "update", "delete"])]),
-
+    ])
+        .authorization((allow) => [allow.authenticated().to(["read", "create", "update", "delete"])]),
     DriveFileVersion: a
-      .model({
+        .model({
         fileShareItemId: a.id().required(),
         ownerEmail: a.string().required(),
         versionNumber: a.integer().required(),
@@ -432,15 +390,14 @@ const schema = a
         changeNote: a.string(),
         createdAt: a.datetime().required(),
         createdBy: a.string().required(),
-      })
-      .secondaryIndexes((index) => [
+    })
+        .secondaryIndexes((index) => [
         index("fileShareItemId").queryField("driveFileVersionsByItem"),
         index("ownerEmail").queryField("driveFileVersionsByOwner"),
-      ])
-      .authorization((allow) => [allow.authenticated().to(["read", "create", "update", "delete"])]),
-
+    ])
+        .authorization((allow) => [allow.authenticated().to(["read", "create", "update", "delete"])]),
     DriveShareLink: a
-      .model({
+        .model({
         fileShareItemId: a.id().required(),
         token: a.string().required(),
         createdBy: a.string().required(),
@@ -452,28 +409,25 @@ const schema = a
         downloadCount: a.integer().default(0),
         lastAccessedAt: a.datetime(),
         createdAt: a.datetime().required(),
-      })
-      .secondaryIndexes((index) => [
+    })
+        .secondaryIndexes((index) => [
         index("fileShareItemId").queryField("driveShareLinksByItem"),
         index("token").queryField("driveShareLinkByToken"),
-      ])
-      .authorization((allow) => [allow.authenticated().to(["read", "create", "update", "delete"])]),
-
+    ])
+        .authorization((allow) => [allow.authenticated().to(["read", "create", "update", "delete"])]),
     Contact: a
-      .model({
+        .model({
         customerId: a.id().required(),
         fullName: a.string().required(),
         email: a.string(),
         phone: a.string(),
         position: a.string(),
         createdAt: a.datetime(),
-
         customer: a.belongsTo("Customer", "customerId"),
-      })
-      .authorization((allow) => [allow.authenticated()]),
-
+    })
+        .authorization((allow) => [allow.authenticated()]),
     Deal: a
-      .model({
+        .model({
         customerId: a.id().required(),
         title: a.string().required(),
         value: a.float(),
@@ -481,13 +435,11 @@ const schema = a
         expectedCloseDate: a.date(),
         owner: a.string(),
         createdAt: a.datetime(),
-
         customer: a.belongsTo("Customer", "customerId"),
-      })
-      .authorization((allow) => [allow.authenticated()]),
-
+    })
+        .authorization((allow) => [allow.authenticated()]),
     Ticket: a
-      .model({
+        .model({
         customerId: a.id().required(),
         title: a.string().required(),
         description: a.string(),
@@ -495,38 +447,32 @@ const schema = a
         priority: a.enum(["LOW", "MEDIUM", "HIGH", "URGENT"]),
         assignedTo: a.string(),
         createdAt: a.datetime(),
-
         customer: a.belongsTo("Customer", "customerId"),
         comments: a.hasMany("TicketComment", "ticketId"),
-      })
-      .authorization((allow) => [allow.authenticated()]),
-
+    })
+        .authorization((allow) => [allow.authenticated()]),
     TicketComment: a
-      .model({
+        .model({
         ticketId: a.id().required(),
         message: a.string().required(),
         author: a.string(),
         createdAt: a.datetime(),
-
         ticket: a.belongsTo("Ticket", "ticketId"),
-      })
-      .authorization((allow) => [allow.authenticated()]),
-
+    })
+        .authorization((allow) => [allow.authenticated()]),
     // ========================================
     // JOB ORDERS - Complete Enhanced Model
     // ========================================
     JobOrder: a
-      .model({
+        .model({
         // ✅ CORE IDENTIFIERS
         orderNumber: a.string().required(),
         orderType: a.string(),
         status: a.enum(["DRAFT", "OPEN", "IN_PROGRESS", "READY", "COMPLETED", "CANCELLED"]),
         paymentStatus: a.enum(["UNPAID", "PARTIAL", "PAID"]),
-        
         // ✅ UI LABELS (derived from status, but stored for consistency)
         workStatusLabel: a.string(),
         paymentStatusLabel: a.string(),
-
         // ========================================
         // CUSTOMER INFORMATION
         // ========================================
@@ -534,14 +480,12 @@ const schema = a
         customerName: a.string().required(),
         customerPhone: a.string(),
         customerEmail: a.string(),
-        
         // ✅ NEW: Customer metadata for detail card
         customerAddress: a.string(),
         customerCompany: a.string(),
         customerSince: a.string(),
         completedServicesCount: a.integer().default(0),
         registeredVehiclesCount: a.integer().default(1),
-
         // ========================================
         // VEHICLE INFORMATION
         // ========================================
@@ -555,7 +499,6 @@ const schema = a
         mileage: a.string(),
         color: a.string(),
         registrationDate: a.string(),
-
         // ========================================
         // BILLING & FINANCIAL INFORMATION
         // ========================================
@@ -564,23 +507,19 @@ const schema = a
         vatRate: a.float(),
         vatAmount: a.float(),
         totalAmount: a.float(),
-
         amountPaid: a.float(),
         balanceDue: a.float(),
-
         // ✅ ENHANCED: More billing metadata
         billId: a.string(),
         netAmount: a.float(),
         paymentMethod: a.string(),
         discountPercent: a.float().default(0),
-
         // ========================================
         // SERVICE TRACKING
         // ========================================
         totalServiceCount: a.integer().default(0),
         completedServiceCount: a.integer().default(0),
         pendingServiceCount: a.integer().default(0),
-
         // ========================================
         // DELIVERY & TIMELINE INFORMATION
         // ========================================
@@ -588,11 +527,9 @@ const schema = a
         expectedDeliveryTime: a.string(),
         actualDeliveryDate: a.date(),
         actualDeliveryTime: a.string(),
-        
         // ✅ NEW: Estimated times
         estimatedCompletionHours: a.float(),
         actualCompletionHours: a.float(),
-
         // ========================================
         // QUALITY & INSPECTION
         // ========================================
@@ -600,7 +537,6 @@ const schema = a
         qualityCheckDate: a.datetime(),
         qualityCheckNotes: a.string(),
         qualityCheckedBy: a.string(),
-
         // ========================================
         // EXIT PERMIT
         // ========================================
@@ -608,15 +544,13 @@ const schema = a
         exitPermitStatus: a.enum(["NOT_REQUIRED", "PENDING", "APPROVED", "REJECTED"]),
         exitPermitDate: a.datetime(),
         nextServiceDate: a.string(),
-
         // ========================================
         // PRIORITY & ASSIGNMENT
         // ========================================
-        priorityLevel: a.enum(["LOW", "NORMAL", "HIGH", "URGENT"]),  // Default: NORMAL in application logic
+        priorityLevel: a.enum(["LOW", "NORMAL", "HIGH", "URGENT"]), // Default: NORMAL in application logic
         assignedTechnicianId: a.string(),
         assignedTechnicianName: a.string(),
         assignmentDate: a.datetime(),
-
         // ========================================
         // CUSTOMER COMMUNICATION
         // ========================================
@@ -624,18 +558,15 @@ const schema = a
         internalNotes: a.string(),
         customerNotified: a.boolean().default(false),
         lastNotificationDate: a.datetime(),
-        
         // ✅ NEW: More fields for details
         jobDescription: a.string(),
         specialInstructions: a.string(),
-
         // ========================================
         // DATA STORAGE
         // ========================================
         notes: a.string(),
         dataJson: a.string(),
         tags: a.string(), // JSON array as string for categorization
-
         // ========================================
         // RELATIONSHIPS
         // ========================================
@@ -644,15 +575,12 @@ const schema = a
         invoicesItems: a.hasMany("JobOrderInvoice", "jobOrderId"),
         roadmapItems: a.hasMany("JobOrderRoadmapStep", "jobOrderId"),
         docsItems: a.hasMany("JobOrderDocumentItem", "jobOrderId"),
-
         // ✅ INSPECTION RELATIONS
         inspectionStates: a.hasMany("InspectionState", "jobOrderId"),
         inspectionPhotos: a.hasMany("InspectionPhoto", "jobOrderId"),
         inspectionReports: a.hasMany("InspectionReport", "jobOrderId"),
-
         // ✅ SERVICE APPROVALS
         serviceApprovalRequests: a.hasMany("ServiceApprovalRequest", "jobOrderId"),
-
         // ========================================
         // AUDIT INFORMATION
         // ========================================
@@ -660,21 +588,20 @@ const schema = a
         createdAt: a.datetime(),
         updatedAt: a.datetime(),
         updatedBy: a.string(),
-      })
-      .secondaryIndexes((index) => [
+    })
+        .secondaryIndexes((index) => [
         index("orderNumber").queryField("jobOrdersByOrderNumber"),
         index("plateNumber").queryField("jobOrdersByPlateNumber"),
         index("status").queryField("jobOrdersByStatus"),
         index("priorityLevel").queryField("jobOrdersByPriority"),
         index("qualityCheckStatus").queryField("jobOrdersByQualityCheck"),
-      ])
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
-
+    ])
+        .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
     // -----------------------------
     // ✅ INSPECTION MODULE
     // -----------------------------
     InspectionConfig: a
-      .model({
+        .model({
         configKey: a.string().required(),
         version: a.integer().default(1),
         isActive: a.boolean().default(true),
@@ -682,114 +609,95 @@ const schema = a
         updatedBy: a.string(),
         updatedAt: a.datetime(),
         createdAt: a.datetime(),
-      })
-      .secondaryIndexes((index) => [index("configKey").queryField("inspectionConfigsByKey")])
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
-
+    })
+        .secondaryIndexes((index) => [index("configKey").queryField("inspectionConfigsByKey")])
+        .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
     InspectionState: a
-      .model({
+        .model({
         jobOrderId: a.id().required(),
         orderNumber: a.string().required(),
         status: a.enum(["IN_PROGRESS", "PAUSED", "COMPLETED", "NOT_REQUIRED"]),
         stateJson: a.string().required(),
-
         startedAt: a.datetime(),
         completedAt: a.datetime(),
-
         createdAt: a.datetime(),
         createdBy: a.string(),
         updatedAt: a.datetime(),
         updatedBy: a.string(),
-
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
-      })
-      .secondaryIndexes((index) => [
+    })
+        .secondaryIndexes((index) => [
         index("jobOrderId").queryField("inspectionStatesByJobOrder"),
         index("orderNumber").queryField("inspectionStatesByOrderNumber"),
-      ])
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
-
+    ])
+        .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
     InspectionPhoto: a
-      .model({
+        .model({
         jobOrderId: a.id().required(),
         orderNumber: a.string().required(),
-
         sectionKey: a.string().required(),
         itemId: a.string().required(),
-
         storagePath: a.string().required(),
         fileName: a.string(),
         contentType: a.string(),
         size: a.integer(),
-
         createdAt: a.datetime(),
         createdBy: a.string(),
-
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
-      })
-      .secondaryIndexes((index) => [
+    })
+        .secondaryIndexes((index) => [
         index("jobOrderId").queryField("listInspectionPhotosByJobOrder"),
         index("orderNumber").queryField("inspectionPhotosByOrderNumber"),
-      ])
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
-
+    ])
+        .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
     InspectionReport: a
-      .model({
+        .model({
         jobOrderId: a.id().required(),
         orderNumber: a.string().required(),
-
         html: a.string().required(),
         createdAt: a.datetime(),
         createdBy: a.string(),
         updatedAt: a.datetime(),
         updatedBy: a.string(),
-
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
-      })
-      .secondaryIndexes((index) => [
+    })
+        .secondaryIndexes((index) => [
         index("jobOrderId").queryField("inspectionReportsByJobOrder"),
         index("orderNumber").queryField("inspectionReportsByOrderNumber"),
-      ])
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
-
+    ])
+        .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
     // -----------------------------
     // ✅ SERVICE APPROVAL REQUESTS
     // -----------------------------
     ServiceApprovalRequest: a
-      .model({
+        .model({
         jobOrderId: a.id().required(),
         orderNumber: a.string().required(),
-
         serviceId: a.string().required(),
         serviceName: a.string().required(),
         price: a.float().default(0),
-
         requestedBy: a.string(),
         requestedAt: a.datetime(),
-
         status: a.enum(["PENDING", "APPROVED", "REJECTED"]),
-
         decidedBy: a.string(),
         decidedAt: a.datetime(),
         decisionNote: a.string(),
-
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
-      })
-      .secondaryIndexes((index) => [
+    })
+        .secondaryIndexes((index) => [
         index("jobOrderId").queryField("serviceApprovalRequestsByJobOrder"),
         index("status").queryField("serviceApprovalRequestsByStatus"),
         index("orderNumber").queryField("serviceApprovalRequestsByOrderNumber"),
-      ])
-      .authorization((allow) => [
+    ])
+        .authorization((allow) => [
         allow.group(ADMIN_GROUP),
         allow.authenticated().to(["read", "create", "update"]),
-      ]),
-
+    ]),
     // -----------------------------
     // JobOrderManagement normalized tables
     // -----------------------------
     JobOrderServiceItem: a
-      .model({
+        .model({
         jobOrderId: a.id().required(),
         name: a.string().required(),
         qty: a.integer().default(1),
@@ -797,68 +705,56 @@ const schema = a
         quantityRemaining: a.integer().default(1),
         unitPrice: a.float().default(0),
         price: a.float().default(0),
-
         status: a.string(),
         qualityCheckResult: a.enum(["PENDING", "PASSED", "FAILED"]),
         qualityCheckNotes: a.string(),
-        
         started: a.string(),
         ended: a.string(),
         duration: a.string(),
         estimatedTime: a.string(),
         actualTime: a.string(),
-        
         technician: a.string(),
         notes: a.string(),
-
         createdAt: a.datetime(),
         updatedAt: a.datetime(),
-
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
-      })
-      .secondaryIndexes((index) => [index("jobOrderId").queryField("listServicesByJobOrder")])
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
-
+    })
+        .secondaryIndexes((index) => [index("jobOrderId").queryField("listServicesByJobOrder")])
+        .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
     JobOrderInvoice: a
-      .model({
+        .model({
         jobOrderId: a.id().required(),
         number: a.string().required(),
         amount: a.float().default(0),
         discount: a.float().default(0),
         status: a.string(),
         paymentMethod: a.string(),
-        
         // ✅ NEW: Date tracking
         invoiceDate: a.datetime(),
         dueDate: a.date(),
         paidDate: a.datetime(),
         invoiceNotes: a.string(),
-        
         createdAt: a.datetime(),
         updatedAt: a.datetime(),
-
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
         services: a.hasMany("JobOrderInvoiceService", "invoiceId"),
-      })
-      .secondaryIndexes((index) => [index("jobOrderId").queryField("listInvoicesByJobOrder")])
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
-
+    })
+        .secondaryIndexes((index) => [index("jobOrderId").queryField("listInvoicesByJobOrder")])
+        .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
     JobOrderInvoiceService: a
-      .model({
+        .model({
         invoiceId: a.id().required(),
         jobOrderId: a.id().required(),
         serviceName: a.string().required(),
-
         invoice: a.belongsTo("JobOrderInvoice", "invoiceId"),
-      })
-      .secondaryIndexes((index) => [
+    })
+        .secondaryIndexes((index) => [
         index("invoiceId").queryField("listInvoiceServicesByInvoice"),
         index("jobOrderId").queryField("listInvoiceServicesByJobOrder"),
-      ])
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
-
+    ])
+        .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
     JobOrderRoadmapStep: a
-      .model({
+        .model({
         jobOrderId: a.id().required(),
         step: a.string().required(),
         stepStatus: a.string(),
@@ -867,14 +763,12 @@ const schema = a
         actionBy: a.string(),
         status: a.string(),
         createdAt: a.datetime(),
-
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
-      })
-      .secondaryIndexes((index) => [index("jobOrderId").queryField("listRoadmapByJobOrder")])
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
-
+    })
+        .secondaryIndexes((index) => [index("jobOrderId").queryField("listRoadmapByJobOrder")])
+        .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
     JobOrderDocumentItem: a
-      .model({
+        .model({
         jobOrderId: a.id().required(),
         title: a.string().required(),
         url: a.string(),
@@ -887,44 +781,38 @@ const schema = a
         linkedPaymentId: a.string(),
         paymentMethod: a.string(),
         createdAt: a.datetime(),
-
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
-      })
-      .secondaryIndexes((index) => [index("jobOrderId").queryField("listDocsByJobOrder")])
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
-
+    })
+        .secondaryIndexes((index) => [index("jobOrderId").queryField("listDocsByJobOrder")])
+        .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read"])]),
     JobOrderPayment: a
-      .model({
+        .model({
         jobOrderId: a.id().required(),
         amount: a.float().required(),
         method: a.string(),
         reference: a.string(),
-        
         // ✅ NEW: Enhanced transaction tracking
         receiptNumber: a.string(),
         transactionId: a.string(),
         verificationCode: a.string(),
         paymentSource: a.enum(["CASH", "CHECK", "CARD", "TRANSFER", "WALLET", "OTHER"]),
-        paymentStatus: a.enum(["PENDING", "COMPLETED", "FAILED", "CANCELLED"]),  // Default: COMPLETED in application logic
+        paymentStatus: a.enum(["PENDING", "COMPLETED", "FAILED", "CANCELLED"]), // Default: COMPLETED in application logic
         approvalDate: a.datetime(),
         approvedBy: a.string(),
-        
         paidAt: a.datetime().required(),
         notes: a.string(),
         createdBy: a.string(),
         createdAt: a.datetime(),
         updatedAt: a.datetime(),
-
         jobOrder: a.belongsTo("JobOrder", "jobOrderId"),
-      })
-      .secondaryIndexes((index) => [index("jobOrderId").queryField("listPaymentsByJobOrder")])
-      .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
-
+    })
+        .secondaryIndexes((index) => [index("jobOrderId").queryField("listPaymentsByJobOrder")])
+        .authorization((allow) => [allow.group(ADMIN_GROUP), allow.authenticated().to(["read", "create", "update"])]),
     // -----------------------------
     // Existing legacy/demo models
     // -----------------------------
     JobCard: a
-      .model({
+        .model({
         title: a.string().required(),
         customerName: a.string().required(),
         customerPhone: a.string(),
@@ -935,11 +823,10 @@ const schema = a
         status: a.enum(["OPEN", "IN_PROGRESS", "DONE", "CANCELLED"]),
         createdBy: a.string(),
         createdAt: a.datetime(),
-      })
-      .authorization((allow) => [allow.authenticated()]),
-
+    })
+        .authorization((allow) => [allow.authenticated()]),
     CallTracking: a
-      .model({
+        .model({
         customerName: a.string().required(),
         phone: a.string().required(),
         source: a.string(),
@@ -948,11 +835,10 @@ const schema = a
         notes: a.string(),
         createdBy: a.string(),
         createdAt: a.datetime(),
-      })
-      .authorization((allow) => [allow.authenticated()]),
-
+    })
+        .authorization((allow) => [allow.authenticated()]),
     InspectionApproval: a
-      .model({
+        .model({
         jobCardId: a.string(),
         customerName: a.string().required(),
         vehicle: a.string(),
@@ -963,25 +849,23 @@ const schema = a
         createdAt: a.datetime(),
         approvedBy: a.string(),
         approvedAt: a.datetime(),
-      })
-      .authorization((allow) => [allow.authenticated()]),
-
+    })
+        .authorization((allow) => [allow.authenticated()]),
     // -----------------------------
     // INVENTORY MODULE
     // -----------------------------
     InventoryCategory: a
-      .model({
+        .model({
         name: a.string().required(),
         description: a.string(),
         isActive: a.boolean().default(true),
         createdAt: a.datetime(),
         createdBy: a.string(),
         updatedAt: a.datetime(),
-      })
-      .authorization((allow) => [allow.authenticated()]),
-
+    })
+        .authorization((allow) => [allow.authenticated()]),
     InventorySubcategory: a
-      .model({
+        .model({
         categoryId: a.id().required(),
         categoryName: a.string(),
         name: a.string().required(),
@@ -991,14 +875,13 @@ const schema = a
         createdAt: a.datetime(),
         createdBy: a.string(),
         updatedAt: a.datetime(),
-      })
-      .secondaryIndexes((index) => [
+    })
+        .secondaryIndexes((index) => [
         index("categoryId").queryField("invSubcategoriesByCategoryId"),
-      ])
-      .authorization((allow) => [allow.authenticated()]),
-
+    ])
+        .authorization((allow) => [allow.authenticated()]),
     InventoryProduct: a
-      .model({
+        .model({
         categoryId: a.id().required(),
         subcategoryId: a.id().required(),
         subcategoryName: a.string(),
@@ -1014,16 +897,15 @@ const schema = a
         createdBy: a.string(),
         updatedAt: a.datetime(),
         updatedBy: a.string(),
-      })
-      .secondaryIndexes((index) => [
+    })
+        .secondaryIndexes((index) => [
         index("subcategoryId").queryField("invProductsBySubcategoryId"),
         index("serialNumber").queryField("invProductsBySerialNumber"),
         index("barcode").queryField("invProductsByBarcode"),
-      ])
-      .authorization((allow) => [allow.authenticated()]),
-
+    ])
+        .authorization((allow) => [allow.authenticated()]),
     InventoryTransaction: a
-      .model({
+        .model({
         productId: a.id().required(),
         productName: a.string(),
         subcategoryId: a.id().required(),
@@ -1034,19 +916,18 @@ const schema = a
         checkedOutBy: a.string(),
         createdAt: a.datetime(),
         createdBy: a.string(),
-      })
-      .secondaryIndexes((index) => [
+    })
+        .secondaryIndexes((index) => [
         index("productId").queryField("invTransactionsByProductId"),
         index("subcategoryId").queryField("invTransactionsBySubcategoryId"),
-      ])
-      .authorization((allow) => [allow.authenticated()]),
-
+    ])
+        .authorization((allow) => [allow.authenticated()]),
     // -----------------------------
     // ADMIN MUTATIONS / QUERIES
     // -----------------------------
     inviteUser: a
-      .mutation()
-      .arguments({
+        .mutation()
+        .arguments({
         employeeId: a.string(),
         email: a.string().required(),
         fullName: a.string().required(),
@@ -1056,78 +937,69 @@ const schema = a
         roleId: a.id(),
         lineManagerEmail: a.string(),
         lineManagerName: a.string(),
-      })
-      .authorization((allow) => [allow.authenticated()])
-      .handler(a.handler.function(inviteUser))
-      .returns(a.json()),
-
+    })
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(inviteUser))
+        .returns(a.json()),
     adminSetUserActive: a
-      .mutation()
-      .arguments({
+        .mutation()
+        .arguments({
         email: a.string().required(),
         isActive: a.boolean().required(),
-      })
-      .authorization((allow) => [allow.authenticated()])
-      .handler(a.handler.function(setUserActive))
-      .returns(a.json()),
-
+    })
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(setUserActive))
+        .returns(a.json()),
     adminDeleteUser: a
-      .mutation()
-      .arguments({ email: a.string().required() })
-      .authorization((allow) => [allow.authenticated()])
-      .handler(a.handler.function(deleteUser))
-      .returns(a.json()),
-
+        .mutation()
+        .arguments({ email: a.string().required() })
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(deleteUser))
+        .returns(a.json()),
     adminListDepartments: a
-      .query()
-      .authorization((allow) => [allow.authenticated()])
-      .handler(a.handler.function(listDepartments))
-      .returns(a.json()),
-
+        .query()
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(listDepartments))
+        .returns(a.json()),
     systemListUsers: a
-      .query()
-      .authorization((allow) => [allow.authenticated()])
-      .handler(a.handler.function(adminCognito))
-      .returns(a.json()),
-
+        .query()
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(adminCognito))
+        .returns(a.json()),
     adminCreateDepartment: a
-      .mutation()
-      .arguments({ departmentName: a.string().required() })
-      .authorization((allow) => [allow.authenticated()])
-      .handler(a.handler.function(createDepartment))
-      .returns(a.json()),
-
+        .mutation()
+        .arguments({ departmentName: a.string().required() })
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(createDepartment))
+        .returns(a.json()),
     adminDeleteDepartment: a
-      .mutation()
-      .arguments({ departmentKey: a.string().required() })
-      .authorization((allow) => [allow.authenticated()])
-      .handler(a.handler.function(deleteDepartment))
-      .returns(a.json()),
-
+        .mutation()
+        .arguments({ departmentKey: a.string().required() })
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(deleteDepartment))
+        .returns(a.json()),
     adminRenameDepartment: a
-      .mutation()
-      .arguments({
+        .mutation()
+        .arguments({
         oldKey: a.string().required(),
         newName: a.string().required(),
-      })
-      .authorization((allow) => [allow.authenticated()])
-      .handler(a.handler.function(renameDepartment))
-      .returns(a.json()),
-
+    })
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(renameDepartment))
+        .returns(a.json()),
     adminSetUserDepartment: a
-      .mutation()
-      .arguments({
+        .mutation()
+        .arguments({
         email: a.string().required(),
         departmentKey: a.string().required(),
         departmentName: a.string(),
-      })
-      .authorization((allow) => [allow.authenticated()])
-      .handler(a.handler.function(setUserDepartment))
-      .returns(a.json()),
-
+    })
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(setUserDepartment))
+        .returns(a.json()),
     adminUpdateUserProfile: a
-      .mutation()
-      .arguments({
+        .mutation()
+        .arguments({
         email: a.string().required(),
         fullName: a.string(),
         employeeId: a.string(),
@@ -1137,40 +1009,36 @@ const schema = a
         lineManagerEmail: a.string(),
         lineManagerName: a.string(),
         dashboardAccessEnabled: a.boolean(),
-      })
-      .authorization((allow) => [allow.authenticated()])
-      .handler(a.handler.function(updateUserProfile))
-      .returns(a.json()),
-
+    })
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(updateUserProfile))
+        .returns(a.json()),
     myGroups: a
-      .query()
-      .authorization((allow) => [allow.authenticated()])
-      .handler(a.handler.function(myGroups))
-      .returns(a.json()),
-
+        .query()
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(myGroups))
+        .returns(a.json()),
     // -----------------------------
     // Job Orders mutations (RBAC enforced inside Lambda)
     // -----------------------------
     jobOrderSave: a
-      .mutation()
-      .arguments({ input: a.json().required() })
-      .authorization((allow) => [allow.authenticated()])
-      .handler(a.handler.function(jobOrderSave))
-      .returns(a.json()),
-
+        .mutation()
+        .arguments({ input: a.json().required() })
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(jobOrderSave))
+        .returns(a.json()),
     jobOrderDelete: a
-      .mutation()
-      .arguments({ id: a.string().required() })
-      .authorization((allow) => [allow.authenticated()])
-      .handler(a.handler.function(jobOrderDelete))
-      .returns(a.json()),
-
+        .mutation()
+        .arguments({ id: a.string().required() })
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(jobOrderDelete))
+        .returns(a.json()),
     // -----------------------------
     // Payments mutations (RBAC enforced inside Lambda)
     // -----------------------------
     jobOrderPaymentCreate: a
-      .mutation()
-      .arguments({
+        .mutation()
+        .arguments({
         jobOrderId: a.string().required(),
         amount: a.float().required(),
         method: a.string(),
@@ -1178,113 +1046,106 @@ const schema = a
         paidAt: a.datetime(),
         notes: a.string(),
         createdBy: a.string(),
-      })
-      .authorization((allow) => [allow.authenticated()])
-      .handler(a.handler.function(jobOrderPaymentCreate))
-      .returns(a.json()),
-
+    })
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(jobOrderPaymentCreate))
+        .returns(a.json()),
     jobOrderPaymentUpdate: a
-      .mutation()
-      .arguments({
+        .mutation()
+        .arguments({
         id: a.string().required(),
         amount: a.float().required(),
         method: a.string(),
         reference: a.string(),
         paidAt: a.datetime(),
         notes: a.string(),
-      })
-      .authorization((allow) => [allow.authenticated()])
-      .handler(a.handler.function(jobOrderPaymentUpdate))
-      .returns(a.json()),
-
+    })
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(jobOrderPaymentUpdate))
+        .returns(a.json()),
     jobOrderPaymentDelete: a
-      .mutation()
-      .arguments({ id: a.string().required() })
-      .authorization((allow) => [allow.authenticated()])
-      .handler(a.handler.function(jobOrderPaymentDelete))
-      .returns(a.json()),
-
+        .mutation()
+        .arguments({ id: a.string().required() })
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(jobOrderPaymentDelete))
+        .returns(a.json()),
     jobOrderPaymentBackfillActors: a
-      .mutation()
-      .arguments({
-        dryRun: a.boolean(),
-        limit: a.integer(),
-      })
-      .authorization((allow) => [allow.authenticated()])
-      .handler(a.handler.function(jobOrderPaymentBackfillActors))
-      .returns(a.json()),
-
-      // -----------------------------
-      // SMS / Push Notifications
-      // -----------------------------
-      SmsLog: a
-        .model({
-          batchId: a.string(),
-          sentBy: a.string().required(),
-          message: a.string().required(),
-          smsType: a.string(),
-          status: a.string(),
-          recipientCount: a.integer().default(0),
-          sentCount: a.integer().default(0),
-          failedCount: a.integer().default(0),
-          queueProcessedCount: a.integer().default(0),
-          deadLetterCount: a.integer().default(0),
-          lastEventAt: a.datetime(),
-          lastEventType: a.string(),
-          recipientsJson: a.string(),
-          resultsJson: a.string(),
-          createdAt: a.datetime().required(),
-        })
-        .authorization((allow) => [allow.authenticated()]),
-
-      SmsDeliveryEvent: a
-        .model({
-          smsLogId: a.id(),
-          batchId: a.string(),
-          phone: a.string(),
-          normalizedPhone: a.string(),
-          eventType: a.string().required(),
-          status: a.string().required(),
-          smsType: a.string(),
-          snsMessageId: a.string(),
-          queueMessageId: a.string(),
-          receiveCount: a.integer().default(0),
-          errorMessage: a.string(),
-          rawPayloadJson: a.string(),
-          createdAt: a.datetime().required(),
-          processedAt: a.datetime(),
-        })
-        .authorization((allow) => [allow.authenticated()]),
-
-      SmsDeliveryStatus: a
-        .model({
-          snsMessageId: a.string(),
-          phone: a.string(),
-          normalizedPhone: a.string(),
-          status: a.string().required(),
-          statusMessage: a.string(),
-          statusCode: a.string(),
-          priceInUSD: a.float().default(0),
-          rawMessageJson: a.string(),
-          createdAt: a.datetime().required(),
-          processedAt: a.datetime(),
-        })
-        .authorization((allow) => [allow.authenticated()]),
-
-      sendSms: a
         .mutation()
         .arguments({
-          phones: a.string().array().required(),
-          message: a.string().required(),
-          smsType: a.string(),
-          batchId: a.string(),
-          smsLogId: a.id(),
-        })
+        dryRun: a.boolean(),
+        limit: a.integer(),
+    })
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(jobOrderPaymentBackfillActors))
+        .returns(a.json()),
+    // -----------------------------
+    // SMS / Push Notifications
+    // -----------------------------
+    SmsLog: a
+        .model({
+        batchId: a.string(),
+        sentBy: a.string().required(),
+        message: a.string().required(),
+        smsType: a.string(),
+        status: a.string(),
+        recipientCount: a.integer().default(0),
+        sentCount: a.integer().default(0),
+        failedCount: a.integer().default(0),
+        queueProcessedCount: a.integer().default(0),
+        deadLetterCount: a.integer().default(0),
+        lastEventAt: a.datetime(),
+        lastEventType: a.string(),
+        recipientsJson: a.string(),
+        resultsJson: a.string(),
+        createdAt: a.datetime().required(),
+    })
+        .authorization((allow) => [allow.authenticated()]),
+    SmsDeliveryEvent: a
+        .model({
+        smsLogId: a.id(),
+        batchId: a.string(),
+        phone: a.string(),
+        normalizedPhone: a.string(),
+        eventType: a.string().required(),
+        status: a.string().required(),
+        smsType: a.string(),
+        snsMessageId: a.string(),
+        queueMessageId: a.string(),
+        receiveCount: a.integer().default(0),
+        errorMessage: a.string(),
+        rawPayloadJson: a.string(),
+        createdAt: a.datetime().required(),
+        processedAt: a.datetime(),
+    })
+        .authorization((allow) => [allow.authenticated()]),
+    SmsDeliveryStatus: a
+        .model({
+        snsMessageId: a.string(),
+        phone: a.string(),
+        normalizedPhone: a.string(),
+        status: a.string().required(),
+        statusMessage: a.string(),
+        statusCode: a.string(),
+        priceInUSD: a.float().default(0),
+        rawMessageJson: a.string(),
+        createdAt: a.datetime().required(),
+        processedAt: a.datetime(),
+    })
+        .authorization((allow) => [allow.authenticated()]),
+    sendSms: a
+        .mutation()
+        .arguments({
+        phones: a.string().array().required(),
+        message: a.string().required(),
+        smsType: a.string(),
+        batchId: a.string(),
+        smsLogId: a.id(),
+    })
         .authorization((allow) => [allow.authenticated()])
         .handler(a.handler.function(sendSms))
         .returns(a.json()),
-  })
-  .authorization((allow) => [
+})
+    .authorization((allow) => [
     allow.resource(inviteUser),
     allow.resource(setUserActive),
     allow.resource(deleteUser),
@@ -1295,10 +1156,8 @@ const schema = a
     allow.resource(renameDepartment),
     allow.resource(setUserDepartment),
     allow.resource(myGroups),
-
     allow.resource(jobOrderSave),
     allow.resource(jobOrderDelete),
-
     allow.resource(jobOrderPaymentCreate),
     allow.resource(jobOrderPaymentUpdate),
     allow.resource(jobOrderPaymentDelete),
@@ -1308,13 +1167,10 @@ const schema = a
     allow.resource(processSmsDeliveryStatus),
     allow.resource(resolveDriveShareLink),
     allow.resource(driveRetentionCleanup),
-  ]);
-
-export type Schema = ClientSchema<typeof schema>;
-
+]);
 export const data = defineData({
-  schema,
-  authorizationModes: {
-    defaultAuthorizationMode: "userPool",
-  },
+    schema,
+    authorizationModes: {
+        defaultAuthorizationMode: "userPool",
+    },
 });

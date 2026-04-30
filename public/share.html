@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Secure File Share</title>
+    <link rel="stylesheet" href="/share.css" />
+  </head>
+  <body>
+    <main class="share-page">
+      <section class="share-card">
+        <h1>Secure File Share</h1>
+        <p id="status" class="status">Validating link...</p>
+        <div id="meta" class="meta"></div>
+        <button id="downloadBtn" class="download-btn" disabled>Get Secure Download</button>
+        <p class="hint">This link is validated server-side. Expiration and max-download limits are enforced at access time.</p>
+      </section>
+    </main>
+
+    <script>
+      const statusEl = document.getElementById("status");
+      const metaEl = document.getElementById("meta");
+      const downloadBtn = document.getElementById("downloadBtn");
+
+      const params = new URLSearchParams(window.location.search);
+      const token = params.get("token") || params.get("t") || "";
+      const resolverBase = params.get("resolver") || params.get("r") || "";
+
+      if (!token || !resolverBase) {
+        statusEl.textContent = "Invalid share link. Missing token or resolver.";
+        statusEl.className = "status error";
+      } else {
+        const resolver = decodeURIComponent(resolverBase);
+
+        async function validate() {
+          try {
+            const res = await fetch(`${resolver}?token=${encodeURIComponent(token)}&consume=0`, { method: "GET" });
+            const data = await res.json();
+            if (!res.ok || !data.ok) {
+              statusEl.textContent = data.reason || "Link is unavailable.";
+              statusEl.className = "status error";
+              return;
+            }
+
+            statusEl.textContent = "Link validated.";
+            statusEl.className = "status ok";
+            metaEl.innerHTML = `
+              <div><strong>File:</strong> ${data.displayName || "Shared file"}</div>
+              <div><strong>Expires:</strong> ${data.expiresAt || "-"}</div>
+              <div><strong>Remaining downloads:</strong> ${typeof data.remainingDownloads === "number" ? data.remainingDownloads : "unlimited"}</div>
+            `;
+            downloadBtn.disabled = false;
+          } catch {
+            statusEl.textContent = "Could not validate link.";
+            statusEl.className = "status error";
+          }
+        }
+
+        async function consumeAndDownload() {
+          downloadBtn.disabled = true;
+          downloadBtn.textContent = "Preparing...";
+          try {
+            const res = await fetch(`${resolver}?token=${encodeURIComponent(token)}&consume=1`, { method: "GET" });
+            const data = await res.json();
+            if (!res.ok || !data.ok || !data.url) {
+              statusEl.textContent = data.reason || "Download is unavailable.";
+              statusEl.className = "status error";
+              downloadBtn.textContent = "Get Secure Download";
+              return;
+            }
+            window.location.href = data.url;
+            statusEl.textContent = "Download started.";
+            statusEl.className = "status ok";
+            downloadBtn.textContent = "Downloaded";
+          } catch {
+            statusEl.textContent = "Download failed.";
+            statusEl.className = "status error";
+            downloadBtn.textContent = "Get Secure Download";
+          }
+        }
+
+        downloadBtn.addEventListener("click", consumeAndDownload);
+        validate();
+      }
+    </script>
+  </body>
+</html>

@@ -1,0 +1,371 @@
+// amplify/functions/job-orders/save-job-order/handler.ts
+import { Amplify } from "aws-amplify";
+import { generateClient } from "aws-amplify/data";
+import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtime";
+import { requirePermissionFromEvent } from "../_shared/rbac";
+import { computePaymentStatus, toNum } from "../_shared/finance";
+import { recomputeJobOrderPaymentSummary } from "../_shared/payments";
+import { getOptionCtx } from "../_shared/optionRbac";
+function normalizeKey(value) {
+    return String(value ?? "").trim().toLowerCase();
+}
+function getPackageGroupKey(service) {
+    const packageCode = normalizeKey(service?.packageCode);
+    if (packageCode)
+        return packageCode;
+    const packageName = normalizeKey(service?.packageName ?? service?.packageNameAr);
+    if (packageName)
+        return `pkg:${packageName}`;
+    const packageId = normalizeKey(service?.packageId);
+    if (packageId)
+        return `pkgid:${packageId}`;
+    const groupId = normalizeKey(service?.groupId);
+    if (groupId)
+        return `group:${groupId}`;
+    const groupName = normalizeKey(service?.groupName);
+    if (groupName)
+        return `group:${groupName}`;
+    return "";
+}
+function summarizeServicesSubtotalPackageAware(services) {
+    let standaloneSubtotal = 0;
+    const packageSummary = new Map();
+    for (const service of services || []) {
+        const qty = Math.max(1, toNum(service?.qty ?? 1));
+        const unit = Math.max(0, toNum(service?.unitPrice ?? service?.price ?? 0));
+        const price = qty * unit;
+        const packageKey = getPackageGroupKey(service);
+        if (!packageKey) {
+            standaloneSubtotal += price;
+            continue;
+        }
+        const existing = packageSummary.get(packageKey) ?? { packagePrice: null, fallbackServicesTotal: 0 };
+        const packagePriceRaw = Math.max(0, toNum(service?.packagePrice));
+        const packagePrice = packagePriceRaw > 0 ? packagePriceRaw : null;
+        packageSummary.set(packageKey, {
+            packagePrice: existing.packagePrice ?? packagePrice,
+            fallbackServicesTotal: existing.fallbackServicesTotal + price,
+        });
+    }
+    let packageSubtotal = 0;
+    packageSummary.forEach((entry) => {
+        packageSubtotal += entry.packagePrice ?? entry.fallbackServicesTotal;
+    });
+    return Math.max(0, standaloneSubtotal + packageSubtotal);
+}
+function safeParseInput(raw) {
+    if (raw == null)
+        throw new Error("Missing input");
+    // ✅ NEW: Handle both direct object and JSON string for backwards compatibility
+    if (typeof raw === "string") {
+        const s = raw.trim();
+        if (!s)
+            throw new Error("Empty input");
+        return JSON.parse(s);
+    }
+    // If it's already an object, use it directly
+    return raw;
+}
+function nowIso() {
+    return new Date().toISOString();
+}
+function makeOrderNumber(prefix = "JO") {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    const rand = Math.random().toString(36).slice(2, 6).toUpperCase();
+    return `${prefix}-${y}${m}${day}-${rand}`;
+}
+function normalizeRoadmapEntry(entry, actorFallback) {
+    const step = String(entry?.step ?? "").trim();
+    if (!step)
+        return null;
+    const stepStatus = String(entry?.stepStatus ?? entry?.statusLabel ?? entry?.state ?? "").trim() || null;
+    const startTimestamp = entry?.startTimestamp ?? entry?.startedAt ?? entry?.startTime ?? entry?.started ?? null;
+    const endTimestamp = entry?.endTimestamp ?? entry?.completedAt ?? entry?.endTime ?? entry?.ended ?? null;
+    const actionByRaw = entry?.actionBy ??
+        entry?.updatedBy ??
+        entry?.createdBy ??
+        entry?.actor ??
+        actorFallback ??
+        null;
+    const actionBy = String(actionByRaw ?? "").trim() || null;
+    const status = String(entry?.status ?? entry?.stepState ?? "").trim() || null;
+    return {
+        ...entry,
+        step,
+        stepStatus,
+        startTimestamp,
+        endTimestamp,
+        actionBy,
+        status,
+    };
+}
+function normalizeRoadmapForDataJson(roadmap, actorFallback) {
+    if (!Array.isArray(roadmap))
+        return [];
+    const out = [];
+    for (const row of roadmap) {
+        const normalized = normalizeRoadmapEntry(row, actorFallback);
+        if (normalized)
+            out.push(normalized);
+    }
+    return out;
+}
+export const handler = async (event) => {
+    const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env);
+    Amplify.configure(resourceConfig, libraryOptions);
+    const client = generateClient();
+    const payload = safeParseInput(event.arguments?.input);
+    const isUpdate = Boolean(payload.id);
+    const identity = event.identity;
+    const normalizeActor = (value) => String(value ?? "").trim().toLowerCase();
+    const usernameFromEmail = (email) => {
+        const normalized = normalizeActor(email);
+        const at = normalized.indexOf("@");
+        return at > 0 ? normalized.slice(0, at) : normalized;
+    };
+    const looksLikeOpaqueId = (value) => {
+        const v = normalizeActor(value);
+        if (!v)
+            return false;
+        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(v))
+            return true;
+        if (/^[a-f0-9-]{24,}$/i.test(v) && !v.includes("@"))
+            return true;
+        return false;
+    };
+    const claimsEmail = String(identity?.claims?.email ?? identity?.claims?.["custom:email"] ?? "").trim();
+    const claimsPreferred = String(identity?.claims?.preferred_username ?? "").trim();
+    const cognitoUsername = String(identity?.claims?.["cognito:username"] ?? identity?.username ?? "").trim();
+    const actorFromIdentity = (claimsEmail
+        ? usernameFromEmail(claimsEmail)
+        : claimsPreferred && !looksLikeOpaqueId(claimsPreferred)
+            ? normalizeActor(claimsPreferred)
+            : cognitoUsername && !looksLikeOpaqueId(cognitoUsername)
+                ? normalizeActor(cognitoUsername)
+                : "") || "system";
+    // ✅ policy-level
+    await requirePermissionFromEvent(client, event, "JOB_CARDS", isUpdate ? "UPDATE" : "CREATE");
+    // ✅ option-level ctx
+    const opt = await getOptionCtx(client, event);
+    const status = String(payload.status ?? "OPEN").toUpperCase();
+    const cancelling = status === "CANCELLED";
+    // Load existing
+    let existing = null;
+    if (isUpdate && payload.id) {
+        const ex = await client.models.JobOrder.get({ id: payload.id });
+        existing = ex?.data ?? ex;
+    }
+    // customer name required unless cancelling existing
+    let customerName = String(payload.customerName ?? "").trim();
+    if (!customerName)
+        customerName = String(existing?.customerName ?? "").trim();
+    if (!customerName && !cancelling)
+        throw new Error("Customer name is required.");
+    // services
+    let services = Array.isArray(payload.services) ? payload.services : [];
+    if ((!services || !services.length) && existing?.dataJson) {
+        try {
+            const parsed = JSON.parse(String(existing.dataJson));
+            if (Array.isArray(parsed?.services))
+                services = parsed.services;
+        }
+        catch {
+            // ignore
+        }
+    }
+    if ((!services || !services.length) && !cancelling)
+        throw new Error("Add at least one service.");
+    // ✅ keep existing vat/discount when missing
+    const vatRate = payload.vatRate != null ? Math.max(0, toNum(payload.vatRate)) : Math.max(0, toNum(existing?.vatRate));
+    const discount = payload.discount != null ? Math.max(0, toNum(payload.discount)) : Math.max(0, toNum(existing?.discount));
+    // subtotal
+    const subtotalCalculated = summarizeServicesSubtotalPackageAware(services ?? []);
+    const subtotalFromBilling = Math.max(0, toNum(payload?.billing?.totalAmount));
+    const subtotal = subtotalFromBilling > 0 ? subtotalFromBilling : subtotalCalculated;
+    // ✅ numeric limit: centralized discount max %
+    if (!cancelling && subtotal > 0) {
+        const existingDiscount = Math.max(0, toNum(existing?.discount));
+        const discountChanged = Math.abs(discount - existingDiscount) > 0.00001;
+        if (discountChanged && discount > 0) {
+            const allowedByToggle = opt.toggleEnabled("joborder", "joborder_discount_percent", true);
+            if (!allowedByToggle)
+                throw new Error("You are not allowed to change discount.");
+        }
+        const maxPct = Math.max(0, Math.min(100, opt.maxNumber("joborder", "joborder_discount_percent", 20)));
+        const maxDiscountAmount = (subtotal * maxPct) / 100;
+        if (discount > maxDiscountAmount + 0.00001) {
+            throw new Error(`Discount exceeds allowed limit. Max ${maxPct}% of subtotal (${maxDiscountAmount.toFixed(2)}).`);
+        }
+    }
+    const taxable = Math.max(0, subtotal - discount);
+    const vatAmount = taxable * vatRate;
+    const totalAmountCalculated = taxable + vatAmount;
+    const totalAmountFromBilling = Math.max(0, toNum(payload?.billing?.totalAmount));
+    const totalAmount = totalAmountFromBilling > 0 ? totalAmountFromBilling : totalAmountCalculated;
+    // amountPaid from Payment model
+    let amountPaid = 0;
+    if (isUpdate && payload.id) {
+        await recomputeJobOrderPaymentSummary(client, payload.id);
+        const updated = await client.models.JobOrder.get({ id: payload.id });
+        amountPaid = Math.max(0, toNum(updated?.data?.amountPaid));
+    }
+    const { paymentStatus, balanceDue } = computePaymentStatus(totalAmount, amountPaid);
+    const parsedExistingData = (() => {
+        try {
+            if (!existing?.dataJson)
+                return {};
+            return JSON.parse(String(existing.dataJson));
+        }
+        catch {
+            return {};
+        }
+    })();
+    // Keep nested data needed by UI details cards (permit id, collector, etc.)
+    const dataJson = JSON.stringify({
+        services: services.map((s, idx) => {
+            const price = toNum(s.price);
+            const assignedTo = String(s.assignedTo ?? "").trim().toLowerCase() || null;
+            const technicians = Array.isArray(s.technicians)
+                ? s.technicians.map((t) => String(t ?? "").trim()).filter(Boolean)
+                : [];
+            return {
+                id: String(s.id ?? `SVC-${idx + 1}`),
+                order: Number(s.order ?? idx + 1),
+                name: String(s.name ?? "").trim(),
+                price,
+                qty: Math.max(1, toNum(s.qty ?? 1)),
+                unitPrice: Math.max(0, toNum(s.unitPrice ?? price)),
+                packageCode: String(s.packageCode ?? "").trim() || undefined,
+                packageName: String(s.packageName ?? "").trim() || undefined,
+                packageNameAr: String(s.packageNameAr ?? "").trim() || undefined,
+                packagePrice: (() => {
+                    const p = Math.max(0, toNum(s.packagePrice));
+                    return p > 0 ? p : undefined;
+                })(),
+                specificationBrandId: String(s.specificationBrandId ?? "").trim() || undefined,
+                specificationBrandName: String(s.specificationBrandName ?? "").trim() || undefined,
+                specificationColorHex: String(s.specificationColorHex ?? "").trim() || undefined,
+                specificationProductId: String(s.specificationProductId ?? "").trim() || undefined,
+                specificationProductName: String(s.specificationProductName ?? "").trim() || undefined,
+                specificationMeasurement: String(s.specificationMeasurement ?? "").trim() || undefined,
+                status: String(s.status ?? "Pending"),
+                priority: String(s.priority ?? "normal"),
+                assignedTo,
+                technicians,
+                startTime: s.startTime ?? null,
+                endTime: s.endTime ?? null,
+                started: s.started ?? (s.startTime ?? "Not started"),
+                ended: s.ended ?? (s.endTime ?? "Not completed"),
+                duration: s.duration ?? "Not started",
+                technician: assignedTo ?? String(s.technician ?? "Not assigned"),
+                requestedAction: s.requestedAction ?? null,
+                approvalStatus: s.approvalStatus ?? null,
+                qualityCheckResult: s.qualityCheckResult ?? s.qcResult ?? null,
+                notes: String(s.notes ?? ""),
+            };
+        }),
+        documents: Array.isArray(payload.documents) ? payload.documents : [],
+        roadmap: normalizeRoadmapForDataJson(payload.roadmap, actorFromIdentity),
+        billing: payload.billing ?? {},
+        exitPermit: payload.exitPermit ?? parsedExistingData?.exitPermit ?? {},
+        exitPermitInfo: payload.exitPermitInfo ?? parsedExistingData?.exitPermitInfo ?? {},
+    });
+    const common = {
+        orderType: String(payload.orderType ?? existing?.orderType ?? "Job Order"),
+        status: payload.status ?? existing?.status ?? "OPEN",
+        workStatusLabel: String(payload.workStatusLabel ?? existing?.workStatusLabel ?? "").trim() || undefined,
+        paymentStatusLabel: String(payload.paymentStatusLabel ?? existing?.paymentStatusLabel ?? "").trim() || undefined,
+        customerId: payload.customerId ?? existing?.customerId ?? undefined,
+        customerName,
+        customerPhone: String(payload.customerPhone ?? existing?.customerPhone ?? "").trim() || undefined,
+        customerEmail: String(payload.customerEmail ?? existing?.customerEmail ?? "").trim() || undefined,
+        vehicleType: payload.vehicleType ?? existing?.vehicleType ?? "SUV_4X4",
+        vehicleMake: String(payload.vehicleMake ?? existing?.vehicleMake ?? "").trim() || undefined,
+        vehicleModel: String(payload.vehicleModel ?? existing?.vehicleModel ?? "").trim() || undefined,
+        vehicleYear: String(payload.vehicleYear ?? existing?.vehicleYear ?? "").trim() || undefined,
+        plateNumber: String(payload.plateNumber ?? existing?.plateNumber ?? "").trim() || undefined,
+        vin: String(payload.vin ?? existing?.vin ?? "").trim() || undefined,
+        mileage: String(payload.mileage ?? existing?.mileage ?? "").trim() || undefined,
+        color: String(payload.color ?? existing?.color ?? "").trim() || undefined,
+        registrationDate: String(payload.registrationDate ?? existing?.registrationDate ?? "").trim() || undefined,
+        subtotal,
+        discount,
+        vatRate,
+        vatAmount,
+        totalAmount,
+        amountPaid,
+        balanceDue,
+        paymentStatus,
+        billId: String(payload.billId ?? existing?.billId ?? "").trim() || undefined,
+        netAmount: payload.netAmount != null ? Math.max(0, toNum(payload.netAmount)) : existing?.netAmount ?? undefined,
+        paymentMethod: String(payload.paymentMethod ?? existing?.paymentMethod ?? "").trim() || undefined,
+        discountPercent: payload.discountPercent != null ? Math.max(0, toNum(payload.discountPercent)) : existing?.discountPercent ?? 0,
+        // ✅ NEW: Customer Details
+        customerAddress: String(payload.customerAddress ?? existing?.customerAddress ?? "").trim() || undefined,
+        customerCompany: String(payload.customerCompany ?? existing?.customerCompany ?? "").trim() || undefined,
+        customerSince: String(payload.customerSince ?? existing?.customerSince ?? "").trim() || undefined,
+        completedServicesCount: payload.completedServicesCount != null ? Math.max(0, toNum(payload.completedServicesCount)) : existing?.completedServicesCount ?? 0,
+        registeredVehiclesCount: payload.registeredVehiclesCount != null ? Math.max(1, toNum(payload.registeredVehiclesCount)) : existing?.registeredVehiclesCount ?? 1,
+        // ✅ NEW: Service Tracking
+        totalServiceCount: payload.totalServiceCount != null ? Math.max(0, toNum(payload.totalServiceCount)) : existing?.totalServiceCount ?? 0,
+        completedServiceCount: payload.completedServiceCount != null ? Math.max(0, toNum(payload.completedServiceCount)) : existing?.completedServiceCount ?? 0,
+        pendingServiceCount: payload.pendingServiceCount != null ? Math.max(0, toNum(payload.pendingServiceCount)) : existing?.pendingServiceCount ?? 0,
+        // ✅ NEW: Delivery Information
+        expectedDeliveryDate: String(payload.expectedDeliveryDate ?? existing?.expectedDeliveryDate ?? "").trim() || undefined,
+        expectedDeliveryTime: String(payload.expectedDeliveryTime ?? existing?.expectedDeliveryTime ?? "").trim() || undefined,
+        actualDeliveryDate: String(payload.actualDeliveryDate ?? existing?.actualDeliveryDate ?? "").trim() || undefined,
+        actualDeliveryTime: String(payload.actualDeliveryTime ?? existing?.actualDeliveryTime ?? "").trim() || undefined,
+        estimatedCompletionHours: payload.estimatedCompletionHours != null ? toNum(payload.estimatedCompletionHours) : existing?.estimatedCompletionHours ?? undefined,
+        actualCompletionHours: payload.actualCompletionHours != null ? toNum(payload.actualCompletionHours) : existing?.actualCompletionHours ?? undefined,
+        // ✅ NEW: Quality Check Fields
+        qualityCheckStatus: payload.qualityCheckStatus ?? existing?.qualityCheckStatus ?? "PENDING",
+        qualityCheckDate: payload.qualityCheckDate ?? existing?.qualityCheckDate ?? undefined,
+        qualityCheckNotes: String(payload.qualityCheckNotes ?? existing?.qualityCheckNotes ?? "").trim() || undefined,
+        qualityCheckedBy: String(payload.qualityCheckedBy ?? existing?.qualityCheckedBy ?? "").trim() || undefined,
+        // ✅ NEW: Exit Permit Fields
+        exitPermitRequired: payload.exitPermitRequired ?? existing?.exitPermitRequired ?? false,
+        exitPermitStatus: payload.exitPermitStatus ?? existing?.exitPermitStatus ?? "NOT_REQUIRED",
+        exitPermitDate: payload.exitPermitDate ?? existing?.exitPermitDate ?? undefined,
+        nextServiceDate: String(payload.nextServiceDate ?? existing?.nextServiceDate ?? "").trim() || undefined,
+        // ✅ NEW: Priority & Assignment
+        priorityLevel: payload.priorityLevel ?? existing?.priorityLevel ?? "NORMAL",
+        assignedTechnicianId: String(payload.assignedTechnicianId ?? existing?.assignedTechnicianId ?? "").trim() || undefined,
+        assignedTechnicianName: String(payload.assignedTechnicianName ?? existing?.assignedTechnicianName ?? "").trim() || undefined,
+        assignmentDate: payload.assignmentDate ?? existing?.assignmentDate ?? undefined,
+        // ✅ NEW: Customer Communication
+        customerNotes: String(payload.customerNotes ?? existing?.customerNotes ?? "").trim() || undefined,
+        internalNotes: String(payload.internalNotes ?? existing?.internalNotes ?? "").trim() || undefined,
+        customerNotified: payload.customerNotified ?? existing?.customerNotified ?? false,
+        lastNotificationDate: payload.lastNotificationDate ?? existing?.lastNotificationDate ?? undefined,
+        jobDescription: String(payload.jobDescription ?? existing?.jobDescription ?? "").trim() || undefined,
+        specialInstructions: String(payload.specialInstructions ?? existing?.specialInstructions ?? "").trim() || undefined,
+        notes: String(payload.notes ?? existing?.notes ?? "").trim() || undefined,
+        dataJson,
+        updatedAt: nowIso(),
+    };
+    if (!isUpdate) {
+        const out = await client.models.JobOrder.create({
+            ...common,
+            orderNumber: String(payload.orderNumber ?? "").trim() || makeOrderNumber(),
+            createdAt: nowIso(),
+            createdBy: actorFromIdentity || undefined,
+        });
+        const row = out?.data ?? out;
+        console.log("[jobOrderSave] CREATE - out:", out);
+        console.log("[jobOrderSave] CREATE - row:", row);
+        console.log("[jobOrderSave] CREATE - returning:", { id: row?.id, orderNumber: row?.orderNumber });
+        return { id: row?.id, orderNumber: row?.orderNumber };
+    }
+    const out = await client.models.JobOrder.update({
+        id: payload.id,
+        ...common,
+    });
+    const row = out?.data ?? out;
+    console.log("[jobOrderSave] UPDATE - out:", out);
+    console.log("[jobOrderSave] UPDATE - row:", row);
+    console.log("[jobOrderSave] UPDATE - returning:", { id: row?.id, orderNumber: row?.orderNumber });
+    return { id: row?.id, orderNumber: row?.orderNumber };
+};

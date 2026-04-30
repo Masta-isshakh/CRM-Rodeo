@@ -871,12 +871,13 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               </button>
             </div>
 
-            <div className="drawer-spacer" />
+          </nav>
 
+          <div className="drawer-footer">
             <button className="danger" onClick={signOut}>
               <i className="fas fa-sign-out-alt" aria-hidden="true" /> {t("Sign out")}
             </button>
-          </nav>
+          </div>
         </aside>
 
         <div className="layout-main">

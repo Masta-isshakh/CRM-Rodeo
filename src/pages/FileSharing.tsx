@@ -10,7 +10,16 @@ import PermissionGate from "./PermissionGate";
 import "./FileSharing.css";
 
 type ShareScope = "PRIVATE" | "DEPARTMENT" | "SELECTED_USERS" | "SELECTED_DEPARTMENTS" | "ORGANIZATION";
-type DriveView = "my" | "shared" | "dept" | "org" | "starred" | "trash" | "admin";
+type DriveView = "home" | "my" | "shared" | "dept" | "org" | "starred" | "recent" | "trash" | "admin";
+type LayoutMode = "list" | "grid";
+type SortBy = "name" | "modified" | "size";
+
+type UploadQueueItem = {
+  id: string;
+  file: File;
+  relativePath: string;
+  source: "files" | "folder";
+};
 
 type DirectoryUser = {
   email: string;
@@ -29,6 +38,7 @@ const DEFAULT_QUOTA_MB = 2048;
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"];
 const PDF_TYPE = "application/pdf";
 const FOLDER_MIME = "application/x.crm.folder";
+const DRIVE_SHARE_RESOLVER_URL = String(import.meta.env.VITE_DRIVE_SHARE_RESOLVER_URL ?? "").trim();
 
 function normalizeEmail(value: unknown) {
   return String(value ?? "").trim().toLowerCase();
@@ -96,6 +106,27 @@ function createShareToken() {
   return btoa(seed).replace(/[^a-zA-Z0-9]/g, "").slice(0, 32);
 }
 
+function getFileRelativePath(file: File) {
+  const candidate = String((file as File & { webkitRelativePath?: string }).webkitRelativePath ?? "").trim();
+  return candidate || file.name;
+}
+
+function createUploadQueueItems(fileList: Iterable<File> | ArrayLike<File>, source: "files" | "folder") {
+  return Array.from(fileList).map((file) => ({
+    id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    file,
+    relativePath: source === "folder" ? getFileRelativePath(file) : file.name,
+    source,
+  }));
+}
+
+function getRelativeDirectory(relativePath: string) {
+  const clean = normalizeFolderPath(relativePath);
+  const parts = clean.split("/").filter(Boolean);
+  parts.pop();
+  return parts.join("/");
+}
+
 export default function FileSharing({ permissions }: PageProps) {
   const { t } = useLanguage();
   const { canOption, departmentKey, isAdminGroup } = usePermissions();
@@ -107,9 +138,19 @@ export default function FileSharing({ permissions }: PageProps) {
   const [selfName, setSelfName] = useState("");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
-  const [view, setView] = useState<DriveView>("my");
+  const [view, setView] = useState<DriveView>("home");
+  const [layout, setLayout] = useState<LayoutMode>("list");
+  const [sortBy, setSortBy] = useState<SortBy>("modified");
   const [currentFolder, setCurrentFolder] = useState("");
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [composerMode, setComposerMode] = useState<"upload" | "folder" | null>(null);
+  const [isNewMenuOpen, setIsNewMenuOpen] = useState(false);
+  const [pendingFileDialog, setPendingFileDialog] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [lastSelectedId, setLastSelectedId] = useState("");
+  const [renamingId, setRenamingId] = useState("");
+  const [renameValue, setRenameValue] = useState("");
+  const [contextMenu, setContextMenu] = useState<{ rowId: string; x: number; y: number } | null>(null);
 
   const [directory, setDirectory] = useState<DirectoryUser[]>([]);
   const [rows, setRows] = useState<any[]>([]);
@@ -120,7 +161,7 @@ export default function FileSharing({ permissions }: PageProps) {
   const [versionTargetId, setVersionTargetId] = useState("");
   const [linkTargetId, setLinkTargetId] = useState("");
 
-  const [files, setFiles] = useState<File[]>([]);
+  const [files, setFiles] = useState<UploadQueueItem[]>([]);
   const [displayName, setDisplayName] = useState("");
   const [description, setDescription] = useState("");
   const [scope, setScope] = useState<ShareScope>("DEPARTMENT");
@@ -138,6 +179,7 @@ export default function FileSharing({ permissions }: PageProps) {
   const [preview, setPreview] = useState<{ url: string; type: string; name: string } | null>(null);
   const [dragging, setDragging] = useState(false);
   const dropRef = useRef<HTMLDivElement>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
 
   const canManageAll = permissions.canUpdate && canOption("filesharing", "filesharing_manage_all", false);
   const canUpload = permissions.canCreate && canOption("filesharing", "filesharing_upload", false);
@@ -166,7 +208,7 @@ export default function FileSharing({ permissions }: PageProps) {
           createdAt: new Date().toISOString(),
         });
       } catch {
-        // activity logging is best effort
+        // best effort
       }
     },
     [client]
@@ -199,7 +241,7 @@ export default function FileSharing({ permissions }: PageProps) {
 
       const fileRes = await (client.models as any).FileShareItem.list({ limit: 3000 });
       const fileRows = (fileRes?.data ?? []) as any[];
-      setRows(fileRows.sort((a, b) => String(b?.createdAt ?? "").localeCompare(String(a?.createdAt ?? ""))));
+      setRows(fileRows.sort((a, b) => String(b?.updatedAt ?? b?.createdAt ?? "").localeCompare(String(a?.updatedAt ?? a?.createdAt ?? ""))));
 
       if ((client.models as any).DriveStorageQuota?.list) {
         const quotaRes = await (client.models as any).DriveStorageQuota.list({ limit: 3000 });
@@ -236,6 +278,22 @@ export default function FileSharing({ permissions }: PageProps) {
     void loadData();
   }, [loadData]);
 
+  useEffect(() => {
+    if (!pendingFileDialog || composerMode !== "upload") return;
+    uploadInputRef.current?.click();
+    setPendingFileDialog(false);
+  }, [pendingFileDialog, composerMode]);
+
+  useEffect(() => {
+    const closeMenu = () => setContextMenu(null);
+    window.addEventListener("click", closeMenu);
+    window.addEventListener("scroll", closeMenu, true);
+    return () => {
+      window.removeEventListener("click", closeMenu);
+      window.removeEventListener("scroll", closeMenu, true);
+    };
+  }, []);
+
   const quotaMap = useMemo(() => {
     const m = new Map<string, any>();
     for (const row of quotaRows) {
@@ -252,8 +310,7 @@ export default function FileSharing({ permissions }: PageProps) {
       if (isDeleted(row) || isFolder(row)) continue;
       const owner = normalizeEmail(row?.ownerEmail);
       if (!owner) continue;
-      const prev = m.get(owner) ?? 0;
-      m.set(owner, prev + Number(row?.sizeBytes ?? 0));
+      m.set(owner, (m.get(owner) ?? 0) + Number(row?.sizeBytes ?? 0));
     }
     return m;
   }, [rows]);
@@ -316,29 +373,61 @@ export default function FileSharing({ permissions }: PageProps) {
 
       if (view === "trash") return deleted && (mine || canManageAll || isAdminGroup);
       if (view === "admin") return canAdminPanel && (canManageAll || isAdminGroup);
+      if (view === "home") return !deleted && accessible;
 
       if (deleted) return false;
       if (!accessible && !mine && !canManageAll && !isAdminGroup) return false;
 
-      const scope = String(row?.visibilityScope ?? "DEPARTMENT").toUpperCase();
+      const scopeValue = String(row?.visibilityScope ?? "DEPARTMENT").toUpperCase();
       if (view === "my") return mine;
       if (view === "shared") return !mine && accessible;
       if (view === "dept") return String(row?.ownerDepartmentKey ?? "").trim() === String(departmentKey ?? "").trim();
-      if (view === "org") return scope === "ORGANIZATION";
-      if (view === "starred") {
-        const stars = parseJsonArray(row?.starredByJson).map(normalizeEmail);
-        return stars.includes(selfEmail);
+      if (view === "org") return scopeValue === "ORGANIZATION";
+      if (view === "starred") return parseJsonArray(row?.starredByJson).map(normalizeEmail).includes(selfEmail);
+      if (view === "recent") {
+        const ts = Date.parse(String(row?.updatedAt ?? row?.createdAt ?? ""));
+        return Number.isFinite(ts) && Date.now() - ts <= 30 * 24 * 60 * 60 * 1000;
       }
       return accessible;
     });
   }, [rows, view, selfEmail, hasAccess, canManageAll, isAdminGroup, canAdminPanel, departmentKey]);
 
   const visibleRows = useMemo(() => {
-    if (view === "admin") return rowsByView;
-    return rowsByView
-      .filter((row) => folderOf(row) === normalizeFolderPath(currentFolder))
-      .filter((row) => matchesSearchQuery([row?.displayName, row?.description, row?.ownerName, row?.ownerEmail], query));
-  }, [rowsByView, view, currentFolder, query]);
+    const withFolder = view === "admin" || view === "home" || view === "shared" || view === "recent" || view === "starred"
+      ? rowsByView
+      : rowsByView.filter((row) => folderOf(row) === normalizeFolderPath(currentFolder));
+
+    const searched = withFolder.filter((row) => matchesSearchQuery([row?.displayName, row?.description, row?.ownerName, row?.ownerEmail], query));
+
+    return searched.sort((a, b) => {
+      if (sortBy === "name") return String(a?.displayName ?? "").localeCompare(String(b?.displayName ?? ""));
+      if (sortBy === "size") return Number(b?.sizeBytes ?? 0) - Number(a?.sizeBytes ?? 0);
+      return String(b?.updatedAt ?? b?.createdAt ?? "").localeCompare(String(a?.updatedAt ?? a?.createdAt ?? ""));
+    });
+  }, [rowsByView, view, currentFolder, query, sortBy]);
+
+  const rowById = useMemo(() => {
+    const m = new Map<string, any>();
+    for (const row of rows) {
+      if (row?.id) m.set(String(row.id), row);
+    }
+    return m;
+  }, [rows]);
+
+  const selectedRows = useMemo(
+    () => selectedIds.map((id) => rowById.get(id)).filter(Boolean),
+    [selectedIds, rowById]
+  );
+
+  useEffect(() => {
+    const liveIds = new Set(rows.map((row) => String(row?.id ?? "")).filter(Boolean));
+    setSelectedIds((prev) => prev.filter((id) => liveIds.has(id)));
+    setLastSelectedId((prev) => (liveIds.has(prev) ? prev : ""));
+    if (renamingId && !liveIds.has(renamingId)) {
+      setRenamingId("");
+      setRenameValue("");
+    }
+  }, [rows, renamingId]);
 
   const breadcrumb = useMemo(() => {
     const chunks = normalizeFolderPath(currentFolder).split("/").filter(Boolean);
@@ -417,9 +506,7 @@ export default function FileSharing({ permissions }: PageProps) {
       const usage = usageByOwner.get(email) ?? 0;
       const limitMb = Math.max(1, Number(quota?.quotaMb ?? DEFAULT_QUOTA_MB));
       const usedPct = (usage / (limitMb * 1024 * 1024)) * 100;
-      if (usedPct >= 90) {
-        alerts.push({ level: usedPct >= 100 ? "error" : "warn", text: `${email} is at ${Math.round(usedPct)}% of quota.` });
-      }
+      if (usedPct >= 90) alerts.push({ level: usedPct >= 100 ? "error" : "warn", text: `${email} is at ${Math.round(usedPct)}% of quota.` });
       if (quota?.uploadBlocked) blocked += 1;
     }
 
@@ -435,6 +522,9 @@ export default function FileSharing({ permissions }: PageProps) {
     return alerts;
   }, [quotaRows, usageByOwner, linkRows, rows]);
 
+  const homeFolderRows = useMemo(() => rowsByView.filter((row) => isFolder(row)).slice(0, 6), [rowsByView]);
+  const homeFileRows = useMemo(() => rowsByView.filter((row) => !isFolder(row)).slice(0, 8), [rowsByView]);
+
   const resetComposer = () => {
     setFiles([]);
     setDisplayName("");
@@ -443,6 +533,8 @@ export default function FileSharing({ permissions }: PageProps) {
     setSelectedUsers([]);
     setSelectedDepartments([]);
     setUploadProgress({});
+    setComposerMode(null);
+    setIsNewMenuOpen(false);
   };
 
   const onDragOver = useCallback((e: React.DragEvent) => {
@@ -457,20 +549,45 @@ export default function FileSharing({ permissions }: PageProps) {
   const onDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
     setDragging(false);
-    const dropped = Array.from(e.dataTransfer.files).filter((f) => f.size / (1024 * 1024) <= MAX_UPLOAD_MB);
-    if (dropped.length) setFiles((prev) => [...prev, ...dropped]);
+    const dropped = Array.from(e.dataTransfer.files);
+    if (dropped.length) {
+      setComposerMode("upload");
+      setFiles((prev) => [...prev, ...createUploadQueueItems(dropped, "files")]);
+    }
   }, []);
 
+  const openUploadPicker = () => {
+    if (!canUpload) return setStatus(t("You do not have permission to upload files."));
+    setComposerMode("upload");
+    setIsNewMenuOpen(false);
+    setPendingFileDialog(true);
+  };
+
+  const openFolderPicker = () => {
+    if (!canUpload) return setStatus(t("You do not have permission to upload files."));
+    setComposerMode("upload");
+    setIsNewMenuOpen(false);
+    const picker = document.createElement("input");
+    picker.type = "file";
+    picker.multiple = true;
+    picker.setAttribute("webkitdirectory", "");
+    picker.onchange = () => {
+      const picked = Array.from(picker.files ?? []);
+      if (picked.length) setFiles((prev) => [...prev, ...createUploadQueueItems(picked, "folder")]);
+    };
+    picker.click();
+  };
+
+  const openNewFolderComposer = () => {
+    if (!canCreateFolder) return setStatus(t("You do not have permission to create folders."));
+    setComposerMode("folder");
+    setIsNewMenuOpen(false);
+  };
+
   const createFolder = async () => {
-    if (!canCreateFolder) {
-      setStatus(t("You do not have permission to create folders."));
-      return;
-    }
+    if (!canCreateFolder) return setStatus(t("You do not have permission to create folders."));
     const clean = safeName(newFolderName).replace(/\.[^/.]+$/, "");
-    if (!clean) {
-      setStatus(t("Please enter a valid folder name."));
-      return;
-    }
+    if (!clean) return setStatus(t("Please enter a valid folder name."));
 
     const now = new Date().toISOString();
     try {
@@ -506,42 +623,28 @@ export default function FileSharing({ permissions }: PageProps) {
   };
 
   const uploadFile = async () => {
-    if (!canUpload) {
-      setStatus(t("You do not have permission to upload files."));
-      return;
-    }
-    if (!files.length) {
-      setStatus(t("Please select a file first."));
-      return;
-    }
-    if (selfUploadBlocked) {
-      setStatus(t("Your upload permission is blocked by drive administrator."));
-      return;
-    }
+    if (!canUpload) return setStatus(t("You do not have permission to upload files."));
+    if (!files.length) return setStatus(t("Please select a file first."));
+    if (selfUploadBlocked) return setStatus(t("Your upload permission is blocked by drive administrator."));
 
-    const oversized = files.filter((f) => f.size / (1024 * 1024) > MAX_UPLOAD_MB);
-    if (oversized.length) {
-      setStatus(`${t("Max upload size is")} ${MAX_UPLOAD_MB}MB: ${oversized.map((f) => f.name).join(", ")}`);
-      return;
-    }
+    const oversized = files.filter((entry) => entry.file.size / (1024 * 1024) > MAX_UPLOAD_MB);
+    if (oversized.length) return setStatus(`${t("Max upload size is")} ${MAX_UPLOAD_MB}MB: ${oversized.map((entry) => entry.file.name).join(", ")}`);
 
-    const incoming = files.reduce((sum, f) => sum + f.size, 0);
+    const incoming = files.reduce((sum, entry) => sum + entry.file.size, 0);
     const quotaBytes = selfQuotaMb * 1024 * 1024;
-    if (selfUsageBytes + incoming > quotaBytes) {
-      setStatus(t("Upload exceeds your allocated storage quota."));
-      return;
-    }
+    if (selfUsageBytes + incoming > quotaBytes) return setStatus(t("Upload exceeds your allocated storage quota."));
 
     setSaving(true);
     setStatus("");
     const ownerDeptName = directory.find((u) => u.email === selfEmail)?.departmentName || "";
     const folderPart = normalizeFolderPath(currentFolder);
 
-    for (const f of files) {
-      const key = folderPart
-        ? `file-sharing/${folderPart}/${Date.now()}-${safeName(f.name)}`
-        : `file-sharing/${Date.now()}-${safeName(f.name)}`;
-      setUploadProgress((prev) => ({ ...prev, [f.name]: 0 }));
+    for (const entry of files) {
+      const f = entry.file;
+      const relativeDirectory = getRelativeDirectory(entry.relativePath);
+      const targetFolder = normalizeFolderPath([folderPart, relativeDirectory].filter(Boolean).join("/"));
+      const key = targetFolder ? `file-sharing/${targetFolder}/${Date.now()}-${safeName(f.name)}` : `file-sharing/${Date.now()}-${safeName(f.name)}`;
+      setUploadProgress((prev) => ({ ...prev, [entry.id]: 0 }));
       try {
         await uploadData({
           path: key,
@@ -550,10 +653,7 @@ export default function FileSharing({ permissions }: PageProps) {
             contentType: f.type || "application/octet-stream",
             onProgress: ({ transferredBytes, totalBytes }) => {
               if (!totalBytes) return;
-              setUploadProgress((prev) => ({
-                ...prev,
-                [f.name]: Math.round((transferredBytes / totalBytes) * 100),
-              }));
+              setUploadProgress((prev) => ({ ...prev, [entry.id]: Math.round((transferredBytes / totalBytes) * 100) }));
             },
           },
         }).result;
@@ -565,13 +665,13 @@ export default function FileSharing({ permissions }: PageProps) {
           ownerName: selfName || selfEmail,
           ownerDepartmentKey: departmentKey || "",
           ownerDepartmentName: ownerDeptName,
-          displayName: String(files.length === 1 && displayName ? displayName : f.name).trim(),
+          displayName: String(files.length === 1 && !relativeDirectory && displayName ? displayName : f.name).trim(),
           description: String(description || "").trim(),
           storagePath: key,
           contentType: f.type || "application/octet-stream",
           sizeBytes: f.size,
           visibilityScope: scope,
-          folderPath: folderPart,
+          folderPath: targetFolder,
           isFolder: false,
           isDeleted: false,
           sharedWithUsersJson: JSON.stringify(selectedUsers),
@@ -597,16 +697,74 @@ export default function FileSharing({ permissions }: PageProps) {
     setStatus(t("Upload completed."));
   };
 
+  const createTemplateDocument = async (kind: "doc" | "sheet" | "slides") => {
+    if (!canUpload) return setStatus(t("You do not have permission to upload files."));
+    if (selfUploadBlocked) return setStatus(t("Your upload permission is blocked by drive administrator."));
+
+    const map = {
+      doc: {
+        name: `Untitled Document ${new Date().toISOString().slice(0, 10)}.txt`,
+        contentType: "text/plain",
+        body: "Untitled document\n\nStart writing here...\n",
+      },
+      sheet: {
+        name: `Untitled Sheet ${new Date().toISOString().slice(0, 10)}.csv`,
+        contentType: "text/csv",
+        body: "Column A,Column B,Column C\n",
+      },
+      slides: {
+        name: `Untitled Slides ${new Date().toISOString().slice(0, 10)}.txt`,
+        contentType: "text/plain",
+        body: "Untitled presentation\n\n- Slide 1\n",
+      },
+    } as const;
+
+    const template = map[kind];
+    const blob = new Blob([template.body], { type: template.contentType });
+    const folderPart = normalizeFolderPath(currentFolder);
+    const key = folderPart ? `file-sharing/${folderPart}/${Date.now()}-${safeName(template.name)}` : `file-sharing/${Date.now()}-${safeName(template.name)}`;
+
+    try {
+      const ownerDeptName = directory.find((u) => u.email === selfEmail)?.departmentName || "";
+      await uploadData({ path: key, data: blob, options: { contentType: template.contentType } }).result;
+      const now = new Date().toISOString();
+      await (client.models as any).FileShareItem.create({
+        fileOwner: selfEmail,
+        ownerEmail: selfEmail,
+        ownerName: selfName || selfEmail,
+        ownerDepartmentKey: departmentKey || "",
+        ownerDepartmentName: ownerDeptName,
+        displayName: template.name,
+        description: kind === "doc" ? "Google Docs style file" : kind === "sheet" ? "Google Sheets style file" : "Google Slides style file",
+        storagePath: key,
+        contentType: template.contentType,
+        sizeBytes: blob.size,
+        visibilityScope: "DEPARTMENT",
+        folderPath: folderPart,
+        isFolder: false,
+        isDeleted: false,
+        sharedWithUsersJson: "[]",
+        sharedWithDepartmentsJson: "[]",
+        starredByJson: "[]",
+        downloadCount: 0,
+        createdAt: now,
+        updatedAt: now,
+        updatedBy: selfEmail,
+      });
+      await logActivity(key, "UPLOAD", `${selfEmail} created ${kind} template file`);
+      setIsNewMenuOpen(false);
+      await loadData();
+      setStatus(t("New file created."));
+    } catch (error: any) {
+      setStatus(error?.message || t("Failed to create new file."));
+    }
+  };
+
   const toggleStar = async (row: any) => {
     if (!canStar) return;
     const stars = parseJsonArray(row?.starredByJson).map(normalizeEmail);
     const next = stars.includes(selfEmail) ? stars.filter((x) => x !== selfEmail) : [...stars, selfEmail];
-    await (client.models as any).FileShareItem.update({
-      id: row.id,
-      starredByJson: JSON.stringify(next),
-      updatedAt: new Date().toISOString(),
-      updatedBy: selfEmail,
-    });
+    await (client.models as any).FileShareItem.update({ id: row.id, starredByJson: JSON.stringify(next), updatedAt: new Date().toISOString(), updatedBy: selfEmail });
     await loadData();
   };
 
@@ -648,11 +806,7 @@ export default function FileSharing({ permissions }: PageProps) {
       const key = `file-sharing/${Date.now()}-${safeName(file.name)}`;
       try {
         await createVersionSnapshot(row, "Auto snapshot before replace");
-        await uploadData({
-          path: key,
-          data: file,
-          options: { contentType: file.type || "application/octet-stream" },
-        }).result;
+        await uploadData({ path: key, data: file, options: { contentType: file.type || "application/octet-stream" } }).result;
 
         await (client.models as any).FileShareItem.update({
           id: row.id,
@@ -673,10 +827,7 @@ export default function FileSharing({ permissions }: PageProps) {
   };
 
   const restoreVersion = async (row: any, version: any) => {
-    if (!canRestoreVersions && !canManageAll && !isAdminGroup) {
-      setStatus(t("You do not have permission to restore versions."));
-      return;
-    }
+    if (!canRestoreVersions && !canManageAll && !isAdminGroup) return setStatus(t("You do not have permission to restore versions."));
     try {
       await createVersionSnapshot(row, `Snapshot before restore to v${version?.versionNumber}`);
       await (client.models as any).FileShareItem.update({
@@ -695,19 +846,11 @@ export default function FileSharing({ permissions }: PageProps) {
   };
 
   const createSharedLink = async (row: any) => {
-    if (!canCreateShareLink) {
-      setStatus(t("You do not have permission to create shared links."));
-      return;
-    }
-    if (isFolder(row)) {
-      setStatus(t("Shared links are supported for files only."));
-      return;
-    }
+    if (!canCreateShareLink) return setStatus(t("You do not have permission to create shared links."));
+    if (isFolder(row)) return setStatus(t("Shared links are supported for files only."));
 
     const hours = Math.max(1, Number(shareExpiryHours || 24));
     const maxDownloads = Number(shareMaxDownloads || 0);
-    const expiresAtMs = Date.now() + hours * 60 * 60 * 1000;
-    const expiresAtIso = new Date(expiresAtMs).toISOString();
     const token = createShareToken();
 
     try {
@@ -717,42 +860,28 @@ export default function FileSharing({ permissions }: PageProps) {
         createdBy: selfEmail,
         displayName: String(row?.displayName ?? ""),
         storagePath: String(row?.storagePath ?? ""),
-        expiresAt: expiresAtIso,
+        expiresAt: new Date(Date.now() + hours * 60 * 60 * 1000).toISOString(),
         maxDownloads: maxDownloads > 0 ? maxDownloads : undefined,
         downloadCount: 0,
         createdAt: new Date().toISOString(),
       });
 
-      const expiresIn = Math.min(604800, hours * 3600);
-      const urlObj = await getUrl({
-        path: String(row?.storagePath ?? ""),
-        options: { expiresIn },
-      });
-      const url = urlObj.url.toString();
-      try {
-        await navigator.clipboard.writeText(url);
-      } catch {
-        // Clipboard may be unavailable; status includes the URL.
-      }
+      const resolver = DRIVE_SHARE_RESOLVER_URL;
+      const url = resolver ? `${window.location.origin}/share.html?t=${encodeURIComponent(token)}&r=${encodeURIComponent(resolver)}` : "";
+      try { if (url) await navigator.clipboard.writeText(url); } catch {}
 
       await logActivity(row.id, "SHARE_LINK_CREATE", `${selfEmail} created expiring link for ${row?.displayName}`);
       await loadData();
-      setStatus(`${t("Shared link created.")} ${url}`);
+      setStatus(!resolver ? `${t("Shared link created, but resolver URL is missing.")} Set VITE_DRIVE_SHARE_RESOLVER_URL.` : `${t("Shared link created.")} ${url}`);
     } catch (error: any) {
       setStatus(error?.message || t("Failed to create shared link."));
     }
   };
 
   const revokeSharedLink = async (link: any) => {
-    if (!canRevokeShareLink && !canManageAll && !isAdminGroup) {
-      setStatus(t("You do not have permission to revoke shared links."));
-      return;
-    }
+    if (!canRevokeShareLink && !canManageAll && !isAdminGroup) return setStatus(t("You do not have permission to revoke shared links."));
     try {
-      await (client.models as any).DriveShareLink.update({
-        id: link.id,
-        revokedAt: new Date().toISOString(),
-      });
+      await (client.models as any).DriveShareLink.update({ id: link.id, revokedAt: new Date().toISOString() });
       await logActivity(String(link?.fileShareItemId ?? link?.id ?? ""), "SHARE_LINK_REVOKE", `${selfEmail} revoked shared link`);
       await loadData();
     } catch (error: any) {
@@ -791,18 +920,10 @@ export default function FileSharing({ permissions }: PageProps) {
   };
 
   const moveRow = async (row: any) => {
-    if (!canMove) {
-      setStatus(t("You do not have permission to move files."));
-      return;
-    }
+    if (!canMove) return setStatus(t("You do not have permission to move files."));
     const target = normalizeFolderPath(window.prompt(t("Move to folder path (empty for root):"), String(row?.folderPath ?? "")));
     try {
-      await (client.models as any).FileShareItem.update({
-        id: row.id,
-        folderPath: target,
-        updatedAt: new Date().toISOString(),
-        updatedBy: selfEmail,
-      });
+      await (client.models as any).FileShareItem.update({ id: row.id, folderPath: target, updatedAt: new Date().toISOString(), updatedBy: selfEmail });
       await logActivity(row.id, "MOVE", `${selfEmail} moved ${row?.displayName || row?.storagePath} to ${target || "root"}`);
       await loadData();
     } catch (error: any) {
@@ -816,10 +937,7 @@ export default function FileSharing({ permissions }: PageProps) {
     const canDeleteOwn = canOption("filesharing", "filesharing_delete_own", false) && mine;
     const canDeleteAny = canOption("filesharing", "filesharing_delete_any", false) || canManageAll;
 
-    if (!canDeleteOwn && !canDeleteAny && !isAdminGroup) {
-      setStatus(t("You do not have permission to delete this item."));
-      return;
-    }
+    if (!canDeleteOwn && !canDeleteAny && !isAdminGroup) return setStatus(t("You do not have permission to delete this item."));
 
     const doHardDelete = (canHardDelete || isAdminGroup) && (canManageAll || isAdminGroup) && !canSoftDelete;
 
@@ -835,9 +953,7 @@ export default function FileSharing({ permissions }: PageProps) {
         });
         await logActivity(row.id, "SOFT_DELETE", `${selfEmail} moved ${row?.displayName} to trash`);
       } else {
-        if (!isFolder(row) && row?.storagePath) {
-          await remove({ path: String(row.storagePath) });
-        }
+        if (!isFolder(row) && row?.storagePath) await remove({ path: String(row.storagePath) });
         await (client.models as any).FileShareItem.delete({ id: String(row.id) });
         await logActivity(row.id, "DELETE", `${selfEmail} permanently deleted ${row?.displayName}`);
       }
@@ -848,19 +964,9 @@ export default function FileSharing({ permissions }: PageProps) {
   };
 
   const restoreRow = async (row: any) => {
-    if (!canRestore && !isAdminGroup) {
-      setStatus(t("You do not have permission to restore files."));
-      return;
-    }
+    if (!canRestore && !isAdminGroup) return setStatus(t("You do not have permission to restore files."));
     try {
-      await (client.models as any).FileShareItem.update({
-        id: row.id,
-        isDeleted: false,
-        deletedAt: null,
-        deletedBy: null,
-        updatedAt: new Date().toISOString(),
-        updatedBy: selfEmail,
-      });
+      await (client.models as any).FileShareItem.update({ id: row.id, isDeleted: false, deletedAt: null, deletedBy: null, updatedAt: new Date().toISOString(), updatedBy: selfEmail });
       await logActivity(row.id, "RESTORE", `${selfEmail} restored ${row?.displayName}`);
       await loadData();
     } catch (error: any) {
@@ -869,17 +975,11 @@ export default function FileSharing({ permissions }: PageProps) {
   };
 
   const saveQuota = async (targetEmailRaw: string) => {
-    if (!canManageQuota && !isAdminGroup) {
-      setStatus(t("You do not have permission to manage storage quotas."));
-      return;
-    }
+    if (!canManageQuota && !isAdminGroup) return setStatus(t("You do not have permission to manage storage quotas."));
 
     const target = targetEmailRaw === "*" ? "*" : normalizeEmail(targetEmailRaw);
     const nextQuotaMb = Math.max(1, Number(quotaMb || DEFAULT_QUOTA_MB));
-    if (!target) {
-      setStatus(t("Please choose a user."));
-      return;
-    }
+    if (!target) return setStatus(t("Please choose a user."));
 
     const existing = quotaRows.find((q) => normalizeEmail(q?.userEmail) === target || (target === "*" && String(q?.userEmail) === "*"));
     const payload = {
@@ -905,6 +1005,228 @@ export default function FileSharing({ permissions }: PageProps) {
     }
   };
 
+  const openRow = async (row: any) => {
+    if (isFolder(row)) {
+      setView("my");
+      setCurrentFolder(normalizeFolderPath(folderOf(row) ? `${folderOf(row)}/${row.displayName}` : row.displayName));
+      return;
+    }
+
+    const ct = String(row?.contentType ?? "");
+    if (IMAGE_TYPES.includes(ct) || ct === PDF_TYPE) {
+      await openPreview(row);
+      return;
+    }
+
+    await downloadFile(row);
+  };
+
+  const canRenameRow = useCallback(
+    (row: any) => normalizeEmail(row?.ownerEmail) === selfEmail || canManageAll || isAdminGroup,
+    [selfEmail, canManageAll, isAdminGroup]
+  );
+
+  const beginRename = (row: any) => {
+    if (!canRenameRow(row)) {
+      setStatus(t("You do not have permission to rename this item."));
+      return;
+    }
+    setRenamingId(String(row?.id ?? ""));
+    setRenameValue(String(row?.displayName ?? ""));
+    setContextMenu(null);
+  };
+
+  const submitRename = async (row: any) => {
+    const next = safeName(renameValue).trim();
+    if (!next) {
+      setStatus(t("Please enter a valid file or folder name."));
+      return;
+    }
+    try {
+      await (client.models as any).FileShareItem.update({
+        id: row.id,
+        displayName: next,
+        updatedAt: new Date().toISOString(),
+        updatedBy: selfEmail,
+      });
+      await logActivity(row.id, "RENAME", `${selfEmail} renamed ${row?.displayName} to ${next}`);
+      setRenamingId("");
+      setRenameValue("");
+      await loadData();
+    } catch (error: any) {
+      setStatus(error?.message || t("Failed to rename item."));
+    }
+  };
+
+  const canDeleteRow = useCallback(
+    (row: any) => {
+      const owner = normalizeEmail(row?.ownerEmail);
+      const mine = owner === selfEmail;
+      const canDeleteOwn = canOption("filesharing", "filesharing_delete_own", false) && mine;
+      const canDeleteAny = canOption("filesharing", "filesharing_delete_any", false) || canManageAll;
+      return canDeleteOwn || canDeleteAny || isAdminGroup;
+    },
+    [selfEmail, canManageAll, isAdminGroup, canOption]
+  );
+
+  const bulkMove = async () => {
+    if (!selectedRows.length) return;
+    if (!canMove) return setStatus(t("You do not have permission to move files."));
+    const target = normalizeFolderPath(window.prompt(t("Move selected items to folder path (empty for root):"), currentFolder));
+    try {
+      await Promise.all(
+        selectedRows.map((row) =>
+          (client.models as any).FileShareItem.update({
+            id: row.id,
+            folderPath: target,
+            updatedAt: new Date().toISOString(),
+            updatedBy: selfEmail,
+          })
+        )
+      );
+      await logActivity("bulk", "MOVE", `${selfEmail} moved ${selectedRows.length} item(s) to ${target || "root"}`);
+      setSelectedIds([]);
+      await loadData();
+    } catch (error: any) {
+      setStatus(error?.message || t("Failed to move selected items."));
+    }
+  };
+
+  const bulkDelete = async () => {
+    if (!selectedRows.length) return;
+    const deletable = selectedRows.filter((row) => canDeleteRow(row));
+    if (!deletable.length) return setStatus(t("You do not have permission to delete selected items."));
+
+    try {
+      for (const row of deletable) {
+        const doHardDelete = (canHardDelete || isAdminGroup) && (canManageAll || isAdminGroup) && !canSoftDelete;
+        if (!doHardDelete) {
+          await (client.models as any).FileShareItem.update({
+            id: row.id,
+            isDeleted: true,
+            deletedAt: new Date().toISOString(),
+            deletedBy: selfEmail,
+            updatedAt: new Date().toISOString(),
+            updatedBy: selfEmail,
+          });
+        } else {
+          if (!isFolder(row) && row?.storagePath) await remove({ path: String(row.storagePath) });
+          await (client.models as any).FileShareItem.delete({ id: String(row.id) });
+        }
+      }
+      await logActivity("bulk", "DELETE", `${selfEmail} deleted ${deletable.length} item(s)`);
+      setSelectedIds([]);
+      await loadData();
+    } catch (error: any) {
+      setStatus(error?.message || t("Failed to delete selected items."));
+    }
+  };
+
+  const bulkStar = async () => {
+    if (!selectedRows.length || !canStar) return;
+    const allStarred = selectedRows.every((row) => parseJsonArray(row?.starredByJson).map(normalizeEmail).includes(selfEmail));
+
+    try {
+      await Promise.all(
+        selectedRows.map((row) => {
+          const stars = parseJsonArray(row?.starredByJson).map(normalizeEmail);
+          const next = allStarred ? stars.filter((x) => x !== selfEmail) : Array.from(new Set([...stars, selfEmail]));
+          return (client.models as any).FileShareItem.update({
+            id: row.id,
+            starredByJson: JSON.stringify(next),
+            updatedAt: new Date().toISOString(),
+            updatedBy: selfEmail,
+          });
+        })
+      );
+      await logActivity("bulk", "STAR", `${selfEmail} ${allStarred ? "unstarred" : "starred"} ${selectedRows.length} item(s)`);
+      await loadData();
+    } catch (error: any) {
+      setStatus(error?.message || t("Failed to update starred items."));
+    }
+  };
+
+  const bulkShare = async () => {
+    if (!selectedRows.length) return;
+    if (!canCreateShareLink) return setStatus(t("You do not have permission to create shared links."));
+    const filesOnly = selectedRows.filter((row) => !isFolder(row));
+    if (!filesOnly.length) return setStatus(t("Select at least one file to create shared links."));
+
+    const hours = Math.max(1, Number(shareExpiryHours || 24));
+    const maxDownloads = Number(shareMaxDownloads || 0);
+    const links: string[] = [];
+
+    try {
+      for (const row of filesOnly) {
+        const token = createShareToken();
+        await (client.models as any).DriveShareLink.create({
+          fileShareItemId: row.id,
+          token,
+          createdBy: selfEmail,
+          displayName: String(row?.displayName ?? ""),
+          storagePath: String(row?.storagePath ?? ""),
+          expiresAt: new Date(Date.now() + hours * 60 * 60 * 1000).toISOString(),
+          maxDownloads: maxDownloads > 0 ? maxDownloads : undefined,
+          downloadCount: 0,
+          createdAt: new Date().toISOString(),
+        });
+        if (DRIVE_SHARE_RESOLVER_URL) {
+          links.push(`${window.location.origin}/share.html?t=${encodeURIComponent(token)}&r=${encodeURIComponent(DRIVE_SHARE_RESOLVER_URL)}`);
+        }
+      }
+      if (links.length) {
+        try {
+          await navigator.clipboard.writeText(links.join("\n"));
+        } catch {
+          // ignore clipboard errors
+        }
+      }
+      await logActivity("bulk", "SHARE_LINK_CREATE", `${selfEmail} created links for ${filesOnly.length} item(s)`);
+      await loadData();
+      setStatus(links.length ? `${t("Shared links created and copied.")} (${filesOnly.length})` : t("Shared links created."));
+    } catch (error: any) {
+      setStatus(error?.message || t("Failed to create shared links for selected files."));
+    }
+  };
+
+  const handleRowPointerSelect = (event: React.MouseEvent, rowId: string) => {
+    if ((event.target as HTMLElement).closest("button,input,select,textarea,a,label")) return;
+
+    const isToggle = event.ctrlKey || event.metaKey;
+    const isRange = event.shiftKey && lastSelectedId;
+
+    if (isRange) {
+      const ids = visibleRows.map((row) => String(row?.id ?? "")).filter(Boolean);
+      const a = ids.indexOf(lastSelectedId);
+      const b = ids.indexOf(rowId);
+      if (a >= 0 && b >= 0) {
+        const [start, end] = a < b ? [a, b] : [b, a];
+        setSelectedIds((prev) => Array.from(new Set([...prev, ...ids.slice(start, end + 1)])));
+        return;
+      }
+    }
+
+    if (isToggle) {
+      setSelectedIds((prev) => (prev.includes(rowId) ? prev.filter((id) => id !== rowId) : [...prev, rowId]));
+      setLastSelectedId(rowId);
+      return;
+    }
+
+    setSelectedIds([rowId]);
+    setLastSelectedId(rowId);
+  };
+
+  const onRowContextMenu = (event: React.MouseEvent, row: any) => {
+    event.preventDefault();
+    const rowId = String(row?.id ?? "");
+    if (!rowId) return;
+    if (!selectedIds.includes(rowId)) {
+      setSelectedIds([rowId]);
+      setLastSelectedId(rowId);
+    }
+    setContextMenu({ rowId, x: event.clientX, y: event.clientY });
+  };
+
   if (!permissions.canRead) {
     return <div className="filesharing-page"><div className="filesharing-empty">{t("No access")}</div></div>;
   }
@@ -925,30 +1247,49 @@ export default function FileSharing({ permissions }: PageProps) {
         </div>
       )}
 
-      <section className="drive-hero">
-        <div>
-          <h1>{t("Shared Drive Command Center")}</h1>
-          <p>{t("Enterprise storage, Google Drive familiarity, and admin-level control in one unified workspace.")}</p>
+      <section className="drive-topbar">
+        <div className="drive-topbar-brand">{t("Drive")}</div>
+        <div className="drive-topbar-search">
+          <i className="fas fa-search" />
+          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("Search in Drive")} />
         </div>
-        <div className="drive-metrics">
-          <div><strong>{rows.filter((r) => !isDeleted(r)).length}</strong><span>{t("Active Items")}</span></div>
-          <div><strong>{formatBytes(selfUsageBytes)}</strong><span>{t("My Usage")}</span></div>
-          <div><strong>{selfQuotaMb} MB</strong><span>{t("My Quota")}</span></div>
+        <div className="drive-topbar-actions">
+          <button type="button" onClick={() => setLayout((v) => (v === "list" ? "grid" : "list"))}>{layout === "list" ? t("Grid") : t("List")}</button>
+          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)}>
+            <option value="modified">{t("Last modified")}</option>
+            <option value="name">{t("Name")}</option>
+            <option value="size">{t("Size")}</option>
+          </select>
+          <button type="button" onClick={() => void loadData()} disabled={loading}>{t("Refresh")}</button>
         </div>
-      </section>
-
-      <section className="drive-toolbar">
-        <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("Search by name, description, or owner")} />
-        <button type="button" onClick={() => void loadData()} disabled={loading}>{t("Refresh")}</button>
       </section>
 
       <section className="drive-shell">
         <aside className="drive-sidebar">
+          <div className="drive-new-wrap">
+            <button type="button" className="drive-new-button" onClick={() => setIsNewMenuOpen((prev) => !prev)}>
+              <i className="fas fa-plus" /> {t("New")}
+            </button>
+            {isNewMenuOpen ? (
+              <div className="drive-new-menu">
+                {canUpload ? <button type="button" onClick={openUploadPicker}><i className="fas fa-file-arrow-up" /> {t("File upload")}</button> : null}
+                {canUpload ? <button type="button" onClick={openFolderPicker}><i className="fas fa-folder-plus" /> {t("Folder upload")}</button> : null}
+                {canCreateFolder ? <button type="button" onClick={openNewFolderComposer}><i className="fas fa-folder" /> {t("New folder")}</button> : null}
+                {canUpload ? <button type="button" onClick={() => void createTemplateDocument("doc")}><i className="fas fa-file-lines" /> {t("Google Docs")}</button> : null}
+                {canUpload ? <button type="button" onClick={() => void createTemplateDocument("sheet")}><i className="fas fa-table" /> {t("Google Sheets")}</button> : null}
+                {canUpload ? <button type="button" onClick={() => void createTemplateDocument("slides")}><i className="fas fa-chalkboard" /> {t("Google Slides")}</button> : null}
+                <button type="button" onClick={() => { setIsNewMenuOpen(false); void loadData(); }}><i className="fas fa-rotate" /> {t("Refresh")}</button>
+              </div>
+            ) : null}
+          </div>
+
+          <button type="button" className={view === "home" ? "active" : ""} onClick={() => { setView("home"); setCurrentFolder(""); }}>{t("Home")}</button>
           <button type="button" className={view === "my" ? "active" : ""} onClick={() => { setView("my"); setCurrentFolder(""); }}>{t("My Drive")}</button>
-          <button type="button" className={view === "shared" ? "active" : ""} onClick={() => { setView("shared"); setCurrentFolder(""); }}>{t("Shared With Me")}</button>
-          <button type="button" className={view === "dept" ? "active" : ""} onClick={() => { setView("dept"); setCurrentFolder(""); }}>{t("Department Drive")}</button>
-          <button type="button" className={view === "org" ? "active" : ""} onClick={() => { setView("org"); setCurrentFolder(""); }}>{t("Organization")}</button>
+          <button type="button" className={view === "shared" ? "active" : ""} onClick={() => { setView("shared"); setCurrentFolder(""); }}>{t("Shared with me")}</button>
+          <button type="button" className={view === "recent" ? "active" : ""} onClick={() => { setView("recent"); setCurrentFolder(""); }}>{t("Recent")}</button>
           <button type="button" className={view === "starred" ? "active" : ""} onClick={() => { setView("starred"); setCurrentFolder(""); }}>{t("Starred")}</button>
+          <button type="button" className={view === "dept" ? "active" : ""} onClick={() => { setView("dept"); setCurrentFolder(""); }}>{t("Department")}</button>
+          <button type="button" className={view === "org" ? "active" : ""} onClick={() => { setView("org"); setCurrentFolder(""); }}>{t("Organization")}</button>
           <button type="button" className={view === "trash" ? "active" : ""} onClick={() => { setView("trash"); setCurrentFolder(""); }}>{t("Trash")}</button>
           {canAdminPanel ? <button type="button" className={view === "admin" ? "active" : ""} onClick={() => setView("admin")}>{t("Drive Admin")}</button> : null}
 
@@ -963,65 +1304,93 @@ export default function FileSharing({ permissions }: PageProps) {
           ) : null}
         </aside>
 
-        <div className="drive-main">
+        <main className="drive-main">
+          <input
+            ref={uploadInputRef}
+            id="fs-file-input"
+            type="file"
+            multiple
+            style={{ display: "none" }}
+            onChange={(e) => {
+              const picked = Array.from(e.target.files ?? []);
+              if (picked.length) setFiles((prev) => [...prev, ...createUploadQueueItems(picked, "files")]);
+              e.target.value = "";
+            }}
+          />
+
           {view !== "admin" ? (
             <>
+              <section className="drive-hero">
+                <div>
+                  <h1>{view === "home" ? t("Welcome to Drive") : t("Google Drive-style Workspace")}</h1>
+                  <p>{view === "home" ? t("Find your recent and suggested content quickly.") : t("Files, folders, sharing, versioning, and governance in one place.")}</p>
+                </div>
+                <div className="drive-metrics">
+                  <div><strong>{rows.filter((r) => !isDeleted(r)).length}</strong><span>{t("Active items")}</span></div>
+                  <div><strong>{formatBytes(selfUsageBytes)}</strong><span>{t("My usage")}</span></div>
+                  <div><strong>{selfQuotaMb} MB</strong><span>{t("My quota")}</span></div>
+                </div>
+              </section>
+
               <div className="drive-breadcrumb">
                 {breadcrumb.map((node) => (
                   <button key={node.path || "root"} type="button" onClick={() => setCurrentFolder(node.path)}>{node.label}</button>
                 ))}
               </div>
 
-              <PermissionGate moduleId="filesharing" optionId="filesharing_upload">
-                <section className="filesharing-composer drive-card">
-                  <div className="drive-card-title">{t("Upload and Share")}</div>
-                  <div
-                    ref={dropRef}
-                    className={`filesharing-dropzone${dragging ? " dragging" : ""}`}
-                    onDragOver={onDragOver}
-                    onDragLeave={onDragLeave}
-                    onDrop={onDrop}
-                    onClick={() => document.getElementById("fs-file-input")?.click()}
-                  >
-                    <i className="fas fa-cloud-arrow-up" />
-                    <span>{t("Drop files here or click to browse")}</span>
-                    <span className="filesharing-dropzone-sub">{t("Max")} {MAX_UPLOAD_MB}MB {t("per file")}</span>
+              {selectedIds.length ? (
+                <section className="drive-card drive-bulk-bar">
+                  <strong>{selectedIds.length} {t("selected")}</strong>
+                  <div className="drive-inline-actions">
+                    {canMove ? <button type="button" onClick={() => void bulkMove()}>{t("Move")}</button> : null}
+                    {canCreateShareLink ? <button type="button" onClick={() => void bulkShare()}>{t("Share")}</button> : null}
+                    {canStar ? <button type="button" onClick={() => void bulkStar()}>{t("Star")}</button> : null}
+                    <button type="button" className="danger" onClick={() => void bulkDelete()}>{t("Delete")}</button>
+                    <button type="button" onClick={() => setSelectedIds([])}>{t("Clear")}</button>
                   </div>
-                  <input
-                    id="fs-file-input"
-                    type="file"
-                    multiple
-                    style={{ display: "none" }}
-                    onChange={(e) => {
-                      const picked = Array.from(e.target.files ?? []);
-                      if (picked.length) setFiles((prev) => [...prev, ...picked]);
-                      e.target.value = "";
-                    }}
-                  />
+                </section>
+              ) : null}
 
-                  <div className="filesharing-grid">
-                    {files.length === 1 ? <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder={t("Display name (optional)")} /> : null}
-                    <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("Description (optional)")} />
-                    {canShare ? (
-                      <select value={scope} onChange={(e) => setScope(e.target.value as ShareScope)}>
-                        <option value="PRIVATE">{t("Private")}</option>
-                        <option value="DEPARTMENT">{t("Department")}</option>
-                        <option value="SELECTED_USERS">{t("Selected users")}</option>
-                        <option value="SELECTED_DEPARTMENTS">{t("Selected departments")}</option>
-                        <option value="ORGANIZATION">{t("Organization")}</option>
-                      </select>
-                    ) : null}
-                  </div>
+              {(composerMode === "upload" && canUpload) || (composerMode === "folder" && canCreateFolder) ? (
+                <section className="filesharing-composer drive-card">
+                  <div className="drive-card-title">{composerMode === "folder" ? t("Create folder") : t("Upload to Drive")}</div>
+                  {composerMode === "upload" ? (
+                    <>
+                      <div ref={dropRef} className={`filesharing-dropzone${dragging ? " dragging" : ""}`} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onClick={openUploadPicker}>
+                        <i className="fas fa-cloud-arrow-up" />
+                        <span>{t("Drop files here or click to upload")}</span>
+                        <span className="filesharing-dropzone-sub">{t("Max")}: {MAX_UPLOAD_MB}MB {t("per file")}</span>
+                      </div>
+
+                      <div className="filesharing-grid">
+                        {files.length === 1 && files[0]?.source === "files" ? <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder={t("Display name (optional)")} /> : null}
+                        <input value={description} onChange={(e) => setDescription(e.target.value)} placeholder={t("Description (optional)")} />
+                        {canShare ? (
+                          <select value={scope} onChange={(e) => setScope(e.target.value as ShareScope)}>
+                            <option value="PRIVATE">{t("Private")}</option>
+                            <option value="DEPARTMENT">{t("Department")}</option>
+                            <option value="SELECTED_USERS">{t("Selected users")}</option>
+                            <option value="SELECTED_DEPARTMENTS">{t("Selected departments")}</option>
+                            <option value="ORGANIZATION">{t("Organization")}</option>
+                          </select>
+                        ) : null}
+                      </div>
+                    </>
+                  ) : null}
+
+                  {composerMode === "folder" ? (
+                    <div className="drive-inline-actions drive-inline-actions-stack">
+                      <input value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder={t("New folder name")} />
+                      <button type="button" className="filesharing-primary" onClick={() => void createFolder()}>{t("Create folder")}</button>
+                      <button type="button" onClick={resetComposer}>{t("Cancel")}</button>
+                    </div>
+                  ) : null}
 
                   {scope === "SELECTED_USERS" && canShare ? (
                     <div className="filesharing-picks">
                       {directory.filter((u) => u.email !== selfEmail).slice(0, 100).map((u) => (
                         <label key={u.email}>
-                          <input
-                            type="checkbox"
-                            checked={selectedUsers.includes(u.email)}
-                            onChange={(e) => setSelectedUsers((prev) => e.target.checked ? [...prev, u.email] : prev.filter((x) => x !== u.email))}
-                          />
+                          <input type="checkbox" checked={selectedUsers.includes(u.email)} onChange={(e) => setSelectedUsers((prev) => e.target.checked ? [...prev, u.email] : prev.filter((x) => x !== u.email))} />
                           <span>{u.fullName} ({u.email})</span>
                         </label>
                       ))}
@@ -1032,158 +1401,205 @@ export default function FileSharing({ permissions }: PageProps) {
                     <div className="filesharing-picks">
                       {departments.map((d) => (
                         <label key={d.key}>
-                          <input
-                            type="checkbox"
-                            checked={selectedDepartments.includes(d.key)}
-                            onChange={(e) => setSelectedDepartments((prev) => e.target.checked ? [...prev, d.key] : prev.filter((x) => x !== d.key))}
-                          />
+                          <input type="checkbox" checked={selectedDepartments.includes(d.key)} onChange={(e) => setSelectedDepartments((prev) => e.target.checked ? [...prev, d.key] : prev.filter((x) => x !== d.key))} />
                           <span>{d.name}</span>
                         </label>
                       ))}
                     </div>
                   ) : null}
 
-                  {files.length ? (
+                  {composerMode === "upload" && files.length ? (
                     <div className="filesharing-selected-files">
-                      {files.map((f, idx) => (
-                        <div key={`${f.name}-${idx}`} className="filesharing-selected-file">
-                          <i className={fileIcon(f.type, false)} />
-                          <span className="filesharing-selected-file-name">{f.name}</span>
-                          <span className="filesharing-selected-file-size">{formatBytes(f.size)}</span>
-                          {uploadProgress[f.name] !== undefined ? (
-                            <div className="filesharing-progress-bar"><div className="filesharing-progress-fill" style={{ width: `${uploadProgress[f.name]}%` }} /></div>
-                          ) : null}
+                      {files.map((entry) => (
+                        <div key={entry.id} className="filesharing-selected-file">
+                          <i className={fileIcon(entry.file.type, false)} />
+                          <span className="filesharing-selected-file-name">{entry.relativePath}</span>
+                          <span className="filesharing-selected-file-size">{formatBytes(entry.file.size)}</span>
+                          {uploadProgress[entry.id] !== undefined ? <div className="filesharing-progress-bar"><div className="filesharing-progress-fill" style={{ width: `${uploadProgress[entry.id]}%` }} /></div> : null}
                         </div>
                       ))}
                     </div>
                   ) : null}
 
-                  <div className="drive-inline-actions">
-                    {canCreateFolder ? (
-                      <>
-                        <input value={newFolderName} onChange={(e) => setNewFolderName(e.target.value)} placeholder={t("New folder name")} />
-                        <button type="button" onClick={() => void createFolder()}>{t("Create Folder")}</button>
-                      </>
-                    ) : null}
-                    <button type="button" className="filesharing-primary" onClick={() => void uploadFile()} disabled={!files.length || saving || !canUpload}>
-                      {saving ? t("Uploading...") : t("Upload")}
-                    </button>
-                  </div>
+                  {composerMode === "upload" ? (
+                    <div className="drive-inline-actions">
+                      <button type="button" onClick={openUploadPicker}>{t("Add files")}</button>
+                      <button type="button" onClick={openFolderPicker}>{t("Add folder")}</button>
+                      <button type="button" className="filesharing-primary" onClick={() => void uploadFile()} disabled={!files.length || saving || !canUpload}>{saving ? t("Uploading...") : t("Upload")}</button>
+                      <button type="button" onClick={resetComposer}>{t("Cancel")}</button>
+                    </div>
+                  ) : null}
                 </section>
-              </PermissionGate>
+              ) : null}
 
-              <section className="filesharing-list drive-card">
-                <div className="drive-card-title">{t("Drive Items")} ({visibleRows.length})</div>
+              {view === "home" ? (
+                <section className="drive-home-grid">
+                  <section className="drive-card">
+                    <div className="drive-card-title">{t("Suggested folders")}</div>
+                    <div className="drive-suggested-grid">
+                      {homeFolderRows.length ? homeFolderRows.map((row) => (
+                        <button key={row.id} type="button" className="drive-suggested-card" onClick={() => void openRow(row)}>
+                          <div className="drive-suggested-card-head"><span><i className="fas fa-folder" /> {String(row?.displayName || t("Untitled"))}</span></div>
+                          <span>{String(row?.ownerName || row?.ownerEmail || "-")}</span>
+                        </button>
+                      )) : <div className="filesharing-empty">{t("No folders to suggest yet")}</div>}
+                    </div>
+                  </section>
+
+                  <section className="drive-card">
+                    <div className="drive-card-title">{t("Suggested files")}</div>
+                    <div className="drive-items-grid">
+                      {homeFileRows.length ? homeFileRows.map((row) => {
+                        const ct = String(row?.contentType ?? "");
+                        return (
+                          <button key={row.id} type="button" className="drive-home-file-card" onClick={() => void openRow(row)}>
+                            <div className="drive-home-file-card-title"><i className={fileIcon(ct, false)} /> {String(row?.displayName || t("Untitled"))}</div>
+                            <span>{String(row?.ownerName || row?.ownerEmail || "-")}</span>
+                            <span>{formatBytes(Number(row?.sizeBytes ?? 0))}</span>
+                          </button>
+                        );
+                      }) : <div className="filesharing-empty">{t("No recent files yet")}</div>}
+                    </div>
+                  </section>
+                </section>
+              ) : null}
+
+              {view !== "home" ? <section className="drive-card">
+                <div className="drive-card-title">{t("Drive items")} ({visibleRows.length})</div>
                 {visibleRows.length === 0 ? <div className="filesharing-empty">{t("No items found")}</div> : null}
 
-                {visibleRows.map((row) => {
-                  const folder = isFolder(row);
-                  const ct = String(row?.contentType ?? "");
-                  const stars = parseJsonArray(row?.starredByJson).map(normalizeEmail);
-                  const starred = stars.includes(selfEmail);
-                  return (
-                    <div key={row.id} className="filesharing-item">
-                      <div className="filesharing-item-left">
-                        <div className={`filesharing-file-icon ${folder ? "folder" : ct === PDF_TYPE ? "pdf" : ct.startsWith("image/") ? "image" : ""}`}>
-                          <i className={fileIcon(ct, folder)} />
-                        </div>
-                      </div>
+                <div className={layout === "grid" ? "drive-items-grid" : "drive-items-list"}>
+                  {visibleRows.map((row) => {
+                    const folder = isFolder(row);
+                    const ct = String(row?.contentType ?? "");
+                    const stars = parseJsonArray(row?.starredByJson).map(normalizeEmail);
+                    const starred = stars.includes(selfEmail);
 
-                      <div className="filesharing-item-main">
-                        <button type="button" className="drive-name-link" onClick={() => { if (folder) setCurrentFolder(normalizeFolderPath(currentFolder ? `${currentFolder}/${row.displayName}` : row.displayName)); }}>
-                          {String(row?.displayName || t("Untitled"))}
-                        </button>
-                        <div className="filesharing-meta">
-                          {String(row?.ownerName || row?.ownerEmail || "-")} • {String(row?.ownerDepartmentName || t("No department"))} • {String(row?.visibilityScope || "DEPARTMENT")} • {formatBytes(Number(row?.sizeBytes ?? 0))}
-                        </div>
-                        {row?.description ? <div className="filesharing-desc">{String(row.description)}</div> : null}
-                      </div>
-
-                      <div className="filesharing-item-actions">
-                        {canStar ? <button type="button" onClick={() => void toggleStar(row)} title={t("Star")}>{starred ? "★" : "☆"}</button> : null}
-                        {!folder ? <PermissionGate moduleId="filesharing" optionId="filesharing_download"><button type="button" onClick={() => void downloadFile(row)}>{t("Download")}</button></PermissionGate> : null}
-                        {!folder ? <PermissionGate moduleId="filesharing" optionId="filesharing_view"><button type="button" onClick={() => void openPreview(row)}>{t("Preview")}</button></PermissionGate> : null}
-                        {!folder && canCreateShareLink ? <button type="button" onClick={() => void createSharedLink(row)}>{t("Create Link")}</button> : null}
-                        {!folder && canCreateShareLink ? <button type="button" onClick={() => setLinkTargetId((prev) => prev === row.id ? "" : row.id)}>{t("Links")}</button> : null}
-                        {!folder && canViewVersions ? <button type="button" onClick={() => setVersionTargetId((prev) => prev === row.id ? "" : row.id)}>{t("Versions")}</button> : null}
-                        {!folder && canUpload ? <button type="button" onClick={() => void replaceWithNewVersion(row)}>{t("Upload New Version")}</button> : null}
-                        {canMove ? <button type="button" onClick={() => void moveRow(row)}>{t("Move")}</button> : null}
-                        {!isDeleted(row) ? <button type="button" className="danger" onClick={() => void deleteRow(row)}>{t("Delete")}</button> : null}
-                        {view === "trash" ? <button type="button" onClick={() => void restoreRow(row)}>{t("Restore")}</button> : null}
-                      </div>
-
-                      {linkTargetId === row.id ? (
-                        <div className="drive-subpanel">
-                          <div className="drive-subpanel-title">{t("Shared Links")}</div>
-                          <div className="drive-inline-actions">
-                            <input value={shareExpiryHours} onChange={(e) => setShareExpiryHours(e.target.value)} placeholder={t("Expiry hours")} />
-                            <input value={shareMaxDownloads} onChange={(e) => setShareMaxDownloads(e.target.value)} placeholder={t("Max downloads (optional)")} />
-                            <button type="button" onClick={() => void createSharedLink(row)}>{t("Generate")}</button>
+                    return (
+                      <div
+                        key={row.id}
+                        className={`filesharing-item ${layout === "grid" ? "as-grid" : ""} ${selectedIds.includes(String(row?.id ?? "")) ? "is-selected" : ""}`}
+                        onClick={(event) => handleRowPointerSelect(event, String(row?.id ?? ""))}
+                        onDoubleClick={() => void openRow(row)}
+                        onContextMenu={(event) => onRowContextMenu(event, row)}
+                      >
+                        <div className="filesharing-item-left">
+                          <div className={`filesharing-file-icon ${folder ? "folder" : ct === PDF_TYPE ? "pdf" : ct.startsWith("image/") ? "image" : ""}`}>
+                            <i className={fileIcon(ct, folder)} />
                           </div>
-                          {(linksByItem.get(String(row.id)) ?? []).slice(0, 6).map((link) => {
-                            const expired = Date.parse(String(link?.expiresAt ?? "")) < Date.now();
-                            const revoked = Boolean(link?.revokedAt);
-                            return (
-                              <div key={link.id} className="drive-link-row">
-                                <div>
-                                  <strong>{revoked ? t("Revoked") : expired ? t("Expired") : t("Active")}</strong>
-                                  <span>{t("Expires")}: {String(link?.expiresAt ?? "-")}</span>
-                                </div>
-                                <div className="drive-inline-actions">
-                                  <button
-                                    type="button"
-                                    onClick={async () => {
-                                      try {
-                                        const hoursLeft = Math.max(1, Math.ceil((Date.parse(String(link?.expiresAt ?? "")) - Date.now()) / 3600000));
-                                        const out = await getUrl({ path: String(row?.storagePath ?? ""), options: { expiresIn: Math.min(604800, hoursLeft * 3600) } });
-                                        const linkUrl = out.url.toString();
-                                        try { await navigator.clipboard.writeText(linkUrl); } catch {}
-                                        setStatus(`${t("Link copied")}: ${linkUrl}`);
-                                      } catch {
-                                        setStatus(t("Unable to regenerate signed link for this entry."));
-                                      }
-                                    }}
-                                  >
-                                    {t("Copy")}
-                                  </button>
-                                  {!revoked && (canRevokeShareLink || canManageAll || isAdminGroup) ? (
-                                    <button type="button" className="danger" onClick={() => void revokeSharedLink(link)}>{t("Revoke")}</button>
-                                  ) : null}
-                                </div>
-                              </div>
-                            );
-                          })}
                         </div>
-                      ) : null}
 
-                      {versionTargetId === row.id ? (
-                        <div className="drive-subpanel">
-                          <div className="drive-subpanel-title">{t("Version History")}</div>
-                          {(versionsByItem.get(String(row.id)) ?? []).slice(0, 10).map((v) => (
-                            <div key={v.id} className="drive-version-row">
-                              <div>
-                                <strong>v{v.versionNumber}</strong>
-                                <span>{String(v?.createdAt ?? "-")} • {formatBytes(Number(v?.sizeBytes ?? 0))}</span>
-                              </div>
-                              {canRestoreVersions || canManageAll || isAdminGroup ? (
-                                <button type="button" onClick={() => void restoreVersion(row, v)}>{t("Restore")}</button>
-                              ) : null}
-                            </div>
-                          ))}
-                          {!(versionsByItem.get(String(row.id)) ?? []).length ? <div className="filesharing-empty">{t("No saved versions yet")}</div> : null}
+                        <div className="filesharing-item-main">
+                          {renamingId === String(row?.id ?? "") ? (
+                            <form
+                              className="drive-rename-form"
+                              onSubmit={(event) => {
+                                event.preventDefault();
+                                void submitRename(row);
+                              }}
+                            >
+                              <input
+                                value={renameValue}
+                                onChange={(event) => setRenameValue(event.target.value)}
+                                autoFocus
+                                onKeyDown={(event) => {
+                                  if (event.key === "Escape") {
+                                    setRenamingId("");
+                                    setRenameValue("");
+                                  }
+                                }}
+                              />
+                              <button type="submit">{t("Save")}</button>
+                            </form>
+                          ) : (
+                            <button type="button" className="drive-name-link" onClick={() => void openRow(row)}>{String(row?.displayName || t("Untitled"))}</button>
+                          )}
+                          <div className="filesharing-meta">{String(row?.ownerName || row?.ownerEmail || "-")} • {String(row?.ownerDepartmentName || t("No department"))} • {String(row?.visibilityScope || "DEPARTMENT")} • {formatBytes(Number(row?.sizeBytes ?? 0))}</div>
+                          {row?.description ? <div className="filesharing-desc">{String(row.description)}</div> : null}
                         </div>
-                      ) : null}
-                    </div>
-                  );
-                })}
-              </section>
+
+                        <div className="filesharing-item-actions">
+                          {canStar ? <button type="button" onClick={() => void toggleStar(row)} title={t("Star")}>{starred ? "★" : "☆"}</button> : null}
+                          {!folder ? <PermissionGate moduleId="filesharing" optionId="filesharing_download"><button type="button" onClick={() => void downloadFile(row)}>{t("Download")}</button></PermissionGate> : null}
+                          {!folder ? <PermissionGate moduleId="filesharing" optionId="filesharing_view"><button type="button" onClick={() => void openPreview(row)}>{t("Preview")}</button></PermissionGate> : null}
+                          {!folder && canCreateShareLink ? <button type="button" onClick={() => void createSharedLink(row)}>{t("Create link")}</button> : null}
+                          {canRenameRow(row) ? <button type="button" onClick={() => beginRename(row)}>{t("Rename")}</button> : null}
+                          {!folder && canCreateShareLink ? <button type="button" onClick={() => setLinkTargetId((prev) => prev === row.id ? "" : row.id)}>{t("Links")}</button> : null}
+                          {!folder && canViewVersions ? <button type="button" onClick={() => setVersionTargetId((prev) => prev === row.id ? "" : row.id)}>{t("Versions")}</button> : null}
+                          {!folder && canUpload ? <button type="button" onClick={() => void replaceWithNewVersion(row)}>{t("Upload version")}</button> : null}
+                          {canMove ? <button type="button" onClick={() => void moveRow(row)}>{t("Move")}</button> : null}
+                          {!isDeleted(row) ? <button type="button" className="danger" onClick={() => void deleteRow(row)}>{t("Delete")}</button> : null}
+                          {view === "trash" ? <button type="button" onClick={() => void restoreRow(row)}>{t("Restore")}</button> : null}
+                        </div>
+
+                        {linkTargetId === row.id ? (
+                          <div className="drive-subpanel">
+                            <div className="drive-subpanel-title">{t("Shared links")}</div>
+                            <div className="drive-inline-actions">
+                              <input value={shareExpiryHours} onChange={(e) => setShareExpiryHours(e.target.value)} placeholder={t("Expiry hours")} />
+                              <input value={shareMaxDownloads} onChange={(e) => setShareMaxDownloads(e.target.value)} placeholder={t("Max downloads (optional)")} />
+                              <button type="button" onClick={() => void createSharedLink(row)}>{t("Generate")}</button>
+                            </div>
+                            {(linksByItem.get(String(row.id)) ?? []).slice(0, 6).map((link) => {
+                              const expired = Date.parse(String(link?.expiresAt ?? "")) < Date.now();
+                              const revoked = Boolean(link?.revokedAt);
+                              return (
+                                <div key={link.id} className="drive-link-row">
+                                  <div>
+                                    <strong>{revoked ? t("Revoked") : expired ? t("Expired") : t("Active")}</strong>
+                                    <span>{t("Expires")}: {String(link?.expiresAt ?? "-")}</span>
+                                  </div>
+                                  <div className="drive-inline-actions">
+                                    <button
+                                      type="button"
+                                      onClick={async () => {
+                                        try {
+                                          if (!DRIVE_SHARE_RESOLVER_URL) return setStatus("VITE_DRIVE_SHARE_RESOLVER_URL is missing.");
+                                          const linkUrl = `${window.location.origin}/share.html?t=${encodeURIComponent(String(link?.token ?? ""))}&r=${encodeURIComponent(DRIVE_SHARE_RESOLVER_URL)}`;
+                                          try { await navigator.clipboard.writeText(linkUrl); } catch {}
+                                          setStatus(`${t("Link copied")}: ${linkUrl}`);
+                                        } catch {
+                                          setStatus(t("Unable to copy this shared link."));
+                                        }
+                                      }}
+                                    >
+                                      {t("Copy")}
+                                    </button>
+                                    {!revoked && (canRevokeShareLink || canManageAll || isAdminGroup) ? <button type="button" className="danger" onClick={() => void revokeSharedLink(link)}>{t("Revoke")}</button> : null}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : null}
+
+                        {versionTargetId === row.id ? (
+                          <div className="drive-subpanel">
+                            <div className="drive-subpanel-title">{t("Version history")}</div>
+                            {(versionsByItem.get(String(row.id)) ?? []).slice(0, 10).map((v) => (
+                              <div key={v.id} className="drive-version-row">
+                                <div>
+                                  <strong>v{v.versionNumber}</strong>
+                                  <span>{String(v?.createdAt ?? "-")} • {formatBytes(Number(v?.sizeBytes ?? 0))}</span>
+                                </div>
+                                {canRestoreVersions || canManageAll || isAdminGroup ? <button type="button" onClick={() => void restoreVersion(row, v)}>{t("Restore")}</button> : null}
+                              </div>
+                            ))}
+                            {!(versionsByItem.get(String(row.id)) ?? []).length ? <div className="filesharing-empty">{t("No saved versions yet")}</div> : null}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
+                </div>
+              </section> : null}
             </>
           ) : null}
 
           {view === "admin" && canAdminPanel ? (
             <section className="drive-card drive-admin-grid">
               <div>
-                <div className="drive-card-title">{t("Storage Governance")}</div>
+                <div className="drive-card-title">{t("Storage governance")}</div>
                 <div className="drive-inline-actions">
                   <select value={quotaEmail} onChange={(e) => setQuotaEmail(e.target.value)}>
                     <option value="">{t("Select user")}</option>
@@ -1193,16 +1609,16 @@ export default function FileSharing({ permissions }: PageProps) {
                 </div>
                 <div className="drive-inline-actions">
                   <label><input type="checkbox" checked={quotaBlocked} onChange={(e) => setQuotaBlocked(e.target.checked)} /> {t("Block uploads")}</label>
-                  <input value={quotaNotes} onChange={(e) => setQuotaNotes(e.target.value)} placeholder={t("Admin notes")}/>
+                  <input value={quotaNotes} onChange={(e) => setQuotaNotes(e.target.value)} placeholder={t("Admin notes")} />
                 </div>
                 <div className="drive-inline-actions">
-                  <button type="button" onClick={() => void saveQuota(quotaEmail)} disabled={!canManageQuota}>{t("Save User Quota")}</button>
-                  <button type="button" onClick={() => void saveQuota("*")} disabled={!canManageQuota}>{t("Save Default Quota")}</button>
+                  <button type="button" onClick={() => void saveQuota(quotaEmail)} disabled={!canManageQuota}>{t("Save user quota")}</button>
+                  <button type="button" onClick={() => void saveQuota("*")} disabled={!canManageQuota}>{t("Save default quota")}</button>
                 </div>
               </div>
 
               <div>
-                <div className="drive-card-title">{t("Usage Matrix")}</div>
+                <div className="drive-card-title">{t("Usage matrix")}</div>
                 <div className="drive-usage-list">
                   {directory.map((u) => {
                     const usage = usageByOwner.get(u.email) ?? 0;
@@ -1222,7 +1638,7 @@ export default function FileSharing({ permissions }: PageProps) {
                   })}
                 </div>
 
-                <div className="drive-card-title drive-top-gap">{t("Usage Trends (14 Days)")}</div>
+                <div className="drive-card-title drive-top-gap">{t("Usage trends (14 days)")}</div>
                 <div className="drive-trend-list">
                   {trendRows.map((row) => (
                     <div key={row.email} className="drive-trend-row">
@@ -1235,21 +1651,38 @@ export default function FileSharing({ permissions }: PageProps) {
                   {!trendRows.length ? <div className="filesharing-empty">{t("No file activity in the last 14 days")}</div> : null}
                 </div>
 
-                <div className="drive-card-title drive-top-gap">{t("Alert Center")}</div>
+                <div className="drive-card-title drive-top-gap">{t("Alert center")}</div>
                 <div className="drive-alert-list">
-                  {adminAlerts.map((a, idx) => (
-                    <div key={`${a.level}-${idx}`} className={`drive-alert ${a.level}`}>
-                      {a.text}
-                    </div>
-                  ))}
+                  {adminAlerts.map((a, idx) => <div key={`${a.level}-${idx}`} className={`drive-alert ${a.level}`}>{a.text}</div>)}
                 </div>
               </div>
             </section>
           ) : null}
-        </div>
+        </main>
       </section>
 
       {status ? <div className="filesharing-status">{status}</div> : null}
+
+      {contextMenu ? (
+        <div className="drive-context-menu" style={{ left: contextMenu.x, top: contextMenu.y }} onClick={(e) => e.stopPropagation()}>
+          {(() => {
+            const row = rowById.get(contextMenu.rowId);
+            if (!row) return null;
+            const folder = isFolder(row);
+            return (
+              <>
+                <button type="button" onClick={() => { setContextMenu(null); void openRow(row); }}>{folder ? t("Open") : t("Open / Preview")}</button>
+                {!folder ? <button type="button" onClick={() => { setContextMenu(null); void downloadFile(row); }}>{t("Download")}</button> : null}
+                {canRenameRow(row) ? <button type="button" onClick={() => beginRename(row)}>{t("Rename")}</button> : null}
+                {canMove ? <button type="button" onClick={() => { setContextMenu(null); void moveRow(row); }}>{t("Move")}</button> : null}
+                {!folder && canCreateShareLink ? <button type="button" onClick={() => { setContextMenu(null); void createSharedLink(row); }}>{t("Create link")}</button> : null}
+                {canStar ? <button type="button" onClick={() => { setContextMenu(null); void toggleStar(row); }}>{t("Star")}</button> : null}
+                {canDeleteRow(row) ? <button type="button" className="danger" onClick={() => { setContextMenu(null); void deleteRow(row); }}>{t("Delete")}</button> : null}
+              </>
+            );
+          })()}
+        </div>
+      ) : null}
     </div>
   );
 }
