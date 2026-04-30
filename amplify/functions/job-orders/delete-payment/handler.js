@@ -22,4 +22,3 @@ export const handler = async (event) => {
     await recomputeJobOrderPaymentSummary(client, jobOrderId);
     return { ok: true, deletedId: id, jobOrderId };
 };
-
