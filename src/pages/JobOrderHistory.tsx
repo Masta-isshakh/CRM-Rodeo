@@ -1022,7 +1022,7 @@ export default function JobOrderHistory({
                   normalizeDateTimeForSummary(row?.exitPermitDate ?? detailed?.exitPermitDate ?? row?.updatedAt) ??
                   ""
               ).trim(),
-            nextServiceDate: 
+            nextServiceDate:  
               String(
                 parsed?.exitPermit?.nextServiceDate ??
                   detailed?.exitPermit?.nextServiceDate ??
