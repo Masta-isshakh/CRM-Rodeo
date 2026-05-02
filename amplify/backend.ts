@@ -108,18 +108,8 @@ sendSmsFn.addEnvironment("SMS_AUDIT_TOPIC_ARN", SMS_AUDIT_TOPIC_ARN);
 processSmsEventsFn.addEnvironment("SMS_AUDIT_TOPIC_ARN", SMS_AUDIT_TOPIC_ARN);
 processSmsEventsFn.addEnvironment("SMS_AUDIT_QUEUE_ARN", SMS_AUDIT_QUEUE_ARN);
 
-// Cross-account SQS permissions: explicit policy for Lambda execution role
-processSmsEventsFn.addToRolePolicy(
-  new PolicyStatement({
-    actions: [
-      "sqs:ReceiveMessage",
-      "sqs:DeleteMessage",
-      "sqs:GetQueueAttributes",
-      "sqs:ChangeMessageVisibility",
-    ],
-    resources: [SMS_AUDIT_QUEUE_ARN],
-  })
-);
+// Ensure SQS consume permissions are attached with proper dependency ordering.
+importedSmsAuditQueue.grantConsumeMessages(processSmsEventsFn);
 
 processSmsEventsFn.addEventSource(
   new SqsEventSource(importedSmsAuditQueue, {
