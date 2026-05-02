@@ -357,6 +357,7 @@ const schema = a
         starredByJson: a.string(),
         sharedWithUsersJson: a.string(),
         sharedWithDepartmentsJson: a.string(),
+        sortOrder: a.integer().default(0),
         downloadCount: a.integer().default(0),
         createdAt: a.datetime().required(),
         updatedAt: a.datetime(),
@@ -364,6 +365,25 @@ const schema = a
     })
         .secondaryIndexes((index) => [
         index("ownerEmail").queryField("fileShareItemsByOwner"),
+    ])
+        .authorization((allow) => [allow.authenticated().to(["read", "create", "update", "delete"])]),
+    DriveDepartmentSpace: a
+        .model({
+        departmentKey: a.string().required(),
+        departmentName: a.string().required(),
+        displayName: a.string().required(),
+        description: a.string(),
+        rootFolderPath: a.string().required(),
+        managersJson: a.string(),
+        quotaMb: a.integer(),
+        uploadBlocked: a.boolean().default(false),
+        sortOrder: a.integer().default(0),
+        createdAt: a.datetime().required(),
+        updatedAt: a.datetime(),
+        updatedBy: a.string(),
+    })
+        .secondaryIndexes((index) => [
+        index("departmentKey").queryField("driveDepartmentSpacesByDepartment"),
     ])
         .authorization((allow) => [allow.authenticated().to(["read", "create", "update", "delete"])]),
     DriveStorageQuota: a
