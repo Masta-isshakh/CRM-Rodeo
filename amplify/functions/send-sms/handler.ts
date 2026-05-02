@@ -4,6 +4,7 @@ import { SNSClient, PublishCommand } from "@aws-sdk/client-sns";
 const DEFAULT_CC = process.env.DEFAULT_COUNTRY_CODE ?? "+974";
 const REGION = process.env.SMS_REGION ?? "ap-south-1";
 const AUDIT_TOPIC_ARN = process.env.SMS_AUDIT_TOPIC_ARN ?? "";
+const IS_FIFO_AUDIT_TOPIC = AUDIT_TOPIC_ARN.endsWith(".fifo");
 
 const sns = new SNSClient({ region: REGION });
 
@@ -51,13 +52,16 @@ export const handler = async (event: any): Promise<any> => {
 
     const publishAuditEvent = async (payload: Record<string, unknown>) => {
       if (!AUDIT_TOPIC_ARN) return;
+      const publishInput: any = {
+        TopicArn: AUDIT_TOPIC_ARN,
+        Message: JSON.stringify(payload),
+      };
+      if (IS_FIFO_AUDIT_TOPIC) {
+        publishInput.MessageGroupId = `sms-${smsLogId || batchId || "default"}`;
+        publishInput.MessageDeduplicationId = `${batchId || "no-batch"}:${String(payload.phone ?? raw)}:${String(payload.status ?? "UNKNOWN")}:${sentAt}`;
+      }
       await sns.send(
-        new PublishCommand({
-          TopicArn: AUDIT_TOPIC_ARN,
-          Message: JSON.stringify(payload),
-          MessageGroupId: `sms-${smsLogId || batchId || "default"}`,
-          MessageDeduplicationId: `${batchId || "no-batch"}:${String(payload.phone ?? raw)}:${String(payload.status ?? "UNKNOWN")}:${sentAt}`,
-        })
+        new PublishCommand(publishInput)
       );
     };
 

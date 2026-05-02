@@ -1,10 +1,12 @@
 import { defineBackend } from "@aws-amplify/backend";
+import * as cdk from "aws-cdk-lib";
 import { PolicyStatement, ServicePrincipal } from "aws-cdk-lib/aws-iam";
 import * as lambda from "aws-cdk-lib/aws-lambda";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
 import * as sns from "aws-cdk-lib/aws-sns";
 import * as sqs from "aws-cdk-lib/aws-sqs";
+import * as subscriptions from "aws-cdk-lib/aws-sns-subscriptions";
 import { SqsEventSource } from "aws-cdk-lib/aws-lambda-event-sources";
 
 import { auth } from "./auth/resource";
@@ -30,9 +32,6 @@ import { processSmsEvents } from "./functions/process-sms-events/resource";
 import { resolveDriveShareLink } from "./functions/resolve-drive-share-link/resource";
 import { driveRetentionCleanup } from "./functions/drive-retention-cleanup/resource";
 import { processSmsDeliveryStatus } from "./functions/process-sms-delivery-status/resource";
-
-const SMS_AUDIT_TOPIC_ARN = "arn:aws:sns:ap-south-1:115246381405:Rodeo_Drive_Topic.fifo";
-const SMS_AUDIT_QUEUE_ARN = "arn:aws:sqs:ap-south-1:115246381405:Rodeo_Drive_Queue.fifo";
 
 const backend = defineBackend({
   auth,
@@ -94,8 +93,19 @@ adminCognitoFn.addEnvironment("USERPOOL_ID", backend.auth.resources.userPool.use
 const sendSmsFn = backend.sendSms.resources.lambda as unknown as lambda.Function;
 const processSmsEventsFn = backend.processSmsEvents.resources.lambda as unknown as lambda.Function;
 
-const importedSmsAuditTopic = sns.Topic.fromTopicArn(sendSmsFn, "ImportedSmsAuditTopic", SMS_AUDIT_TOPIC_ARN);
-const importedSmsAuditQueue = sqs.Queue.fromQueueArn(processSmsEventsFn, "ImportedSmsAuditQueue", SMS_AUDIT_QUEUE_ARN);
+// Stack-owned audit resources avoid cross-account IAM/resource-policy drift.
+const smsAuditTopic = new sns.Topic(sendSmsFn, "SmsAuditTopic", {
+  displayName: "Rodeo SMS Audit Topic",
+});
+
+const smsAuditQueue = new sqs.Queue(processSmsEventsFn, "SmsAuditQueue", {
+  visibilityTimeout: cdk.Duration.seconds(60),
+  retentionPeriod: cdk.Duration.days(14),
+});
+
+smsAuditTopic.addSubscription(new subscriptions.SqsSubscription(smsAuditQueue, {
+  rawMessageDelivery: true,
+}));
 
 sendSmsFn.addToRolePolicy(
   new PolicyStatement({
@@ -103,16 +113,17 @@ sendSmsFn.addToRolePolicy(
     resources: ["*"],  // SNS Direct Publish requires * (phone number, not topic)
   })
 );
-sendSmsFn.addEnvironment("SMS_AUDIT_TOPIC_ARN", SMS_AUDIT_TOPIC_ARN);
+smsAuditTopic.grantPublish(sendSmsFn);
+sendSmsFn.addEnvironment("SMS_AUDIT_TOPIC_ARN", smsAuditTopic.topicArn);
 
-processSmsEventsFn.addEnvironment("SMS_AUDIT_TOPIC_ARN", SMS_AUDIT_TOPIC_ARN);
-processSmsEventsFn.addEnvironment("SMS_AUDIT_QUEUE_ARN", SMS_AUDIT_QUEUE_ARN);
+processSmsEventsFn.addEnvironment("SMS_AUDIT_TOPIC_ARN", smsAuditTopic.topicArn);
+processSmsEventsFn.addEnvironment("SMS_AUDIT_QUEUE_ARN", smsAuditQueue.queueArn);
 
 // Ensure SQS consume permissions are attached with proper dependency ordering.
-importedSmsAuditQueue.grantConsumeMessages(processSmsEventsFn);
+smsAuditQueue.grantConsumeMessages(processSmsEventsFn);
 
 processSmsEventsFn.addEventSource(
-  new SqsEventSource(importedSmsAuditQueue, {
+  new SqsEventSource(smsAuditQueue, {
     batchSize: 1,
     reportBatchItemFailures: true,
   })
@@ -148,7 +159,7 @@ new events.Rule(resolveDriveShareLinkFn, "DriveRetentionCleanupDaily", {
 });
 
 // SMS Delivery Status Lambda permissions
-processSmsDeliveryStatusFn.addEnvironment("SMS_AUDIT_TOPIC_ARN", SMS_AUDIT_TOPIC_ARN);
+processSmsDeliveryStatusFn.addEnvironment("SMS_AUDIT_TOPIC_ARN", smsAuditTopic.topicArn);
 
 const customMessageFn = backend.customMessage.resources.lambda as unknown as lambda.Function;
 
