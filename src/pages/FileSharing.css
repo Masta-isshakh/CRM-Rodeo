@@ -56,6 +56,26 @@
   gap: 8px;
 }
 
+.drive-v2 button {
+  min-height: 36px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.drive-v2 button i {
+  width: 16px;
+  font-size: 14px;
+  text-align: center;
+  flex: 0 0 16px;
+}
+
 .drive-hero {
   border-radius: 20px;
   padding: 18px 22px;
@@ -148,7 +168,8 @@
   width: 100%;
   border: 1px solid #cfd8e5;
   border-radius: 18px;
-  padding: 12px 14px;
+  min-height: 42px;
+  padding: 10px 14px;
   background: #fff;
   color: #183f65;
   display: flex;
@@ -178,25 +199,35 @@
   border: none;
   background: transparent;
   border-radius: 10px;
-  padding: 9px 10px;
+  min-height: 36px;
+  padding: 8px 10px;
   text-align: left;
   display: flex;
   align-items: center;
   gap: 8px;
+  justify-content: flex-start;
 }
 
 .drive-new-menu button:hover {
   background: #eef6ff;
 }
 
+.drive-new-menu-separator {
+  height: 1px;
+  margin: 4px 6px;
+  background: #dce7f3;
+}
+
 .drive-sidebar button {
   border: 1px solid transparent;
   border-radius: 10px;
-  padding: 9px 10px;
+  min-height: 36px;
+  padding: 8px 10px;
   background: transparent;
   color: #24415f;
   text-align: left;
   cursor: pointer;
+  justify-content: flex-start;
 }
 
 .drive-sidebar button.active,
@@ -282,7 +313,8 @@
   border: 1px solid #c8d8e8;
   background: #f7fbff;
   border-radius: 999px;
-  padding: 4px 10px;
+  min-height: 30px;
+  padding: 4px 11px;
   cursor: pointer;
   color: #274667;
 }
@@ -529,6 +561,8 @@
   border: 1px solid #c9d8e8;
   background: #f8fbff;
   border-radius: 9px;
+  min-height: 34px;
+  min-width: 34px;
   padding: 7px 10px;
   cursor: pointer;
 }
@@ -1369,7 +1403,9 @@
   border: none;
   background: transparent;
   border-radius: 8px;
-  padding: 8px 10px;
+  min-height: 34px;
+  padding: 7px 10px;
+  justify-content: flex-start;
 }
 
 .drive-inline-menu button:hover {
@@ -1405,6 +1441,90 @@
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 1.4fr) auto auto;
 }
 
+.drive-approval-row {
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1fr) auto;
+}
+
+.drive-approval-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+.drive-approval-row strong {
+  display: block;
+}
+
+.drive-approval-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  font-size: 0.77rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  padding: 4px 9px;
+  border: 1px solid transparent;
+}
+
+.drive-approval-badge.success {
+  color: #0f6f4d;
+  background: #eafcf4;
+  border-color: #bde8d5;
+}
+
+.drive-approval-badge.error {
+  color: #9a1e1e;
+  background: #fff0f0;
+  border-color: #efbcbc;
+}
+
+.drive-approval-badge.pending {
+  color: #8a5a08;
+  background: #fff6e6;
+  border-color: #f0d8a8;
+}
+
+.drive-approval-reason {
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: #5f7187;
+  overflow-wrap: anywhere;
+}
+
+.drive-v2 button,
+.drive-v2 select {
+  color: #1d3954;
+}
+
+.drive-v2 button {
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.drive-v2 button:hover {
+  border-color: #b8cde3;
+}
+
+.drive-v2 .filesharing-primary,
+.drive-v2 .drive-new-button,
+.drive-v2 .drive-approval-actions button:first-child {
+  color: #ffffff;
+  border-color: transparent;
+}
+
+.drive-v2 .drive-new-button {
+  background: linear-gradient(120deg, #0f87ff, #00a690);
+  box-shadow: 0 14px 24px rgba(11, 95, 181, 0.28);
+}
+
+.drive-v2 .drive-new-button:hover {
+  filter: brightness(0.98);
+}
+
+.drive-v2 .danger {
+  color: #9f1f1f;
+}
+
 .drive-team-card button,
 .drive-trend-row button,
 .drive-inline-actions button,
@@ -1413,6 +1533,7 @@
   border: 1px solid #cdd9e6;
   border-radius: 10px;
   background: #f8fbff;
+  min-height: 36px;
   padding: 8px 11px;
   cursor: pointer;
 }

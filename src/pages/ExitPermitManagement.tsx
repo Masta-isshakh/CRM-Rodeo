@@ -1085,63 +1085,66 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
       )}
 
       {/* Exit Permit Modal */}
-      {showExitPermitModal && (
-        <div className="epm-exit-permit-modal">
-          <div className="epm-exit-permit-modal-content">
-            <h3>
-              <i className="fas fa-id-card"></i> {t("Create Exit Permit")}
-            </h3>
-            <form onSubmit={handleCreateExitPermit}>
-              <div className="epm-form-group">
-                <label>
-                  {t("Collected By")} <span className="epm-required">*</span>
-                </label>
-                <input
-                  type="text"
-                  value={exitPermitForm.collectedBy}
-                  onChange={(e) => setExitPermitForm({ ...exitPermitForm, collectedBy: e.target.value })}
-                  placeholder={t("Enter name of person collecting the vehicle")}
-                  required
-                />
-              </div>
-              <div className="epm-form-group">
-                <label>
-                  {t("Mobile Number")} <span className="epm-required">*</span>
-                </label>
-                <input
-                  type="tel"
-                  value={exitPermitForm.mobileNumber}
-                  onChange={(e) => setExitPermitForm({ ...exitPermitForm, mobileNumber: e.target.value })}
-                  placeholder={t("Enter mobile number")}
-                  required
-                />
-              </div>
-              <div className="epm-form-group">
-                <label>
-                  {t("Next Service Date")}{" "}
-                  {safeLower(currentOrderForPermit?.workStatus) !== "cancelled" && <span className="epm-required">*</span>}
-                </label>
-                <input
-                  type="date"
-                  value={exitPermitForm.nextServiceDate}
-                  onChange={(e) => setExitPermitForm({ ...exitPermitForm, nextServiceDate: e.target.value })}
-                  required={safeLower(currentOrderForPermit?.workStatus) !== "cancelled"}
-                  min={new Date().toISOString().split("T")[0]}
-                />
-              </div>
+      {showExitPermitModal && typeof document !== "undefined"
+        ? createPortal(
+            <div className="epm-exit-permit-modal" onMouseDown={closeExitPermitModal}>
+              <div className="epm-exit-permit-modal-content" onMouseDown={(e) => e.stopPropagation()}>
+                <h3>
+                  <i className="fas fa-id-card"></i> {t("Create Exit Permit")}
+                </h3>
+                <form onSubmit={handleCreateExitPermit}>
+                  <div className="epm-form-group">
+                    <label>
+                      {t("Collected By")} <span className="epm-required">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={exitPermitForm.collectedBy}
+                      onChange={(e) => setExitPermitForm({ ...exitPermitForm, collectedBy: e.target.value })}
+                      placeholder={t("Enter name of person collecting the vehicle")}
+                      required
+                    />
+                  </div>
+                  <div className="epm-form-group">
+                    <label>
+                      {t("Mobile Number")} <span className="epm-required">*</span>
+                    </label>
+                    <input
+                      type="tel"
+                      value={exitPermitForm.mobileNumber}
+                      onChange={(e) => setExitPermitForm({ ...exitPermitForm, mobileNumber: e.target.value })}
+                      placeholder={t("Enter mobile number")}
+                      required
+                    />
+                  </div>
+                  <div className="epm-form-group">
+                    <label>
+                      {t("Next Service Date")}{" "}
+                      {safeLower(currentOrderForPermit?.workStatus) !== "cancelled" && <span className="epm-required">*</span>}
+                    </label>
+                    <input
+                      type="date"
+                      value={exitPermitForm.nextServiceDate}
+                      onChange={(e) => setExitPermitForm({ ...exitPermitForm, nextServiceDate: e.target.value })}
+                      required={safeLower(currentOrderForPermit?.workStatus) !== "cancelled"}
+                      min={new Date().toISOString().split("T")[0]}
+                    />
+                  </div>
 
-              <div className="epm-exit-permit-modal-actions">
-                <button type="button" className="epm-btn-cancel-permit" onClick={closeExitPermitModal} disabled={loading}>
-                  {t("Cancel")}
-                </button>
-                <button type="submit" className="epm-btn-create-permit" disabled={loading}>
-                  <i className="fas fa-check-circle"></i> {loading ? t("Creating...") : t("Create Exit Permit")}
-                </button>
+                  <div className="epm-exit-permit-modal-actions">
+                    <button type="button" className="epm-btn-cancel-permit" onClick={closeExitPermitModal} disabled={loading}>
+                      {t("Cancel")}
+                    </button>
+                    <button type="submit" className="epm-btn-create-permit" disabled={loading}>
+                      <i className="fas fa-check-circle"></i> {loading ? t("Creating...") : t("Create Exit Permit")}
+                    </button>
+                  </div>
+                </form>
               </div>
-            </form>
-          </div>
-        </div>
-      )}
+            </div>,
+            document.body
+          )
+        : null}
 
       {/* Action Dropdown Menu Portal */}
       {typeof document !== "undefined" &&

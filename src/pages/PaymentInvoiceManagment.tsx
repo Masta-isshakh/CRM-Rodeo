@@ -1270,7 +1270,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       return;
     }
 
-    const paidSum = paymentRowsRaw.reduce((acc, p) => acc + toNum(p.amount), 0);
+    const paidSum = roundMoney(paymentRowsRaw.reduce((acc, p) => acc + toNum(p.amount), 0));
     if (paidSum <= 0) {
       setErrorMessage(t("No payments exist for this order. Refund is not possible."));
       setShowErrorPopup(true);
@@ -1305,8 +1305,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       }
 
       if (name === "refundAmount") {
-        const v = toNum(value);
-        if (v > prev.maxRefundAmount) next.refundAmount = String(prev.maxRefundAmount.toFixed(2));
+        const v = roundMoney(toNum(value));
+        const max = roundMoney(prev.maxRefundAmount);
+        if (v > max + 0.00001) next.refundAmount = String(max.toFixed(2));
       }
 
       return next;
@@ -1316,14 +1317,15 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   const handleSaveRefund = async () => {
     if (!refundForm || !selectedOrder) return;
 
-    const refundAmount = toNum(refundForm.refundAmount);
+    const refundAmount = roundMoney(toNum(refundForm.refundAmount));
+    const maxRefundAmount = roundMoney(refundForm.maxRefundAmount);
     if (refundAmount <= 0) {
       setErrorMessage(t("Please enter a valid refund amount."));
       setShowErrorPopup(true);
       return;
     }
-    if (refundAmount > refundForm.maxRefundAmount) {
-      setErrorMessage(`Refund amount cannot exceed ${fmtQar(refundForm.maxRefundAmount)}.`);
+    if (refundAmount > maxRefundAmount + 0.00001) {
+      setErrorMessage(`Refund amount cannot exceed ${fmtQar(maxRefundAmount)}.`);
       setShowErrorPopup(true);
       return;
     }
@@ -1336,16 +1338,16 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         String(b.paidAt ?? b.createdAt ?? "").localeCompare(String(a.paidAt ?? a.createdAt ?? ""))
       );
 
-      let remaining = refundAmount;
+      let remaining = roundMoney(refundAmount);
 
       for (const p of payments) {
         if (remaining <= 0) break;
 
-        const amt = toNum(p.amount);
+        const amt = roundMoney(toNum(p.amount));
         if (amt <= 0) continue;
 
-        if (remaining < amt) {
-          const newAmt = amt - remaining;
+        if (remaining + 0.00001 < amt) {
+          const newAmt = roundMoney(amt - remaining);
           await (client.mutations as any).jobOrderPaymentUpdate({
             id: String(p.id),
             amount: Number(newAmt),
@@ -1356,11 +1358,11 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
           await (client.mutations as any).jobOrderPaymentDelete({
             id: String(p.id),
           });
-          remaining -= amt;
+          remaining = roundMoney(remaining - amt);
         }
       }
 
-      if (remaining > 0.00001) {
+      if (remaining > 0.009) {
         setErrorMessage(t("Refund could not be fully applied (insufficient payments)."));
         setShowErrorPopup(true);
         return;

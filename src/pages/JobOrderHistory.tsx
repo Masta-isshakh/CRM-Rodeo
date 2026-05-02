@@ -21,7 +21,6 @@ import UnifiedJobOrderRoadmap from "../components/UnifiedJobOrderRoadmap";
 import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
 import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
 import UnifiedBillingInvoicesSection from "../components/UnifiedBillingInvoicesSection";
-import { filterVisibleDocuments } from "../utils/documentVisibility";
 
 import { getJobOrderByOrderNumber } from "./jobOrderRepo";
 import { getUrl } from "aws-amplify/storage";
@@ -1022,7 +1021,7 @@ export default function JobOrderHistory({
                   normalizeDateTimeForSummary(row?.exitPermitDate ?? detailed?.exitPermitDate ?? row?.updatedAt) ??
                   ""
               ).trim(),
-            nextServiceDate:  
+            nextServiceDate:
               String(
                 parsed?.exitPermit?.nextServiceDate ??
                   detailed?.exitPermit?.nextServiceDate ??
@@ -1508,9 +1507,8 @@ function JobHistoryDetails({
   actorMap: Record<string, string>;
 }) {
   const { t } = useLanguage();
-  const { canOption } = usePermissions();
   const roadmap: RoadmapStepUi[] = Array.isArray(order?.roadmap) ? order.roadmap : [];
-  const docs: DocUi[] = filterVisibleDocuments(Array.isArray(order?.documents) ? order.documents : [], canOption);
+  const docs: DocUi[] = Array.isArray(order?.documents) ? order.documents : [];
   const services: any[] = Array.isArray(order?.services) ? order.services : [];
   const servicesCompleted = services.filter((service: any) => String(service?.status ?? "").trim().toLowerCase() === "completed").length;
   const servicesProgressPercent = services.length ? Math.round((servicesCompleted / services.length) * 100) : 0;

@@ -983,6 +983,7 @@
   place-items: center;
   padding: 18px;
   background: rgba(15, 23, 42, 0.48);
+  animation: epmModalFadeIn 0.18s ease-out;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
@@ -994,6 +995,24 @@
   background: #fff;
   box-shadow: 0 28px 80px rgba(15,23,42,0.22);
   overflow: hidden;
+  transform: translateY(0);
+  animation: epmModalSlideIn 0.2s ease-out;
+}
+
+@keyframes epmModalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes epmModalSlideIn {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .epm-exit-permit-modal-content h3{

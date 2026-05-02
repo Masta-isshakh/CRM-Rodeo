@@ -428,6 +428,31 @@ const schema = a
       ])
       .authorization((allow) => [allow.authenticated().to(["read", "create", "update", "delete"])]),
 
+    DriveApprovalRequest: a
+      .model({
+        departmentKey: a.string().required(),
+        departmentName: a.string(),
+        actionType: a.enum(["UPLOAD", "MOVE", "DELETE", "FOLDER_CREATE"]),
+        requestStatus: a.enum(["PENDING", "APPROVED", "REJECTED", "CANCELLED"]),
+        folderPath: a.string(),
+        itemId: a.string(),
+        payloadJson: a.string(),
+        managerEmailsJson: a.string(),
+        requestedByEmail: a.string().required(),
+        requestedByName: a.string(),
+        resolvedByEmail: a.string(),
+        resolutionNote: a.string(),
+        resolvedAt: a.datetime(),
+        createdAt: a.datetime().required(),
+        updatedAt: a.datetime(),
+      })
+      .secondaryIndexes((index) => [
+        index("departmentKey").queryField("driveApprovalRequestsByDepartment"),
+        index("requestStatus").queryField("driveApprovalRequestsByStatus"),
+        index("requestedByEmail").queryField("driveApprovalRequestsByRequester"),
+      ])
+      .authorization((allow) => [allow.authenticated().to(["read", "create", "update", "delete"])]),
+
     DriveStorageQuota: a
       .model({
         userEmail: a.string().required(),

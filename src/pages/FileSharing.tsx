@@ -33,15 +33,62 @@ type DriveAlert = {
   text: string;
 };
 
+type DepartmentDriveManagerConfig = {
+  managers: string[];
+  approvalRules: {
+    requireApprovalForUpload: boolean;
+    requireApprovalForMove: boolean;
+    requireApprovalForDelete: boolean;
+    requireApprovalForFolderCreate: boolean;
+    maxUploadMbWithoutApproval: number;
+  };
+};
+
+type DepartmentPolicyAction = "upload" | "move" | "delete" | "folder-create";
+type ApprovalAction = "UPLOAD" | "MOVE" | "DELETE" | "FOLDER_CREATE";
+
+type DepartmentPolicyBlock = {
+  departmentKey: string;
+  action: DepartmentPolicyAction;
+  message: string;
+  managerEmails: string[];
+};
+
 const MAX_UPLOAD_MB = 100;
 const DEFAULT_QUOTA_MB = 2048;
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"];
 const PDF_TYPE = "application/pdf";
 const FOLDER_MIME = "application/x.crm.folder";
+const DOC_MIME = "application/x.crm.docs";
+const SHEET_MIME = "application/x.crm.sheets";
+const SLIDES_MIME = "application/x.crm.slides";
+const FORM_MIME = "application/x.crm.forms";
 const DRIVE_SHARE_RESOLVER_URL = String(import.meta.env.VITE_DRIVE_SHARE_RESOLVER_URL ?? "").trim();
 const DEPARTMENT_DRIVE_ROOT = "__department_drives__";
 const DEFAULT_QUOTA_KEY = "*";
 const DEPARTMENT_QUOTA_PREFIX = "department:";
+const DRIVE_EDITOR_CLOSED_EVENT_KEY = "crm.drive.editor.closed";
+
+const EDITOR_KIND_TO_TYPE = {
+  doc: "docs",
+  sheet: "sheets",
+  slides: "slides",
+  form: "forms",
+} as const;
+
+const EDITOR_KIND_TO_MIME = {
+  doc: DOC_MIME,
+  sheet: SHEET_MIME,
+  slides: SLIDES_MIME,
+  form: FORM_MIME,
+} as const;
+
+const EDITOR_KIND_DEFAULT_NAME = {
+  doc: "Untitled Document",
+  sheet: "Untitled Spreadsheet",
+  slides: "Untitled Presentation",
+  form: "Untitled Form",
+} as const;
 
 function normalizeEmail(value: unknown) {
   return String(value ?? "").trim().toLowerCase();
@@ -71,9 +118,55 @@ function parseJsonArray(raw: unknown): string[] {
   }
 }
 
+function parseDepartmentManagersConfig(raw: unknown): DepartmentDriveManagerConfig {
+  const defaults: DepartmentDriveManagerConfig = {
+    managers: [],
+    approvalRules: {
+      requireApprovalForUpload: false,
+      requireApprovalForMove: false,
+      requireApprovalForDelete: false,
+      requireApprovalForFolderCreate: false,
+      maxUploadMbWithoutApproval: 0,
+    },
+  };
+
+  try {
+    if (!raw) return defaults;
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (Array.isArray(parsed)) {
+      return {
+        ...defaults,
+        managers: parsed.map(normalizeEmail).filter(Boolean),
+      };
+    }
+
+    const managers = Array.isArray((parsed as any)?.managers)
+      ? (parsed as any).managers.map(normalizeEmail).filter(Boolean)
+      : [];
+    const rules = (parsed as any)?.approvalRules ?? {};
+
+    return {
+      managers,
+      approvalRules: {
+        requireApprovalForUpload: Boolean(rules?.requireApprovalForUpload),
+        requireApprovalForMove: Boolean(rules?.requireApprovalForMove),
+        requireApprovalForDelete: Boolean(rules?.requireApprovalForDelete),
+        requireApprovalForFolderCreate: Boolean(rules?.requireApprovalForFolderCreate),
+        maxUploadMbWithoutApproval: Math.max(0, Number(rules?.maxUploadMbWithoutApproval ?? 0)),
+      },
+    };
+  } catch {
+    return defaults;
+  }
+}
+
 function fileIcon(contentType: string | undefined | null, isFolder: boolean) {
   if (isFolder) return "fas fa-folder";
   const ct = String(contentType ?? "");
+  if (ct === DOC_MIME) return "fas fa-file-lines";
+  if (ct === SHEET_MIME) return "fas fa-table";
+  if (ct === SLIDES_MIME) return "fas fa-chalkboard";
+  if (ct === FORM_MIME) return "fas fa-list-check";
   if (IMAGE_TYPES.includes(ct)) return "fas fa-image";
   if (ct === PDF_TYPE) return "fas fa-file-pdf";
   if (ct.startsWith("video/")) return "fas fa-file-video";
@@ -151,6 +244,19 @@ function getFolderTargetPath(row: any) {
   return normalizeFolderPath(parent ? `${parent}/${String(row?.displayName ?? "")}` : String(row?.displayName ?? ""));
 }
 
+function editorKindFromRow(row: any): keyof typeof EDITOR_KIND_TO_TYPE | "" {
+  const rawKind = String(row?.kind ?? "").trim().toLowerCase();
+  if (rawKind === "doc" || rawKind === "sheet" || rawKind === "slides" || rawKind === "form") return rawKind;
+
+  const normalizedType = String(row?.contentType ?? "").trim().toLowerCase();
+  if (normalizedType === DOC_MIME || normalizedType === "application/x.crm.doc") return "doc";
+  if (normalizedType === SHEET_MIME || normalizedType === "application/x.crm.sheet") return "sheet";
+  if (normalizedType === SLIDES_MIME || normalizedType === "application/x.crm.slide") return "slides";
+  if (normalizedType === FORM_MIME || normalizedType === "application/x.crm.form") return "form";
+
+  return "";
+}
+
 export default function FileSharing({ permissions }: PageProps) {
   const { t } = useLanguage();
   const { canOption, departmentKey, isAdminGroup } = usePermissions();
@@ -185,6 +291,7 @@ export default function FileSharing({ permissions }: PageProps) {
   const [quotaRows, setQuotaRows] = useState<any[]>([]);
   const [versionRows, setVersionRows] = useState<any[]>([]);
   const [linkRows, setLinkRows] = useState<any[]>([]);
+  const [approvalRows, setApprovalRows] = useState<any[]>([]);
   const [activityRows, setActivityRows] = useState<any[]>([]);
   const [versionTargetId, setVersionTargetId] = useState("");
   const [linkTargetId, setLinkTargetId] = useState("");
@@ -207,6 +314,12 @@ export default function FileSharing({ permissions }: PageProps) {
   const [driveDepartmentKey, setDriveDepartmentKey] = useState("");
   const [driveName, setDriveName] = useState("");
   const [driveDescription, setDriveDescription] = useState("");
+  const [driveManagers, setDriveManagers] = useState<string[]>([]);
+  const [driveRequireApprovalForUpload, setDriveRequireApprovalForUpload] = useState(false);
+  const [driveRequireApprovalForMove, setDriveRequireApprovalForMove] = useState(false);
+  const [driveRequireApprovalForDelete, setDriveRequireApprovalForDelete] = useState(false);
+  const [driveRequireApprovalForFolderCreate, setDriveRequireApprovalForFolderCreate] = useState(false);
+  const [driveMaxUploadWithoutApprovalMb, setDriveMaxUploadWithoutApprovalMb] = useState("0");
 
   const [preview, setPreview] = useState<{ url: string; type: string; name: string } | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -280,7 +393,57 @@ export default function FileSharing({ permissions }: PageProps) {
 
       if ((client.models as any).DriveDepartmentSpace?.list) {
         const spaceRes = await (client.models as any).DriveDepartmentSpace.list({ limit: 1000 });
-        setDepartmentSpaceRows((spaceRes?.data ?? []) as any[]);
+        const nativeSpaces = ((spaceRes?.data ?? []) as any[]).slice();
+
+        const canMigrateLegacy = canAdminPanel || canManageAll || isAdminGroup;
+        if (canMigrateLegacy && (client.models as any).DriveDepartmentSpace?.create) {
+          const existingKeys = new Set(nativeSpaces.map((row) => String(row?.departmentKey ?? "").trim()).filter(Boolean));
+          const legacyRoots = fileRows.filter((row) => !isDeleted(row) && isDepartmentDriveRoot(row));
+          let migrated = 0;
+
+          for (const legacyRow of legacyRoots) {
+            const deptKey = String(legacyRow?.ownerDepartmentKey ?? "").trim();
+            if (!deptKey || existingKeys.has(deptKey)) continue;
+
+            const deptName = String(legacyRow?.ownerDepartmentName ?? deptKey).trim();
+            const managerConfig: DepartmentDriveManagerConfig = {
+              managers: [normalizeEmail(legacyRow?.ownerEmail)].filter(Boolean),
+              approvalRules: {
+                requireApprovalForUpload: false,
+                requireApprovalForMove: false,
+                requireApprovalForDelete: false,
+                requireApprovalForFolderCreate: false,
+                maxUploadMbWithoutApproval: 0,
+              },
+            };
+
+            const created = await (client.models as any).DriveDepartmentSpace.create({
+              departmentKey: deptKey,
+              departmentName: deptName,
+              displayName: String(legacyRow?.displayName ?? `${deptName} Drive`).trim(),
+              description: String(legacyRow?.description ?? `${deptName} managed shared drive`).trim(),
+              rootFolderPath: departmentDrivePath(deptKey),
+              managersJson: JSON.stringify(managerConfig),
+              uploadBlocked: false,
+              sortOrder: Number(legacyRow?.sortOrder ?? migrated * 1024 + 1024),
+              createdAt: new Date().toISOString(),
+              updatedAt: new Date().toISOString(),
+              updatedBy: email,
+            });
+
+            if (created?.data) {
+              nativeSpaces.push(created.data);
+              existingKeys.add(deptKey);
+              migrated += 1;
+            }
+          }
+
+          if (migrated > 0) {
+            setStatus(`${t("Migrated legacy department drives:")} ${migrated}`);
+          }
+        }
+
+        setDepartmentSpaceRows(nativeSpaces);
       } else {
         setDepartmentSpaceRows([]);
       }
@@ -306,6 +469,13 @@ export default function FileSharing({ permissions }: PageProps) {
         setLinkRows([]);
       }
 
+      if ((client.models as any).DriveApprovalRequest?.list) {
+        const approvalRes = await (client.models as any).DriveApprovalRequest.list({ limit: 3000 });
+        setApprovalRows((approvalRes?.data ?? []) as any[]);
+      } else {
+        setApprovalRows([]);
+      }
+
       const activityRes = await (client.models as any).ActivityLog.list({ limit: 5000 });
       const allActivity = (activityRes?.data ?? []) as any[];
       setActivityRows(allActivity.filter((row) => String(row?.entityType ?? "") === "FILE_SHARE"));
@@ -314,10 +484,20 @@ export default function FileSharing({ permissions }: PageProps) {
     } finally {
       setLoading(false);
     }
-  }, [client, permissions.canRead, t]);
+  }, [client, permissions.canRead, t, canAdminPanel, canManageAll, isAdminGroup]);
 
   useEffect(() => {
     void loadData();
+  }, [loadData]);
+
+  useEffect(() => {
+    const onEditorClosed = (event: StorageEvent) => {
+      if (event.key !== DRIVE_EDITOR_CLOSED_EVENT_KEY || !event.newValue) return;
+      void loadData();
+    };
+
+    window.addEventListener("storage", onEditorClosed);
+    return () => window.removeEventListener("storage", onEditorClosed);
   }, [loadData]);
 
   useEffect(() => {
@@ -400,6 +580,15 @@ export default function FileSharing({ permissions }: PageProps) {
     return map;
   }, [rows]);
 
+  const departmentSpaceByKey = useMemo(() => {
+    const map = new Map<string, any>();
+    for (const row of departmentSpaceRows) {
+      const key = String(row?.departmentKey ?? "").trim();
+      if (key) map.set(key, row);
+    }
+    return map;
+  }, [departmentSpaceRows]);
+
   const departmentDriveRows = useMemo(() => {
     const nativeSpaces = departmentSpaceRows
       .filter((row) => {
@@ -416,20 +605,275 @@ export default function FileSharing({ permissions }: PageProps) {
         isFolder: true,
         contentType: FOLDER_MIME,
         sortOrder: Number(row?.sortOrder ?? 0),
+        _nativeSpaceId: String(row?.id ?? ""),
+        _managerConfig: parseDepartmentManagersConfig(row?.managersJson),
       }));
 
-    if (nativeSpaces.length) {
-      return nativeSpaces.sort((a, b) => Number(a?.sortOrder ?? 0) - Number(b?.sortOrder ?? 0) || String(a?.displayName ?? "").localeCompare(String(b?.displayName ?? "")));
-    }
-
-    return rows
+    const nativeByDept = new Map(nativeSpaces.map((row) => [String(row?.ownerDepartmentKey ?? "").trim(), row]));
+    const legacyFallback = rows
       .filter((row) => !isDeleted(row) && isDepartmentDriveRoot(row))
       .filter((row) => {
         const key = String(row?.ownerDepartmentKey ?? "").trim();
         return canManageAll || isAdminGroup || key === String(departmentKey ?? "").trim() || canCrossDepartment;
       })
-      .sort((a, b) => Number(a?.sortOrder ?? 0) - Number(b?.sortOrder ?? 0) || String(a?.ownerDepartmentName ?? a?.displayName ?? "").localeCompare(String(b?.ownerDepartmentName ?? b?.displayName ?? "")));
+      .map((row) => {
+        const key = String(row?.ownerDepartmentKey ?? "").trim();
+        if (nativeByDept.has(key)) return null;
+        return {
+          ...row,
+          _nativeSpaceId: "",
+          _managerConfig: parseDepartmentManagersConfig("[]"),
+        };
+      })
+      .filter(Boolean) as any[];
+
+    return [...nativeSpaces, ...legacyFallback].sort(
+      (a, b) => Number(a?.sortOrder ?? 0) - Number(b?.sortOrder ?? 0) || String(a?.ownerDepartmentName ?? a?.displayName ?? "").localeCompare(String(b?.ownerDepartmentName ?? b?.displayName ?? ""))
+    );
   }, [departmentSpaceRows, rows, canManageAll, isAdminGroup, departmentKey, canCrossDepartment]);
+
+  const resolveDepartmentKeyFromPath = useCallback((path: string) => {
+    const clean = normalizeFolderPath(path);
+    if (!clean.startsWith(`${DEPARTMENT_DRIVE_ROOT}/`)) return "";
+    const parts = clean.split("/").filter(Boolean);
+    return String(parts[1] ?? "").trim();
+  }, []);
+
+  const resolveDepartmentDrivePolicyBlock = useCallback(
+    (
+      folderPath: string,
+      action: DepartmentPolicyAction,
+      uploadSizeMb?: number
+    ): DepartmentPolicyBlock | null => {
+      const deptKey = resolveDepartmentKeyFromPath(folderPath);
+      if (!deptKey) return null;
+      if (canManageAll || isAdminGroup) return null;
+
+      const space = departmentSpaceByKey.get(deptKey);
+      const managerConfig = parseDepartmentManagersConfig(space?.managersJson);
+      if (managerConfig.managers.includes(normalizeEmail(selfEmail))) return null;
+
+      if (action === "upload") {
+        if (!managerConfig.approvalRules.requireApprovalForUpload) return null;
+        const maxBypassMb = Math.max(0, Number(managerConfig.approvalRules.maxUploadMbWithoutApproval ?? 0));
+        if (Number.isFinite(uploadSizeMb) && maxBypassMb > 0 && Number(uploadSizeMb ?? 0) <= maxBypassMb) return null;
+      }
+      if (action === "move" && !managerConfig.approvalRules.requireApprovalForMove) return null;
+      if (action === "delete" && !managerConfig.approvalRules.requireApprovalForDelete) return null;
+      if (action === "folder-create" && !managerConfig.approvalRules.requireApprovalForFolderCreate) return null;
+
+      const managerNames = managerConfig.managers
+        .map((email) => directory.find((u) => u.email === email)?.fullName || email)
+        .slice(0, 3)
+        .join(", ");
+      const suffix = managerNames ? ` ${t("Managers")}: ${managerNames}` : "";
+      return {
+        departmentKey: deptKey,
+        action,
+        managerEmails: managerConfig.managers,
+        message: `${t("This action requires a department drive manager approval.")}${suffix}`,
+      };
+    },
+    [resolveDepartmentKeyFromPath, canManageAll, isAdminGroup, departmentSpaceByKey, selfEmail, directory, t]
+  );
+
+  const isDepartmentDriveManager = useCallback(
+    (deptKey: string) => {
+      const key = String(deptKey ?? "").trim();
+      if (!key) return false;
+      const space = departmentSpaceByKey.get(key);
+      const managerConfig = parseDepartmentManagersConfig(space?.managersJson);
+      return managerConfig.managers.includes(normalizeEmail(selfEmail));
+    },
+    [departmentSpaceByKey, selfEmail]
+  );
+
+  const submitApprovalRequest = useCallback(
+    async (block: DepartmentPolicyBlock, payload: Record<string, unknown>, itemId?: string) => {
+      if (!(client.models as any).DriveApprovalRequest?.create) {
+        setStatus(block.message);
+        return;
+      }
+
+      const deptName = departments.find((d) => d.key === block.departmentKey)?.name || block.departmentKey;
+      const actionMap: Record<DepartmentPolicyAction, ApprovalAction> = {
+        upload: "UPLOAD",
+        move: "MOVE",
+        delete: "DELETE",
+        "folder-create": "FOLDER_CREATE",
+      };
+
+      try {
+        await (client.models as any).DriveApprovalRequest.create({
+          departmentKey: block.departmentKey,
+          departmentName: deptName,
+          actionType: actionMap[block.action],
+          requestStatus: "PENDING",
+          folderPath: String(payload?.folderPath ?? ""),
+          itemId: itemId || "",
+          payloadJson: JSON.stringify(payload ?? {}),
+          managerEmailsJson: JSON.stringify(block.managerEmails ?? []),
+          requestedByEmail: selfEmail,
+          requestedByName: selfName || selfEmail,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+
+        await logActivity(block.departmentKey, "APPROVAL_REQUEST", `${selfEmail} submitted approval request for ${actionMap[block.action]}`);
+        await loadData();
+        setStatus(`${block.message} ${t("Request submitted to managers.")}`);
+      } catch (error: any) {
+        setStatus(error?.message || t("Failed to submit approval request."));
+      }
+    },
+    [client, departments, selfEmail, selfName, t, logActivity, loadData]
+  );
+
+  const handleApprovalDecision = useCallback(
+    async (row: any, requestStatus: "APPROVED" | "REJECTED" | "CANCELLED", executeAfterApprove = false) => {
+      const id = String(row?.id ?? "").trim();
+      if (!id) return;
+      const deptKey = String(row?.departmentKey ?? "").trim();
+      const canResolve = canManageAll || isAdminGroup || isDepartmentDriveManager(deptKey);
+      const isRequester = normalizeEmail(row?.requestedByEmail) === selfEmail;
+
+      if (requestStatus === "CANCELLED") {
+        if (!isRequester && !canResolve) return;
+      } else if (!canResolve) {
+        return;
+      }
+
+      const executeApprovedAction = async () => {
+        const action = String(row?.actionType ?? "").toUpperCase();
+        let payload: any = {};
+        try {
+          payload = JSON.parse(String(row?.payloadJson ?? "{}"));
+        } catch {
+          payload = {};
+        }
+
+        if (action === "MOVE") {
+          const targetFolder = normalizeFolderPath(String(payload?.targetFolderPath ?? payload?.folderPath ?? ""));
+          const itemIds = Array.isArray(payload?.itemIds)
+            ? payload.itemIds.map((v: unknown) => String(v ?? "").trim()).filter(Boolean)
+            : [String(row?.itemId ?? payload?.itemId ?? "").trim()].filter(Boolean);
+          const items = itemIds
+            .map((itemId: string) => rows.find((r) => String(r?.id ?? "") === itemId))
+            .filter(Boolean) as any[];
+          if (!items.length) throw new Error(t("Cannot execute move. The original file(s) could not be found."));
+
+          const targetSiblings = rows.filter((r) => !isDeleted(r) && folderOf(r) === targetFolder);
+          const baseSortOrder = targetSiblings.reduce((max, r) => Math.max(max, Number(r?.sortOrder ?? 0)), 0) + 1024;
+          await Promise.all(
+            items.map((item, index) =>
+              (client.models as any).FileShareItem.update({
+                id: item.id,
+                folderPath: targetFolder,
+                sortOrder: baseSortOrder + index,
+                updatedAt: new Date().toISOString(),
+                updatedBy: selfEmail,
+              })
+            )
+          );
+          await logActivity("bulk", "MOVE", `${selfEmail} executed approved move for ${items.length} item(s)`);
+          await loadData();
+          return;
+        }
+
+        if (action === "DELETE") {
+          const itemId = String(row?.itemId ?? payload?.itemId ?? "").trim();
+          const item = rows.find((r) => String(r?.id ?? "") === itemId);
+          if (!item) throw new Error(t("Cannot execute delete. The target file no longer exists."));
+          await (client.models as any).FileShareItem.update({
+            id: itemId,
+            isDeleted: true,
+            deletedAt: new Date().toISOString(),
+            deletedBy: selfEmail,
+            updatedAt: new Date().toISOString(),
+            updatedBy: selfEmail,
+          });
+          await logActivity(itemId, "SOFT_DELETE", `${selfEmail} executed approved delete for ${item?.displayName ?? itemId}`);
+          await loadData();
+          return;
+        }
+
+        if (action === "FOLDER_CREATE") {
+          const proposedName = safeName(String(payload?.proposedFolderName ?? "Approved Folder")).replace(/\.[^/.]+$/, "");
+          if (!proposedName) throw new Error(t("Cannot execute folder creation. Folder name is missing."));
+          const targetFolder = normalizeFolderPath(String(payload?.folderPath ?? ""));
+          const ownerDeptName = directory.find((u) => u.email === selfEmail)?.departmentName || "";
+          const now = new Date().toISOString();
+
+          await (client.models as any).FileShareItem.create({
+            fileOwner: selfEmail,
+            ownerEmail: selfEmail,
+            ownerName: selfName || selfEmail,
+            ownerDepartmentKey: departmentKey || "",
+            ownerDepartmentName: ownerDeptName,
+            displayName: proposedName,
+            description: "",
+            storagePath: `file-sharing/folders/${Date.now()}-${proposedName}.folder`,
+            contentType: FOLDER_MIME,
+            sizeBytes: 0,
+            visibilityScope: "DEPARTMENT",
+            folderPath: targetFolder,
+            isFolder: true,
+            isDeleted: false,
+            sharedWithUsersJson: "[]",
+            sharedWithDepartmentsJson: "[]",
+            sortOrder: rows
+              .filter((r) => !isDeleted(r) && folderOf(r) === targetFolder)
+              .reduce((max, r) => Math.max(max, Number(r?.sortOrder ?? 0)), 0) + 1024,
+            downloadCount: 0,
+            createdAt: now,
+            updatedAt: now,
+            updatedBy: selfEmail,
+          });
+          await logActivity(String((row?.id ?? deptKey) || "approval"), "CREATE_FOLDER", `${selfEmail} executed approved folder creation for ${proposedName}`);
+          await loadData();
+          return;
+        }
+
+        if (action === "UPLOAD") {
+          throw new Error(t("Upload approvals cannot be auto-executed because file data is not stored in the request."));
+        }
+
+        throw new Error(t("Unsupported approval action."));
+      };
+
+      try {
+        let note = requestStatus === "APPROVED" ? "Approved by manager" : requestStatus === "REJECTED" ? "Rejected by manager" : "Cancelled by requester";
+        if (executeAfterApprove && requestStatus === "APPROVED") {
+          try {
+            await executeApprovedAction();
+            note = "Approved and executed by manager";
+          } catch (executeError: any) {
+            const reason = String(executeError?.message || "Execution failed").slice(0, 500);
+            note = `Execution failed: ${reason}`;
+          }
+        }
+
+        await (client.models as any).DriveApprovalRequest.update({
+          id,
+          requestStatus,
+          resolvedByEmail: selfEmail,
+          resolvedAt: new Date().toISOString(),
+          resolutionNote: note,
+          updatedAt: new Date().toISOString(),
+        });
+        await logActivity(id, "APPROVAL_DECISION", `${selfEmail} set ${requestStatus}`);
+        await loadData();
+        if (executeAfterApprove && requestStatus === "APPROVED") {
+          setStatus(note.startsWith("Execution failed:") ? t("Approval saved, but execution failed. See row badge for details.") : t("Approved request executed successfully."));
+        } else {
+          setStatus(t("Approval queue updated."));
+        }
+      } catch (error: any) {
+        setStatus(error?.message || t("Failed to update approval request."));
+      }
+    },
+    [canManageAll, isAdminGroup, isDepartmentDriveManager, selfEmail, t, client, logActivity, loadData, directory, selfName, departmentKey, rows]
+  );
 
   const allFolders = useMemo(() => {
     const set = new Set<string>();
@@ -635,6 +1079,22 @@ export default function FileSharing({ permissions }: PageProps) {
     [linkRows]
   );
 
+  const pendingApprovalsCount = useMemo(
+    () => approvalRows.filter((row) => String(row?.requestStatus ?? "").toUpperCase() === "PENDING").length,
+    [approvalRows]
+  );
+
+  const approvalQueueRows = useMemo(() => {
+    return approvalRows
+      .filter((row) => {
+        const deptKey = String(row?.departmentKey ?? "").trim();
+        const isRequester = normalizeEmail(row?.requestedByEmail) === selfEmail;
+        return canManageAll || isAdminGroup || isDepartmentDriveManager(deptKey) || isRequester;
+      })
+      .sort((a, b) => String(b?.updatedAt ?? b?.createdAt ?? "").localeCompare(String(a?.updatedAt ?? a?.createdAt ?? "")))
+      .slice(0, 40);
+  }, [approvalRows, selfEmail, canManageAll, isAdminGroup, isDepartmentDriveManager]);
+
   const totalUsageBytes = useMemo(() => Array.from(usageByOwner.values()).reduce((sum, value) => sum + value, 0), [usageByOwner]);
 
   const nearQuotaCount = useMemo(() => {
@@ -711,6 +1171,37 @@ export default function FileSharing({ permissions }: PageProps) {
       { label: t("Cross-department access"), enabled: canCrossDepartment },
     ],
     [t, canUpload, canCreateFolder, canShare, canCreateShareLink, canViewVersions, canRestoreVersions, canManageQuota, canViewAnalytics, canCrossDepartment]
+  );
+
+  const approvalActionLabel = useCallback(
+    (action: string) => {
+      const key = String(action ?? "").toUpperCase();
+      if (key === "UPLOAD") return t("Upload");
+      if (key === "MOVE") return t("Move");
+      if (key === "DELETE") return t("Delete");
+      if (key === "FOLDER_CREATE") return t("Create Folder");
+      return key || t("Unknown");
+    },
+    [t]
+  );
+
+  const approvalExecutionResult = useCallback(
+    (row: any): { label: string; className: "success" | "error" | "pending"; reason: string } => {
+      const status = String(row?.requestStatus ?? "").toUpperCase();
+      const note = String(row?.resolutionNote ?? "").trim();
+      if (status === "PENDING") return { label: t("Pending"), className: "pending", reason: "" };
+      if (status === "APPROVED" && note.toLowerCase().startsWith("execution failed:")) {
+        const reason = note.slice("Execution failed:".length).trim();
+        return { label: t("Failed"), className: "error", reason };
+      }
+      if (status === "APPROVED") {
+        return { label: t("Executed"), className: "success", reason: note || t("Action completed successfully") };
+      }
+      if (status === "REJECTED") return { label: t("Rejected"), className: "error", reason: note || t("Rejected by manager") };
+      if (status === "CANCELLED") return { label: t("Cancelled"), className: "pending", reason: note || t("Cancelled by requester") };
+      return { label: status || t("Unknown"), className: "pending", reason: note };
+    },
+    [t]
   );
 
   const homeFolderRows = useMemo(() => rowsByView.filter((row) => isFolder(row)).slice(0, 6), [rowsByView]);
@@ -792,6 +1283,33 @@ export default function FileSharing({ permissions }: PageProps) {
   const moveRowsToFolder = useCallback(
     async (items: any[], target: string) => {
       const cleanTarget = normalizeFolderPath(target);
+      const targetBlock = resolveDepartmentDrivePolicyBlock(cleanTarget, "move");
+      if (targetBlock) {
+        await submitApprovalRequest(targetBlock, {
+          folderPath: cleanTarget,
+          targetFolderPath: cleanTarget,
+          itemIds: items.map((row) => String(row?.id ?? "")).filter(Boolean),
+          itemNames: items.map((row) => String(row?.displayName ?? "")).filter(Boolean),
+        });
+        return;
+      }
+      for (const row of items) {
+        const sourceBlock = resolveDepartmentDrivePolicyBlock(folderOf(row), "move");
+        if (sourceBlock) {
+          await submitApprovalRequest(
+            sourceBlock,
+            {
+              folderPath: folderOf(row),
+              sourceFolderPath: folderOf(row),
+              targetFolderPath: cleanTarget,
+              itemIds: [String(row?.id ?? "")].filter(Boolean),
+              itemNames: [String(row?.displayName ?? "")].filter(Boolean),
+            },
+            String(row?.id ?? "")
+          );
+          return;
+        }
+      }
       const baseSortOrder = getNextSortOrder(cleanTarget);
       await Promise.all(
         items.map((row, index) =>
@@ -809,7 +1327,7 @@ export default function FileSharing({ permissions }: PageProps) {
       setDragTargetPath("");
       await loadData();
     },
-    [client, selfEmail, logActivity, loadData, getNextSortOrder]
+    [client, selfEmail, logActivity, loadData, getNextSortOrder, resolveDepartmentDrivePolicyBlock, submitApprovalRequest]
   );
 
   const onDragOver = useCallback((e: React.DragEvent) => {
@@ -863,6 +1381,14 @@ export default function FileSharing({ permissions }: PageProps) {
     if (!canCreateFolder) return setStatus(t("You do not have permission to create folders."));
     const clean = safeName(newFolderName).replace(/\.[^/.]+$/, "");
     if (!clean) return setStatus(t("Please enter a valid folder name."));
+    const approvalBlock = resolveDepartmentDrivePolicyBlock(currentFolder, "folder-create");
+    if (approvalBlock) {
+      await submitApprovalRequest(approvalBlock, {
+        folderPath: normalizeFolderPath(currentFolder),
+        proposedFolderName: clean,
+      });
+      return;
+    }
 
     const now = new Date().toISOString();
     try {
@@ -914,6 +1440,24 @@ export default function FileSharing({ permissions }: PageProps) {
     setStatus("");
     const ownerDeptName = directory.find((u) => u.email === selfEmail)?.departmentName || "";
     const folderPart = normalizeFolderPath(currentFolder);
+
+    for (const entry of files) {
+      const relativeDirectory = getRelativeDirectory(entry.relativePath);
+      const targetFolder = normalizeFolderPath([folderPart, relativeDirectory].filter(Boolean).join("/"));
+      const block = resolveDepartmentDrivePolicyBlock(targetFolder, "upload", entry.file.size / (1024 * 1024));
+      if (block) {
+        setSaving(false);
+        await submitApprovalRequest(block, {
+          folderPath: targetFolder,
+          files: files.map((item) => ({
+            name: item.file.name,
+            sizeBytes: item.file.size,
+            contentType: item.file.type,
+          })),
+        });
+        return;
+      }
+    }
 
     for (const entry of files) {
       const f = entry.file;
@@ -974,67 +1518,80 @@ export default function FileSharing({ permissions }: PageProps) {
     setStatus(t("Upload completed."));
   };
 
-  const createTemplateDocument = async (kind: "doc" | "sheet" | "slides") => {
-    if (!canUpload) return setStatus(t("You do not have permission to upload files."));
-    if (selfUploadBlocked) return setStatus(t("Your upload permission is blocked by drive administrator."));
+  const openEditorInNewTab = (kind: "doc" | "sheet" | "slides" | "form", fileId?: string, fileName?: string) => {
+    const editorType = EDITOR_KIND_TO_TYPE[kind];
+    const params = new URLSearchParams({ editor: editorType });
+    if (fileId) params.set("fileId", fileId);
+    if (fileName) params.set("fileName", fileName);
+    const editorUrl = `/editor.html?${params.toString()}`;
 
-    const map = {
-      doc: {
-        name: `Untitled Document ${new Date().toISOString().slice(0, 10)}.txt`,
-        contentType: "text/plain",
-        body: "Untitled document\n\nStart writing here...\n",
-      },
-      sheet: {
-        name: `Untitled Sheet ${new Date().toISOString().slice(0, 10)}.csv`,
-        contentType: "text/csv",
-        body: "Column A,Column B,Column C\n",
-      },
-      slides: {
-        name: `Untitled Slides ${new Date().toISOString().slice(0, 10)}.txt`,
-        contentType: "text/plain",
-        body: "Untitled presentation\n\n- Slide 1\n",
-      },
-    } as const;
+    window.open(editorUrl, "_blank", "noopener,noreferrer,width=1400,height=900");
+  };
 
-    const template = map[kind];
-    const blob = new Blob([template.body], { type: template.contentType });
-    const folderPart = normalizeFolderPath(currentFolder);
-    const key = folderPart ? `file-sharing/${folderPart}/${Date.now()}-${safeName(template.name)}` : `file-sharing/${Date.now()}-${safeName(template.name)}`;
+  const createTemplateAndOpenEditor = async (kind: "doc" | "sheet" | "slides" | "form") => {
+    if (!canUpload) {
+      setStatus(t("You do not have permission to create files."));
+      return;
+    }
+
+    if (selfUploadBlocked) {
+      setStatus(t("Your upload permission is blocked by drive administrator."));
+      return;
+    }
+
+    const ownerDeptName = directory.find((u) => u.email === selfEmail)?.departmentName || "";
+    const targetFolder = normalizeFolderPath(currentFolder);
+    const block = resolveDepartmentDrivePolicyBlock(targetFolder, "upload", 0);
+    if (block) {
+      await submitApprovalRequest(block, {
+        folderPath: targetFolder,
+        templateKind: kind,
+        itemName: EDITOR_KIND_DEFAULT_NAME[kind],
+      });
+      return;
+    }
+
+    setSaving(true);
+    setStatus("");
+    setIsNewMenuOpen(false);
 
     try {
-      const ownerDeptName = directory.find((u) => u.email === selfEmail)?.departmentName || "";
-      await uploadData({ path: key, data: blob, options: { contentType: template.contentType } }).result;
       const now = new Date().toISOString();
-      await (client.models as any).FileShareItem.create({
+      const created = await (client.models as any).FileShareItem.create({
         fileOwner: selfEmail,
         ownerEmail: selfEmail,
         ownerName: selfName || selfEmail,
         ownerDepartmentKey: departmentKey || "",
         ownerDepartmentName: ownerDeptName,
-        displayName: template.name,
-        description: kind === "doc" ? "Google Docs style file" : kind === "sheet" ? "Google Sheets style file" : "Google Slides style file",
-        storagePath: key,
-        contentType: template.contentType,
-        sizeBytes: blob.size,
-        visibilityScope: "DEPARTMENT",
-        folderPath: folderPart,
+        displayName: EDITOR_KIND_DEFAULT_NAME[kind],
+        description: kind === "sheet" ? "{}" : kind === "form" ? JSON.stringify({ fields: [], description: "" }) : kind === "slides" ? JSON.stringify([{ id: "1", title: "Slide Title", content: "Click to add subtitle" }]) : "",
+        storagePath: `file-sharing/editors/${kind}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`,
+        contentType: EDITOR_KIND_TO_MIME[kind],
+        sizeBytes: 0,
+        visibilityScope: scope,
+        folderPath: targetFolder,
         isFolder: false,
         isDeleted: false,
-        sharedWithUsersJson: "[]",
-        sharedWithDepartmentsJson: "[]",
+        sharedWithUsersJson: JSON.stringify(selectedUsers),
+        sharedWithDepartmentsJson: JSON.stringify(selectedDepartments),
         starredByJson: "[]",
-        sortOrder: getNextSortOrder(folderPart),
+        sortOrder: getNextSortOrder(targetFolder),
         downloadCount: 0,
+        kind,
         createdAt: now,
         updatedAt: now,
         updatedBy: selfEmail,
       });
-      await logActivity(key, "UPLOAD", `${selfEmail} created ${kind} template file`);
-      setIsNewMenuOpen(false);
+
+      const newId = String(created?.data?.id ?? "");
+      const newName = String(created?.data?.displayName ?? EDITOR_KIND_DEFAULT_NAME[kind]);
+      await logActivity(newId || `editor-${kind}`, "CREATE_FILE", `${selfEmail} created ${kind} file ${newName}`);
       await loadData();
-      setStatus(t("New file created."));
+      openEditorInNewTab(kind, newId, newName);
     } catch (error: any) {
-      setStatus(error?.message || t("Failed to create new file."));
+      setStatus(error?.message || t("Failed to create file."));
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -1216,6 +1773,20 @@ export default function FileSharing({ permissions }: PageProps) {
     if (!canDeleteOwn && !canDeleteAny && !isAdminGroup) return setStatus(t("You do not have permission to delete this item."));
 
     const doHardDelete = (canHardDelete || isAdminGroup) && (canManageAll || isAdminGroup) && !canSoftDelete;
+    const deptFolder = folderOf(row) || departmentDrivePath(String(row?.ownerDepartmentKey ?? "").trim());
+    const approvalBlock = resolveDepartmentDrivePolicyBlock(deptFolder, "delete");
+    if (approvalBlock) {
+      await submitApprovalRequest(
+        approvalBlock,
+        {
+          folderPath: deptFolder,
+          itemId: String(row?.id ?? ""),
+          itemName: String(row?.displayName ?? ""),
+        },
+        String(row?.id ?? "")
+      );
+      return;
+    }
 
     try {
       if (!doHardDelete) {
@@ -1298,7 +1869,16 @@ export default function FileSharing({ permissions }: PageProps) {
       displayName: nextName,
       description: String(driveDescription || `${targetDept.name} managed shared drive`).trim(),
       rootFolderPath: rootPath,
-      managersJson: JSON.stringify([]),
+      managersJson: JSON.stringify({
+        managers: driveManagers.map(normalizeEmail).filter(Boolean),
+        approvalRules: {
+          requireApprovalForUpload: driveRequireApprovalForUpload,
+          requireApprovalForMove: driveRequireApprovalForMove,
+          requireApprovalForDelete: driveRequireApprovalForDelete,
+          requireApprovalForFolderCreate: driveRequireApprovalForFolderCreate,
+          maxUploadMbWithoutApproval: Math.max(0, Number(driveMaxUploadWithoutApprovalMb || 0)),
+        },
+      }),
       sortOrder: existing?.sortOrder ?? departmentDriveRows.length * 1024 + 1024,
       updatedAt: new Date().toISOString(),
       updatedBy: selfEmail,
@@ -1353,11 +1933,30 @@ export default function FileSharing({ permissions }: PageProps) {
       await logActivity(targetDept.key, "DEPARTMENT_DRIVE", `${selfEmail} provisioned drive ${nextName}`);
       setDriveName("");
       setDriveDescription("");
+      setDriveManagers([]);
+      setDriveRequireApprovalForUpload(false);
+      setDriveRequireApprovalForMove(false);
+      setDriveRequireApprovalForDelete(false);
+      setDriveRequireApprovalForFolderCreate(false);
+      setDriveMaxUploadWithoutApprovalMb("0");
       await loadData();
       setStatus(t("Department drive saved."));
     } catch (error: any) {
       setStatus(error?.message || t("Failed to save department drive."));
     }
+  };
+
+  const openFileInEditor = (row: any) => {
+    const kind = editorKindFromRow(row);
+    const editorType = kind ? EDITOR_KIND_TO_TYPE[kind] : "";
+    if (!editorType) return false;
+
+    const fileId = String(row?.id ?? "");
+    const fileName = String(row?.displayName ?? "");
+    const editorUrl = `/editor.html?editor=${editorType}&fileId=${encodeURIComponent(fileId)}&fileName=${encodeURIComponent(fileName)}`;
+
+    window.open(editorUrl, "_blank", "noopener,noreferrer,width=1400,height=900");
+    return true;
   };
 
   const openRow = async (row: any) => {
@@ -1369,6 +1968,11 @@ export default function FileSharing({ permissions }: PageProps) {
         setView("my");
         setCurrentFolder(getFolderTargetPath(row));
       }
+      return;
+    }
+
+    // Try to open in editor if it's an editor file type
+    if (openFileInEditor(row)) {
       return;
     }
 
@@ -1662,7 +2266,7 @@ export default function FileSharing({ permissions }: PageProps) {
       <section className="drive-workspace-strip">
         <div className="drive-workspace-copy">
           <div className="drive-workspace-kicker">{t("Company workspace")}</div>
-          <h1>{t("Simple department sharing, Google Drive style")}</h1>
+          <h1>{t("Simple department sharing, modern drive style")}</h1>
           <p>
             {t("Upload, organize, share, and govern files from one workspace while keeping quota and permission control in admin hands.")}
           </p>
@@ -1700,13 +2304,14 @@ export default function FileSharing({ permissions }: PageProps) {
             </button>
             {isNewMenuOpen ? (
               <div className="drive-new-menu">
+                {canCreateFolder ? <button type="button" onClick={openNewFolderComposer}><i className="fas fa-folder" /> {t("New folder")}</button> : null}
                 {canUpload ? <button type="button" onClick={openUploadPicker}><i className="fas fa-file-arrow-up" /> {t("File upload")}</button> : null}
                 {canUpload ? <button type="button" onClick={openFolderPicker}><i className="fas fa-folder-plus" /> {t("Folder upload")}</button> : null}
-                {canCreateFolder ? <button type="button" onClick={openNewFolderComposer}><i className="fas fa-folder" /> {t("New folder")}</button> : null}
-                {canUpload ? <button type="button" onClick={() => void createTemplateDocument("doc")}><i className="fas fa-file-lines" /> {t("Google Docs")}</button> : null}
-                {canUpload ? <button type="button" onClick={() => void createTemplateDocument("sheet")}><i className="fas fa-table" /> {t("Google Sheets")}</button> : null}
-                {canUpload ? <button type="button" onClick={() => void createTemplateDocument("slides")}><i className="fas fa-chalkboard" /> {t("Google Slides")}</button> : null}
-                <button type="button" onClick={() => { setIsNewMenuOpen(false); void loadData(); }}><i className="fas fa-rotate" /> {t("Refresh")}</button>
+                <div className="drive-new-menu-separator" />
+                {canUpload ? <button type="button" onClick={() => void createTemplateAndOpenEditor("doc")}><i className="fas fa-file-lines" /> {t("Docs")}</button> : null}
+                {canUpload ? <button type="button" onClick={() => void createTemplateAndOpenEditor("sheet")}><i className="fas fa-table" /> {t("Sheets")}</button> : null}
+                {canUpload ? <button type="button" onClick={() => void createTemplateAndOpenEditor("slides")}><i className="fas fa-chalkboard" /> {t("Slides")}</button> : null}
+                {canUpload ? <button type="button" onClick={() => void createTemplateAndOpenEditor("form")}><i className="fas fa-list-check" /> {t("Forms")}</button> : null}
               </div>
             ) : null}
           </div>
@@ -1789,7 +2394,7 @@ export default function FileSharing({ permissions }: PageProps) {
             <>
               <section className="drive-hero">
                 <div>
-                  <h1>{view === "home" ? t("Welcome to Drive") : t("Google Drive-style Workspace")}</h1>
+                  <h1>{view === "home" ? t("Welcome to Drive") : t("Drive Workspace")}</h1>
                   <p>{view === "home" ? t("Find your recent and suggested content quickly.") : t("Files, folders, sharing, versioning, and governance in one place.")}</p>
                 </div>
                 <div className="drive-metrics">
@@ -2175,6 +2780,11 @@ export default function FileSharing({ permissions }: PageProps) {
                   <small>{t("Accounts currently prevented from uploading")}</small>
                 </div>
                 <div className="drive-overview-card">
+                  <span>{t("Pending approvals")}</span>
+                  <strong>{pendingApprovalsCount}</strong>
+                  <small>{t("Manager decisions waiting in queue")}</small>
+                </div>
+                <div className="drive-overview-card">
                   <span>{t("Live shared links")}</span>
                   <strong>{activeLinks.length}</strong>
                   <small>{t("External sharing links still active")}</small>
@@ -2215,8 +2825,16 @@ export default function FileSharing({ permissions }: PageProps) {
                     setDriveDepartmentKey(nextKey);
                     const dept = departments.find((item) => item.key === nextKey);
                     const existing = departmentDriveRows.find((row) => String(row?.ownerDepartmentKey ?? "").trim() === nextKey);
+                    const nativeSpace = departmentSpaceRows.find((row) => String(row?.departmentKey ?? "").trim() === nextKey);
+                    const managerConfig = parseDepartmentManagersConfig(nativeSpace?.managersJson);
                     setDriveName(existing?.displayName ?? `${dept?.name ?? nextKey} Drive`);
                     setDriveDescription(existing?.description ?? `${dept?.name ?? nextKey} managed shared drive`);
+                    setDriveManagers(managerConfig.managers);
+                    setDriveRequireApprovalForUpload(Boolean(managerConfig.approvalRules.requireApprovalForUpload));
+                    setDriveRequireApprovalForMove(Boolean(managerConfig.approvalRules.requireApprovalForMove));
+                    setDriveRequireApprovalForDelete(Boolean(managerConfig.approvalRules.requireApprovalForDelete));
+                    setDriveRequireApprovalForFolderCreate(Boolean(managerConfig.approvalRules.requireApprovalForFolderCreate));
+                    setDriveMaxUploadWithoutApprovalMb(String(Number(managerConfig.approvalRules.maxUploadMbWithoutApproval || 0)));
                   }}>
                     <option value="">{t("Select department")}</option>
                     {departments.map((dept) => <option key={dept.key} value={dept.key}>{dept.name}</option>)}
@@ -2225,6 +2843,47 @@ export default function FileSharing({ permissions }: PageProps) {
                 </div>
                 <div className="drive-inline-actions">
                   <input value={driveDescription} onChange={(e) => setDriveDescription(e.target.value)} placeholder={t("Drive description")} />
+                </div>
+                <div className="drive-inline-actions">
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const email = normalizeEmail(e.target.value);
+                      if (!email) return;
+                      setDriveManagers((prev) => (prev.includes(email) ? prev : [...prev, email]));
+                    }}
+                  >
+                    <option value="">{t("Add manager")}</option>
+                    {directory
+                      .filter((u) => !driveDepartmentKey || String(u.departmentKey ?? "").trim() === driveDepartmentKey)
+                      .map((u) => (
+                        <option key={u.email} value={u.email}>{u.fullName} ({u.email})</option>
+                      ))}
+                  </select>
+                  <input
+                    value={driveMaxUploadWithoutApprovalMb}
+                    onChange={(e) => setDriveMaxUploadWithoutApprovalMb(e.target.value)}
+                    placeholder={t("Upload bypass MB")}
+                  />
+                </div>
+                {driveManagers.length ? (
+                  <div className="drive-inline-actions">
+                    {driveManagers.map((email) => (
+                      <button key={email} type="button" onClick={() => setDriveManagers((prev) => prev.filter((v) => v !== email))}>
+                        {directory.find((u) => u.email === email)?.fullName || email} ×
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                <div className="drive-inline-actions">
+                  <label><input type="checkbox" checked={driveRequireApprovalForUpload} onChange={(e) => setDriveRequireApprovalForUpload(e.target.checked)} /> {t("Require manager approval for uploads")}</label>
+                  <label><input type="checkbox" checked={driveRequireApprovalForMove} onChange={(e) => setDriveRequireApprovalForMove(e.target.checked)} /> {t("Require manager approval for moves")}</label>
+                </div>
+                <div className="drive-inline-actions">
+                  <label><input type="checkbox" checked={driveRequireApprovalForDelete} onChange={(e) => setDriveRequireApprovalForDelete(e.target.checked)} /> {t("Require manager approval for deletes")}</label>
+                  <label><input type="checkbox" checked={driveRequireApprovalForFolderCreate} onChange={(e) => setDriveRequireApprovalForFolderCreate(e.target.checked)} /> {t("Require manager approval for folder creation")}</label>
+                </div>
+                <div className="drive-inline-actions">
                   <button type="button" onClick={() => void saveDepartmentDrive()} disabled={!driveDepartmentKey}>{t("Save department drive")}</button>
                 </div>
                 <div className="drive-card-title drive-top-gap">{t("Admin capabilities")}</div>
@@ -2276,6 +2935,51 @@ export default function FileSharing({ permissions }: PageProps) {
                 <div className="drive-card-title drive-top-gap">{t("Alert center")}</div>
                 <div className="drive-alert-list">
                   {adminAlerts.map((a, idx) => <div key={`${a.level}-${idx}`} className={`drive-alert ${a.level}`}>{a.text}</div>)}
+                </div>
+
+                <div className="drive-card-title drive-top-gap">{t("Approval queue and execution status")}</div>
+                <div className="drive-trend-list">
+                  {approvalQueueRows.map((row) => {
+                    let payload: any = {};
+                    try {
+                      payload = JSON.parse(String(row?.payloadJson ?? "{}"));
+                    } catch {
+                      payload = {};
+                    }
+                    const deptKey = String(row?.departmentKey ?? "").trim();
+                    const requesterEmail = normalizeEmail(row?.requestedByEmail);
+                    const isRequester = requesterEmail === selfEmail;
+                    const canResolve = canManageAll || isAdminGroup || isDepartmentDriveManager(deptKey);
+                    const itemSummary = String(payload?.itemName ?? payload?.proposedFolderName ?? payload?.targetFolderPath ?? payload?.folderPath ?? "-");
+                    const execution = approvalExecutionResult(row);
+                    return (
+                      <div key={String(row?.id ?? `${deptKey}-${itemSummary}`)} className="drive-trend-row drive-approval-row">
+                        <div>
+                          <strong>{approvalActionLabel(String(row?.actionType ?? ""))}</strong>
+                          <div>{String((row?.departmentName ?? deptKey) || "-")}</div>
+                        </div>
+                        <div>{String((row?.requestedByName ?? requesterEmail) || "-")}</div>
+                        <div>{itemSummary}</div>
+                        <div>
+                          <span className={`drive-approval-badge ${execution.className}`}>{execution.label}</span>
+                          {execution.reason ? <div className="drive-approval-reason">{execution.reason}</div> : null}
+                        </div>
+                        <div className="drive-approval-actions">
+                          {String(row?.requestStatus ?? "").toUpperCase() === "PENDING" && canResolve ? (
+                            <>
+                              <button type="button" onClick={() => void handleApprovalDecision(row, "APPROVED", true)}>{t("Approve & Execute")}</button>
+                              <button type="button" onClick={() => void handleApprovalDecision(row, "APPROVED")}>{t("Approve")}</button>
+                              <button type="button" onClick={() => void handleApprovalDecision(row, "REJECTED")}>{t("Reject")}</button>
+                            </>
+                          ) : null}
+                          {String(row?.requestStatus ?? "").toUpperCase() === "PENDING" && !canResolve && isRequester ? (
+                            <button type="button" onClick={() => void handleApprovalDecision(row, "CANCELLED")}>{t("Cancel")}</button>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {!approvalQueueRows.length ? <div className="filesharing-empty">{t("No approval requests yet")}</div> : null}
                 </div>
 
                 <div className="drive-card-title drive-top-gap">{t("Department quotas")}</div>
