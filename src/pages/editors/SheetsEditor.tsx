@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef } from "react";
+import { uploadData } from "aws-amplify/storage";
+import * as XLSX from "xlsx";
 import { getDataClient } from "../../lib/amplifyClient";
 import "./editor-styles.css";
 
@@ -13,6 +15,7 @@ export default function SheetsEditor({ fileId, fileName }: SheetsEditorProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(!!fileId);
+  const [storagePath, setStoragePath] = useState("");
   const [selectedCell, setSelectedCell] = useState({ row: 0, col: 0 });
   const [editingCell, setEditingCell] = useState<string | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -21,6 +24,22 @@ export default function SheetsEditor({ fileId, fileName }: SheetsEditorProps) {
   const ROWS = 20;
   const COLS = 10;
   const COL_HEADERS = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
+
+  const toXlsxBlob = (sheetData: Record<string, string>) => {
+    const grid: string[][] = [];
+    for (let row = 0; row < ROWS; row += 1) {
+      const cols: string[] = [];
+      for (let col = 0; col < COLS; col += 1) {
+        cols.push(String(sheetData[`${row},${col}`] ?? ""));
+      }
+      grid.push(cols);
+    }
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.aoa_to_sheet(grid);
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+    const buffer = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+    return new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  };
 
   // Load existing spreadsheet if fileId is provided
   useEffect(() => {
@@ -35,6 +54,7 @@ export default function SheetsEditor({ fileId, fileName }: SheetsEditorProps) {
         if (response?.data) {
           const item = response.data as any;
           setTitle(item.displayName || "Untitled Spreadsheet");
+          setStoragePath(String(item.storagePath ?? ""));
           if (item.description) {
             try {
               setData(JSON.parse(item.description));
@@ -68,13 +88,23 @@ export default function SheetsEditor({ fileId, fileName }: SheetsEditorProps) {
       try {
         const now = new Date();
         const dataJson = JSON.stringify(data);
+        const xlsxBlob = toXlsxBlob(data);
 
         if (fileId) {
+          if (storagePath) {
+            await uploadData({
+              path: storagePath,
+              data: xlsxBlob,
+              options: { contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+            }).result;
+          }
+
           // Update existing spreadsheet
           await (client.models as any).FileShareItem.update({
             id: fileId,
             displayName: title || "Untitled Spreadsheet",
             description: dataJson,
+            sizeBytes: xlsxBlob.size,
             updatedAt: now.toISOString(),
           });
         }
@@ -92,7 +122,7 @@ export default function SheetsEditor({ fileId, fileName }: SheetsEditorProps) {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [data, title, fileId, client]);
+  }, [data, title, fileId, client, storagePath]);
 
   const getCellKey = (row: number, col: number) => `${row},${col}`;
   const getCellValue = (row: number, col: number) => data[getCellKey(row, col)] || "";

@@ -25,6 +25,7 @@ const loadEmailInbox = () => import("../pages/EmailInboxPage");
 const loadCampaignAudienceAdmin = () => import("../pages/CampaignAudienceAdmin");
 
 const loadJobOrderHistory = () => import("../pages/JobOrderHistory");
+const loadQuotationPage = () => import("../pages/QuotationPage");
 const loadQualityCheckModule = () => import("../pages/QualityCheckModule");
 const loadExitPermitManagement = () => import("../pages/ExitPermitManagement");
 
@@ -55,6 +56,7 @@ const EmailInbox = lazy(loadEmailInbox);
 const CampaignAudienceAdmin = lazy(loadCampaignAudienceAdmin);
 
 const JobOrderHistory = lazy(loadJobOrderHistory);
+const QuotationPage = lazy(loadQuotationPage);
 const QualityCheckModule = lazy(loadQualityCheckModule);
 const ExitPermitManagement = lazy(loadExitPermitManagement);
 
@@ -83,6 +85,7 @@ type Page =
   | "jobcards"
   | "servicecreation"
   | "jobhistory"
+  | "quotation"
   | "serviceexecution"
   | "paymentinvoices"
   | "qualitycheck"
@@ -111,6 +114,7 @@ const PAGE_LOADERS: Record<Page, () => Promise<unknown>> = {
   jobcards: loadJobCards,
   servicecreation: loadServiceCreation,
   jobhistory: loadJobOrderHistory,
+  quotation: loadQuotationPage,
   serviceexecution: loadServiceExecution,
   paymentinvoices: loadPaymentInvoiceManagment,
   qualitycheck: loadQualityCheckModule,
@@ -290,6 +294,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       jobcards: jobCardsRead && listOn("joborder", "joborder_list"),
       servicecreation: jobCardsRead && listOn("joborder", "joborder_list"),
       jobhistory: jobCardsRead && listOn("jobhistory", "jobhistory_list"),
+      quotation: jobCardsRead && listOn("quotation", "quotation_list"),
       serviceexecution: jobCardsRead && listOn("serviceexec", "serviceexec_list"),
       paymentinvoices: jobCardsRead && listOn("payment", "payment_list"),
       qualitycheck: jobCardsRead && listOn("qualitycheck", "qualitycheck_list"),
@@ -329,6 +334,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.jobcards) pages.push("jobcards");
     if (show.servicecreation) pages.push("servicecreation");
     if (show.jobhistory) pages.push("jobhistory");
+    if (show.quotation) pages.push("quotation");
     if (show.serviceexecution) pages.push("serviceexecution");
     if (show.paymentinvoices) pages.push("paymentinvoices");
     if (show.qualitycheck) pages.push("qualitycheck");
@@ -409,6 +415,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !show.jobcards &&
     !show.servicecreation &&
     !show.jobhistory &&
+    !show.quotation &&
     !show.serviceexecution &&
     !show.paymentinvoices &&
     !show.qualitycheck &&
@@ -431,6 +438,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.jobcards) allowedPages.push("jobcards");
     if (show.servicecreation) allowedPages.push("servicecreation");
     if (show.jobhistory) allowedPages.push("jobhistory");
+    if (show.quotation) allowedPages.push("quotation");
     if (show.serviceexecution) allowedPages.push("serviceexecution");
     if (show.paymentinvoices) allowedPages.push("paymentinvoices");
     if (show.qualitycheck) allowedPages.push("qualitycheck");
@@ -460,6 +468,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       (page === "jobcards" && show.jobcards) ||
       (page === "servicecreation" && show.servicecreation) ||
       (page === "jobhistory" && show.jobhistory) ||
+      (page === "quotation" && show.quotation) ||
       (page === "serviceexecution" && show.serviceexecution) ||
       (page === "paymentinvoices" && show.paymentinvoices) ||
       (page === "qualitycheck" && show.qualitycheck) ||
@@ -629,6 +638,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     jobcards: t("Job Cards"),
     servicecreation: t("Service Creation"),
     jobhistory: t("Job History"),
+    quotation: t("Quotations"),
     serviceexecution: t("Service Execution"),
     paymentinvoices: t("Payment & Invoices"),
     qualitycheck: t("Quality Check"),
@@ -734,6 +744,12 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             {show.jobhistory && (
               <button className={page === "jobhistory" ? "active" : ""} onClick={() => go("jobhistory")}>
                 <i className="fas fa-history" aria-hidden="true" /> {t("Job History")}
+              </button>
+            )}
+
+            {show.quotation && (
+              <button className={page === "quotation" ? "active" : ""} onClick={() => go("quotation")}>
+                <i className="fas fa-file-signature" aria-hidden="true" /> {t("Quotations")}
               </button>
             )}
 
@@ -985,6 +1001,12 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             {page === "jobhistory" && show.jobhistory && (
               <PermissionGate moduleId="jobhistory" optionId="jobhistory_list">
                 <JobOrderHistory currentUser={currentUser} />
+              </PermissionGate>
+            )}
+
+            {page === "quotation" && show.quotation && (
+              <PermissionGate moduleId="quotation" optionId="quotation_list">
+                <QuotationPage currentUser={currentUser} />
               </PermissionGate>
             )}
 

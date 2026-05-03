@@ -791,6 +791,147 @@
   border-radius: 10px;
 }
 
+/* ─── Office Launch Modal ────────────────────────────────── */
+.office-launch-backdrop {
+  animation: officeBackdropIn 0.2s ease;
+}
+
+@keyframes officeBackdropIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.office-launch-modal {
+  position: relative;
+  background: #ffffff;
+  border-radius: 20px;
+  padding: 40px 36px 32px;
+  width: min(90vw, 420px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  box-shadow: 0 32px 64px rgba(2, 6, 23, 0.32), 0 0 0 1px rgba(15, 23, 42, 0.06);
+  animation: officeLaunchIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes officeLaunchIn {
+  from { opacity: 0; transform: scale(0.88) translateY(16px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.office-launch-close {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  border: none;
+  background: #f1f5f9;
+  border-radius: 50%;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s, color 0.15s;
+}
+
+.office-launch-close:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.office-launch-icon-wrap {
+  margin-bottom: 20px;
+}
+
+.office-launch-icon {
+  display: inline-flex;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+}
+
+.office-launch-icon--word svg rect { fill: #2B579A; }
+.office-launch-icon--excel svg rect { fill: #217346; }
+
+.office-launch-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 6px;
+}
+
+.office-launch-filename {
+  font-size: 0.93rem;
+  font-weight: 600;
+  color: #475569;
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 6px 14px;
+  margin-bottom: 14px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.office-launch-hint {
+  font-size: 0.86rem;
+  color: #64748b;
+  margin: 0 0 24px;
+  line-height: 1.5;
+}
+
+.office-launch-actions {
+  display: flex;
+  gap: 10px;
+  width: 100%;
+}
+
+.office-launch-btn {
+  flex: 1;
+  padding: 11px 18px;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
+}
+
+.office-launch-btn--primary {
+  background: #2563eb;
+  color: #ffffff;
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);
+}
+
+.office-launch-btn--primary:hover {
+  background: #1d4ed8;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 16px rgba(37, 99, 235, 0.4);
+}
+
+.office-launch-btn--primary:active {
+  transform: translateY(0);
+}
+
+.office-launch-btn--secondary {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+.office-launch-btn--secondary:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
 /* ─── Misc ───────────────────────────────────────────────── */
 .filesharing-empty {
   text-align: center;

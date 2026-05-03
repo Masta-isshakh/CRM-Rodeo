@@ -1,4 +1,6 @@
 import { useEffect, useState, useRef } from "react";
+import { uploadData } from "aws-amplify/storage";
+import { Document, Packer, Paragraph } from "docx";
 import { getDataClient } from "../../lib/amplifyClient";
 import "./editor-styles.css";
 
@@ -13,8 +15,16 @@ export default function DocsEditor({ fileId, fileName }: DocsEditorProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(!!fileId);
+  const [storagePath, setStoragePath] = useState("");
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const client = getDataClient();
+
+  const toDocxBlob = async (text: string) => {
+    const lines = String(text ?? "").split(/\r?\n/);
+    const paragraphs = lines.length ? lines.map((line) => new Paragraph(line || " ")) : [new Paragraph("")];
+    const doc = new Document({ sections: [{ children: paragraphs }] });
+    return Packer.toBlob(doc);
+  };
 
   // Load existing document if fileId is provided
   useEffect(() => {
@@ -29,6 +39,7 @@ export default function DocsEditor({ fileId, fileName }: DocsEditorProps) {
         if (response?.data) {
           const item = response.data as any;
           setTitle(item.displayName || "Untitled Document");
+          setStoragePath(String(item.storagePath ?? ""));
           // Try to load content from description field or storagePath
           setContent(item.description || "");
           setLastSaved(item.updatedAt ? new Date(item.updatedAt) : null);
@@ -58,11 +69,21 @@ export default function DocsEditor({ fileId, fileName }: DocsEditorProps) {
         const now = new Date();
 
         if (fileId) {
+          const blob = await toDocxBlob(content);
+          if (storagePath) {
+            await uploadData({
+              path: storagePath,
+              data: blob,
+              options: { contentType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" },
+            }).result;
+          }
+
           // Update existing document
           await (client.models as any).FileShareItem.update({
             id: fileId,
             displayName: title || "Untitled Document",
             description: content,
+            sizeBytes: blob.size,
             updatedAt: now.toISOString(),
           });
         }
@@ -80,7 +101,7 @@ export default function DocsEditor({ fileId, fileName }: DocsEditorProps) {
         clearTimeout(saveTimeoutRef.current);
       }
     };
-  }, [content, title, fileId, client]);
+  }, [content, title, fileId, client, storagePath]);
 
   const handleTitleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setTitle(e.target.value);

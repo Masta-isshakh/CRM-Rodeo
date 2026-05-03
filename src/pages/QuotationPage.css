@@ -1,0 +1,244 @@
+.quotation-page {
+  padding: 20px;
+  display: grid;
+  gap: 14px;
+}
+
+.quotation-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  background: linear-gradient(140deg, #0f172a 0%, #1e293b 55%, #334155 100%);
+  color: #e2e8f0;
+  border-radius: 14px;
+  padding: 18px 20px;
+}
+
+.quotation-hero h2 {
+  margin: 0 0 6px;
+  font-size: 1.15rem;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quotation-hero p {
+  margin: 0;
+  color: #cbd5e1;
+  font-size: 0.92rem;
+}
+
+.quotation-generate-btn {
+  border: none;
+  background: #ef4444;
+  color: #fff;
+  border-radius: 10px;
+  padding: 11px 14px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.quotation-generate-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.quotation-status {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1e3a8a;
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.quotation-grid {
+  display: grid;
+  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.quotation-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
+}
+
+.quotation-card h3 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.quotation-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.quotation-form-grid label {
+  display: grid;
+  gap: 4px;
+}
+
+.quotation-form-grid label span {
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.quotation-form-grid input,
+.quotation-form-grid select,
+.quotation-form-grid textarea,
+.quotation-discount-row input {
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 8px 9px;
+  font-size: 0.9rem;
+}
+
+.quotation-form-grid textarea {
+  resize: vertical;
+}
+
+.quotation-notes-field {
+  grid-column: 1 / -1;
+}
+
+.quotation-subtitle {
+  color: #1e293b;
+  font-size: 0.86rem;
+  font-weight: 700;
+  margin: 10px 0 8px;
+}
+
+.quotation-catalog-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.quotation-chip {
+  border: 1px solid #cbd5e1;
+  background: #f8fafc;
+  border-radius: 10px;
+  text-align: left;
+  padding: 9px;
+  display: grid;
+  gap: 3px;
+  cursor: pointer;
+}
+
+.quotation-chip strong {
+  font-size: 0.88rem;
+  color: #0f172a;
+}
+
+.quotation-chip span {
+  font-size: 0.8rem;
+  color: #475569;
+}
+
+.quotation-chip.selected {
+  border-color: #0ea5e9;
+  background: #ecfeff;
+  box-shadow: inset 0 0 0 1px #7dd3fc;
+}
+
+.quotation-discount-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.quotation-discount-row label {
+  display: grid;
+  gap: 4px;
+}
+
+.quotation-discount-row span {
+  color: #334155;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.quotation-summary-list {
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.quotation-summary-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.quotation-summary-row strong {
+  color: #0f172a;
+  font-size: 0.9rem;
+}
+
+.quotation-summary-row small {
+  display: block;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.quotation-totals {
+  border-top: 1px dashed #cbd5e1;
+  padding-top: 10px;
+  display: grid;
+  gap: 7px;
+}
+
+.quotation-totals > div {
+  display: flex;
+  justify-content: space-between;
+  color: #1e293b;
+}
+
+.quotation-totals .net {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 8px;
+  font-size: 1rem;
+}
+
+.quotation-muted {
+  color: #64748b;
+  font-size: 0.86rem;
+}
+
+.quotation-footer-note {
+  color: #64748b;
+  font-size: 0.82rem;
+}
+
+@media (max-width: 980px) {
+  .quotation-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .quotation-hero {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .quotation-form-grid,
+  .quotation-catalog-grid,
+  .quotation-discount-row {
+    grid-template-columns: 1fr;
+  }
+}

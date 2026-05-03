@@ -370,6 +370,27 @@ export function resolvePolicyAndOp(moduleId: string, optionId: string): Resolved
     return null;
   }
 
+  // QUOTATIONS
+  if (m === "quotation" || m === "quotations") {
+    if (
+      o === "quotation_list" ||
+      o === "quotation_customer" ||
+      o === "quotation_catalog" ||
+      o === "quotation_summary"
+    ) {
+      return { policyKey: "JOB_CARDS", op: "canRead" };
+    }
+
+    if (
+      o === "quotation_discount" ||
+      o === "quotation_generatepdf"
+    ) {
+      return { policyKey: "JOB_CARDS", op: "canUpdate", fallbackOps: ["canCreate"] };
+    }
+
+    return null;
+  }
+
   // APPROVAL HISTORY
   if (m === "approvalhistory") {
     if (o === "approvalhistory_view") return { policyKey: "JOB_CARDS", op: "canRead" };

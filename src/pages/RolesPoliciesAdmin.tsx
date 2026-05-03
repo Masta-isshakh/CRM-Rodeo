@@ -270,6 +270,21 @@ const MODULE_DEFINITIONS = [
   },
 
   {
+    id: "quotation",
+    title: "Quotations",
+    icon: "fas fa-file-signature",
+    category: "financial",
+    options: [
+      { id: "quotation_list", label: "Show Quotations page in sidebar", prefix: "-" },
+      { id: "quotation_customer", label: "Customer Information Section", prefix: "a." },
+      { id: "quotation_catalog", label: "Services & Packages Section", prefix: "b." },
+      { id: "quotation_discount", label: "Discount Section", prefix: "c." },
+      { id: "quotation_summary", label: "Quotation Summary Section", prefix: "d." },
+      { id: "quotation_generatepdf", label: "Generate Quotation PDF", prefix: "e." },
+    ],
+  },
+
+  {
     id: "serviceexec",
     title: "Service Execution",
     icon: "fas fa-screwdriver-wrench",

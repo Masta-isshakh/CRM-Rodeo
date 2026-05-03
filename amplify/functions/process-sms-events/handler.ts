@@ -22,6 +22,7 @@ type SmsFanoutEvent = {
   smsLogId?: string;
   phone?: string;
   normalised?: string | null;
+  normalizedPhone?: string | null;
   status?: string;
   smsType?: string;
   error?: string;
@@ -67,7 +68,7 @@ export const handler = async (event: SqsEvent): Promise<{ batchItemFailures: Bat
         smsLogId: smsLogId || undefined,
         batchId: batchId || undefined,
         phone: String(payload.phone ?? "").trim() || undefined,
-        normalizedPhone: String(payload.normalised ?? "").trim() || undefined,
+        normalizedPhone: String(payload.normalised ?? payload.normalizedPhone ?? "").trim() || undefined,
         eventType,
         status,
         smsType: String(payload.smsType ?? "").trim() || undefined,

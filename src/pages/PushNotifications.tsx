@@ -15,7 +15,7 @@ type PhoneContact = {
   name: string;
   company?: string;
   email?: string;
-  source: "customer" | "employee";
+  source: "customer" | "employee" | "userprofile";
 };
 
 type SendResult = {
@@ -110,8 +110,10 @@ export default function PushNotifications({ permissions }: PageProps) {
       const auth = await getCurrentUser();
       setSelfEmail(String(auth?.signInDetails?.loginId ?? auth?.username ?? "").trim().toLowerCase());
 
-      const [custRes, logRes, eventRes] = await Promise.all([
+      const [custRes, empRes, profileRes, logRes, eventRes] = await Promise.all([
         (client.models as any).Customer.list({ limit: 5000 }),
+        (client.models as any).Employee.list({ limit: 5000 }),
+        (client.models as any).UserProfile.list({ limit: 5000 }),
         (client.models as any).SmsLog.list({ limit: 200 }),
         (client.models as any).SmsDeliveryEvent.list({ limit: 2000 }),
       ]);
@@ -128,8 +130,32 @@ export default function PushNotifications({ permissions }: PageProps) {
         }))
         .filter((c) => !!c.phone);
 
+      const employeeContacts: PhoneContact[] = ((empRes?.data ?? []) as any[])
+        .filter((e: any) => !!e?.phone)
+        .map((e: any) => ({
+          id: `employee-${String(e.id)}`,
+          phone: normalizePhone(e.phone),
+          name: [String(e.firstName ?? ""), String(e.lastName ?? "")].filter(Boolean).join(" ") || String(e.phone),
+          company: e.position ? String(e.position) : undefined,
+          email: e.email ? String(e.email) : undefined,
+          source: "employee" as const,
+        }))
+        .filter((e) => !!e.phone);
+
+      const profileContacts: PhoneContact[] = ((profileRes?.data ?? []) as any[])
+        .filter((p: any) => !!p?.mobileNumber)
+        .map((p: any) => ({
+          id: `profile-${String(p.id ?? p.email ?? p.mobileNumber)}`,
+          phone: normalizePhone(p.mobileNumber),
+          name: String(p.fullName ?? p.email ?? p.mobileNumber),
+          company: p.departmentName ? String(p.departmentName) : undefined,
+          email: p.email ? String(p.email) : undefined,
+          source: "userprofile" as const,
+        }))
+        .filter((p) => !!p.phone);
+
       const seen = new Set<string>();
-      const deduped = customerContacts.filter((c) => {
+      const deduped = [...customerContacts, ...employeeContacts, ...profileContacts].filter((c) => {
         if (seen.has(c.phone)) return false;
         seen.add(c.phone);
         return true;
@@ -343,6 +369,11 @@ export default function PushNotifications({ permissions }: PageProps) {
             {!loading && filteredContacts.length === 0 && <div className="pn-empty">{t("No contacts found.")}</div>}
             {filteredContacts.map((c) => {
               const checked = selectedPhones.has(c.phone);
+              const sourceLabel = c.source === "customer"
+                ? t("Customer")
+                : c.source === "employee"
+                  ? t("Employee")
+                  : t("User");
               return (
                 <label key={c.phone} className={`pn-contact${checked ? " selected" : ""}`}>
                   <input type="checkbox" checked={checked} onChange={() => togglePhone(c.phone)} />
@@ -351,6 +382,7 @@ export default function PushNotifications({ permissions }: PageProps) {
                     <div className="pn-contact-name">{c.name}</div>
                     <div className="pn-contact-phone">{c.phone}</div>
                     {c.company && <div className="pn-contact-company">{c.company}</div>}
+                    <div className="pn-contact-company">{sourceLabel}</div>
                   </div>
                 </label>
               );

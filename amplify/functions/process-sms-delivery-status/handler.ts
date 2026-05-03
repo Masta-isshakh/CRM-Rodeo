@@ -96,6 +96,28 @@ export const handler = async (event: SnsEvent) => {
             "status:",
             status
           );
+
+          if (messageId) {
+            try {
+              const linkedEvents = await (client.models as any).SmsDeliveryEvent.list({
+                filter: { snsMessageId: { eq: String(messageId) } },
+                limit: 100,
+              });
+
+              for (const linked of (linkedEvents?.data ?? []) as any[]) {
+                if (!linked?.id) continue;
+                await (client.models as any).SmsDeliveryEvent.update({
+                  id: linked.id,
+                  status,
+                  eventType: "SMS_DELIVERY_STATUS",
+                  processedAt: new Date().toISOString(),
+                  errorMessage: statusMessage || linked.errorMessage || undefined,
+                });
+              }
+            } catch (linkErr) {
+              console.warn("Unable to update linked SmsDeliveryEvent rows", linkErr);
+            }
+          }
         } catch (creationError) {
           console.error("Error creating delivery status record:", creationError);
           // Continue processing other records

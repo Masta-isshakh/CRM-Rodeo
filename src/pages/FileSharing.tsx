@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getCurrentUser } from "aws-amplify/auth";
 import { getUrl, remove, uploadData } from "aws-amplify/storage";
+import { Document, Packer, Paragraph } from "docx";
+import * as XLSX from "xlsx";
 import type { PageProps } from "../lib/PageProps";
 import { getDataClient } from "../lib/amplifyClient";
 import { matchesSearchQuery } from "../lib/searchUtils";
@@ -59,8 +61,8 @@ const DEFAULT_QUOTA_MB = 2048;
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"];
 const PDF_TYPE = "application/pdf";
 const FOLDER_MIME = "application/x.crm.folder";
-const DOC_MIME = "application/x.crm.docs";
-const SHEET_MIME = "application/x.crm.sheets";
+const DOC_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const SHEET_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 const SLIDES_MIME = "application/x.crm.slides";
 const FORM_MIME = "application/x.crm.forms";
 const DRIVE_SHARE_RESOLVER_URL = String(import.meta.env.VITE_DRIVE_SHARE_RESOLVER_URL ?? "").trim();
@@ -244,13 +246,49 @@ function getFolderTargetPath(row: any) {
   return normalizeFolderPath(parent ? `${parent}/${String(row?.displayName ?? "")}` : String(row?.displayName ?? ""));
 }
 
+async function buildDocxBlob(text: string) {
+  const lines = String(text ?? "").split(/\r?\n/);
+  const paragraphs = lines.length ? lines.map((line) => new Paragraph(line || " ")) : [new Paragraph("")];
+  const doc = new Document({ sections: [{ children: paragraphs }] });
+  return Packer.toBlob(doc);
+}
+
+function buildXlsxBlob(sheetData?: Record<string, string>) {
+  const grid: string[][] = [];
+  if (sheetData && Object.keys(sheetData).length) {
+    let maxRow = 0;
+    let maxCol = 0;
+    for (const key of Object.keys(sheetData)) {
+      const [r, c] = key.split(",");
+      const rowIndex = Number(r);
+      const colIndex = Number(c);
+      if (Number.isFinite(rowIndex) && rowIndex > maxRow) maxRow = rowIndex;
+      if (Number.isFinite(colIndex) && colIndex > maxCol) maxCol = colIndex;
+    }
+
+    for (let row = 0; row <= maxRow; row += 1) {
+      const cols: string[] = [];
+      for (let col = 0; col <= maxCol; col += 1) {
+        cols.push(String(sheetData[`${row},${col}`] ?? ""));
+      }
+      grid.push(cols);
+    }
+  }
+
+  const workbook = XLSX.utils.book_new();
+  const worksheet = XLSX.utils.aoa_to_sheet(grid);
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Sheet1");
+  const buffer = XLSX.write(workbook, { type: "array", bookType: "xlsx" });
+  return new Blob([buffer], { type: SHEET_MIME });
+}
+
 function editorKindFromRow(row: any): keyof typeof EDITOR_KIND_TO_TYPE | "" {
   const rawKind = String(row?.kind ?? "").trim().toLowerCase();
   if (rawKind === "doc" || rawKind === "sheet" || rawKind === "slides" || rawKind === "form") return rawKind;
 
   const normalizedType = String(row?.contentType ?? "").trim().toLowerCase();
-  if (normalizedType === DOC_MIME || normalizedType === "application/x.crm.doc") return "doc";
-  if (normalizedType === SHEET_MIME || normalizedType === "application/x.crm.sheet") return "sheet";
+  if (normalizedType === DOC_MIME || normalizedType === "application/x.crm.doc" || normalizedType === "application/x.crm.docs" || normalizedType === "application/msword") return "doc";
+  if (normalizedType === SHEET_MIME || normalizedType === "application/x.crm.sheet" || normalizedType === "application/x.crm.sheets" || normalizedType === "text/csv") return "sheet";
   if (normalizedType === SLIDES_MIME || normalizedType === "application/x.crm.slide") return "slides";
   if (normalizedType === FORM_MIME || normalizedType === "application/x.crm.form") return "form";
 
@@ -276,6 +314,7 @@ export default function FileSharing({ permissions }: PageProps) {
   const [composerMode, setComposerMode] = useState<"upload" | "folder" | null>(null);
   const [isNewMenuOpen, setIsNewMenuOpen] = useState(false);
   const [pendingFileDialog, setPendingFileDialog] = useState(false);
+  const [openOfficeModal, setOpenOfficeModal] = useState<{ kind: "doc" | "sheet"; displayName: string; protocolUrl: string } | null>(null);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [lastSelectedId, setLastSelectedId] = useState("");
   const [renamingId, setRenamingId] = useState("");
@@ -1528,6 +1567,90 @@ export default function FileSharing({ permissions }: PageProps) {
     window.open(editorUrl, "_blank", "noopener,noreferrer,width=1400,height=900");
   };
 
+  const openDesktopOfficeApp = async (row: any) => {
+    const kind = editorKindFromRow(row);
+    if (kind !== "doc" && kind !== "sheet") return false;
+
+    const fileId = String(row?.id ?? "").trim();
+    const contentType = String(row?.contentType ?? "").trim().toLowerCase();
+    let storagePath = String(row?.storagePath ?? "").trim();
+    if (!storagePath) return false;
+
+    const needsDocUpgrade = kind === "doc" && (contentType !== DOC_MIME || !storagePath.toLowerCase().endsWith(".docx"));
+    const needsSheetUpgrade = kind === "sheet" && (contentType !== SHEET_MIME || !storagePath.toLowerCase().endsWith(".xlsx"));
+
+    if (fileId && (needsDocUpgrade || needsSheetUpgrade)) {
+      try {
+        const upgradedPath = kind === "doc"
+          ? `file-sharing/editors/doc/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.docx`
+          : `file-sharing/editors/sheet/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.xlsx`;
+
+        const blob = kind === "doc"
+          ? await buildDocxBlob(String(row?.description ?? ""))
+          : (() => {
+              let parsed: Record<string, string> = {};
+              try {
+                const raw = JSON.parse(String(row?.description ?? "{}"));
+                if (raw && typeof raw === "object") parsed = raw as Record<string, string>;
+              } catch {
+                parsed = {};
+              }
+              return buildXlsxBlob(parsed);
+            })();
+
+        await uploadData({ path: upgradedPath, data: blob, options: { contentType: kind === "doc" ? DOC_MIME : SHEET_MIME } }).result;
+        await (client.models as any).FileShareItem.update({
+          id: fileId,
+          storagePath: upgradedPath,
+          contentType: kind === "doc" ? DOC_MIME : SHEET_MIME,
+          sizeBytes: blob.size,
+          updatedAt: new Date().toISOString(),
+          updatedBy: selfEmail,
+        });
+        storagePath = upgradedPath;
+      } catch {
+        setStatus(t("Failed to convert this file to a native Office format."));
+        return false;
+      }
+    }
+
+    try {
+      const out = await getUrl({ path: storagePath });
+      const fileUrl = out.url.toString();
+      const protocolUrl = kind === "doc"
+        ? `ms-word:ofe|u|${fileUrl}`
+        : `ms-excel:ofe|u|${fileUrl}`;
+
+      // Show beautiful custom modal before triggering protocol URL
+      const displayName = String(row?.displayName ?? (kind === "doc" ? "Document" : "Spreadsheet"));
+      setOpenOfficeModal({ kind, displayName, protocolUrl });
+      await logActivity(String(row?.id ?? storagePath), "OPEN_DESKTOP", `${selfEmail} opened ${displayName} in desktop app flow`);
+      return true;
+    } catch {
+      setStatus(t("Unable to launch desktop Office app for this file."));
+      return false;
+    }
+  };
+
+  const launchDesktopOfficeProtocol = (protocolUrl: string) => {
+    try {
+      const probe = document.createElement("iframe");
+      probe.style.display = "none";
+      probe.setAttribute("aria-hidden", "true");
+      probe.src = protocolUrl;
+      document.body.appendChild(probe);
+      window.setTimeout(() => {
+        try {
+          document.body.removeChild(probe);
+        } catch {
+          // noop
+        }
+      }, 1200);
+    } catch {
+      window.location.href = protocolUrl;
+    }
+  };
+
   const createTemplateAndOpenEditor = async (kind: "doc" | "sheet" | "slides" | "form") => {
     if (!canUpload) {
       setStatus(t("You do not have permission to create files."));
@@ -1557,6 +1680,30 @@ export default function FileSharing({ permissions }: PageProps) {
 
     try {
       const now = new Date().toISOString();
+      const storagePath = kind === "doc"
+        ? `file-sharing/editors/${kind}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.docx`
+        : kind === "sheet"
+          ? `file-sharing/editors/${kind}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.xlsx`
+          : `file-sharing/editors/${kind}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`;
+
+      const initialPayload = kind === "form"
+            ? JSON.stringify({ fields: [], description: "" })
+            : JSON.stringify([{ id: "1", title: "Slide Title", content: "Click to add subtitle" }]);
+
+      const initialBlob = kind === "doc"
+        ? await buildDocxBlob("")
+        : kind === "sheet"
+          ? buildXlsxBlob()
+          : new Blob([initialPayload], { type: "application/json" });
+
+      const initialContentType = kind === "doc"
+        ? DOC_MIME
+        : kind === "sheet"
+          ? SHEET_MIME
+          : "application/json";
+
+      await uploadData({ path: storagePath, data: initialBlob, options: { contentType: initialContentType } }).result;
+
       const created = await (client.models as any).FileShareItem.create({
         fileOwner: selfEmail,
         ownerEmail: selfEmail,
@@ -1565,9 +1712,9 @@ export default function FileSharing({ permissions }: PageProps) {
         ownerDepartmentName: ownerDeptName,
         displayName: EDITOR_KIND_DEFAULT_NAME[kind],
         description: kind === "sheet" ? "{}" : kind === "form" ? JSON.stringify({ fields: [], description: "" }) : kind === "slides" ? JSON.stringify([{ id: "1", title: "Slide Title", content: "Click to add subtitle" }]) : "",
-        storagePath: `file-sharing/editors/${kind}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.json`,
-        contentType: EDITOR_KIND_TO_MIME[kind],
-        sizeBytes: 0,
+        storagePath,
+        contentType: kind === "doc" ? DOC_MIME : kind === "sheet" ? SHEET_MIME : EDITOR_KIND_TO_MIME[kind],
+        sizeBytes: initialBlob.size,
         visibilityScope: scope,
         folderPath: targetFolder,
         isFolder: false,
@@ -1587,6 +1734,18 @@ export default function FileSharing({ permissions }: PageProps) {
       const newName = String(created?.data?.displayName ?? EDITOR_KIND_DEFAULT_NAME[kind]);
       await logActivity(newId || `editor-${kind}`, "CREATE_FILE", `${selfEmail} created ${kind} file ${newName}`);
       await loadData();
+
+      if (kind === "doc" || kind === "sheet") {
+        await openDesktopOfficeApp({
+          ...(created?.data ?? {}),
+          id: newId,
+          displayName: newName,
+          kind,
+          storagePath,
+        });
+        return;
+      }
+
       openEditorInNewTab(kind, newId, newName);
     } catch (error: any) {
       setStatus(error?.message || t("Failed to create file."));
@@ -1971,7 +2130,15 @@ export default function FileSharing({ permissions }: PageProps) {
       return;
     }
 
-    // Try to open in editor if it's an editor file type
+    const kind = editorKindFromRow(row);
+
+    // Docs/Sheets are desktop-only by policy.
+    if (kind === "doc" || kind === "sheet") {
+      await openDesktopOfficeApp(row);
+      return;
+    }
+
+    // Then try in-browser editor for drive-native editor types.
     if (openFileInEditor(row)) {
       return;
     }
@@ -2231,6 +2398,59 @@ export default function FileSharing({ permissions }: PageProps) {
 
   return (
     <div className="filesharing-page drive-v2">
+      {openOfficeModal && (
+        <div className="filesharing-modal-backdrop office-launch-backdrop" onClick={() => setOpenOfficeModal(null)}>
+          <div className="office-launch-modal" onClick={(e) => e.stopPropagation()}>
+            <button type="button" className="office-launch-close" onClick={() => setOpenOfficeModal(null)}>&#x2715;</button>
+            <div className="office-launch-icon-wrap">
+              {openOfficeModal.kind === "doc" ? (
+                <span className="office-launch-icon office-launch-icon--word">
+                  <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="48" height="48">
+                    <rect width="48" height="48" rx="10" fill="#2B579A"/>
+                    <path d="M28 10h-14a2 2 0 0 0-2 2v24a2 2 0 0 0 2 2h20a2 2 0 0 0 2-2V18l-8-8z" fill="white" fillOpacity="0.15"/>
+                    <path d="M28 10v8h8" fill="white" fillOpacity="0.3"/>
+                    <text x="24" y="32" textAnchor="middle" fill="white" fontSize="14" fontWeight="bold" fontFamily="Arial">W</text>
+                  </svg>
+                </span>
+              ) : (
+                <span className="office-launch-icon office-launch-icon--excel">
+                  <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" width="48" height="48">
+                    <rect width="48" height="48" rx="10" fill="#217346"/>
+                    <path d="M28 10h-14a2 2 0 0 0-2 2v24a2 2 0 0 0 2 2h20a2 2 0 0 0 2-2V18l-8-8z" fill="white" fillOpacity="0.15"/>
+                    <path d="M28 10v8h8" fill="white" fillOpacity="0.3"/>
+                    <text x="24" y="32" textAnchor="middle" fill="white" fontSize="14" fontWeight="bold" fontFamily="Arial">X</text>
+                  </svg>
+                </span>
+              )}
+            </div>
+            <div className="office-launch-title">
+              {openOfficeModal.kind === "doc" ? t("Opening in Microsoft Word") : t("Opening in Microsoft Excel")}
+            </div>
+            <div className="office-launch-filename">{openOfficeModal.displayName}</div>
+            <p className="office-launch-hint">
+              {openOfficeModal.kind === "doc"
+                ? t("This document will open in Microsoft Word on your computer.")
+                : t("This spreadsheet will open in Microsoft Excel on your computer.")}
+            </p>
+            <div className="office-launch-actions">
+              <button
+                type="button"
+                className="office-launch-btn office-launch-btn--primary"
+                onClick={() => {
+                  launchDesktopOfficeProtocol(openOfficeModal.protocolUrl);
+                  setTimeout(() => setOpenOfficeModal(null), 1200);
+                }}
+              >
+                <i className={openOfficeModal.kind === "doc" ? "fas fa-file-word" : "fas fa-file-excel"} />
+                {openOfficeModal.kind === "doc" ? t("Open in Word") : t("Open in Excel")}
+              </button>
+              <button type="button" className="office-launch-btn office-launch-btn--secondary" onClick={() => setOpenOfficeModal(null)}>
+                {t("Cancel")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {preview && (
         <div className="filesharing-modal-backdrop" onClick={() => setPreview(null)}>
           <div className="filesharing-modal" onClick={(e) => e.stopPropagation()}>

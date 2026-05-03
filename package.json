@@ -24,6 +24,7 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "aws-amplify": "^6.16.4",
+    "docx": "^9.6.1",
     "jspdf": "^4.2.1",
     "qrcode": "^1.5.4",
     "react": "^19.2.5",

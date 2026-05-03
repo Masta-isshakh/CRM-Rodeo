@@ -19,8 +19,26 @@ const sns = new SNSClient({ region: REGION });
 function toE164(raw: string, defaultCC = DEFAULT_CC): string | null {
   const cleaned = raw.replace(/[\s\-().]/g, "");
   if (!cleaned) return null;
-  if (/^\+\d{7,15}$/.test(cleaned)) return cleaned; // already E.164
-  if (/^00\d{7,14}$/.test(cleaned)) return `+${cleaned.slice(2)}`; // 00 prefix
+  if (/^\+\d{7,15}$/.test(cleaned)) return cleaned;
+  if (/^00\d{7,14}$/.test(cleaned)) return `+${cleaned.slice(2)}`;
+
+  const defaultDigits = defaultCC.replace(/^\+/, "");
+
+  if (new RegExp(`^${defaultDigits}\d{6,12}$`).test(cleaned)) {
+    return `+${cleaned}`;
+  }
+
+  if (/^0\d{7,12}$/.test(cleaned)) {
+    const withoutTrunkPrefix = cleaned.replace(/^0+/, "");
+    if (!withoutTrunkPrefix) return null;
+    if (new RegExp(`^${defaultDigits}\d{6,12}$`).test(withoutTrunkPrefix)) {
+      return `+${withoutTrunkPrefix}`;
+    }
+    if (/^\d{7,12}$/.test(withoutTrunkPrefix)) {
+      return `${defaultCC}${withoutTrunkPrefix}`;
+    }
+  }
+
   if (/^\d{7,12}$/.test(cleaned)) return `${defaultCC}${cleaned}`;
   return null; // unrecognised — skip
 }
@@ -75,6 +93,7 @@ export const handler = async (event: any): Promise<any> => {
           smsLogId,
           phone: raw,
           normalised: null,
+          normalizedPhone: null,
           status: item.status,
           smsType,
           error: item.error,
@@ -113,6 +132,7 @@ export const handler = async (event: any): Promise<any> => {
           smsLogId,
           phone: raw,
           normalised,
+          normalizedPhone: normalised,
           status: item.status,
           smsType,
           snsMessageId: resp.MessageId,
@@ -133,6 +153,7 @@ export const handler = async (event: any): Promise<any> => {
           smsLogId,
           phone: raw,
           normalised,
+          normalizedPhone: normalised,
           status: item.status,
           smsType,
           error: item.error,
