@@ -131,6 +131,25 @@ processSmsEventsFn.addEventSource(
 
 const processSmsDeliveryStatusFn =
   backend.processSmsDeliveryStatus.resources.lambda as unknown as lambda.Function;
+
+const smsDeliveryStatusQueue = new sqs.Queue(processSmsDeliveryStatusFn, "SmsDeliveryStatusQueue", {
+  visibilityTimeout: cdk.Duration.seconds(60),
+  retentionPeriod: cdk.Duration.days(14),
+});
+
+smsAuditTopic.addSubscription(new subscriptions.SqsSubscription(smsDeliveryStatusQueue, {
+  rawMessageDelivery: true,
+}));
+
+smsDeliveryStatusQueue.grantConsumeMessages(processSmsDeliveryStatusFn);
+processSmsDeliveryStatusFn.addEnvironment("SMS_DELIVERY_STATUS_QUEUE_ARN", smsDeliveryStatusQueue.queueArn);
+
+processSmsDeliveryStatusFn.addEventSource(
+  new SqsEventSource(smsDeliveryStatusQueue, {
+    batchSize: 1,
+    reportBatchItemFailures: true,
+  })
+);
 const resolveDriveShareLinkFn =
   backend.resolveDriveShareLink.resources.lambda as unknown as lambda.Function;
 const driveRetentionCleanupFn =

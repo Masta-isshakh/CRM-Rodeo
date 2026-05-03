@@ -96,6 +96,37 @@
   font-weight: 600;
 }
 
+.pn-log-actions {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pn-log-action-btn {
+  border: 1px solid #dbe3ef;
+  background: #fff;
+  color: #0f172a;
+  border-radius: 10px;
+  padding: 7px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.pn-log-action-btn:hover:not(:disabled) {
+  border-color: #93c5fd;
+  background: #eff6ff;
+}
+
+.pn-log-action-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
 /* ── Contact picker ──────────────────────────────────────── */
 .pn-search-row {
   display: flex;
@@ -370,6 +401,38 @@
 .pn-log-track {
   background: #eff6ff;
   color: #1d4ed8;
+}
+
+.pn-log-carrier {
+  background: #f1f5f9;
+  color: #334155;
+  border-radius: 99px;
+  padding: 1px 8px;
+  font-size: 0.75rem;
+}
+
+.pn-log-delivered {
+  background: #dcfce7;
+  color: #166534;
+  border-radius: 99px;
+  padding: 1px 8px;
+  font-size: 0.75rem;
+}
+
+.pn-log-carrier-failed {
+  background: #fee2e2;
+  color: #991b1b;
+  border-radius: 99px;
+  padding: 1px 8px;
+  font-size: 0.75rem;
+}
+
+.pn-log-awaiting {
+  background: #fef3c7;
+  color: #92400e;
+  border-radius: 99px;
+  padding: 1px 8px;
+  font-size: 0.75rem;
 }
 
 .pn-log-dead {

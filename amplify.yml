@@ -10,6 +10,8 @@ frontend:
   phases:
     build:
       commands:
+        - echo "VITE_SMS_MAX_BATCH_RECIPIENTS=${MAX_SMS_RECIPIENTS_PER_BATCH:-250}" > .env.production
+        - echo "VITE_SMS_BATCH_COOLDOWN_SECONDS=${VITE_SMS_BATCH_COOLDOWN_SECONDS:-20}" >> .env.production
         - npm run build
   artifacts:
     baseDirectory: dist

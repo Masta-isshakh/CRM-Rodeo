@@ -60,7 +60,21 @@ type SmsDeliveryEventRow = {
   createdAt: string;
 };
 
+type SmsDeliveryStatusRow = {
+  id: string;
+  snsMessageId?: string;
+  phone?: string;
+  normalizedPhone?: string;
+  status: string;
+  statusMessage?: string;
+  createdAt: string;
+  processedAt?: string;
+};
+
 const MAX_MESSAGE_CHARS = 160;
+const MAX_BATCH_RECIPIENTS = Number(import.meta.env.VITE_SMS_MAX_BATCH_RECIPIENTS ?? 250);
+const SEND_COOLDOWN_SECONDS = Number(import.meta.env.VITE_SMS_BATCH_COOLDOWN_SECONDS ?? 20);
+const LAST_BATCH_SEND_AT_KEY = "crm.pushnotifications.lastBatchSendAt";
 
 function normalizePhone(raw: string | null | undefined) {
   return String(raw ?? "")
@@ -77,10 +91,63 @@ function makeBatchId() {
 
 function statusTone(status: string | null | undefined) {
   const value = String(status ?? "PENDING").toUpperCase();
-  if (["TRACKED", "SENT", "SUBMITTED"].includes(value)) return "ok";
+  if (["TRACKED", "SENT", "SUBMITTED", "DELIVERED", "SUCCESSFUL"].includes(value)) return "ok";
   if (["PARTIAL", "PROCESSING"].includes(value)) return "warn";
-  if (["FAILED", "DEAD_LETTER"].includes(value)) return "error";
+  if (["FAILED", "DEAD_LETTER", "DELIVERY_FAILED", "PERMANENT_FAILED", "TRANSIENT_FAILED", "UNDELIVERABLE", "OPT_OUT", "SPAM"].includes(value)) return "error";
   return "neutral";
+}
+
+function normalizeCarrierStatus(status: string | null | undefined) {
+  const value = String(status ?? "").trim().toUpperCase();
+  if (value === "SUCCESSFUL") return "DELIVERED";
+  if (value === "FAILED") return "DELIVERY_FAILED";
+  return value;
+}
+
+function isCarrierDelivered(status: string | null | undefined) {
+  return normalizeCarrierStatus(status) === "DELIVERED";
+}
+
+function isCarrierFailed(status: string | null | undefined) {
+  return ["DELIVERY_FAILED", "PERMANENT_FAILED", "TRANSIENT_FAILED", "UNDELIVERABLE", "OPT_OUT", "SPAM"].includes(normalizeCarrierStatus(status));
+}
+
+function submissionStatusLabel(status: string | null | undefined, t: (value: string) => string) {
+  const value = String(status ?? "").trim().toUpperCase();
+  if (value === "SENT") return t("Submitted to provider");
+  if (value === "FAILED") return t("Submission failed");
+  if (value === "SKIPPED") return t("Skipped");
+  return value || t("Pending");
+}
+
+function carrierStatusLabel(status: string | null | undefined, t: (value: string) => string) {
+  const value = normalizeCarrierStatus(status);
+  if (value === "SENT") return t("Submitted to provider");
+  if (value === "FAILED") return t("Submission failed");
+  if (value === "SKIPPED") return t("Skipped");
+  if (value === "DELIVERED") return t("Delivered");
+  if (value === "DELIVERY_FAILED") return t("Delivery failed");
+  if (value === "PERMANENT_FAILED") return t("Permanent failure");
+  if (value === "TRANSIENT_FAILED") return t("Transient failure");
+  if (value === "UNDELIVERABLE") return t("Undeliverable");
+  if (value === "OPT_OUT") return t("Opted out");
+  if (value === "SPAM") return t("Marked as spam");
+  return value || t("Pending");
+}
+
+function parseResultsJson(raw: string | null | undefined): SendResult[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as SendResult[]) : [];
+  } catch {
+    return [];
+  }
+}
+
+function csvEscape(value: unknown) {
+  const text = String(value ?? "");
+  return `"${text.replace(/"/g, '""')}"`;
 }
 
 export default function PushNotifications({ permissions }: PageProps) {
@@ -93,6 +160,7 @@ export default function PushNotifications({ permissions }: PageProps) {
   const [contacts, setContacts] = useState<PhoneContact[]>([]);
   const [logs, setLogs] = useState<SmsLogRow[]>([]);
   const [events, setEvents] = useState<SmsDeliveryEventRow[]>([]);
+  const [deliveryStatuses, setDeliveryStatuses] = useState<SmsDeliveryStatusRow[]>([]);
   const [contactQuery, setContactQuery] = useState("");
 
   const [selectedPhones, setSelectedPhones] = useState<Set<string>>(new Set());
@@ -100,6 +168,7 @@ export default function PushNotifications({ permissions }: PageProps) {
   const [smsType, setSmsType] = useState<SmsType>("Transactional");
   const [status, setStatus] = useState<{ type: "success" | "error" | "partial"; text: string } | null>(null);
   const [lastResults, setLastResults] = useState<SendResult[] | null>(null);
+  const [exportingCsv, setExportingCsv] = useState(false);
 
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
@@ -110,12 +179,13 @@ export default function PushNotifications({ permissions }: PageProps) {
       const auth = await getCurrentUser();
       setSelfEmail(String(auth?.signInDetails?.loginId ?? auth?.username ?? "").trim().toLowerCase());
 
-      const [custRes, empRes, profileRes, logRes, eventRes] = await Promise.all([
+      const [custRes, empRes, profileRes, logRes, eventRes, deliveryRes] = await Promise.all([
         (client.models as any).Customer.list({ limit: 5000 }),
         (client.models as any).Employee.list({ limit: 5000 }),
         (client.models as any).UserProfile.list({ limit: 5000 }),
         (client.models as any).SmsLog.list({ limit: 200 }),
         (client.models as any).SmsDeliveryEvent.list({ limit: 2000 }),
+        (client.models as any).SmsDeliveryStatus.list({ limit: 5000 }),
       ]);
 
       const customerContacts: PhoneContact[] = ((custRes?.data ?? []) as any[])
@@ -164,6 +234,7 @@ export default function PushNotifications({ permissions }: PageProps) {
       setContacts(deduped.sort((a, b) => a.name.localeCompare(b.name)));
       setLogs(((((logRes?.data ?? []) as any[]) as SmsLogRow[]).sort((a, b) => String(b?.createdAt ?? "").localeCompare(String(a?.createdAt ?? "")))));
       setEvents(((((eventRes?.data ?? []) as any[]) as SmsDeliveryEventRow[]).sort((a, b) => String(b?.processedAt ?? b?.createdAt ?? "").localeCompare(String(a?.processedAt ?? a?.createdAt ?? "")))));
+      setDeliveryStatuses(((((deliveryRes?.data ?? []) as any[]) as SmsDeliveryStatusRow[]).sort((a, b) => String(b?.processedAt ?? b?.createdAt ?? "").localeCompare(String(a?.processedAt ?? a?.createdAt ?? "")))));
     } catch (err: any) {
       setStatus({ type: "error", text: err?.message || t("Failed to load data.") });
     } finally {
@@ -188,6 +259,11 @@ export default function PushNotifications({ permissions }: PageProps) {
   );
 
   const selectedContacts = useMemo(() => contacts.filter((c) => selectedPhones.has(c.phone)), [contacts, selectedPhones]);
+  const contactByPhone = useMemo(() => {
+    const map = new Map<string, PhoneContact>();
+    for (const c of contacts) map.set(c.phone, c);
+    return map;
+  }, [contacts]);
 
   const eventsByLogId = useMemo(() => {
     const map = new Map<string, SmsDeliveryEventRow[]>();
@@ -200,6 +276,18 @@ export default function PushNotifications({ permissions }: PageProps) {
     }
     return map;
   }, [events]);
+
+  const deliveryByMessageId = useMemo(() => {
+    const map = new Map<string, SmsDeliveryStatusRow[]>();
+    for (const status of deliveryStatuses) {
+      const id = String(status.snsMessageId ?? "").trim();
+      if (!id) continue;
+      const list = map.get(id) ?? [];
+      list.push(status);
+      map.set(id, list);
+    }
+    return map;
+  }, [deliveryStatuses]);
 
   const togglePhone = (phone: string) => {
     setSelectedPhones((prev) => {
@@ -221,17 +309,33 @@ export default function PushNotifications({ permissions }: PageProps) {
     });
   };
 
-  const sendMessages = async () => {
-    if (!message.trim()) {
-      setStatus({ type: "error", text: t("Please write a message before sending.") });
-      return;
-    }
-    if (selectedPhones.size === 0) {
-      setStatus({ type: "error", text: t("Please select at least one recipient.") });
-      return;
+  const executeSendBatch = async ({
+    phones,
+    messageText,
+    smsTypeValue,
+    clearComposer,
+  }: {
+    phones: string[];
+    messageText: string;
+    smsTypeValue: SmsType;
+    clearComposer: boolean;
+  }) => {
+    const nowMs = Date.now();
+    const lastSentMs = Number(window.localStorage.getItem(LAST_BATCH_SEND_AT_KEY) ?? "0");
+    if (Number.isFinite(lastSentMs) && lastSentMs > 0) {
+      const elapsedSec = Math.floor((nowMs - lastSentMs) / 1000);
+      if (elapsedSec < SEND_COOLDOWN_SECONDS) {
+        const waitSec = SEND_COOLDOWN_SECONDS - elapsedSec;
+        setStatus({ type: "error", text: `${t("Please wait before sending another batch.")} ${waitSec}s` });
+        return;
+      }
     }
 
-    if (!window.confirm(`${t("Send SMS to")} ${selectedPhones.size} ${t("recipient(s)?")}\n\n"${message.slice(0, 80)}${message.length > 80 ? "…" : ""}"`)) {
+    if (phones.length > MAX_BATCH_RECIPIENTS) {
+      setStatus({
+        type: "error",
+        text: `${t("Batch recipient limit exceeded.")} ${t("Maximum allowed:")} ${MAX_BATCH_RECIPIENTS}.`,
+      });
       return;
     }
 
@@ -239,18 +343,20 @@ export default function PushNotifications({ permissions }: PageProps) {
     setStatus(null);
     setLastResults(null);
 
-    const phones = Array.from(selectedPhones);
     const now = new Date().toISOString();
     const batchId = makeBatchId();
-    const recipientsPayload = selectedContacts.map((c) => ({ name: c.name, phone: c.phone }));
+    const recipientsPayload = phones.map((phone) => ({
+      name: contactByPhone.get(phone)?.name ?? phone,
+      phone,
+    }));
     let smsLogId = "";
 
     try {
       const created = await (client.models as any).SmsLog.create({
         batchId,
         sentBy: selfEmail,
-        message: message.trim(),
-        smsType,
+        message: messageText.trim(),
+        smsType: smsTypeValue,
         status: "PENDING",
         recipientCount: phones.length,
         sentCount: 0,
@@ -269,8 +375,8 @@ export default function PushNotifications({ permissions }: PageProps) {
 
       const res = await (client.mutations as any).sendSms({
         phones,
-        message: message.trim(),
-        smsType,
+        message: messageText.trim(),
+        smsType: smsTypeValue,
         batchId,
         smsLogId,
       });
@@ -294,19 +400,22 @@ export default function PushNotifications({ permissions }: PageProps) {
       });
 
       await logActivity("SmsNotification", smsLogId, "CREATE", `${selfEmail} sent SMS batch ${smsLogId} to ${sentCount}/${phones.length} recipients`);
+      window.localStorage.setItem(LAST_BATCH_SEND_AT_KEY, String(Date.now()));
 
       if (fanoutFailures > 0) {
         setStatus({ type: "partial", text: `⚠️ ${sentCount} ${t("sent,")} ${failedCount} ${t("failed.")} ${fanoutFailures} ${t("fanout event(s) could not be published.")}` });
       } else if (failedCount === 0) {
-        setStatus({ type: "success", text: `✅ ${t("SMS sent to all")} ${sentCount} ${t("recipients.")}` });
+        setStatus({ type: "success", text: `✅ ${t("SMS submitted to provider for all")} ${sentCount} ${t("recipients.")}` });
       } else if (sentCount > 0) {
-        setStatus({ type: "partial", text: `⚠️ ${sentCount} ${t("sent,")} ${failedCount} ${t("failed. See results below.")}` });
+        setStatus({ type: "partial", text: `⚠️ ${sentCount} ${t("submitted to provider,")} ${failedCount} ${t("failed. See results below.")}` });
       } else {
         setStatus({ type: "error", text: `❌ ${t("All messages failed. Check numbers below.")}` });
       }
 
-      setMessage("");
-      setSelectedPhones(new Set());
+      if (clearComposer) {
+        setMessage("");
+        setSelectedPhones(new Set());
+      }
       await loadData();
     } catch (err: any) {
       if (smsLogId) {
@@ -326,6 +435,172 @@ export default function PushNotifications({ permissions }: PageProps) {
       setStatus({ type: "error", text: err?.message || t("Failed to send SMS.") });
     } finally {
       setSending(false);
+    }
+  };
+
+  const sendMessages = async () => {
+    if (!message.trim()) {
+      setStatus({ type: "error", text: t("Please write a message before sending.") });
+      return;
+    }
+    if (selectedPhones.size === 0) {
+      setStatus({ type: "error", text: t("Please select at least one recipient.") });
+      return;
+    }
+
+    const phones = Array.from(selectedPhones);
+    if (!window.confirm(`${t("Send SMS to")} ${phones.length} ${t("recipient(s)?")}\n\n"${message.slice(0, 80)}${message.length > 80 ? "…" : ""}"`)) {
+      return;
+    }
+
+    await executeSendBatch({
+      phones,
+      messageText: message,
+      smsTypeValue: smsType,
+      clearComposer: true,
+    });
+  };
+
+  const retryFailedRecipients = async (log: SmsLogRow) => {
+    if (sending) return;
+    const parsed = parseResultsJson(log.resultsJson);
+    const failedPhones = Array.from(
+      new Set(
+        parsed
+          .filter((r) => String(r.status).toUpperCase() === "FAILED")
+          .map((r) => normalizePhone(r.normalised || r.phone))
+          .filter(Boolean)
+      )
+    );
+
+    if (failedPhones.length === 0) {
+      setStatus({ type: "error", text: t("No failed recipients found for this batch.") });
+      return;
+    }
+
+    const confirmRetry = window.confirm(
+      `${t("Retry failed recipients only?")}\n${t("Recipients")}: ${failedPhones.length}\n${t("Message")}: "${String(log.message || "").slice(0, 80)}${String(log.message || "").length > 80 ? "…" : ""}"`
+    );
+    if (!confirmRetry) return;
+
+    setSelectedPhones(new Set(failedPhones));
+    setMessage(String(log.message || ""));
+    setSmsType((String(log.smsType || "Transactional") === "Promotional" ? "Promotional" : "Transactional"));
+
+    await executeSendBatch({
+      phones: failedPhones,
+      messageText: String(log.message || ""),
+      smsTypeValue: String(log.smsType || "Transactional") === "Promotional" ? "Promotional" : "Transactional",
+      clearComposer: false,
+    });
+  };
+
+  const exportSendHistoryCsv = () => {
+    if (!logs.length) {
+      setStatus({ type: "error", text: t("No send history available to export.") });
+      return;
+    }
+
+    setExportingCsv(true);
+    try {
+      const header = [
+        "batchId",
+        "smsLogId",
+        "createdAt",
+        "sentBy",
+        "smsType",
+        "batchStatus",
+        "recipientCount",
+        "sentCount",
+        "failedCount",
+        "queueProcessedCount",
+        "deadLetterCount",
+        "lastEventAt",
+        "lastEventType",
+        "phone",
+        "normalizedPhone",
+        "resultStatus",
+        "messageId",
+        "error",
+        "fanoutPublished",
+        "fanoutError",
+        "message",
+      ];
+
+      const rows: string[] = [];
+      rows.push(header.map(csvEscape).join(","));
+
+      for (const log of logs) {
+        const parsed = parseResultsJson(log.resultsJson);
+        if (parsed.length === 0) {
+          rows.push([
+            log.batchId,
+            log.id,
+            log.createdAt,
+            log.sentBy,
+            log.smsType,
+            log.status,
+            log.recipientCount,
+            log.sentCount,
+            log.failedCount,
+            log.queueProcessedCount,
+            log.deadLetterCount,
+            log.lastEventAt,
+            log.lastEventType,
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+            log.message,
+          ].map(csvEscape).join(","));
+          continue;
+        }
+
+        for (const r of parsed) {
+          rows.push([
+            log.batchId,
+            log.id,
+            log.createdAt,
+            log.sentBy,
+            log.smsType,
+            log.status,
+            log.recipientCount,
+            log.sentCount,
+            log.failedCount,
+            log.queueProcessedCount,
+            log.deadLetterCount,
+            log.lastEventAt,
+            log.lastEventType,
+            r.phone,
+            r.normalised,
+            r.status,
+            r.messageId,
+            r.error,
+            r.fanoutPublished,
+            r.fanoutError,
+            log.message,
+          ].map(csvEscape).join(","));
+        }
+      }
+
+      const blob = new Blob(["\ufeff", rows.join("\n")], { type: "text/csv;charset=utf-8;" });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `sms-send-history-${new Date().toISOString().replace(/[:.]/g, "-")}.csv`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+
+      setStatus({ type: "success", text: t("SMS send history exported successfully.") });
+    } catch (err: any) {
+      setStatus({ type: "error", text: err?.message || t("Failed to export SMS send history.") });
+    } finally {
+      setExportingCsv(false);
     }
   };
 
@@ -394,6 +669,7 @@ export default function PushNotifications({ permissions }: PageProps) {
           <section className="pn-panel pn-composer-panel">
             <div className="pn-panel-header">
               <span className="pn-panel-title"><i className="fas fa-pen-to-square" /> {t("Message")}</span>
+              <span className="pn-selected-count">{t("Max batch")}: {MAX_BATCH_RECIPIENTS}</span>
             </div>
 
             {selectedPhones.size > 0 && (
@@ -437,7 +713,7 @@ export default function PushNotifications({ permissions }: PageProps) {
                   <div key={i} className={`pn-result-row pn-result-${r.status.toLowerCase()}`}>
                     <i className={r.status === "SENT" ? "fas fa-circle-check" : r.status === "FAILED" ? "fas fa-circle-xmark" : "fas fa-circle-minus"} />
                     <span className="pn-result-phone">{r.normalised || r.phone}</span>
-                    <span className="pn-result-status">{r.status}</span>
+                    <span className="pn-result-status">{submissionStatusLabel(r.status, t)}</span>
                     {r.fanoutPublished === false && <span className="pn-result-fanout">{t("fanout failed")}</span>}
                     {(r.error || r.fanoutError) && <span className="pn-result-error">{r.error || r.fanoutError}</span>}
                   </div>
@@ -453,6 +729,9 @@ export default function PushNotifications({ permissions }: PageProps) {
                   <i className="fas fa-clock-rotate-left" /> {t("Send History")}
                   <span className="pn-badge">{logs.length}</span>
                 </span>
+                <button type="button" className="pn-log-action-btn" onClick={exportSendHistoryCsv} disabled={exportingCsv}>
+                  <i className="fas fa-file-csv" /> {exportingCsv ? t("Exporting…") : t("Export CSV")}
+                </button>
               </div>
               <div className="pn-logs-list">
                 {logs.map((log) => {
@@ -461,6 +740,17 @@ export default function PushNotifications({ permissions }: PageProps) {
                   })();
                   const linkedEvents = eventsByLogId.get(log.id) ?? [];
                   const previewEvents = linkedEvents.slice(0, 6);
+                  const failedOnly = parseResultsJson(log.resultsJson).filter((r) => String(r.status).toUpperCase() === "FAILED");
+                  const resultRows = parseResultsJson(log.resultsJson);
+                  const submittedRows = resultRows.filter((r) => String(r.status).toUpperCase() === "SENT");
+                  const submittedCount = submittedRows.length;
+                  const carrierFeedback = submittedRows.flatMap((r) => {
+                    const msgId = String(r.messageId ?? "").trim();
+                    return msgId ? (deliveryByMessageId.get(msgId) ?? []) : [];
+                  });
+                  const deliveredCount = carrierFeedback.filter((s) => isCarrierDelivered(s.status)).length;
+                  const deliveryFailedCount = carrierFeedback.filter((s) => isCarrierFailed(s.status)).length;
+                  const awaitingCarrierCount = Math.max(submittedCount - carrierFeedback.length, 0);
                   return (
                     <div key={log.id} className="pn-log-row">
                       <div className="pn-log-meta">
@@ -469,15 +759,29 @@ export default function PushNotifications({ permissions }: PageProps) {
                         <span className={`pn-log-status ${statusTone(log.status)}`}>{log.status || "PENDING"}</span>
                         <span className={`pn-log-counts ${(log.failedCount ?? 0) > 0 ? "warn" : "ok"}`}>✅ {log.sentCount ?? 0} / {log.recipientCount ?? 0}</span>
                         <span className="pn-log-track">📥 {log.queueProcessedCount ?? 0} / {log.recipientCount ?? 0}</span>
+                        <span className="pn-log-carrier">📤 {t("Submitted to provider")}: {submittedCount}</span>
+                        <span className="pn-log-delivered">📬 {t("Delivered")}: {deliveredCount}</span>
+                        {deliveryFailedCount > 0 && <span className="pn-log-carrier-failed">❌ {t("Delivery failed")}: {deliveryFailedCount}</span>}
+                        {awaitingCarrierCount > 0 && <span className="pn-log-awaiting">⏳ {t("Awaiting carrier feedback")}: {awaitingCarrierCount}</span>}
                         {(log.deadLetterCount ?? 0) > 0 && <span className="pn-log-dead">DLQ {log.deadLetterCount}</span>}
                         <span className="pn-log-type">{log.smsType}</span>
                       </div>
                       <div className="pn-log-message">"{log.message}"</div>
+                      <div className="pn-log-actions">
+                        <button
+                          type="button"
+                          className="pn-log-action-btn"
+                          disabled={sending || failedOnly.length === 0 || !permissions.canUpdate}
+                          onClick={() => void retryFailedRecipients(log)}
+                        >
+                          <i className="fas fa-rotate-right" /> {t("Retry failed only")} ({failedOnly.length})
+                        </button>
+                      </div>
                       {previewEvents.length > 0 && (
                         <div className="pn-log-events">
                           {previewEvents.map((event) => (
                             <span key={event.id} className={`pn-event-chip ${statusTone(event.status)}`}>
-                              {event.normalizedPhone || event.phone || "unknown"} • {event.status}
+                              {event.normalizedPhone || event.phone || "unknown"} • {carrierStatusLabel(event.status, t)}
                             </span>
                           ))}
                         </div>

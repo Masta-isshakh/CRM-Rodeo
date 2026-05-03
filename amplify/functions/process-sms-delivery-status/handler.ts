@@ -5,6 +5,7 @@ import type { Schema } from "../../data/resource";
 
 type SnsRecord = {
   messageId?: string;
+  body?: string;
   Sns?: {
     Message?: string;
     MessageId?: string;
@@ -15,6 +16,44 @@ type SnsEvent = {
   Records?: SnsRecord[];
 };
 
+function safeParseJson(input: unknown): any {
+  if (typeof input !== "string") return input;
+  try {
+    return JSON.parse(input);
+  } catch {
+    return null;
+  }
+}
+
+function extractRawMessages(event: SnsEvent): Array<{ recordId: string; payload: any }> {
+  const out: Array<{ recordId: string; payload: any }> = [];
+
+  for (const record of event.Records || []) {
+    const recordId = String(record.messageId || record.Sns?.MessageId || "unknown");
+
+    if (record.Sns?.Message) {
+      const parsed = safeParseJson(record.Sns.Message);
+      if (parsed) out.push({ recordId, payload: parsed });
+      continue;
+    }
+
+    if (record.body) {
+      const body = safeParseJson(record.body);
+      if (!body) continue;
+      const rawMessage = body?.Type === "Notification" ? body?.Message : body?.Message ?? body;
+      const parsed = safeParseJson(rawMessage) ?? rawMessage;
+      if (parsed) out.push({ recordId, payload: parsed });
+    }
+  }
+
+  return out;
+}
+
+function extractNotification(payload: any) {
+  if (payload?.notification && typeof payload.notification === "object") return payload.notification;
+  return payload;
+}
+
 async function configureClient() {
   const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
   Amplify.configure(resourceConfig, libraryOptions);
@@ -24,35 +63,36 @@ async function configureClient() {
 export const handler = async (event: SnsEvent) => {
   console.log("SMS Delivery Status Event:", JSON.stringify(event, null, 2));
 
-  const batchItemFailures: { itemId: string }[] = [];
+  const batchItemFailures: { itemIdentifier: string }[] = [];
 
   try {
     // Initialize Amplify
     const client = await configureClient();
 
-    // Handle SNS events
-    for (const record of event.Records || []) {
+    const rawMessages = extractRawMessages(event);
+
+    // Handle carrier feedback messages
+    for (const messageRecord of rawMessages) {
       try {
-        // Parse SNS message
-        const snsMessage = String(record.Sns?.Message ?? "{}");
-        const message = JSON.parse(snsMessage);
+        const message = messageRecord.payload;
         console.log("Parsed Message:", message);
+
+        const notification = extractNotification(message) ?? {};
 
         // Extract delivery status information
         const {
-          notification: {
-            messageId,
-            destinationPhoneNumber,
-            messageStatus,
-            statusMessage,
-            statusCode,
-            priceInUSD,
-            timestamp,
-          } = {},
-        } = message;
+          messageId,
+          destinationPhoneNumber,
+          messageStatus,
+          statusMessage,
+          statusCode,
+          priceInUSD,
+          timestamp,
+        } = notification;
 
         if (!messageStatus || !destinationPhoneNumber) {
-          console.warn("Invalid delivery status format", message);
+          // Ignore non-carrier payloads (for example submission audit events).
+          console.warn("Skipping non-delivery payload", message);
           continue;
         }
 
@@ -63,17 +103,17 @@ export const handler = async (event: SnsEvent) => {
 
         // Map SNS status to our status values
         const statusMap: Record<string, string> = {
-          Successful: "DELIVERED",
-          Failed: "DELIVERY_FAILED",
-          Permanent_Failure: "PERMANENT_FAILED",
-          Transient_Failure: "TRANSIENT_FAILED",
-          Queued: "QUEUED",
-          OptOut: "OPT_OUT",
-          Spam: "SPAM",
-          Unknown: "UNKNOWN",
+          SUCCESSFUL: "DELIVERED",
+          FAILED: "DELIVERY_FAILED",
+          PERMANENT_FAILURE: "PERMANENT_FAILED",
+          TRANSIENT_FAILURE: "TRANSIENT_FAILED",
+          QUEUED: "QUEUED",
+          OPTOUT: "OPT_OUT",
+          SPAM: "SPAM",
+          UNKNOWN: "UNKNOWN",
         };
 
-        const status = statusMap[messageStatus] || messageStatus;
+        const status = statusMap[String(messageStatus).toUpperCase()] || String(messageStatus).toUpperCase();
 
         // Create delivery status record
         try {
@@ -104,8 +144,11 @@ export const handler = async (event: SnsEvent) => {
                 limit: 100,
               });
 
+              const linkedLogIds = new Set<string>();
+
               for (const linked of (linkedEvents?.data ?? []) as any[]) {
                 if (!linked?.id) continue;
+                if (linked?.smsLogId) linkedLogIds.add(String(linked.smsLogId));
                 await (client.models as any).SmsDeliveryEvent.update({
                   id: linked.id,
                   status,
@@ -113,6 +156,23 @@ export const handler = async (event: SnsEvent) => {
                   processedAt: new Date().toISOString(),
                   errorMessage: statusMessage || linked.errorMessage || undefined,
                 });
+              }
+
+              for (const smsLogId of linkedLogIds) {
+                try {
+                  const existing = await (client.models as any).SmsLog.get({ id: smsLogId });
+                  const row = (existing as any)?.data ?? existing;
+                  if (!row?.id) continue;
+
+                  await (client.models as any).SmsLog.update({
+                    id: row.id,
+                    status: status === "DELIVERED" ? "TRACKED" : row.status || "TRACKED",
+                    lastEventAt: new Date().toISOString(),
+                    lastEventType: "SMS_DELIVERY_STATUS",
+                  });
+                } catch (logErr) {
+                  console.warn("Unable to update SmsLog for delivery feedback", logErr);
+                }
               }
             } catch (linkErr) {
               console.warn("Unable to update linked SmsDeliveryEvent rows", linkErr);
@@ -152,7 +212,7 @@ export const handler = async (event: SnsEvent) => {
         } else {
           // Retry this message
           batchItemFailures.push({
-            itemId: record.messageId || record.Sns?.MessageId || "unknown",
+            itemIdentifier: messageRecord.recordId || "unknown",
           });
         }
       }
@@ -165,7 +225,7 @@ export const handler = async (event: SnsEvent) => {
     // Return all records as failed for retry
     return {
       batchItemFailures: (event.Records || []).map((record: any) => ({
-        itemId: record.messageId || record.Sns?.MessageId || "unknown",
+        itemIdentifier: record.messageId || record.Sns?.MessageId || "unknown",
       })),
     };
   }
