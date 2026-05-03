@@ -1,3 +1,4 @@
+import { gunzipSync } from "node:zlib";
 import { Amplify } from "aws-amplify";
 import { generateClient } from "aws-amplify/data";
 import { getAmplifyDataClientConfig } from "@aws-amplify/backend/function/runtime";
@@ -14,6 +15,20 @@ type SnsRecord = {
 
 type SnsEvent = {
   Records?: SnsRecord[];
+  awslogs?: {
+    data?: string;
+  };
+};
+
+type NormalizedDeliveryMessage = {
+  messageId?: string;
+  destinationPhoneNumber?: string;
+  messageStatus?: string;
+  statusMessage?: string;
+  statusCode?: string;
+  priceInUSD?: string | number;
+  timestamp?: string;
+  rawMessage: unknown;
 };
 
 function safeParseJson(input: unknown): any {
@@ -54,6 +69,57 @@ function extractNotification(payload: any) {
   return payload;
 }
 
+function extractCloudWatchMessages(event: SnsEvent): Array<{ recordId: string; payload: any }> {
+  const encoded = String(event.awslogs?.data ?? "").trim();
+  if (!encoded) return [];
+
+  try {
+    const unzipped = gunzipSync(Buffer.from(encoded, "base64")).toString("utf8");
+    const parsed = JSON.parse(unzipped);
+    const logEvents = Array.isArray(parsed?.logEvents) ? parsed.logEvents : [];
+    return logEvents
+      .map((entry: any) => {
+        const payload = safeParseJson(entry?.message);
+        return payload ? { recordId: String(entry?.id ?? "unknown"), payload } : null;
+      })
+      .filter(Boolean) as Array<{ recordId: string; payload: any }>;
+  } catch (error) {
+    console.warn("Unable to parse CloudWatch delivery log payload", error);
+    return [];
+  }
+}
+
+function normalizeDeliveryMessage(payload: any): NormalizedDeliveryMessage | null {
+  if (!payload || typeof payload !== "object") return null;
+
+  if (payload.notification || payload.delivery || payload.status) {
+    return {
+      messageId: String(payload?.notification?.messageId ?? "").trim() || undefined,
+      destinationPhoneNumber: String(payload?.delivery?.destination ?? "").trim() || undefined,
+      messageStatus: String(payload?.status ?? "").trim() || undefined,
+      statusMessage: String(payload?.delivery?.providerResponse ?? "").trim() || undefined,
+      statusCode: undefined,
+      priceInUSD: payload?.delivery?.priceInUSD,
+      timestamp: String(payload?.notification?.timestamp ?? "").trim() || undefined,
+      rawMessage: payload,
+    };
+  }
+
+  const notification = extractNotification(payload) ?? {};
+  if (!notification?.messageStatus && !notification?.destinationPhoneNumber) return null;
+
+  return {
+    messageId: String(notification?.messageId ?? "").trim() || undefined,
+    destinationPhoneNumber: String(notification?.destinationPhoneNumber ?? "").trim() || undefined,
+    messageStatus: String(notification?.messageStatus ?? "").trim() || undefined,
+    statusMessage: String(notification?.statusMessage ?? "").trim() || undefined,
+    statusCode: String(notification?.statusCode ?? "").trim() || undefined,
+    priceInUSD: notification?.priceInUSD,
+    timestamp: String(notification?.timestamp ?? "").trim() || undefined,
+    rawMessage: payload,
+  };
+}
+
 async function configureClient() {
   const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
   Amplify.configure(resourceConfig, libraryOptions);
@@ -69,7 +135,7 @@ export const handler = async (event: SnsEvent) => {
     // Initialize Amplify
     const client = await configureClient();
 
-    const rawMessages = extractRawMessages(event);
+    const rawMessages = event.awslogs?.data ? extractCloudWatchMessages(event) : extractRawMessages(event);
 
     // Handle carrier feedback messages
     for (const messageRecord of rawMessages) {
@@ -77,9 +143,12 @@ export const handler = async (event: SnsEvent) => {
         const message = messageRecord.payload;
         console.log("Parsed Message:", message);
 
-        const notification = extractNotification(message) ?? {};
+        const normalized = normalizeDeliveryMessage(message);
+        if (!normalized) {
+          console.warn("Skipping non-delivery payload", message);
+          continue;
+        }
 
-        // Extract delivery status information
         const {
           messageId,
           destinationPhoneNumber,
@@ -88,18 +157,19 @@ export const handler = async (event: SnsEvent) => {
           statusCode,
           priceInUSD,
           timestamp,
-        } = notification;
+          rawMessage,
+        } = normalized;
 
         if (!messageStatus || !destinationPhoneNumber) {
-          // Ignore non-carrier payloads (for example submission audit events).
           console.warn("Skipping non-delivery payload", message);
           continue;
         }
 
         // Normalize phone number
-        const normalizedPhone = destinationPhoneNumber.startsWith("+")
-          ? destinationPhoneNumber
-          : `+${destinationPhoneNumber}`;
+        const destinationPhone = String(destinationPhoneNumber);
+        const normalizedPhone = destinationPhone.startsWith("+")
+          ? destinationPhone
+          : `+${destinationPhone}`;
 
         // Map SNS status to our status values
         const statusMap: Record<string, string> = {
@@ -117,15 +187,20 @@ export const handler = async (event: SnsEvent) => {
 
         // Create delivery status record
         try {
+          const deliveryMessageId = messageId ? `${messageId}` : "";
+          const deliveryStatusMessage = statusMessage ? `${statusMessage}` : "";
+          const deliveryStatusCode = statusCode ? `${statusCode}` : "";
+          const parsedPriceInUSD = parseFloat(String(priceInUSD ?? "0"));
+
           await (client.models as any).SmsDeliveryStatus.create({
-            snsMessageId: messageId,
-            phone: destinationPhoneNumber,
+            snsMessageId: deliveryMessageId,
+            phone: destinationPhone,
             normalizedPhone,
             status,
-            statusMessage: statusMessage || "",
-            statusCode: statusCode || "",
-            priceInUSD: priceInUSD ? parseFloat(priceInUSD) : 0,
-            rawMessageJson: JSON.stringify(message),
+            statusMessage: deliveryStatusMessage,
+            statusCode: deliveryStatusCode,
+            priceInUSD: Number.isFinite(parsedPriceInUSD) ? parsedPriceInUSD : 0,
+            rawMessageJson: JSON.stringify(rawMessage),
             createdAt: String(timestamp || new Date().toISOString()),
             processedAt: new Date().toISOString(),
           });

@@ -132,6 +132,12 @@ processSmsEventsFn.addEventSource(
 const processSmsDeliveryStatusFn =
   backend.processSmsDeliveryStatus.resources.lambda as unknown as lambda.Function;
 
+processSmsDeliveryStatusFn.addPermission("AllowCloudWatchLogsInvokeSmsDeliveryStatus", {
+  principal: new ServicePrincipal("logs.amazonaws.com"),
+  action: "lambda:InvokeFunction",
+  sourceArn: `arn:aws:logs:${cdk.Stack.of(processSmsDeliveryStatusFn).region}:${cdk.Stack.of(processSmsDeliveryStatusFn).account}:log-group:*`,
+});
+
 const smsDeliveryStatusQueue = new sqs.Queue(processSmsDeliveryStatusFn, "SmsDeliveryStatusQueue", {
   visibilityTimeout: cdk.Duration.seconds(60),
   retentionPeriod: cdk.Duration.days(14),

@@ -169,6 +169,7 @@ export default function PushNotifications({ permissions }: PageProps) {
   const [status, setStatus] = useState<{ type: "success" | "error" | "partial"; text: string } | null>(null);
   const [lastResults, setLastResults] = useState<SendResult[] | null>(null);
   const [exportingCsv, setExportingCsv] = useState(false);
+  const [showUnresolvedOnly, setShowUnresolvedOnly] = useState(false);
 
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
@@ -288,6 +289,49 @@ export default function PushNotifications({ permissions }: PageProps) {
     }
     return map;
   }, [deliveryStatuses]);
+
+  const historyRows = useMemo(() => {
+    return logs.map((log) => {
+      const recipients: { name: string; phone: string }[] = (() => {
+        try { return JSON.parse(log.recipientsJson ?? "[]"); } catch { return []; }
+      })();
+      const linkedEvents = eventsByLogId.get(log.id) ?? [];
+      const previewEvents = linkedEvents.slice(0, 6);
+      const resultRows = parseResultsJson(log.resultsJson);
+      const failedOnly = resultRows.filter((r) => String(r.status).toUpperCase() === "FAILED");
+      const submittedRows = resultRows.filter((r) => String(r.status).toUpperCase() === "SENT");
+      const submittedCount = submittedRows.length;
+      const carrierFeedback = submittedRows.flatMap((r) => {
+        const msgId = String(r.messageId ?? "").trim();
+        return msgId ? (deliveryByMessageId.get(msgId) ?? []) : [];
+      });
+      const deliveredCount = carrierFeedback.filter((s) => isCarrierDelivered(s.status)).length;
+      const deliveryFailedCount = carrierFeedback.filter((s) => isCarrierFailed(s.status)).length;
+      const awaitingCarrierCount = Math.max(submittedCount - carrierFeedback.length, 0);
+      return {
+        log,
+        recipients,
+        previewEvents,
+        failedOnly,
+        submittedCount,
+        deliveredCount,
+        deliveryFailedCount,
+        awaitingCarrierCount,
+      };
+    });
+  }, [logs, eventsByLogId, deliveryByMessageId]);
+
+  const visibleHistoryRows = useMemo(
+    () => historyRows.filter((row) => !showUnresolvedOnly || row.awaitingCarrierCount > 0),
+    [historyRows, showUnresolvedOnly]
+  );
+
+  const hasSubmittedMessages = useMemo(
+    () => historyRows.some((row) => row.submittedCount > 0),
+    [historyRows]
+  );
+
+  const showSetupIncompleteWarning = hasSubmittedMessages && deliveryStatuses.length === 0;
 
   const togglePhone = (phone: string) => {
     setSelectedPhones((prev) => {
@@ -724,33 +768,33 @@ export default function PushNotifications({ permissions }: PageProps) {
 
           {permissions.canRead && logs.length > 0 && (
             <section className="pn-panel pn-logs-panel">
+              {showSetupIncompleteWarning && (
+                <div className="pn-setup-warning" role="status" aria-live="polite">
+                  <i className="fas fa-triangle-exclamation" />
+                  <div>
+                    <div className="pn-setup-warning-title">{t("Setup incomplete: no carrier delivery feedback is being ingested yet.")}</div>
+                    <div className="pn-setup-warning-text">{t("Enable SNS SMS delivery status logging to CloudWatch and attach the log group subscription to the delivery-status Lambda.")}</div>
+                  </div>
+                </div>
+              )}
               <div className="pn-panel-header">
                 <span className="pn-panel-title">
                   <i className="fas fa-clock-rotate-left" /> {t("Send History")}
-                  <span className="pn-badge">{logs.length}</span>
+                  <span className="pn-badge">{visibleHistoryRows.length}</span>
                 </span>
-                <button type="button" className="pn-log-action-btn" onClick={exportSendHistoryCsv} disabled={exportingCsv}>
-                  <i className="fas fa-file-csv" /> {exportingCsv ? t("Exporting…") : t("Export CSV")}
-                </button>
+                <div className="pn-log-toolbar">
+                  <label className="pn-filter-toggle">
+                    <input type="checkbox" checked={showUnresolvedOnly} onChange={(e) => setShowUnresolvedOnly(e.target.checked)} />
+                    <span>{t("Unresolved only")}</span>
+                  </label>
+                  <button type="button" className="pn-log-action-btn" onClick={exportSendHistoryCsv} disabled={exportingCsv}>
+                    <i className="fas fa-file-csv" /> {exportingCsv ? t("Exporting…") : t("Export CSV")}
+                  </button>
+                </div>
               </div>
               <div className="pn-logs-list">
-                {logs.map((log) => {
-                  const recipients: { name: string; phone: string }[] = (() => {
-                    try { return JSON.parse(log.recipientsJson ?? "[]"); } catch { return []; }
-                  })();
-                  const linkedEvents = eventsByLogId.get(log.id) ?? [];
-                  const previewEvents = linkedEvents.slice(0, 6);
-                  const failedOnly = parseResultsJson(log.resultsJson).filter((r) => String(r.status).toUpperCase() === "FAILED");
-                  const resultRows = parseResultsJson(log.resultsJson);
-                  const submittedRows = resultRows.filter((r) => String(r.status).toUpperCase() === "SENT");
-                  const submittedCount = submittedRows.length;
-                  const carrierFeedback = submittedRows.flatMap((r) => {
-                    const msgId = String(r.messageId ?? "").trim();
-                    return msgId ? (deliveryByMessageId.get(msgId) ?? []) : [];
-                  });
-                  const deliveredCount = carrierFeedback.filter((s) => isCarrierDelivered(s.status)).length;
-                  const deliveryFailedCount = carrierFeedback.filter((s) => isCarrierFailed(s.status)).length;
-                  const awaitingCarrierCount = Math.max(submittedCount - carrierFeedback.length, 0);
+                {visibleHistoryRows.length === 0 && <div className="pn-empty">{t("No matching SMS history found.")}</div>}
+                {visibleHistoryRows.map(({ log, recipients, previewEvents, failedOnly, submittedCount, deliveredCount, deliveryFailedCount, awaitingCarrierCount }) => {
                   return (
                     <div key={log.id} className="pn-log-row">
                       <div className="pn-log-meta">

@@ -1583,6 +1583,10 @@ const FRAGMENTS_EN_AR: Array<[string, string]> = [
   ["Opted out", "ألغى الاشتراك"],
   ["Marked as spam", "تم اعتباره رسالة مزعجة"],
   ["Awaiting carrier feedback", "بانتظار تأكيد شركة الاتصالات"],
+  ["Unresolved only", "غير المحسوم فقط"],
+  ["No matching SMS history found.", "لم يتم العثور على سجل SMS مطابق."],
+  ["Setup incomplete: no carrier delivery feedback is being ingested yet.", "الإعداد غير مكتمل: لا يتم حالياً استيعاب أي تغذية راجعة من شركة الاتصالات."],
+  ["Enable SNS SMS delivery status logging to CloudWatch and attach the log group subscription to the delivery-status Lambda.", "فعّل تسجيل حالة تسليم SMS في SNS إلى CloudWatch ثم اربط اشتراك مجموعة السجلات مع Lambda الخاص بحالة التسليم."],
   ["loadFailed", "فشل التحميل"],
 ];
 
