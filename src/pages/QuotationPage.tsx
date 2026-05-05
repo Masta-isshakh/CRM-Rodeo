@@ -197,6 +197,80 @@ function drawArabicLine(
   doc.addImage(canvas.toDataURL("image/png"), "PNG", xRightMm - maxWidthMm, yTopMm, maxWidthMm, lineH);
 }
 
+function splitArabicTextToLines(
+  text: string,
+  maxWidthMm: number,
+  fontPx: number,
+  style: "normal" | "italic" | "bold" | "bolditalic",
+) {
+  const normalized = String(text ?? "").trim();
+  if (!normalized) return [""];
+
+  const words = normalized.split(/\s+/).filter(Boolean);
+  if (!words.length) return [normalized];
+
+  if (typeof document === "undefined") {
+    const approxCharsPerLine = Math.max(12, Math.floor(maxWidthMm * 2.2));
+    const lines: string[] = [];
+    let current = "";
+    for (const word of words) {
+      const candidate = current ? `${current} ${word}` : word;
+      if (candidate.length <= approxCharsPerLine) current = candidate;
+      else {
+        if (current) lines.push(current);
+        current = word;
+      }
+    }
+    if (current) lines.push(current);
+    return lines;
+  }
+
+  const pxPerMm = 96 / 25.4;
+  const scale = 2;
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return [normalized];
+
+  const fontWeight = style.includes("bold") ? "700" : "400";
+  const fontStyle = style.includes("italic") ? "italic" : "normal";
+  ctx.font = `${fontStyle} ${fontWeight} ${Math.round(fontPx * scale)}px Tahoma, Arial, "Segoe UI", sans-serif`;
+
+  const maxWidthPx = Math.max(1, maxWidthMm * pxPerMm * scale);
+  const lines: string[] = [];
+  let current = "";
+
+  for (const word of words) {
+    const candidate = current ? `${current} ${word}` : word;
+    if (ctx.measureText(candidate).width <= maxWidthPx) current = candidate;
+    else {
+      if (current) lines.push(current);
+      current = word;
+    }
+  }
+
+  if (current) lines.push(current);
+  return lines.length ? lines : [normalized];
+}
+
+function drawWrappedArabicLines(
+  doc: jsPDF,
+  text: string,
+  xRightMm: number,
+  yTopMm: number,
+  maxWidthMm: number,
+  fontPx: number,
+  style: "normal" | "italic" | "bold" | "bolditalic",
+  colorHex = "#181818",
+  lineGapMm = 0.8,
+) {
+  const lineHeightMm = 4.4 + lineGapMm;
+  const lines = splitArabicTextToLines(text, maxWidthMm, fontPx, style);
+  lines.forEach((line, idx) => {
+    drawArabicLine(doc, line, xRightMm, yTopMm + idx * lineHeightMm, maxWidthMm, fontPx, style, colorHex);
+  });
+  return lines.length;
+}
+
 export default function QuotationPage({ currentUser }: { currentUser?: any; permissions?: any }) {
   const { t } = useLanguage();
   const { canOption, getOptionNumber } = usePermissions();
@@ -439,15 +513,17 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.4);
-    doc.text("Service / الخدمة", marginX + 2, tableTop + 5.1);
-    doc.text("AMOUNT | المبلغ", pageW - marginX - 2, tableTop + 5.1, { align: "right" });
+    doc.text("Service", marginX + 2, tableTop + 5.1);
+    drawArabicLine(doc, "الخدمة", marginX + descW - 2, tableTop + 1.7, 18, 8, "bold");
+    doc.text("AMOUNT", pageW - marginX - 2, tableTop + 5.1, { align: "right" });
+    drawArabicLine(doc, "المبلغ", pageW - marginX - 22, tableTop + 1.7, 16, 8, "bold");
 
     const shown = selectedLines.slice(0, rowsCount);
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8.1);
     shown.forEach((line, idx) => {
       const y = tableTop + rowH + idx * rowH + 5;
-      const title = safeText(toBilingualName(line.name, line.nameAr, t("Service")));
+      const title = safeText(line.name || line.nameAr || t("Service"));
       const titleClipped = title.length > 62 ? `${title.slice(0, 62)}...` : title;
       doc.text(titleClipped, marginX + 2, y);
       doc.text(formatMoney(toMoney(line.price)), pageW - marginX - 2, y, { align: "right" });
@@ -465,6 +541,21 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
       ["NET TOTAL", "الصافي", netAmount],
       ["TAX RATE", "الضريبة", taxRate],
     ] as const;
+
+    const drawWrapped = (
+      text: string,
+      x: number,
+      y: number,
+      maxWidth: number,
+      lineHeight: number,
+      align: "left" | "right" = "left"
+    ) => {
+      const lines = doc.splitTextToSize(String(text || "-"), maxWidth) as string[];
+      lines.forEach((line, idx) => {
+        doc.text(line, x, y + idx * lineHeight, align === "right" ? { align: "right" } : undefined);
+      });
+      return lines.length;
+    };
 
     doc.rect(totalsX, totalsTop, totalsW, totalsRowH * totals.length);
     for (let i = 1; i < totals.length; i += 1) {
@@ -485,16 +576,60 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
 
     // Remarks and terms
     const remarksTop = totalsTop + totalsRowH * totals.length + 5;
+    const remarksLeftX = marginX + 1;
+    const remarksLeftW = 112;
+    const remarksRightX = pageW - marginX - 1;
+    const remarksRightW = 74;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(8.2);
-    doc.text("Remarks", marginX + 1, remarksTop);
-    drawArabicLine(doc, "إيضاحات", marginX + 86, remarksTop - 3.1, 18, 8, "bold");
+    doc.text("Remarks", remarksLeftX, remarksTop);
+    drawArabicLine(doc, "إيضاحات", remarksRightX, remarksTop - 3.1, 16, 8, "bold");
     doc.setFont("helvetica", "normal");
     doc.setFontSize(6.9);
-    doc.text("1) The customer agrees to the terms and conditions mentioned in the vehicle receipt paper and the services mentioned in this invoice", marginX + 1, remarksTop + 4.8);
-    doc.text("2) Warranty terms and conditions apply to the services provided in this invoice and it is the customer's responsibility to read them before ordering the services.", marginX + 1, remarksTop + 8.8);
-    drawArabicLine(doc, "1) يوافق العميل على الشروط والأحكام المذكورة في ورقة استلام المركبة والخدمات المذكورة في هذه الفاتورة.", pageW - marginX - 1, remarksTop + 3.0, 118, 7, "normal");
-    drawArabicLine(doc, "2) تنطبق شروط وأحكام الضمان على الخدمات المقدمة في هذه الفاتورة وتقع مسؤولية قراءتها على العميل قبل طلب الخدمات.", pageW - marginX - 1, remarksTop + 7.2, 118, 7, "normal");
+    const remarksLineHeight = 3.6;
+    const remarksFirstY = remarksTop + 4.8;
+    const remarksFirstLines = drawWrapped(
+      "1) The customer agrees to the terms and conditions mentioned in the vehicle receipt paper and the services mentioned in this invoice.",
+      remarksLeftX,
+      remarksFirstY,
+      remarksLeftW,
+      remarksLineHeight,
+      "left"
+    );
+    const remarksSecondY = remarksFirstY + remarksFirstLines * remarksLineHeight + 1.2;
+    drawWrapped(
+      "2) Warranty terms and conditions apply to the services provided in this invoice and it is the customer's responsibility to read them before ordering the services.",
+      remarksLeftX,
+      remarksSecondY,
+      remarksLeftW,
+      remarksLineHeight,
+      "left"
+    );
+    const remarksArabicLineHeight = 5.2;
+    const remarksArabicFirstY = remarksTop + 3.0;
+    const remarksArabicFirstLines = drawWrappedArabicLines(
+      doc,
+      "1) يوافق العميل على الشروط والأحكام المذكورة في ورقة استلام المركبة والخدمات المذكورة في هذه الفاتورة.",
+      remarksRightX,
+      remarksArabicFirstY,
+      remarksRightW,
+      7,
+      "normal",
+      "#181818",
+      0.8
+    );
+    const remarksArabicSecondY = remarksArabicFirstY + remarksArabicFirstLines * remarksArabicLineHeight + 0.8;
+    drawWrappedArabicLines(
+      doc,
+      "2) تنطبق شروط وأحكام الضمان على الخدمات المقدمة في هذه الفاتورة وتقع مسؤولية قراءتها على العميل قبل طلب الخدمات.",
+      remarksRightX,
+      remarksArabicSecondY,
+      remarksRightW,
+      7,
+      "normal",
+      "#181818",
+      0.8
+    );
 
     // Footer with QR and contact
     const footerTop = pageH - 42;
@@ -527,18 +662,47 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     doc.text("@rodeo.drive.qa", marginX + 141, footerTop + 14.2);
 
     doc.setFillColor(239, 239, 239);
-    doc.rect(pageW - marginX - 54, footerTop + 20.8, 54, 16, "F");
+    const footerSummaryX = pageW - marginX - 62;
+    const footerSummaryW = 62;
+    const footerSummaryY = footerTop + 18.4;
+    const footerSummaryRowH = 5.8;
+    const footerSummaryRows: Array<{ label: string; value: string }> = [
+      { label: "TOTAL SERVICES", value: `${formatMoney(subtotal)} QAR` },
+      { label: "TOTAL DISCOUNT", value: `${formatMoney(safeDiscount)} QAR` },
+      { label: "NET TOTAL", value: `${formatMoney(netAmount)} QAR` },
+    ];
+
+    doc.rect(footerSummaryX, footerSummaryY, footerSummaryW, footerSummaryRowH * footerSummaryRows.length, "F");
+    doc.setDrawColor(210, 210, 210);
+    doc.setLineWidth(0.2);
+    for (let i = 1; i < footerSummaryRows.length; i += 1) {
+      doc.line(
+        footerSummaryX,
+        footerSummaryY + i * footerSummaryRowH,
+        footerSummaryX + footerSummaryW,
+        footerSummaryY + i * footerSummaryRowH
+      );
+    }
+
     doc.setFont("helvetica", "bold");
     doc.setFontSize(7.6);
-    doc.text("TOTAL SERVICES", pageW - marginX - 52, footerTop + 25.8);
-    doc.text("TOTAL TAX", pageW - marginX - 52, footerTop + 30.3);
-    doc.text("400 QAR", pageW - marginX - 2, footerTop + 25.8, { align: "right" });
-    doc.text(`${formatMoney(netAmount)} QAR`, pageW - marginX - 2, footerTop + 35.1, { align: "right" });
-    drawArabicLine(doc, "الإجمالي مع الضريبة", pageW - marginX - 2, footerTop + 31.8, 33, 8, "bold");
+    footerSummaryRows.forEach((row, idx) => {
+      const y = footerSummaryY + idx * footerSummaryRowH + 4;
+      doc.text(row.label, footerSummaryX + 2, y);
+      doc.text(row.value, footerSummaryX + footerSummaryW - 2, y, { align: "right" });
+    });
 
-    const fileName = `${safeText(t("Quotation")) || "Quotation"}_${quoteNumber}.pdf`;
-    doc.save(fileName);
-    setStatus(t("Quotation PDF generated successfully."));
+    const pdfBlob = doc.output("blob") as Blob;
+    const pdfUrl = URL.createObjectURL(pdfBlob);
+    const opened = window.open(pdfUrl, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      setStatus(t("Popup blocked. Please allow popups and try again."));
+      URL.revokeObjectURL(pdfUrl);
+      return;
+    }
+    opened.focus();
+    window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 60_000);
+    setStatus(t("Quotation opened in a new tab."));
   };
 
   return (
@@ -586,12 +750,12 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
               <label>
                 <span>{t("Vehicle Type")}</span>
                 <select value={customer.vehicleType} onChange={(e) => updateCustomer("vehicleType", e.target.value)}>
-                  <option value="SUV">SUV</option>
-                  <option value="SEDAN">Sedan</option>
-                  <option value="HATCHBACK">Hatchback</option>
-                  <option value="TRUCK">Truck</option>
-                  <option value="COUPE">Coupe</option>
-                  <option value="OTHER">Other</option>
+                  <option value="SUV">{t("SUV")}</option>
+                  <option value="SEDAN">{t("Sedan")}</option>
+                  <option value="HATCHBACK">{t("Hatchback")}</option>
+                  <option value="TRUCK">{t("Truck")}</option>
+                  <option value="COUPE">{t("Coupe")}</option>
+                  <option value="OTHER">{t("Other")}</option>
                 </select>
               </label>
               <label className="quotation-notes-field">
@@ -622,7 +786,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
                         className={`quotation-chip ${selected ? "selected" : ""}`}
                         onClick={() => toggleCatalogSelection(item.id)}
                       >
-                        <strong>{toBilingualName(item.name, item.nameAr, "Package")}</strong>
+                        <strong data-no-translate="true">{toBilingualName(item.name, item.nameAr, t("Package"))}</strong>
                         <span>{item.serviceCode}</span>
                         <span>{formatMoney(price)}</span>
                       </button>
@@ -642,7 +806,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
                         className={`quotation-chip ${selected ? "selected" : ""}`}
                         onClick={() => toggleCatalogSelection(item.id)}
                       >
-                        <strong>{toBilingualName(item.name, item.nameAr, "Service")}</strong>
+                        <strong data-no-translate="true">{toBilingualName(item.name, item.nameAr, t("Service"))}</strong>
                         <span>{item.serviceCode}</span>
                         <span>{formatMoney(price)}</span>
                       </button>
@@ -698,7 +862,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
               {selectedLines.map((line, idx) => (
                 <div key={`${line.packageCode || "single"}-${line.serviceCode || line.catalogId || idx}`} className="quotation-summary-row">
                   <div>
-                    <strong>{toBilingualName(line.name, line.nameAr, "Service")}</strong>
+                    <strong data-no-translate="true">{toBilingualName(line.name, line.nameAr, t("Service"))}</strong>
                     {line.packageName ? <small>{t("Package")}: {line.packageName}</small> : null}
                   </div>
                   <div>{formatMoney(toMoney(line.price))}</div>

@@ -310,6 +310,21 @@ async function loadNormalizedInvoices(
 
   const out: InvoiceUi[] = [];
   try {
+    let fallbackServices: string[] = [];
+    try {
+      const jobRes = await client.models.JobOrder.get({ id: key } as any);
+      const jobRow = (jobRes as any)?.data ?? null;
+      const parsed = safeJsonParse<any>(jobRow?.dataJson, {});
+      const primary = Array.isArray(parsed?.services) ? parsed.services : [];
+      const secondary = Array.isArray(parsed?.selectedServices) ? parsed.selectedServices : [];
+      const source = primary.length ? primary : secondary;
+      fallbackServices = source
+        .map((s: any) => String(s?.name ?? s?.serviceName ?? s?.title ?? "").trim())
+        .filter(Boolean);
+    } catch {
+      fallbackServices = [];
+    }
+
     let invRows: any[] = [];
     try {
       const byIdx = await (client.models.JobOrderInvoice as any).listInvoicesByJobOrder?.({
@@ -346,6 +361,7 @@ async function loadNormalizedInvoices(
       }
 
       const services = svcRows.map((s) => String(s.serviceName ?? "").trim()).filter(Boolean);
+      const effectiveServices = services.length ? services : fallbackServices;
 
       out.push({
         id: invoiceId,
@@ -354,7 +370,7 @@ async function loadNormalizedInvoices(
         discount: toNum(inv.discount),
         status: String(inv.status ?? "Unpaid"),
         paymentMethod: inv.paymentMethod ?? null,
-        services,
+        services: effectiveServices,
         createdAt: inv.createdAt ?? null,
       });
     }

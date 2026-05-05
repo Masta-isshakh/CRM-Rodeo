@@ -339,6 +339,50 @@ function buildPackageAuditBreakdown(services: any[]) {
   };
 }
 
+function buildJobOrderBillLines(services: any[]) {
+  const packageMap = new Map<string, { label: string; amount: number; itemCount: number }>();
+  const standaloneLines: Array<{ label: string; amount: number }> = [];
+
+  for (const service of services || []) {
+    const servicePrice = Math.max(0, toNum(service?.price));
+    const packageKey = getPackageGroupKey(service);
+    if (!packageKey) {
+      const standaloneLabel = String(service?.name ?? service?.serviceName ?? service?.title ?? "Service").trim() || "Service";
+      standaloneLines.push({
+        label: standaloneLabel,
+        amount: roundMoney(servicePrice),
+      });
+      continue;
+    }
+
+    const packageName = String(service?.packageName || service?.packageCode || "Unnamed Package").trim() || "Unnamed Package";
+    const packagePrice = Math.max(0, toCurrencyNumber(service?.packagePrice));
+    const current = packageMap.get(packageKey) || {
+      label: packageName,
+      amount: 0,
+      itemCount: 0,
+    };
+
+    packageMap.set(packageKey, {
+      label: current.label || packageName,
+      amount: packagePrice > 0 ? packagePrice : current.amount + servicePrice,
+      itemCount: current.itemCount + 1,
+    });
+  }
+
+  return [
+    ...Array.from(packageMap.values()).map((entry) => ({
+      label: entry.itemCount > 1 ? `${entry.label} (${entry.itemCount} services)` : entry.label,
+      amount: roundMoney(entry.amount),
+    })),
+    ...standaloneLines,
+  ];
+}
+
+function buildJobOrderInvoiceLabels(services: any[]) {
+  return buildJobOrderBillLines(services).map((line) => line.label).filter(Boolean);
+}
+
 export default function PaymentInvoiceManagement({ currentUser }: { currentUser: any; permissions?: any }) {
   const client = useMemo(() => getDataClient(), []);
   const { t } = useLanguage();
@@ -706,6 +750,19 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     const out: InvoiceUi[] = [];
     try {
+      let fallbackServices: string[] = [];
+      try {
+        const jobRes = await client.models.JobOrder.get({ id: key } as any);
+        const jobRow = (jobRes as any)?.data ?? null;
+        const parsed = safeJsonParse<any>(jobRow?.dataJson, {});
+        const primary = Array.isArray(parsed?.services) ? parsed.services : [];
+        const secondary = Array.isArray(parsed?.selectedServices) ? parsed.selectedServices : [];
+        const source = primary.length ? primary : secondary;
+        fallbackServices = buildJobOrderInvoiceLabels(source);
+      } catch {
+        fallbackServices = [];
+      }
+
       let invRows: any[] = [];
 
       try {
@@ -743,6 +800,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         }
 
         const services = svcRows.map((s) => String(s.serviceName ?? "").trim()).filter(Boolean);
+        const effectiveServices = fallbackServices.length ? fallbackServices : services;
 
         out.push({
           id: invoiceId,
@@ -751,7 +809,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
           discount: toNum(inv.discount),
           status: String(inv.status ?? "Unpaid"),
           paymentMethod: inv.paymentMethod ?? null,
-          services,
+          services: effectiveServices,
           createdAt: inv.createdAt ?? null,
         });
       }
@@ -1473,9 +1531,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const paymentMethodLabel = safeText(billing.paymentMethod || "-");
 
     const services: Array<{ name: string; price: number }> = Array.isArray(order?.services)
-      ? order.services.map((service: any) => ({
-          name: safeText(service?.name ?? service),
-          price: toNum(service?.price),
+      ? buildJobOrderBillLines(order.services).map((service) => ({
+          name: safeText(service.label),
+          price: toNum(service.amount),
         }))
       : [];
 

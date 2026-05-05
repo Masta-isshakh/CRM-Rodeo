@@ -1170,6 +1170,10 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
 
   let normalizedInvoices: any[] = [];
   try {
+    const fallbackServices = services
+      .map((s: any) => String(s?.name ?? s?.serviceName ?? s?.title ?? "").trim())
+      .filter(Boolean);
+
     let invRows: any[] = [];
     try {
       const byIdx = await (client.models.JobOrderInvoice as any).listInvoicesByJobOrder?.({
@@ -1213,7 +1217,10 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
         status: String(inv?.status ?? "Unpaid"),
         paymentMethod: inv?.paymentMethod ?? null,
         createdAt: inv?.createdAt ?? null,
-        services: svcRows.map((s) => String(s?.serviceName ?? "").trim()).filter(Boolean),
+        services: (() => {
+          const linked = svcRows.map((s) => String(s?.serviceName ?? "").trim()).filter(Boolean);
+          return linked.length ? linked : fallbackServices;
+        })(),
       });
     }
 
