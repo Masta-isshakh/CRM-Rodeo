@@ -395,6 +395,7 @@ const schema = a
         deletedBy: a.string(),
         starredByJson: a.string(),
         sharedWithUsersJson: a.string(),
+        sharedPermissionsJson: a.string(),
         sharedWithDepartmentsJson: a.string(),
         sortOrder: a.integer().default(0),
 

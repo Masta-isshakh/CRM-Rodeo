@@ -35,6 +35,14 @@ type DriveAlert = {
   text: string;
 };
 
+type SharedPermissionEntry = {
+  email: string;
+  read: boolean;
+  write: boolean;
+  update: boolean;
+  delete: boolean;
+};
+
 type DepartmentDriveManagerConfig = {
   managers: string[];
   approvalRules: {
@@ -58,6 +66,7 @@ type DepartmentPolicyBlock = {
 
 const MAX_UPLOAD_MB = 100;
 const DEFAULT_QUOTA_MB = 2048;
+const MB_PER_GB = 1024;
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp", "image/svg+xml"];
 const PDF_TYPE = "application/pdf";
 const FOLDER_MIME = "application/x.crm.folder";
@@ -120,6 +129,65 @@ function parseJsonArray(raw: unknown): string[] {
   }
 }
 
+function parseSharedPermissions(raw: unknown): SharedPermissionEntry[] {
+  try {
+    if (!raw) return [];
+    const parsed = typeof raw === "string" ? JSON.parse(raw) : raw;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((entry) => {
+        const email = normalizeEmail((entry as any)?.email);
+        if (!email) return null;
+        const read = Boolean((entry as any)?.read);
+        const write = Boolean((entry as any)?.write);
+        const update = Boolean((entry as any)?.update);
+        const del = Boolean((entry as any)?.delete);
+        return {
+          email,
+          read: read || write || update || del,
+          write,
+          update,
+          delete: del,
+        };
+      })
+      .filter(Boolean) as SharedPermissionEntry[];
+  } catch {
+    return [];
+  }
+}
+
+function serializeSharedPermissions(entries: SharedPermissionEntry[]) {
+  return JSON.stringify(
+    entries
+      .map((entry) => ({
+        email: normalizeEmail(entry.email),
+        read: Boolean(entry.read) || Boolean(entry.write) || Boolean(entry.update) || Boolean(entry.delete),
+        write: Boolean(entry.write),
+        update: Boolean(entry.update),
+        delete: Boolean(entry.delete),
+      }))
+      .filter((entry) => entry.email)
+  );
+}
+
+function quotaMbToGb(quotaMb: number) {
+  return quotaMb / MB_PER_GB;
+}
+
+function quotaGbToMb(quotaGb: number) {
+  return Math.round(quotaGb * MB_PER_GB);
+}
+
+function parseQuotaGbInput(raw: unknown, fallbackGb: number) {
+  const normalized = String(raw ?? "")
+    .trim()
+    .replace(/,/g, ".")
+    .replace(/[^0-9.]/g, "");
+  const parsed = Number.parseFloat(normalized);
+  if (!Number.isFinite(parsed) || parsed <= 0) return fallbackGb;
+  return parsed;
+}
+
 function parseDepartmentManagersConfig(raw: unknown): DepartmentDriveManagerConfig {
   const defaults: DepartmentDriveManagerConfig = {
     managers: [],
@@ -162,21 +230,131 @@ function parseDepartmentManagersConfig(raw: unknown): DepartmentDriveManagerConf
   }
 }
 
-function fileIcon(contentType: string | undefined | null, isFolder: boolean) {
-  if (isFolder) return "fas fa-folder";
-  const ct = String(contentType ?? "");
-  if (ct === DOC_MIME) return "fas fa-file-lines";
-  if (ct === SHEET_MIME) return "fas fa-table";
-  if (ct === SLIDES_MIME) return "fas fa-chalkboard";
-  if (ct === FORM_MIME) return "fas fa-list-check";
-  if (IMAGE_TYPES.includes(ct)) return "fas fa-image";
-  if (ct === PDF_TYPE) return "fas fa-file-pdf";
-  if (ct.startsWith("video/")) return "fas fa-file-video";
-  if (ct.startsWith("audio/")) return "fas fa-file-audio";
-  if (ct.includes("spreadsheet") || ct.includes("excel")) return "fas fa-file-excel";
-  if (ct.includes("word")) return "fas fa-file-word";
-  if (ct.includes("zip") || ct.includes("compressed")) return "fas fa-file-zipper";
-  return "fas fa-file";
+function driveIconKind(contentType: string | undefined | null, isFolder: boolean) {
+  if (isFolder) return "folder";
+  const ct = String(contentType ?? "").toLowerCase();
+  if (ct === PDF_TYPE) return "pdf";
+  if (ct === DOC_MIME || ct.includes("word")) return "doc";
+  if (ct === SHEET_MIME || ct.includes("sheet") || ct.includes("excel")) return "sheet";
+  if (ct === SLIDES_MIME) return "slide";
+  if (ct === FORM_MIME) return "form";
+  if (IMAGE_TYPES.includes(ct)) return "image";
+  if (ct.startsWith("video/")) return "video";
+  if (ct.startsWith("audio/")) return "audio";
+  if (ct.includes("zip") || ct.includes("compressed")) return "archive";
+  return "file";
+}
+
+function fileTypeLabel(contentType: string | undefined | null, isFolder: boolean) {
+  if (isFolder) return "DIR";
+  const ct = String(contentType ?? "").toLowerCase();
+  if (ct === PDF_TYPE) return "PDF";
+  if (ct === DOC_MIME || ct.includes("word")) return "DOC";
+  if (ct === SHEET_MIME || ct.includes("sheet") || ct.includes("excel")) return "XLS";
+  if (ct === SLIDES_MIME) return "PPT";
+  if (ct === FORM_MIME) return "FRM";
+  if (IMAGE_TYPES.includes(ct)) return "IMG";
+  if (ct.startsWith("video/")) return "VID";
+  if (ct.startsWith("audio/")) return "AUD";
+  if (ct.includes("zip") || ct.includes("compressed")) return "ZIP";
+  return "FILE";
+}
+
+function DriveItemIcon({
+  contentType,
+  isFolder,
+  size = "md",
+}: {
+  contentType: string | undefined | null;
+  isFolder: boolean;
+  size?: "sm" | "md" | "lg";
+}) {
+  const kind = driveIconKind(contentType, isFolder);
+  const label = fileTypeLabel(contentType, isFolder);
+  const brandGlyph = kind === "pdf" ? "P" : kind === "doc" ? "W" : kind === "sheet" ? "X" : kind === "slide" ? "P" : kind === "form" ? "F" : "";
+
+  if (isFolder) {
+    return (
+      <span className={`drive-real-icon drive-real-icon-${size} drive-real-icon-${kind}`} aria-hidden="true">
+        <svg viewBox="0 0 64 64" role="presentation">
+          <defs>
+            <linearGradient id="driveFolderFlap" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#ffe69a" />
+              <stop offset="100%" stopColor="#f6b73d" />
+            </linearGradient>
+            <linearGradient id="driveFolderBody" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#ffd769" />
+              <stop offset="100%" stopColor="#e0a126" />
+            </linearGradient>
+          </defs>
+          <path d="M8 20.5C8 16.9 10.9 14 14.5 14H26l5 5h18.5c3.6 0 6.5 2.9 6.5 6.5V27H8v-6.5Z" fill="url(#driveFolderFlap)" />
+          <path d="M8 26h48a4 4 0 0 1 3.9 4.9l-4.6 18.8A6 6 0 0 1 49.5 54h-35a6 6 0 0 1-5.8-4.5L4.1 30.9A4 4 0 0 1 8 26Z" fill="url(#driveFolderBody)" />
+          <path d="M13 31h38" stroke="rgba(255,255,255,.45)" strokeWidth="2.4" strokeLinecap="round" />
+        </svg>
+      </span>
+    );
+  }
+
+  return (
+    <span className={`drive-real-icon drive-real-icon-${size} drive-real-icon-${kind}`} aria-hidden="true">
+      <svg viewBox="0 0 64 64" role="presentation">
+        <defs>
+          <linearGradient id="drivePaper" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#ffffff" />
+            <stop offset="100%" stopColor="#eef4fb" />
+          </linearGradient>
+          <linearGradient id="driveFold" x1="0%" y1="0%" x2="100%" y2="100%">
+            <stop offset="0%" stopColor="#f6fbff" />
+            <stop offset="100%" stopColor="#dce8f5" />
+          </linearGradient>
+        </defs>
+        <path d="M17 6h22l12 12v31a9 9 0 0 1-9 9H17a9 9 0 0 1-9-9V15a9 9 0 0 1 9-9Z" fill="url(#drivePaper)" stroke="rgba(43,76,109,.12)" />
+        <path d="M39 6v10a5 5 0 0 0 5 5h10" fill="url(#driveFold)" />
+        <path d="M39 6v10a5 5 0 0 0 5 5h10" stroke="rgba(43,76,109,.12)" fill="url(#driveFold)" />
+        <rect x="12" y="11" width="24" height="11" rx="5.5" className="drive-real-icon-badge" />
+        <text x="24" y="18.5" textAnchor="middle" className="drive-real-icon-label">{label}</text>
+        {kind === "pdf" || kind === "doc" || kind === "sheet" || kind === "slide" || kind === "form" ? (
+          <>
+            <rect x="16" y="28" width="32" height="20" rx="5" className="drive-real-icon-panel" />
+            <rect x="16" y="28" width="8" height="20" rx="3" className="drive-real-icon-brand-strip" />
+            <rect x="26.5" y="31" width="18" height="3.2" rx="1.6" className="drive-real-icon-panel-soft" />
+            <rect x="26.5" y="36" width="14" height="3.2" rx="1.6" className="drive-real-icon-panel-soft" />
+            <rect x="26.5" y="41" width="11" height="3.2" rx="1.6" className="drive-real-icon-panel-soft" />
+            <text x="20" y="41" textAnchor="middle" className="drive-real-icon-brand-glyph">{brandGlyph || label.slice(0, 1)}</text>
+          </>
+        ) : kind === "image" ? (
+          <>
+            <rect x="16" y="28" width="32" height="20" rx="5" className="drive-real-icon-panel" />
+            <circle cx="25" cy="35" r="3.2" className="drive-real-icon-accent" />
+            <path d="M19 44l8-6 6 4 6-7 7 9H19Z" className="drive-real-icon-accent-soft" />
+          </>
+        ) : kind === "video" ? (
+          <>
+            <rect x="16" y="28" width="32" height="20" rx="5" className="drive-real-icon-panel" />
+            <path d="M28 33.5v9l8-4.5-8-4.5Z" className="drive-real-icon-accent" />
+          </>
+        ) : kind === "audio" ? (
+          <>
+            <path d="M23 45V33.5l13-3.5v11" className="drive-real-icon-stroke" />
+            <circle cx="23" cy="46" r="3.6" className="drive-real-icon-accent" />
+            <circle cx="36" cy="42" r="3.6" className="drive-real-icon-accent-soft" />
+          </>
+        ) : kind === "archive" ? (
+          <>
+            <rect x="18" y="29" width="28" height="18" rx="4" className="drive-real-icon-panel" />
+            <path d="M31 29v18" className="drive-real-icon-stroke" />
+            <path d="M28 33h6M28 38h6M28 43h6" className="drive-real-icon-stroke" />
+          </>
+        ) : (
+          <>
+            <rect x="16" y="28" width="32" height="3.8" rx="1.9" className="drive-real-icon-panel" />
+            <rect x="16" y="35" width="24" height="3.8" rx="1.9" className="drive-real-icon-panel-soft" />
+            <rect x="16" y="42" width="19" height="3.8" rx="1.9" className="drive-real-icon-panel-soft" />
+          </>
+        )}
+      </svg>
+    </span>
+  );
 }
 
 function formatBytes(bytes: number | null | undefined) {
@@ -225,9 +403,26 @@ function getRelativeDirectory(relativePath: string) {
   return parts.join("/");
 }
 
+function clampMenuPosition(x: number, y: number, width = 240, height = 360, padding = 10) {
+  const maxX = Math.max(padding, window.innerWidth - width - padding);
+  const maxY = Math.max(padding, window.innerHeight - height - padding);
+  return {
+    x: Math.max(padding, Math.min(x, maxX)),
+    y: Math.max(padding, Math.min(y, maxY)),
+  };
+}
+
 function departmentQuotaKey(deptKey: string) {
   const clean = String(deptKey ?? "").trim();
   return clean ? `${DEPARTMENT_QUOTA_PREFIX}${clean}` : "";
+}
+
+function quotaTargetKey(raw: unknown) {
+  const value = String(raw ?? "").trim();
+  if (!value) return "";
+  if (value === DEFAULT_QUOTA_KEY) return DEFAULT_QUOTA_KEY;
+  if (value.startsWith(DEPARTMENT_QUOTA_PREFIX)) return `${DEPARTMENT_QUOTA_PREFIX}${value.slice(DEPARTMENT_QUOTA_PREFIX.length).trim().toLowerCase()}`;
+  return normalizeEmail(value);
 }
 
 function departmentDrivePath(deptKey: string) {
@@ -307,7 +502,7 @@ export default function FileSharing({ permissions }: PageProps) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [view, setView] = useState<DriveView>("home");
-  const [layout, setLayout] = useState<LayoutMode>("list");
+  const [layout, setLayout] = useState<LayoutMode>("grid");
   const [sortBy, setSortBy] = useState<SortBy>("custom");
   const [currentFolder, setCurrentFolder] = useState("");
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
@@ -321,6 +516,7 @@ export default function FileSharing({ permissions }: PageProps) {
   const [renameValue, setRenameValue] = useState("");
   const [contextMenu, setContextMenu] = useState<{ rowId: string; x: number; y: number } | null>(null);
   const [rowMenuId, setRowMenuId] = useState("");
+  const [rowMenuDirection, setRowMenuDirection] = useState<"down" | "up">("down");
   const [dragTargetPath, setDragTargetPath] = useState("");
   const [reorderTarget, setReorderTarget] = useState<{ rowId: string; position: "before" | "after" } | null>(null);
 
@@ -343,11 +539,18 @@ export default function FileSharing({ permissions }: PageProps) {
   const [selectedDepartments, setSelectedDepartments] = useState<string[]>([]);
   const [newFolderName, setNewFolderName] = useState("");
 
+  const [shareModalRowId, setShareModalRowId] = useState("");
+  const [shareInviteEmail, setShareInviteEmail] = useState("");
+  const [sharePermissions, setSharePermissions] = useState<SharedPermissionEntry[]>([]);
+  const [shareGeneralScope, setShareGeneralScope] = useState<"PRIVATE" | "DEPARTMENT" | "ORGANIZATION">("PRIVATE");
+  const [shareDeptScopes, setShareDeptScopes] = useState<string[]>([]);
+
   const [quotaEmail, setQuotaEmail] = useState("");
-  const [quotaMb, setQuotaMb] = useState(String(DEFAULT_QUOTA_MB));
+  const [quotaGb, setQuotaGb] = useState(String(quotaMbToGb(DEFAULT_QUOTA_MB)));
   const [quotaBlocked, setQuotaBlocked] = useState(false);
   const [quotaNotes, setQuotaNotes] = useState("");
   const [quotaEditorTarget, setQuotaEditorTarget] = useState(DEFAULT_QUOTA_KEY);
+  const [showAdvancedAdmin, setShowAdvancedAdmin] = useState(false);
   const [shareExpiryHours, setShareExpiryHours] = useState("24");
   const [shareMaxDownloads, setShareMaxDownloads] = useState("");
   const [driveDepartmentKey, setDriveDepartmentKey] = useState("");
@@ -547,38 +750,52 @@ export default function FileSharing({ permissions }: PageProps) {
 
   useEffect(() => {
     const closeMenu = () => setContextMenu(null);
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setContextMenu(null);
+    };
     window.addEventListener("click", closeMenu);
     window.addEventListener("scroll", closeMenu, true);
+    window.addEventListener("resize", closeMenu);
+    window.addEventListener("keydown", closeOnEscape);
     return () => {
       window.removeEventListener("click", closeMenu);
       window.removeEventListener("scroll", closeMenu, true);
+      window.removeEventListener("resize", closeMenu);
+      window.removeEventListener("keydown", closeOnEscape);
     };
   }, []);
 
   useEffect(() => {
     const closeRowMenu = () => setRowMenuId("");
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setRowMenuId("");
+    };
     window.addEventListener("click", closeRowMenu);
     window.addEventListener("scroll", closeRowMenu, true);
+    window.addEventListener("resize", closeRowMenu);
+    window.addEventListener("keydown", closeOnEscape);
     return () => {
       window.removeEventListener("click", closeRowMenu);
       window.removeEventListener("scroll", closeRowMenu, true);
+      window.removeEventListener("resize", closeRowMenu);
+      window.removeEventListener("keydown", closeOnEscape);
     };
   }, []);
 
   const quotaMap = useMemo(() => {
     const m = new Map<string, any>();
     for (const row of quotaRows) {
-      const key = normalizeEmail(row?.userEmail);
+      const key = quotaTargetKey(row?.userEmail);
       if (key) m.set(key, row);
-      if (String(row?.userEmail ?? "").trim() === "*") m.set("*", row);
+      if (String(row?.userEmail ?? "").trim() === "*") m.set(DEFAULT_QUOTA_KEY, row);
     }
     return m;
   }, [quotaRows]);
 
   useEffect(() => {
     if (!quotaEmail) return;
-    const existing = quotaMap.get(normalizeEmail(quotaEmail));
-    setQuotaMb(String(existing?.quotaMb ?? DEFAULT_QUOTA_MB));
+    const existing = quotaMap.get(quotaTargetKey(quotaEmail));
+    setQuotaGb(String(quotaMbToGb(Number(existing?.quotaMb ?? DEFAULT_QUOTA_MB))));
     setQuotaBlocked(Boolean(existing?.uploadBlocked));
     setQuotaNotes(String(existing?.notes ?? ""));
   }, [quotaEmail, quotaMap]);
@@ -595,8 +812,10 @@ export default function FileSharing({ permissions }: PageProps) {
   }, [rows]);
 
   const selfUsageBytes = usageByOwner.get(selfEmail) ?? 0;
-  const selfQuotaRow = quotaMap.get(selfEmail) ?? quotaMap.get(departmentQuotaKey(String(departmentKey ?? "").trim())) ?? quotaMap.get(DEFAULT_QUOTA_KEY);
-  const selfQuotaMb = Math.max(1, Number(selfQuotaRow?.quotaMb ?? DEFAULT_QUOTA_MB));
+  const selfQuotaRow = quotaMap.get(quotaTargetKey(selfEmail)) ?? quotaMap.get(quotaTargetKey(departmentQuotaKey(String(departmentKey ?? "").trim()))) ?? quotaMap.get(DEFAULT_QUOTA_KEY);
+  const selfQuotaMb = isAdminGroup ? Number.POSITIVE_INFINITY : Math.max(1, Number(selfQuotaRow?.quotaMb ?? DEFAULT_QUOTA_MB));
+  const selfQuotaLabel = isAdminGroup ? t("Unlimited") : `${quotaMbToGb(Number(selfQuotaMb)).toFixed(1)} GB`;
+  const selfQuotaUsagePct = Number.isFinite(selfQuotaMb) ? Math.min(100, Math.round((selfUsageBytes / (selfQuotaMb * 1024 * 1024)) * 100)) : 0;
   const selfUploadBlocked = Boolean(selfQuotaRow?.uploadBlocked);
 
   const departments = useMemo(() => {
@@ -859,6 +1078,7 @@ export default function FileSharing({ permissions }: PageProps) {
             isFolder: true,
             isDeleted: false,
             sharedWithUsersJson: "[]",
+            sharedPermissionsJson: "[]",
             sharedWithDepartmentsJson: "[]",
             sortOrder: rows
               .filter((r) => !isDeleted(r) && folderOf(r) === targetFolder)
@@ -928,11 +1148,54 @@ export default function FileSharing({ permissions }: PageProps) {
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [rows]);
 
-  const hasAccess = useCallback(
-    (row: any) => {
+  const getRowPermissionEntries = useCallback((row: any) => {
+    const fromStructured = parseSharedPermissions(row?.sharedPermissionsJson);
+    if (fromStructured.length) return fromStructured;
+    const legacyUsers = parseJsonArray(row?.sharedWithUsersJson).map(normalizeEmail);
+    return legacyUsers.map((email) => ({ email, read: true, write: false, update: false, delete: false }));
+  }, []);
+
+  const findInheritedPermission = useCallback(
+    (row: any, email: string) => {
+      let parentPath = normalizeFolderPath(folderOf(row));
+      while (parentPath) {
+        const parentFolder = rows.find(
+          (candidate) =>
+            !isDeleted(candidate) &&
+            isFolder(candidate) &&
+            normalizeFolderPath(getFolderTargetPath(candidate)) === parentPath
+        );
+        if (parentFolder) {
+          const inherited = getRowPermissionEntries(parentFolder).find((entry) => entry.email === email);
+          if (inherited?.read) return inherited;
+        }
+        parentPath = parentPath.includes("/") ? parentPath.slice(0, parentPath.lastIndexOf("/")) : "";
+      }
+      return null;
+    },
+    [rows, getRowPermissionEntries]
+  );
+
+  const getEffectivePermission = useCallback(
+    (row: any, permission: keyof Pick<SharedPermissionEntry, "read" | "write" | "update" | "delete">) => {
       const owner = normalizeEmail(row?.ownerEmail);
       if (owner && owner === selfEmail) return true;
       if (canManageAll || isAdminGroup) return true;
+
+      const direct = getRowPermissionEntries(row).find((entry) => entry.email === selfEmail);
+      if (direct?.read && direct[permission]) return true;
+
+      const inherited = findInheritedPermission(row, selfEmail);
+      if (inherited?.read && inherited[permission]) return true;
+
+      return false;
+    },
+    [selfEmail, canManageAll, isAdminGroup, getRowPermissionEntries, findInheritedPermission]
+  );
+
+  const hasAccess = useCallback(
+    (row: any) => {
+      if (getEffectivePermission(row, "read")) return true;
 
       const rowScope = String(row?.visibilityScope ?? "DEPARTMENT").toUpperCase();
       const allowedUsers = parseJsonArray(row?.sharedWithUsersJson).map(normalizeEmail);
@@ -946,7 +1209,24 @@ export default function FileSharing({ permissions }: PageProps) {
       if (rowScope === "SELECTED_DEPARTMENTS") return !!selfDept && allowedDepartments.includes(selfDept);
       return false;
     },
-    [selfEmail, canManageAll, isAdminGroup, departmentKey]
+    [getEffectivePermission, departmentKey, selfEmail]
+  );
+
+  const canWriteIntoPath = useCallback(
+    (path: string) => {
+      if (canManageAll || isAdminGroup) return true;
+      const cleanPath = normalizeFolderPath(path);
+      if (!cleanPath) return true;
+      const targetFolder = rows.find(
+        (candidate) =>
+          !isDeleted(candidate) &&
+          isFolder(candidate) &&
+          normalizeFolderPath(getFolderTargetPath(candidate)) === cleanPath
+      );
+      if (!targetFolder) return true;
+      return getEffectivePermission(targetFolder, "write") || getEffectivePermission(targetFolder, "update");
+    },
+    [rows, canManageAll, isAdminGroup, getEffectivePermission]
   );
 
   const rowsByView = useMemo(() => {
@@ -1138,7 +1418,7 @@ export default function FileSharing({ permissions }: PageProps) {
 
   const nearQuotaCount = useMemo(() => {
     return directory.filter((user) => {
-      const quota = quotaMap.get(user.email) ?? quotaMap.get("*");
+      const quota = quotaMap.get(quotaTargetKey(user.email)) ?? quotaMap.get(DEFAULT_QUOTA_KEY);
       const limitMb = Math.max(1, Number(quota?.quotaMb ?? DEFAULT_QUOTA_MB));
       const usage = usageByOwner.get(user.email) ?? 0;
       return usage / (limitMb * 1024 * 1024) >= 0.85;
@@ -1179,8 +1459,8 @@ export default function FileSharing({ permissions }: PageProps) {
 
   useEffect(() => {
     if (!quotaEditorTarget) return;
-    const existing = quotaMap.get(quotaEditorTarget);
-    setQuotaMb(String(existing?.quotaMb ?? DEFAULT_QUOTA_MB));
+    const existing = quotaMap.get(quotaTargetKey(quotaEditorTarget));
+    setQuotaGb(String(quotaMbToGb(Number(existing?.quotaMb ?? DEFAULT_QUOTA_MB))));
     setQuotaBlocked(Boolean(existing?.uploadBlocked));
     setQuotaNotes(String(existing?.notes ?? ""));
     if (quotaEditorTarget === DEFAULT_QUOTA_KEY) {
@@ -1322,6 +1602,15 @@ export default function FileSharing({ permissions }: PageProps) {
   const moveRowsToFolder = useCallback(
     async (items: any[], target: string) => {
       const cleanTarget = normalizeFolderPath(target);
+      if (!canWriteIntoPath(cleanTarget)) {
+        setStatus(t("You do not have write permission in the target folder."));
+        return;
+      }
+      const blockedItem = items.find((row) => !getEffectivePermission(row, "update"));
+      if (blockedItem) {
+        setStatus(t("One or more selected items cannot be moved due to permission restrictions."));
+        return;
+      }
       const targetBlock = resolveDepartmentDrivePolicyBlock(cleanTarget, "move");
       if (targetBlock) {
         await submitApprovalRequest(targetBlock, {
@@ -1366,7 +1655,7 @@ export default function FileSharing({ permissions }: PageProps) {
       setDragTargetPath("");
       await loadData();
     },
-    [client, selfEmail, logActivity, loadData, getNextSortOrder, resolveDepartmentDrivePolicyBlock, submitApprovalRequest]
+    [client, selfEmail, logActivity, loadData, getNextSortOrder, resolveDepartmentDrivePolicyBlock, submitApprovalRequest, canWriteIntoPath, t, getEffectivePermission]
   );
 
   const onDragOver = useCallback((e: React.DragEvent) => {
@@ -1418,6 +1707,7 @@ export default function FileSharing({ permissions }: PageProps) {
 
   const createFolder = async () => {
     if (!canCreateFolder) return setStatus(t("You do not have permission to create folders."));
+    if (!canWriteIntoPath(currentFolder)) return setStatus(t("You do not have write permission in this folder."));
     const clean = safeName(newFolderName).replace(/\.[^/.]+$/, "");
     if (!clean) return setStatus(t("Please enter a valid folder name."));
     const approvalBlock = resolveDepartmentDrivePolicyBlock(currentFolder, "folder-create");
@@ -1448,6 +1738,7 @@ export default function FileSharing({ permissions }: PageProps) {
         isFolder: true,
         isDeleted: false,
         sharedWithUsersJson: "[]",
+        sharedPermissionsJson: "[]",
         sharedWithDepartmentsJson: "[]",
         sortOrder: getNextSortOrder(currentFolder),
         downloadCount: 0,
@@ -1465,6 +1756,7 @@ export default function FileSharing({ permissions }: PageProps) {
 
   const uploadFile = async () => {
     if (!canUpload) return setStatus(t("You do not have permission to upload files."));
+    if (!canWriteIntoPath(currentFolder)) return setStatus(t("You do not have write permission in this folder."));
     if (!files.length) return setStatus(t("Please select a file first."));
     if (selfUploadBlocked) return setStatus(t("Your upload permission is blocked by drive administrator."));
 
@@ -1472,8 +1764,10 @@ export default function FileSharing({ permissions }: PageProps) {
     if (oversized.length) return setStatus(`${t("Max upload size is")} ${MAX_UPLOAD_MB}MB: ${oversized.map((entry) => entry.file.name).join(", ")}`);
 
     const incoming = files.reduce((sum, entry) => sum + entry.file.size, 0);
-    const quotaBytes = selfQuotaMb * 1024 * 1024;
-    if (selfUsageBytes + incoming > quotaBytes) return setStatus(t("Upload exceeds your allocated storage quota."));
+    if (Number.isFinite(selfQuotaMb)) {
+      const quotaBytes = selfQuotaMb * 1024 * 1024;
+      if (selfUsageBytes + incoming > quotaBytes) return setStatus(t("Upload exceeds your allocated storage quota."));
+    }
 
     setSaving(true);
     setStatus("");
@@ -1534,6 +1828,7 @@ export default function FileSharing({ permissions }: PageProps) {
           isFolder: false,
           isDeleted: false,
           sharedWithUsersJson: JSON.stringify(selectedUsers),
+          sharedPermissionsJson: serializeSharedPermissions(selectedUsers.map((email) => ({ email, read: true, write: false, update: false, delete: false }))),
           sharedWithDepartmentsJson: JSON.stringify(selectedDepartments),
           starredByJson: "[]",
           sortOrder: getNextSortOrder(targetFolder),
@@ -1657,6 +1952,11 @@ export default function FileSharing({ permissions }: PageProps) {
       return;
     }
 
+    if (!canWriteIntoPath(currentFolder)) {
+      setStatus(t("You do not have write permission in this folder."));
+      return;
+    }
+
     if (selfUploadBlocked) {
       setStatus(t("Your upload permission is blocked by drive administrator."));
       return;
@@ -1720,6 +2020,7 @@ export default function FileSharing({ permissions }: PageProps) {
         isFolder: false,
         isDeleted: false,
         sharedWithUsersJson: JSON.stringify(selectedUsers),
+        sharedPermissionsJson: serializeSharedPermissions(selectedUsers.map((email) => ({ email, read: true, write: false, update: false, delete: false }))),
         sharedWithDepartmentsJson: JSON.stringify(selectedDepartments),
         starredByJson: "[]",
         sortOrder: getNextSortOrder(targetFolder),
@@ -1785,9 +2086,8 @@ export default function FileSharing({ permissions }: PageProps) {
 
   const replaceWithNewVersion = async (row: any) => {
     if (!canUpload || isFolder(row)) return;
-    const owner = normalizeEmail(row?.ownerEmail);
-    if (owner !== selfEmail && !canManageAll && !isAdminGroup) {
-      setStatus(t("You can only version your own files unless you are admin."));
+    if (!getEffectivePermission(row, "write") && !getEffectivePermission(row, "update") && !canManageAll && !isAdminGroup) {
+      setStatus(t("You do not have permission to upload a new version for this file."));
       return;
     }
 
@@ -1915,7 +2215,9 @@ export default function FileSharing({ permissions }: PageProps) {
 
   const moveRow = async (row: any) => {
     if (!canMove) return setStatus(t("You do not have permission to move files."));
+    if (!getEffectivePermission(row, "update")) return setStatus(t("You do not have update permission for this item."));
     const target = normalizeFolderPath(window.prompt(t("Move to folder path (empty for root):"), String(row?.folderPath ?? "")));
+    if (!canWriteIntoPath(target)) return setStatus(t("You do not have write permission in the target folder."));
     try {
       await moveRowsToFolder([row], target);
     } catch (error: any) {
@@ -1924,12 +2226,16 @@ export default function FileSharing({ permissions }: PageProps) {
   };
 
   const deleteRow = async (row: any) => {
+    if (getEffectivePermission(row, "delete")) {
+      // allowed by explicit share permission
+    } else {
     const owner = normalizeEmail(row?.ownerEmail);
     const mine = owner === selfEmail;
     const canDeleteOwn = canOption("filesharing", "filesharing_delete_own", false) && mine;
     const canDeleteAny = canOption("filesharing", "filesharing_delete_any", false) || canManageAll;
 
-    if (!canDeleteOwn && !canDeleteAny && !isAdminGroup) return setStatus(t("You do not have permission to delete this item."));
+      if (!canDeleteOwn && !canDeleteAny && !isAdminGroup) return setStatus(t("You do not have permission to delete this item."));
+    }
 
     const doHardDelete = (canHardDelete || isAdminGroup) && (canManageAll || isAdminGroup) && !canSoftDelete;
     const deptFolder = folderOf(row) || departmentDrivePath(String(row?.ownerDepartmentKey ?? "").trim());
@@ -1984,11 +2290,14 @@ export default function FileSharing({ permissions }: PageProps) {
     if (!canManageQuota && !isAdminGroup) return setStatus(t("You do not have permission to manage storage quotas."));
 
     const rawTarget = String(targetEmailRaw ?? "").trim();
-    const target = rawTarget === DEFAULT_QUOTA_KEY || rawTarget.startsWith(DEPARTMENT_QUOTA_PREFIX) ? rawTarget : normalizeEmail(rawTarget);
-    const nextQuotaMb = Math.max(1, Number(quotaMb || DEFAULT_QUOTA_MB));
+    const target = quotaTargetKey(rawTarget || quotaEmail || quotaEditorTarget);
+    const currentRow = quotaRows.find((q) => quotaTargetKey(q?.userEmail) === target);
+    const fallbackGb = quotaMbToGb(Number(currentRow?.quotaMb ?? DEFAULT_QUOTA_MB));
+    const nextQuotaGb = Math.max(0.1, parseQuotaGbInput(quotaGb, fallbackGb));
+    const nextQuotaMb = quotaGbToMb(nextQuotaGb);
     if (!target) return setStatus(t("Please choose a user."));
 
-    const existing = quotaRows.find((q) => String(q?.userEmail ?? "").trim() === target || normalizeEmail(q?.userEmail) === target);
+    const existingRows = quotaRows.filter((q) => quotaTargetKey(q?.userEmail) === target);
     const payload = {
       userEmail: target,
       quotaMb: nextQuotaMb,
@@ -1999,11 +2308,24 @@ export default function FileSharing({ permissions }: PageProps) {
     };
 
     try {
-      if (existing?.id) {
-        await (client.models as any).DriveStorageQuota.update({ id: existing.id, ...payload });
+      if (existingRows.length) {
+        await Promise.all(
+          existingRows
+            .filter((row) => row?.id)
+            .map((row) => (client.models as any).DriveStorageQuota.update({ id: row.id, ...payload }))
+        );
       } else {
         await (client.models as any).DriveStorageQuota.create(payload);
       }
+
+      const verifyRes = await (client.models as any).DriveStorageQuota.list({
+        filter: { userEmail: { eq: target } },
+        limit: 1,
+      });
+      if (!(verifyRes?.data ?? []).length) {
+        throw new Error(t("Quota write verification failed. Please retry."));
+      }
+
       await logActivity(target, "QUOTA", `${selfEmail} updated quota for ${target}`);
       await loadData();
       setQuotaEditorTarget(target);
@@ -2080,6 +2402,7 @@ export default function FileSharing({ permissions }: PageProps) {
           isFolder: true,
           isDeleted: false,
           sharedWithUsersJson: "[]",
+          sharedPermissionsJson: "[]",
           sharedWithDepartmentsJson: JSON.stringify([targetDept.key]),
           starredByJson: "[]",
           sortOrder: payload.sortOrder,
@@ -2104,6 +2427,95 @@ export default function FileSharing({ permissions }: PageProps) {
       setStatus(error?.message || t("Failed to save department drive."));
     }
   };
+
+  const shareModalRow = useMemo(() => (shareModalRowId ? rowById.get(shareModalRowId) : null), [shareModalRowId, rowById]);
+
+  const openShareModal = useCallback(
+    (row: any) => {
+      const entries = getRowPermissionEntries(row);
+      const rowScope = String(row?.visibilityScope ?? "PRIVATE").toUpperCase();
+      setShareModalRowId(String(row?.id ?? ""));
+      setShareInviteEmail("");
+      setSharePermissions(entries);
+      setShareDeptScopes(parseJsonArray(row?.sharedWithDepartmentsJson));
+      setShareGeneralScope(
+        rowScope === "ORGANIZATION" || rowScope === "DEPARTMENT"
+          ? (rowScope as "ORGANIZATION" | "DEPARTMENT")
+          : "PRIVATE"
+      );
+    },
+    [getRowPermissionEntries]
+  );
+
+  const closeShareModal = useCallback(() => {
+    setShareModalRowId("");
+    setShareInviteEmail("");
+    setSharePermissions([]);
+    setShareDeptScopes([]);
+    setShareGeneralScope("PRIVATE");
+  }, []);
+
+  const addShareUserPermission = useCallback(() => {
+    const email = normalizeEmail(shareInviteEmail);
+    if (!email) return;
+    if (!directory.some((user) => user.email === email)) {
+      setStatus(t("Selected user was not found in the directory."));
+      return;
+    }
+    setSharePermissions((prev) => {
+      if (prev.some((entry) => entry.email === email)) return prev;
+      return [...prev, { email, read: true, write: false, update: false, delete: false }];
+    });
+    setShareInviteEmail("");
+  }, [shareInviteEmail, directory, t]);
+
+  const saveSharePermissions = useCallback(async () => {
+    if (!shareModalRow) return;
+    if (!canShare && !canManageAll && !isAdminGroup) {
+      setStatus(t("You do not have permission to share this item."));
+      return;
+    }
+    if (!getEffectivePermission(shareModalRow, "update") && !canManageAll && !isAdminGroup) {
+      setStatus(t("You do not have permission to update sharing on this item."));
+      return;
+    }
+
+    const sanitizedEntries = sharePermissions
+      .map((entry) => ({
+        ...entry,
+        email: normalizeEmail(entry.email),
+        read: Boolean(entry.read) || Boolean(entry.write) || Boolean(entry.update) || Boolean(entry.delete),
+      }))
+      .filter((entry) => entry.email);
+
+    const usersWithRead = sanitizedEntries.filter((entry) => entry.read).map((entry) => entry.email);
+    const nextScope: ShareScope =
+      shareGeneralScope === "ORGANIZATION" || shareGeneralScope === "DEPARTMENT"
+        ? shareGeneralScope
+        : shareDeptScopes.length
+          ? "SELECTED_DEPARTMENTS"
+          : usersWithRead.length
+            ? "SELECTED_USERS"
+            : "PRIVATE";
+
+    try {
+      await (client.models as any).FileShareItem.update({
+        id: String(shareModalRow.id),
+        visibilityScope: nextScope,
+        sharedWithUsersJson: JSON.stringify(usersWithRead),
+        sharedWithDepartmentsJson: JSON.stringify(shareDeptScopes),
+        sharedPermissionsJson: serializeSharedPermissions(sanitizedEntries),
+        updatedAt: new Date().toISOString(),
+        updatedBy: selfEmail,
+      });
+      await logActivity(String(shareModalRow.id), "SHARE_UPDATE", `${selfEmail} updated sharing permissions`);
+      closeShareModal();
+      await loadData();
+      setStatus(t("Sharing permissions updated."));
+    } catch (error: any) {
+      setStatus(error?.message || t("Failed to update sharing permissions."));
+    }
+  }, [shareModalRow, canShare, canManageAll, isAdminGroup, getEffectivePermission, sharePermissions, shareGeneralScope, shareDeptScopes, client, selfEmail, logActivity, closeShareModal, loadData, t]);
 
   const openFileInEditor = (row: any) => {
     const kind = editorKindFromRow(row);
@@ -2153,8 +2565,8 @@ export default function FileSharing({ permissions }: PageProps) {
   };
 
   const canRenameRow = useCallback(
-    (row: any) => normalizeEmail(row?.ownerEmail) === selfEmail || canManageAll || isAdminGroup,
-    [selfEmail, canManageAll, isAdminGroup]
+    (row: any) => getEffectivePermission(row, "update"),
+    [getEffectivePermission]
   );
 
   const beginRename = (row: any) => {
@@ -2191,13 +2603,14 @@ export default function FileSharing({ permissions }: PageProps) {
 
   const canDeleteRow = useCallback(
     (row: any) => {
+      if (getEffectivePermission(row, "delete")) return true;
       const owner = normalizeEmail(row?.ownerEmail);
       const mine = owner === selfEmail;
       const canDeleteOwn = canOption("filesharing", "filesharing_delete_own", false) && mine;
       const canDeleteAny = canOption("filesharing", "filesharing_delete_any", false) || canManageAll;
       return canDeleteOwn || canDeleteAny || isAdminGroup;
     },
-    [selfEmail, canManageAll, isAdminGroup, canOption]
+    [selfEmail, canManageAll, isAdminGroup, canOption, getEffectivePermission]
   );
 
   const bulkMove = async () => {
@@ -2389,7 +2802,8 @@ export default function FileSharing({ permissions }: PageProps) {
       setSelectedIds([rowId]);
       setLastSelectedId(rowId);
     }
-    setContextMenu({ rowId, x: event.clientX, y: event.clientY });
+    const point = clampMenuPosition(event.clientX, event.clientY, 240, 360, 10);
+    setContextMenu({ rowId, x: point.x, y: point.y });
   };
 
   if (!permissions.canRead) {
@@ -2465,6 +2879,82 @@ export default function FileSharing({ permissions }: PageProps) {
         </div>
       )}
 
+      {shareModalRow ? (
+        <div className="filesharing-modal-backdrop" onClick={closeShareModal}>
+          <div className="filesharing-modal drive-share-modal" onClick={(event) => event.stopPropagation()}>
+            <div className="filesharing-modal-header">
+              <span>{t("Share")} "{String(shareModalRow?.displayName ?? t("Untitled"))}"</span>
+              <button type="button" className="filesharing-modal-close" onClick={closeShareModal}>x</button>
+            </div>
+            <div className="filesharing-modal-body drive-share-modal-body">
+              <div className="drive-share-invite-row">
+                <select value={shareInviteEmail} onChange={(event) => setShareInviteEmail(event.target.value)}>
+                  <option value="">{t("Add people, groups, spaces")}</option>
+                  {directory
+                    .filter((user) => user.email !== normalizeEmail(shareModalRow?.ownerEmail))
+                    .map((user) => (
+                      <option key={user.email} value={user.email}>{user.fullName} ({user.email})</option>
+                    ))}
+                </select>
+                <button type="button" onClick={addShareUserPermission}>{t("Add")}</button>
+              </div>
+
+              <div className="drive-share-section-title">{t("People with access")}</div>
+              <div className="drive-share-permissions-list">
+                {!sharePermissions.length ? <div className="filesharing-empty">{t("No explicit users yet. Add users above.")}</div> : null}
+                {sharePermissions.map((entry) => {
+                  const user = directory.find((row) => row.email === entry.email);
+                  return (
+                    <div key={entry.email} className="drive-share-permission-row">
+                      <div className="drive-share-user-meta">
+                        <strong>{user?.fullName || entry.email}</strong>
+                        <span>{entry.email}</span>
+                      </div>
+                      <div className="drive-share-permission-flags">
+                        <label><input type="checkbox" checked={entry.read} onChange={(event) => setSharePermissions((prev) => prev.map((item) => item.email === entry.email ? { ...item, read: event.target.checked || item.write || item.update || item.delete } : item))} /> {t("Read")}</label>
+                        <label><input type="checkbox" checked={entry.write} onChange={(event) => setSharePermissions((prev) => prev.map((item) => item.email === entry.email ? { ...item, write: event.target.checked, read: event.target.checked ? true : item.read } : item))} /> {t("Write")}</label>
+                        <label><input type="checkbox" checked={entry.update} onChange={(event) => setSharePermissions((prev) => prev.map((item) => item.email === entry.email ? { ...item, update: event.target.checked, read: event.target.checked ? true : item.read } : item))} /> {t("Update")}</label>
+                        <label><input type="checkbox" checked={entry.delete} onChange={(event) => setSharePermissions((prev) => prev.map((item) => item.email === entry.email ? { ...item, delete: event.target.checked, read: event.target.checked ? true : item.read } : item))} /> {t("Delete")}</label>
+                        <button type="button" className="danger" onClick={() => setSharePermissions((prev) => prev.filter((item) => item.email !== entry.email))}>{t("Remove")}</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="drive-share-section-title">{t("General access")}</div>
+              <div className="drive-inline-actions drive-inline-actions-stack">
+                <select value={shareGeneralScope} onChange={(event) => setShareGeneralScope(event.target.value as "PRIVATE" | "DEPARTMENT" | "ORGANIZATION")}>
+                  <option value="PRIVATE">{t("Restricted")}</option>
+                  <option value="DEPARTMENT">{t("Department")}</option>
+                  <option value="ORGANIZATION">{t("Organization")}</option>
+                </select>
+                <div className="filesharing-picks">
+                  {departments.map((department) => (
+                    <label key={department.key}>
+                      <input
+                        type="checkbox"
+                        checked={shareDeptScopes.includes(department.key)}
+                        onChange={(event) =>
+                          setShareDeptScopes((prev) =>
+                            event.target.checked ? [...prev, department.key] : prev.filter((key) => key !== department.key)
+                          )
+                        }
+                      />
+                      <span>{department.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            </div>
+            <div className="drive-share-modal-footer">
+              <button type="button" onClick={closeShareModal}>{t("Cancel")}</button>
+              <button type="button" className="filesharing-primary" onClick={() => void saveSharePermissions()}>{t("Save")}</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
       <section className="drive-topbar">
         <div className="drive-topbar-brand">{t("Drive")}</div>
         <div className="drive-topbar-search">
@@ -2491,7 +2981,7 @@ export default function FileSharing({ permissions }: PageProps) {
             {t("Upload, organize, share, and govern files from one workspace while keeping quota and permission control in admin hands.")}
           </p>
           <div className="drive-chip-row">
-            <span className="drive-chip"><i className="fas fa-hdd" /> {formatBytes(selfUsageBytes)} / {selfQuotaMb} MB</span>
+            <span className="drive-chip"><i className="fas fa-hdd" /> {formatBytes(selfUsageBytes)} / {selfQuotaLabel}</span>
             <span className="drive-chip"><i className="fas fa-building" /> {directory.find((u) => u.email === selfEmail)?.departmentName || t("No department")}</span>
             <span className="drive-chip"><i className="fas fa-link" /> {activeLinks.length} {t("active links")}</span>
           </div>
@@ -2508,12 +2998,12 @@ export default function FileSharing({ permissions }: PageProps) {
           <section className="drive-storage-card">
             <div className="drive-storage-card-top">
               <strong>{t("My storage")}</strong>
-              <span>{Math.min(100, Math.round((selfUsageBytes / (selfQuotaMb * 1024 * 1024)) * 100))}%</span>
+              <span>{Number.isFinite(selfQuotaMb) ? `${selfQuotaUsagePct}%` : t("Unlimited")}</span>
             </div>
-            <div className="drive-usage-bar"><span style={{ width: `${Math.min(100, Math.round((selfUsageBytes / (selfQuotaMb * 1024 * 1024)) * 100))}%` }} /></div>
+            <div className="drive-usage-bar"><span style={{ width: `${selfQuotaUsagePct}%` }} /></div>
             <div className="drive-storage-card-meta">
               <span>{formatBytes(selfUsageBytes)}</span>
-              <span>{selfQuotaMb} MB</span>
+              <span>{selfQuotaLabel}</span>
             </div>
             {selfUploadBlocked ? <div className="drive-alert error">{t("Uploads are currently blocked for your account.")}</div> : null}
           </section>
@@ -2620,7 +3110,7 @@ export default function FileSharing({ permissions }: PageProps) {
                 <div className="drive-metrics">
                   <div><strong>{rows.filter((r) => !isDeleted(r)).length}</strong><span>{t("Active items")}</span></div>
                   <div><strong>{formatBytes(selfUsageBytes)}</strong><span>{t("My usage")}</span></div>
-                  <div><strong>{selfQuotaMb} MB</strong><span>{t("My quota")}</span></div>
+                  <div><strong>{selfQuotaLabel}</strong><span>{t("My quota")}</span></div>
                 </div>
               </section>
 
@@ -2737,7 +3227,7 @@ export default function FileSharing({ permissions }: PageProps) {
                     <div className="filesharing-selected-files">
                       {files.map((entry) => (
                         <div key={entry.id} className="filesharing-selected-file">
-                          <i className={fileIcon(entry.file.type, false)} />
+                          <DriveItemIcon contentType={entry.file.type} isFolder={false} size="sm" />
                           <span className="filesharing-selected-file-name">{entry.relativePath}</span>
                           <span className="filesharing-selected-file-size">{formatBytes(entry.file.size)}</span>
                           {uploadProgress[entry.id] !== undefined ? <div className="filesharing-progress-bar"><div className="filesharing-progress-fill" style={{ width: `${uploadProgress[entry.id]}%` }} /></div> : null}
@@ -2762,15 +3252,17 @@ export default function FileSharing({ permissions }: PageProps) {
                   <section className="drive-card">
                     <div className="drive-card-title">{t("Quick access")}</div>
                     <div className="drive-quick-access-grid">
-                      {quickAccessRows.length ? quickAccessRows.map((row) => (
+                      {quickAccessRows.length ? quickAccessRows.map((row) => {
+                        return (
                         <button key={row.id} type="button" className="drive-quick-access-card" onClick={() => void openRow(row)}>
-                          <div className="drive-quick-access-icon"><i className={fileIcon(String(row?.contentType ?? ""), isFolder(row))} /></div>
+                          <div className="drive-quick-access-icon"><DriveItemIcon contentType={String(row?.contentType ?? "")} isFolder={isFolder(row)} /></div>
                           <div>
                             <strong>{String(row?.displayName || t("Untitled"))}</strong>
                             <span>{String(row?.ownerName || row?.ownerEmail || "-")}</span>
                           </div>
                         </button>
-                      )) : <div className="filesharing-empty">{t("No quick access items yet")}</div>}
+                        );
+                      }) : <div className="filesharing-empty">{t("No quick access items yet")}</div>}
                     </div>
                   </section>
 
@@ -2779,7 +3271,7 @@ export default function FileSharing({ permissions }: PageProps) {
                     <div className="drive-suggested-grid">
                       {homeFolderRows.length ? homeFolderRows.map((row) => (
                         <button key={row.id} type="button" className="drive-suggested-card" onClick={() => void openRow(row)}>
-                          <div className="drive-suggested-card-head"><span><i className="fas fa-folder" /> {String(row?.displayName || t("Untitled"))}</span></div>
+                          <div className="drive-suggested-card-head"><span><span className="drive-home-file-icon"><DriveItemIcon contentType={String(row?.contentType ?? "")} isFolder={true} /></span> {String(row?.displayName || t("Untitled"))}</span></div>
                           <span>{String(row?.ownerName || row?.ownerEmail || "-")}</span>
                         </button>
                       )) : <div className="filesharing-empty">{t("No folders to suggest yet")}</div>}
@@ -2793,7 +3285,7 @@ export default function FileSharing({ permissions }: PageProps) {
                         const ct = String(row?.contentType ?? "");
                         return (
                           <button key={row.id} type="button" className="drive-home-file-card" onClick={() => void openRow(row)}>
-                            <div className="drive-home-file-card-title"><i className={fileIcon(ct, false)} /> {String(row?.displayName || t("Untitled"))}</div>
+                            <div className="drive-home-file-card-title"><span className="drive-home-file-icon"><DriveItemIcon contentType={ct} isFolder={false} /></span> {String(row?.displayName || t("Untitled"))}</div>
                             <span>{String(row?.ownerName || row?.ownerEmail || "-")}</span>
                             <span>{formatBytes(Number(row?.sizeBytes ?? 0))}</span>
                           </button>
@@ -2840,6 +3332,8 @@ export default function FileSharing({ permissions }: PageProps) {
                   {visibleRows.map((row) => {
                     const folder = isFolder(row);
                     const ct = String(row?.contentType ?? "");
+                    const iconKind = driveIconKind(ct, folder);
+                    const iconLabel = fileTypeLabel(ct, folder);
                     const stars = parseJsonArray(row?.starredByJson).map(normalizeEmail);
                     const starred = stars.includes(selfEmail);
 
@@ -2857,8 +3351,8 @@ export default function FileSharing({ permissions }: PageProps) {
                         onContextMenu={(event) => onRowContextMenu(event, row)}
                       >
                         <div className="filesharing-item-left">
-                          <div className={`filesharing-file-icon ${folder ? "folder" : ct === PDF_TYPE ? "pdf" : ct.startsWith("image/") ? "image" : ""}`}>
-                            <i className={fileIcon(ct, folder)} />
+                          <div className="filesharing-file-icon">
+                            <DriveItemIcon contentType={ct} isFolder={folder} />
                           </div>
                         </div>
 
@@ -2896,22 +3390,83 @@ export default function FileSharing({ permissions }: PageProps) {
                           <span>{String(row?.updatedAt ?? row?.createdAt ?? "")}</span>
                         </div>
 
+                        {layout === "grid" && !folder ? (
+                          <div className="drive-grid-file-preview">
+                            <div className="drive-grid-file-preview-canvas">
+                              <span className={`drive-grid-file-preview-chip drive-grid-file-preview-chip-${iconKind}`}>{iconLabel}</span>
+                              <div className="drive-grid-file-preview-icon">
+                                <DriveItemIcon contentType={ct} isFolder={false} size="lg" />
+                              </div>
+                              {iconKind === "pdf" ? (
+                                <div className="drive-grid-file-preview-invoice" aria-hidden="true">
+                                  <div className="drive-grid-file-preview-invoice-head">
+                                    <span />
+                                    <span />
+                                    <span />
+                                  </div>
+                                  <div className="drive-grid-file-preview-invoice-body">
+                                    <span />
+                                    <span />
+                                    <span />
+                                    <span />
+                                    <span />
+                                    <span />
+                                  </div>
+                                  <div className="drive-grid-file-preview-invoice-total">
+                                    <span />
+                                    <span />
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="drive-grid-file-preview-lines">
+                                  <span />
+                                  <span />
+                                  <span />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        ) : null}
+
                         <div className="filesharing-item-actions">
                           {canStar ? <button type="button" onClick={(event) => { event.stopPropagation(); void toggleStar(row); }} title={t("Star")}>{starred ? "★" : "☆"}</button> : null}
-                          <button type="button" title={t("Open")} onClick={(event) => { event.stopPropagation(); void openRow(row); }}><i className="fas fa-arrow-up-right-from-square" /></button>
+                          <button type="button" className="drive-mini-action" title={t("Open")} onClick={(event) => { event.stopPropagation(); void openRow(row); }}>
+                            <i className="fas fa-arrow-up-right-from-square" />
+                            <span>{t("Open")}</span>
+                          </button>
                           <div className="drive-row-menu-wrap">
-                            <button type="button" title={t("More actions")} onClick={(event) => { event.stopPropagation(); setRowMenuId((prev) => prev === String(row?.id ?? "") ? "" : String(row?.id ?? "")); }}><i className="fas fa-ellipsis-vertical" /></button>
+                            <button
+                              type="button"
+                              className="drive-mini-action"
+                              title={t("More actions")}
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                const id = String(row?.id ?? "");
+                                const trigger = event.currentTarget as HTMLButtonElement;
+                                const rect = trigger.getBoundingClientRect();
+                                const estimatedMenuHeight = 320;
+                                const spaceBelow = window.innerHeight - rect.bottom;
+                                const spaceAbove = rect.top;
+                                setRowMenuDirection(spaceBelow < estimatedMenuHeight && spaceAbove > spaceBelow ? "up" : "down");
+                                setRowMenuId((prev) => (prev === id ? "" : id));
+                              }}
+                            >
+                              <i className="fas fa-ellipsis-vertical" />
+                              <span>{t("More")}</span>
+                            </button>
                             {rowMenuId === String(row?.id ?? "") ? (
-                              <div className="drive-inline-menu" onClick={(event) => event.stopPropagation()}>
-                                {!folder ? <PermissionGate moduleId="filesharing" optionId="filesharing_download"><button type="button" onClick={() => void downloadFile(row)}>{t("Download")}</button></PermissionGate> : null}
-                                {!folder ? <PermissionGate moduleId="filesharing" optionId="filesharing_view"><button type="button" onClick={() => void openPreview(row)}>{t("Preview")}</button></PermissionGate> : null}
+                              <div className={`drive-inline-menu ${rowMenuDirection === "up" ? "open-up" : "open-down"}`} onClick={(event) => event.stopPropagation()}>
+                                {!folder ? <PermissionGate moduleId="filesharing" optionId="filesharing_download"><button type="button" onClick={() => void downloadFile(row)}>{t("Download")}</button></PermissionGate> : <button type="button" onClick={() => setStatus(t("Folder download can be exported from admin tools."))}>{t("Download")}</button>}
                                 {canRenameRow(row) ? <button type="button" onClick={() => beginRename(row)}>{t("Rename")}</button> : null}
-                                {canMove ? <button type="button" onClick={() => void moveRow(row)}>{t("Move")}</button> : null}
+                                {canShare ? <button type="button" onClick={() => openShareModal(row)}>{t("Share")}</button> : null}
+                                {canMove ? <button type="button" onClick={() => void moveRow(row)}>{t("Organize")}</button> : null}
+                                <button type="button" onClick={() => setStatus(`${t("Folder information")}: ${String(row?.displayName ?? "-")} • ${String(row?.ownerName ?? row?.ownerEmail ?? "-")}`)}>{t("Folder information")}</button>
+                                <button type="button" onClick={() => setStatus(t("Ask Gemini integration will be enabled for this workspace."))}>{t("Ask Gemini")}</button>
                                 {!folder && canCreateShareLink ? <button type="button" onClick={() => setLinkTargetId((prev) => prev === row.id ? "" : row.id)}>{t("Links")}</button> : null}
                                 {!folder && canViewVersions ? <button type="button" onClick={() => setVersionTargetId((prev) => prev === row.id ? "" : row.id)}>{t("Versions")}</button> : null}
                                 {!folder && canUpload ? <button type="button" onClick={() => void replaceWithNewVersion(row)}>{t("Upload version")}</button> : null}
                                 {view === "trash" ? <button type="button" onClick={() => void restoreRow(row)}>{t("Restore")}</button> : null}
-                                {!isDeleted(row) ? <button type="button" className="danger" onClick={() => void deleteRow(row)}>{t("Delete")}</button> : null}
+                                {!isDeleted(row) ? <button type="button" className="danger" onClick={() => void deleteRow(row)}>{t("Move to trash")}</button> : null}
                               </div>
                             ) : null}
                           </div>
@@ -3016,28 +3571,39 @@ export default function FileSharing({ permissions }: PageProps) {
                 <div className="drive-card-title">{t("Storage governance")}</div>
                 <p className="drive-admin-intro">{t("Allocate storage, block uploads, and watch usage before departments hit capacity.")}</p>
                 <div className="drive-card-title drive-top-gap">{t("Quota target")}</div>
-                <div className="drive-quota-targets">
-                  <button type="button" className={quotaEditorTarget === DEFAULT_QUOTA_KEY ? "active" : ""} onClick={() => setQuotaEditorTarget(DEFAULT_QUOTA_KEY)}>{t("Default policy")}</button>
-                  {departments.map((dept) => {
-                    const target = departmentQuotaKey(dept.key);
-                    return <button key={target} type="button" className={quotaEditorTarget === target ? "active" : ""} onClick={() => setQuotaEditorTarget(target)}>{dept.name}</button>;
-                  })}
-                </div>
                 <div className="drive-inline-actions">
-                  <select value={quotaEmail} onChange={(e) => { setQuotaEmail(e.target.value); setQuotaEditorTarget(e.target.value || DEFAULT_QUOTA_KEY); }}>
-                    <option value="">{t("Select user")}</option>
+                  <select
+                    value={quotaEditorTarget}
+                    onChange={(e) => {
+                      const next = quotaTargetKey(e.target.value) || DEFAULT_QUOTA_KEY;
+                      setQuotaEditorTarget(next);
+                      if (next === DEFAULT_QUOTA_KEY || next.startsWith(DEPARTMENT_QUOTA_PREFIX)) {
+                        setQuotaEmail("");
+                      } else {
+                        setQuotaEmail(next);
+                      }
+                    }}
+                  >
+                    <option value={DEFAULT_QUOTA_KEY}>{t("Default policy")}</option>
+                    {departments.map((dept) => {
+                      const target = departmentQuotaKey(dept.key);
+                      return <option key={target} value={target}>{dept.name} ({t("Department")})</option>;
+                    })}
                     {directory.map((u) => <option key={u.email} value={u.email}>{u.fullName} ({u.email})</option>)}
                   </select>
-                  <input value={quotaMb} onChange={(e) => setQuotaMb(e.target.value)} placeholder={t("Quota MB")} />
+                  <input value={quotaGb} onChange={(e) => setQuotaGb(e.target.value)} placeholder={t("Quota GB")} />
                 </div>
                 <div className="drive-inline-actions">
                   <label><input type="checkbox" checked={quotaBlocked} onChange={(e) => setQuotaBlocked(e.target.checked)} /> {t("Block uploads")}</label>
                   <input value={quotaNotes} onChange={(e) => setQuotaNotes(e.target.value)} placeholder={t("Admin notes")} />
                 </div>
                 <div className="drive-inline-actions">
-                  <button type="button" onClick={() => void saveQuota(quotaEditorTarget)} disabled={!canManageQuota}>{t("Save quota policy")}</button>
-                  <button type="button" onClick={() => setQuotaEditorTarget(DEFAULT_QUOTA_KEY)}>{t("Reset target")}</button>
+                  <button type="button" onClick={() => void saveQuota(quotaEditorTarget)} disabled={!(canManageQuota || isAdminGroup)}>{t("Save quota policy")}</button>
+                  <button type="button" onClick={() => setShowAdvancedAdmin((prev) => !prev)}>{showAdvancedAdmin ? t("Hide advanced") : t("Show advanced")}</button>
                 </div>
+                {!showAdvancedAdmin ? <div className="drive-admin-note">{t("Advanced controls are hidden to keep this page easy to manage. Use Show advanced when needed.")}</div> : null}
+                {showAdvancedAdmin ? (
+                  <>
                 <div className="drive-card-title drive-top-gap">{t("Department drives")}</div>
                 <div className="drive-inline-actions">
                   <select value={driveDepartmentKey} onChange={(e) => {
@@ -3116,6 +3682,8 @@ export default function FileSharing({ permissions }: PageProps) {
                   ))}
                 </div>
                 <div className="drive-admin-note">{t("Detailed role permissions remain controlled from Roles & Policies Admin, while this console focuses on storage governance and operational oversight.")}</div>
+                  </>
+                ) : null}
               </div>
 
               <div>
@@ -3123,7 +3691,7 @@ export default function FileSharing({ permissions }: PageProps) {
                 <div className="drive-usage-list">
                   {directory.map((u) => {
                     const usage = usageByOwner.get(u.email) ?? 0;
-                    const q = quotaMap.get(u.email) ?? quotaMap.get("*");
+                    const q = quotaMap.get(quotaTargetKey(u.email)) ?? quotaMap.get(DEFAULT_QUOTA_KEY);
                     const userQuotaMb = Number(q?.quotaMb ?? DEFAULT_QUOTA_MB);
                     const usedPct = Math.min(100, Math.round((usage / (userQuotaMb * 1024 * 1024)) * 100));
                     return (
@@ -3132,7 +3700,7 @@ export default function FileSharing({ permissions }: PageProps) {
                           <strong>{u.fullName}</strong>
                           <span>{u.email}</span>
                         </div>
-                        <div>{formatBytes(usage)} / {userQuotaMb} MB</div>
+                        <div>{formatBytes(usage)} / {quotaMbToGb(userQuotaMb).toFixed(1)} GB</div>
                         <div className="drive-usage-bar"><span style={{ width: `${usedPct}%` }} /></div>
                       </div>
                     );
@@ -3206,13 +3774,13 @@ export default function FileSharing({ permissions }: PageProps) {
                 <div className="drive-trend-list">
                   {departments.map((dept) => {
                     const target = departmentQuotaKey(dept.key);
-                    const row = quotaMap.get(target);
+                    const row = quotaMap.get(quotaTargetKey(target));
                     const usage = departmentUsageMap.get(dept.key) ?? 0;
                     return (
                       <div key={target} className="drive-trend-row drive-link-analytics-row">
                         <div>{dept.name}</div>
                         <div>{formatBytes(usage)}</div>
-                        <div>{Number(row?.quotaMb ?? DEFAULT_QUOTA_MB)} MB</div>
+                        <div>{quotaMbToGb(Number(row?.quotaMb ?? DEFAULT_QUOTA_MB)).toFixed(1)} GB</div>
                         <button type="button" onClick={() => setQuotaEditorTarget(target)}>{t("Edit")}</button>
                       </div>
                     );
@@ -3222,13 +3790,13 @@ export default function FileSharing({ permissions }: PageProps) {
                 <div className="drive-card-title drive-top-gap">{t("User quota overrides")}</div>
                 <div className="drive-trend-list">
                   {directory.map((user) => {
-                    const row = quotaMap.get(user.email);
-                    const effective = row ?? quotaMap.get(departmentQuotaKey(user.departmentKey)) ?? quotaMap.get(DEFAULT_QUOTA_KEY);
+                    const row = quotaMap.get(quotaTargetKey(user.email));
+                    const effective = row ?? quotaMap.get(quotaTargetKey(departmentQuotaKey(user.departmentKey))) ?? quotaMap.get(DEFAULT_QUOTA_KEY);
                     return (
                       <div key={user.email} className="drive-trend-row drive-user-limit-row">
                         <div>{user.fullName}</div>
                         <div>{user.email}</div>
-                        <div>{Number(effective?.quotaMb ?? DEFAULT_QUOTA_MB)} MB</div>
+                        <div>{quotaMbToGb(Number(effective?.quotaMb ?? DEFAULT_QUOTA_MB)).toFixed(1)} GB</div>
                         <button type="button" onClick={() => setQuotaEditorTarget(user.email)}>{row ? t("Override") : t("Set")}</button>
                       </div>
                     );
@@ -3268,12 +3836,15 @@ export default function FileSharing({ permissions }: PageProps) {
             return (
               <>
                 <button type="button" onClick={() => { setContextMenu(null); void openRow(row); }}>{folder ? t("Open") : t("Open / Preview")}</button>
-                {!folder ? <button type="button" onClick={() => { setContextMenu(null); void downloadFile(row); }}>{t("Download")}</button> : null}
+                {!folder ? <button type="button" onClick={() => { setContextMenu(null); void downloadFile(row); }}>{t("Download")}</button> : <button type="button" onClick={() => { setContextMenu(null); setStatus(t("Folder download can be exported from admin tools.")); }}>{t("Download")}</button>}
                 {canRenameRow(row) ? <button type="button" onClick={() => beginRename(row)}>{t("Rename")}</button> : null}
-                {canMove ? <button type="button" onClick={() => { setContextMenu(null); void moveRow(row); }}>{t("Move")}</button> : null}
+                {canShare ? <button type="button" onClick={() => { setContextMenu(null); openShareModal(row); }}>{t("Share")}</button> : null}
+                {canMove ? <button type="button" onClick={() => { setContextMenu(null); void moveRow(row); }}>{t("Organize")}</button> : null}
+                <button type="button" onClick={() => { setContextMenu(null); setStatus(`${t("Folder information")}: ${String(row?.displayName ?? "-")} • ${String(row?.ownerName ?? row?.ownerEmail ?? "-")}`); }}>{t("Folder information")}</button>
+                <button type="button" onClick={() => { setContextMenu(null); setStatus(t("Ask Gemini integration will be enabled for this workspace.")); }}>{t("Ask Gemini")}</button>
                 {!folder && canCreateShareLink ? <button type="button" onClick={() => { setContextMenu(null); void createSharedLink(row); }}>{t("Create link")}</button> : null}
                 {canStar ? <button type="button" onClick={() => { setContextMenu(null); void toggleStar(row); }}>{t("Star")}</button> : null}
-                {canDeleteRow(row) ? <button type="button" className="danger" onClick={() => { setContextMenu(null); void deleteRow(row); }}>{t("Delete")}</button> : null}
+                {canDeleteRow(row) ? <button type="button" className="danger" onClick={() => { setContextMenu(null); void deleteRow(row); }}>{t("Move to trash")}</button> : null}
               </>
             );
           })()}
