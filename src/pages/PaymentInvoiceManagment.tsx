@@ -170,7 +170,10 @@ type InvoiceUi = {
   discount: number;
   status: string;
   paymentMethod?: string | null;
-  services: string[];
+  services: Array<{
+    name: string;
+    displayLabel: string;
+  }>;
   createdAt?: string | null;
 };
 
@@ -341,7 +344,7 @@ function buildPackageAuditBreakdown(services: any[]) {
 
 function buildJobOrderBillLines(services: any[]) {
   const packageMap = new Map<string, { label: string; amount: number; itemCount: number }>();
-  const standaloneLines: Array<{ label: string; amount: number }> = [];
+  const standaloneLines: Array<{ label: string; amount: number; itemCount: number }> = [];
 
   for (const service of services || []) {
     const servicePrice = Math.max(0, toNum(service?.price));
@@ -351,6 +354,7 @@ function buildJobOrderBillLines(services: any[]) {
       standaloneLines.push({
         label: standaloneLabel,
         amount: roundMoney(servicePrice),
+        itemCount: 1,
       });
       continue;
     }
@@ -370,17 +374,22 @@ function buildJobOrderBillLines(services: any[]) {
     });
   }
 
-  return [
-    ...Array.from(packageMap.values()).map((entry) => ({
-      label: entry.itemCount > 1 ? `${entry.label} (${entry.itemCount} services)` : entry.label,
-      amount: roundMoney(entry.amount),
-    })),
-    ...standaloneLines,
-  ];
+  const groupedLines: Array<{ label: string; amount: number; itemCount: number }> = Array.from(packageMap.values()).map((entry) => ({
+    label: entry.label,
+    amount: roundMoney(entry.amount),
+    itemCount: entry.itemCount,
+  }));
+
+  return [...groupedLines, ...standaloneLines];
 }
 
 function buildJobOrderInvoiceLabels(services: any[]) {
-  return buildJobOrderBillLines(services).map((line) => line.label).filter(Boolean);
+  return buildJobOrderBillLines(services)
+    .map((line) => ({
+      name: line.label,
+      displayLabel: line.itemCount > 1 ? `${line.label} • ${line.itemCount} services` : line.label,
+    }))
+    .filter((line) => Boolean(line.name));
 }
 
 export default function PaymentInvoiceManagement({ currentUser }: { currentUser: any; permissions?: any }) {
@@ -750,7 +759,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     const out: InvoiceUi[] = [];
     try {
-      let fallbackServices: string[] = [];
+      let fallbackServices: Array<{ name: string; displayLabel: string }> = [];
       try {
         const jobRes = await client.models.JobOrder.get({ id: key } as any);
         const jobRow = (jobRes as any)?.data ?? null;
@@ -799,7 +808,10 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
           svcRows = (resSvc?.data ?? []) as any[];
         }
 
-        const services = svcRows.map((s) => String(s.serviceName ?? "").trim()).filter(Boolean);
+        const services = svcRows
+          .map((s) => String(s.serviceName ?? "").trim())
+          .filter(Boolean)
+          .map((name) => ({ name, displayLabel: name }));
         const effectiveServices = fallbackServices.length ? fallbackServices : services;
 
         out.push({
@@ -2228,15 +2240,20 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                                 <div className="pim-empty-inline">{t("No services linked to this invoice.")}</div>
                               ) : (
                                 <ul className="pim-invoice-services-list">
-                                  {inv.services.map((s, idx) => {
-                                    const matchedService = findServiceByInvoiceName(detailServices, s);
+                                  {inv.services.map((serviceItem, idx) => {
+                                    const matchedService = findServiceByInvoiceName(detailServices, serviceItem.name);
                                     const specLabel = getServiceSpecificationLabel(matchedService);
                                     const specColor = getServiceSpecificationColor(matchedService);
+                                    const isPackageEntry = serviceItem.displayLabel.includes(" • ");
                                     return (
-                                      <li key={idx} data-no-translate="true">
-                                        <i className="fas fa-check-circle"></i> {s}
+                                      <li key={idx} data-no-translate="true" className={isPackageEntry ? "is-package-entry" : undefined}>
+                                        <i className={`fas ${isPackageEntry ? "fa-box-open" : "fa-check-circle"}`}></i>
+                                        <span className="pim-invoice-service-main">
+                                          {isPackageEntry ? <span className="pim-invoice-service-badge">{t("Package")}</span> : null}
+                                          <span className="pim-invoice-service-label">{serviceItem.displayLabel}</span>
+                                        </span>
                                         {specLabel ? (
-                                          <span style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 6 }}>
+                                          <span className="pim-invoice-service-spec" style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 6 }}>
                                             {specColor ? (
                                               <span
                                                 aria-hidden="true"
