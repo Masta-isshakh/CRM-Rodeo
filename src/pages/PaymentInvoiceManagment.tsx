@@ -343,8 +343,9 @@ function buildPackageAuditBreakdown(services: any[]) {
 }
 
 function buildJobOrderBillLines(services: any[]) {
-  const packageMap = new Map<string, { label: string; amount: number; itemCount: number }>();
-  const standaloneLines: Array<{ label: string; amount: number; itemCount: number }> = [];
+  const packageMap = new Map<string, { label: string; amount: number; includedServices: string[] }>();
+  const packageOrder: string[] = [];
+  const standaloneLines: Array<{ label: string; amount: number; type: "service"; itemCount: number }> = [];
 
   for (const service of services || []) {
     const servicePrice = Math.max(0, toNum(service?.price));
@@ -354,6 +355,7 @@ function buildJobOrderBillLines(services: any[]) {
       standaloneLines.push({
         label: standaloneLabel,
         amount: roundMoney(servicePrice),
+        type: "service",
         itemCount: 1,
       });
       continue;
@@ -361,24 +363,50 @@ function buildJobOrderBillLines(services: any[]) {
 
     const packageName = String(service?.packageName || service?.packageCode || "Unnamed Package").trim() || "Unnamed Package";
     const packagePrice = Math.max(0, toCurrencyNumber(service?.packagePrice));
+    const includedLabel = String(service?.name ?? service?.serviceName ?? service?.title ?? "Service").trim() || "Service";
     const current = packageMap.get(packageKey) || {
       label: packageName,
       amount: 0,
-      itemCount: 0,
+      includedServices: [],
     };
+    if (!packageMap.has(packageKey)) packageOrder.push(packageKey);
 
     packageMap.set(packageKey, {
       label: current.label || packageName,
       amount: packagePrice > 0 ? packagePrice : current.amount + servicePrice,
-      itemCount: current.itemCount + 1,
+      includedServices: [...current.includedServices, includedLabel],
     });
   }
 
-  const groupedLines: Array<{ label: string; amount: number; itemCount: number }> = Array.from(packageMap.values()).map((entry) => ({
-    label: entry.label,
-    amount: roundMoney(entry.amount),
-    itemCount: entry.itemCount,
-  }));
+  const groupedLines: Array<{
+    label: string;
+    amount: number | null;
+    type: "package" | "package-included" | "service";
+    itemCount: number;
+    packageLabel?: string;
+  }> = [];
+
+  for (const key of packageOrder) {
+    const entry = packageMap.get(key);
+    if (!entry) continue;
+
+    groupedLines.push({
+      label: entry.label,
+      amount: roundMoney(entry.amount),
+      type: "package",
+      itemCount: entry.includedServices.length,
+    });
+
+    entry.includedServices.forEach((name) => {
+      groupedLines.push({
+        label: name,
+        amount: null,
+        type: "package-included",
+        itemCount: 1,
+        packageLabel: entry.label,
+      });
+    });
+  }
 
   return [...groupedLines, ...standaloneLines];
 }
@@ -387,7 +415,12 @@ function buildJobOrderInvoiceLabels(services: any[]) {
   return buildJobOrderBillLines(services)
     .map((line) => ({
       name: line.label,
-      displayLabel: line.itemCount > 1 ? `${line.label} • ${line.itemCount} services` : line.label,
+      displayLabel:
+        line.type === "package"
+          ? `Package: ${line.label}`
+          : line.type === "package-included"
+            ? `- ${line.label} (Included service)`
+            : line.label,
     }))
     .filter((line) => Boolean(line.name));
 }
@@ -1542,10 +1575,12 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const workStatusLabel = safeText(order?.workStatus || order?._row?.workStatusLabel || order?._row?.status || "-");
     const paymentMethodLabel = safeText(billing.paymentMethod || "-");
 
-    const services: Array<{ name: string; price: number }> = Array.isArray(order?.services)
+    const services: Array<{ name: string; price: number | null; type: "package" | "package-included" | "service"; packageLabel?: string }> = Array.isArray(order?.services)
       ? buildJobOrderBillLines(order.services).map((service) => ({
           name: safeText(service.label),
-          price: toNum(service.amount),
+          price: service.amount == null ? null : toNum(service.amount),
+          type: service.type,
+          packageLabel: service.packageLabel,
         }))
       : [];
 
@@ -1823,16 +1858,32 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         doc.setFillColor(250, 252, 255);
         doc.rect(marginX, y, contentW, rowH, "F");
       }
+      if (service.type === "package-included") {
+        doc.setFillColor(241, 245, 249);
+        doc.rect(marginX + 0.3, y + 0.3, contentW - 0.6, rowH - 0.6, "F");
+      }
       doc.setDrawColor(220, 226, 234);
       doc.setLineWidth(0.22);
       doc.rect(marginX, y, contentW, rowH);
 
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8.3);
+      const isPackageHeader = service.type === "package";
+      const isIncludedService = service.type === "package-included";
+      doc.setFont("helvetica", isPackageHeader ? "bold" : "normal");
+      doc.setFontSize(isIncludedService ? 8 : 8.3);
       doc.text(String(idx + 1), marginX + noW / 2, y + 4.4, { align: "center" });
+      const descriptionText =
+        service.type === "package"
+          ? `Package: ${safeText(service.name)}`
+          : service.type === "package-included"
+            ? `- ${safeText(service.name)} (included in package)`
+            : safeText(service.name) || "-";
+      const descriptionX = marginX + noW + (isIncludedService ? 6.5 : 2);
+      if (isIncludedService) {
+        doc.setTextColor(113, 128, 150);
+      }
       const wrappedLines = drawWrapped(
-        clipText(safeText(service.name) || "-", descW - 4),
-        marginX + noW + 2,
+        clipText(descriptionText, descW - 4),
+        descriptionX,
         y + 4.4,
         descW - 4,
         3.8,
@@ -1844,7 +1895,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         doc.text("...", marginX + noW + descW - 5, y + 4.4, { align: "right" });
         doc.setTextColor(20, 31, 46);
       }
-      doc.text(fmtQar(toNum(service.price)), pageW - marginX - 2, y + 4.4, { align: "right" });
+      const amountText = service.price == null ? "-" : fmtQar(toNum(service.price));
+      doc.text(amountText, pageW - marginX - 2, y + 4.4, { align: "right" });
+      doc.setTextColor(20, 31, 46);
     });
 
     let summaryTop = tableTop + tableHeaderH + shownServices.length * rowH + 4;
@@ -2244,7 +2297,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                                     const matchedService = findServiceByInvoiceName(detailServices, serviceItem.name);
                                     const specLabel = getServiceSpecificationLabel(matchedService);
                                     const specColor = getServiceSpecificationColor(matchedService);
-                                    const isPackageEntry = serviceItem.displayLabel.includes(" • ");
+                                    const isPackageEntry = serviceItem.displayLabel.startsWith("Package:") || serviceItem.displayLabel.includes("Included service");
                                     return (
                                       <li key={idx} data-no-translate="true" className={isPackageEntry ? "is-package-entry" : undefined}>
                                         <i className={`fas ${isPackageEntry ? "fa-box-open" : "fa-check-circle"}`}></i>

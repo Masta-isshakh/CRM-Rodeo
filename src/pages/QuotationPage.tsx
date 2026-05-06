@@ -31,6 +31,14 @@ type QuotationLine = {
   packagePrice?: number;
 };
 
+type QuotationDisplayLine = {
+  key: string;
+  label: string;
+  price: number | null;
+  isPackage: boolean;
+  isIncludedService: boolean;
+};
+
 type CustomerInfo = {
   fullName: string;
   mobile: string;
@@ -76,6 +84,78 @@ function dedupeServices(items: QuotationLine[]) {
   }
 
   return out;
+}
+
+function buildQuotationDisplayLines(items: QuotationLine[], t: (englishText: string) => string): QuotationDisplayLine[] {
+  const packageMap = new Map<
+    string,
+    {
+      title: string;
+      packagePrice: number | null;
+      fallbackTotal: number;
+      includedServices: string[];
+    }
+  >();
+  const packageOrder: string[] = [];
+  const standalone: QuotationDisplayLine[] = [];
+
+  for (const item of items) {
+    const serviceLabel = toBilingualName(item.name, item.nameAr, t("Service"));
+    const servicePrice = Math.max(0, toMoney(item.price));
+    const packageCode = normalizeKey(item.packageCode);
+    const packageName = String(item.packageName || item.packageNameAr || item.packageCode || "").trim();
+    const packageKey = packageCode || (packageName ? `pkg:${normalizeKey(packageName)}` : "");
+
+    if (!packageKey) {
+      standalone.push({
+        key: `single:${serviceLabel}:${standalone.length}`,
+        label: serviceLabel,
+        price: servicePrice,
+        isPackage: false,
+        isIncludedService: false,
+      });
+      continue;
+    }
+
+    const current = packageMap.get(packageKey);
+    if (!current) packageOrder.push(packageKey);
+
+    const packagePriceRaw = toMoney(item.packagePrice);
+    const packagePrice = packagePriceRaw > 0 ? packagePriceRaw : null;
+
+    packageMap.set(packageKey, {
+      title: packageName || t("Package"),
+      packagePrice: current?.packagePrice ?? packagePrice,
+      fallbackTotal: (current?.fallbackTotal ?? 0) + servicePrice,
+      includedServices: [...(current?.includedServices ?? []), serviceLabel],
+    });
+  }
+
+  const grouped: QuotationDisplayLine[] = [];
+  for (const key of packageOrder) {
+    const group = packageMap.get(key);
+    if (!group) continue;
+
+    grouped.push({
+      key: `pkg:${key}`,
+      label: `${t("Package")}: ${group.title}`,
+      price: group.packagePrice ?? group.fallbackTotal,
+      isPackage: true,
+      isIncludedService: false,
+    });
+
+    group.includedServices.forEach((serviceLabel, idx) => {
+      grouped.push({
+        key: `pkg:${key}:svc:${idx}`,
+        label: `  - ${serviceLabel}`,
+        price: null,
+        isPackage: false,
+        isIncludedService: true,
+      });
+    });
+  }
+
+  return [...grouped, ...standalone];
 }
 
 function expandCatalogProduct(product: ServiceCatalogItem, allCatalog: ServiceCatalogItem[], vehicleType: string): QuotationLine[] {
@@ -330,6 +410,11 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     );
   }, [selectedProducts, catalog, customer.vehicleType]);
 
+  const quotationDisplayLines = useMemo(
+    () => buildQuotationDisplayLines(selectedLines, t),
+    [selectedLines, t]
+  );
+
   const subtotal = useMemo(() => summarizeServicesSubtotalPackageAware(selectedLines), [selectedLines]);
 
   const discountAllowance = useMemo(
@@ -518,16 +603,30 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     doc.text("AMOUNT", pageW - marginX - 2, tableTop + 5.1, { align: "right" });
     drawArabicLine(doc, "المبلغ", pageW - marginX - 22, tableTop + 1.7, 16, 8, "bold");
 
-    const shown = selectedLines.slice(0, rowsCount);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.1);
+    const shown = quotationDisplayLines.slice(0, rowsCount);
     shown.forEach((line, idx) => {
       const y = tableTop + rowH + idx * rowH + 5;
-      const title = safeText(line.name || line.nameAr || t("Service"));
+      if (line.isIncludedService) {
+        const rowTop = tableTop + rowH + idx * rowH;
+        doc.setFillColor(241, 245, 249);
+        doc.rect(marginX + 0.3, rowTop + 0.3, contentW - 0.6, rowH - 0.6, "F");
+      }
+      const isPackageHeader = line.isPackage;
+      const isIncludedService = line.isIncludedService;
+      doc.setFont("helvetica", isPackageHeader ? "bold" : "normal");
+      doc.setFontSize(isIncludedService ? 7.8 : 8.1);
+      if (isIncludedService) {
+        doc.setTextColor(113, 128, 150);
+      } else {
+        doc.setTextColor(17, 24, 39);
+      }
+      const title = safeText(line.label || t("Service"));
       const titleClipped = title.length > 62 ? `${title.slice(0, 62)}...` : title;
-      doc.text(titleClipped, marginX + 2, y);
-      doc.text(formatMoney(toMoney(line.price)), pageW - marginX - 2, y, { align: "right" });
+      doc.text(titleClipped, marginX + (isIncludedService ? 6.5 : 2), y);
+      const amountText = line.price == null ? "-" : formatMoney(toMoney(line.price));
+      doc.text(amountText, pageW - marginX - 2, y, { align: "right" });
     });
+    doc.setTextColor(17, 24, 39);
 
     // Totals block
     const totalsTop = tableTop + tableH + 4;
@@ -858,14 +957,14 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
           <section className="quotation-card">
             <h3><i className="fas fa-receipt" /> {t("Quotation Summary")}</h3>
             <div className="quotation-summary-list">
-              {selectedLines.length === 0 ? <div className="quotation-muted">{t("No selected lines yet.")}</div> : null}
-              {selectedLines.map((line, idx) => (
-                <div key={`${line.packageCode || "single"}-${line.serviceCode || line.catalogId || idx}`} className="quotation-summary-row">
+              {quotationDisplayLines.length === 0 ? <div className="quotation-muted">{t("No selected lines yet.")}</div> : null}
+              {quotationDisplayLines.map((line) => (
+                <div key={line.key} className={`quotation-summary-row${line.isIncludedService ? " quotation-summary-row-included" : ""}`}>
                   <div>
-                    <strong data-no-translate="true">{toBilingualName(line.name, line.nameAr, t("Service"))}</strong>
-                    {line.packageName ? <small>{t("Package")}: {line.packageName}</small> : null}
+                    <strong data-no-translate="true">{line.label}</strong>
+                    {line.isPackage ? <small>{t("Included services are listed below without prices.")}</small> : null}
                   </div>
-                  <div>{formatMoney(toMoney(line.price))}</div>
+                  <div>{line.price == null ? "-" : formatMoney(toMoney(line.price))}</div>
                 </div>
               ))}
             </div>
