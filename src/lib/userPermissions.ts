@@ -41,7 +41,6 @@ export const POLICY_KEYS = [
   "EMPLOYEES",
   "ACTIVITY_LOG",
   "JOB_CARDS",
-  "CALL_TRACKING",
   "INSPECTION_APPROVALS",
   "USERS_ADMIN",
   "DEPARTMENTS_ADMIN",
@@ -49,7 +48,6 @@ export const POLICY_KEYS = [
   "INTERNAL_CHAT",
   "FILE_SHARING",
   "PUSH_NOTIFICATIONS",
-  "EMAIL_INBOX",
 ] as const;
 
 function normalizeKey(x: unknown) {
@@ -202,6 +200,7 @@ export function usePermissions() {
 
   const [loading, setLoading] = useState(!cached);
   const [email, setEmail] = useState<string>(cached?.email ?? "");
+  const [employeeName, setEmployeeName] = useState<string>("");
   const [groups, setGroups] = useState<string[]>(cached?.groups ?? []);
   const [departmentKey, setDepartmentKey] = useState<string>(cached?.departmentKey ?? "");
   const [isAdminGroup, setIsAdminGroup] = useState(cached?.isAdminGroup ?? false);
@@ -329,6 +328,7 @@ export function usePermissions() {
         }
         resolvedEmail = resolvedEmail.trim().toLowerCase();
         setEmail(resolvedEmail);
+        setEmployeeName("");
 
         const deptFromGroups = resolvedGroups.find((g) => g.startsWith(DEPT_PREFIX)) ?? "";
 
@@ -341,6 +341,7 @@ export function usePermissions() {
         if (resolvedEmail) {
           try {
             const row = (await findUserProfileByEmailCaseInsensitive(client, resolvedEmail)) as UserProfileRow | undefined;
+            setEmployeeName(String((row as any)?.fullName ?? "").trim());
             deptFromProfile = String((row as any)?.departmentKey ?? "").trim();
             profileRoleId = String((row as any)?.roleId ?? "").trim();
             profileActive = Boolean((row as any)?.isActive ?? true);
@@ -542,6 +543,7 @@ export function usePermissions() {
   return {
     loading,
     email,
+    employeeName,
     groups,
     departmentKey,
     isAdminGroup,

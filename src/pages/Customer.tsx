@@ -11,7 +11,8 @@ import { logActivity } from "../utils/activityLogger";
 import { matchesSearchQuery, splitSearchTerms } from "../lib/searchUtils";
 import { usePermissions } from "../lib/userPermissions";
 import { useLanguage } from "../i18n/LanguageContext";
-import "./Customer.css";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
+import { User } from "lucide-react";
 
 const client = generateClient<Schema>();
 
@@ -32,6 +33,8 @@ type AlertState = {
   onClose?: () => void;
   onConfirm?: () => void;
 };
+
+type ArtTheme = "theme-elegant-glass" | "theme-executive-minimal";
 
 type CustomerForm = {
   name: string;
@@ -62,7 +65,6 @@ const SOCIAL_PLATFORM_OPTIONS = [
   { value: "tiktok", label: "TikTok" },
   { value: "website", label: "Website" },
 ] as const;
-
 
 type CountsMap = Record<
   string,
@@ -170,24 +172,181 @@ function Modal(props: {
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="modal-overlay show">
-      <div className="modal">
-        <div className="modal-header">
-          <h3>
-            <i className={icon} /> {title}
-          </h3>
-          <button className="btn-close-modal" onClick={onClose} disabled={!!saving}>
+    <div
+      className="modal-overlay show"
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(10, 28, 80, 0.45)",
+        backdropFilter: "blur(10px)",
+        WebkitBackdropFilter: "blur(10px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "20px 14px",
+        zIndex: 9999,
+      }}
+    >
+      <div
+        className="modal"
+        onMouseDown={(e) => e.stopPropagation()}
+        style={{
+          background: "linear-gradient(145deg, #f8fafe 0%, #eef3ff 100%)",
+          border: "1px solid #DDE7F6",
+          borderRadius: 18,
+          boxShadow:
+            "0 24px 64px rgba(51, 84, 160, 0.22), 0 4px 20px rgba(78, 64, 248, 0.12), inset 0 1px 0 rgba(255,255,255,0.9)",
+          overflow: "hidden",
+          maxWidth: 520,
+          width: "92vw",
+          maxHeight: "86vh",
+          padding: 0,
+        }}
+      >
+        {/* Accent gradient bar */}
+        <div
+          style={{
+            height: 4,
+            background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)",
+            flexShrink: 0,
+          }}
+        />
+
+        {/* Header */}
+        <div
+          className="modal-header"
+          style={{
+            padding: "18px 24px 14px",
+            borderBottom: "1px solid #E8EEFB",
+            background: "transparent",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div
+              style={{
+                width: 40,
+                height: 40,
+                borderRadius: "50%",
+                background: "linear-gradient(160deg, #FFFFFF 0%, #E8EEFF 100%)",
+                border: "1px solid #D0DAEE",
+                boxShadow: "0 0 0 5px rgba(101, 92, 255, 0.08), 0 2px 8px rgba(78,64,248,0.10)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "#5D54FF",
+                fontSize: 15,
+                flexShrink: 0,
+              }}
+            >
+              <i className={icon} />
+            </div>
+            <h3
+              style={{
+                margin: 0,
+                fontSize: 17,
+                fontWeight: 700,
+                color: "#102A68",
+                letterSpacing: "-0.02em",
+              }}
+            >
+              {title}
+            </h3>
+          </div>
+          <button
+            onClick={onClose}
+            disabled={!!saving}
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              border: "1px solid #DDE7F6",
+              background: "linear-gradient(160deg, #FFFFFF 0%, #F0F4FF 100%)",
+              color: "#8C9ABF",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              fontSize: 12,
+              flexShrink: 0,
+              outline: "none",
+              transition: "all 0.15s",
+            }}
+          >
             <i className="fas fa-times" />
           </button>
         </div>
-        <div className="modal-body">{children}</div>
-        <div className="modal-footer">
-          <button className="btn-save" onClick={onSave} disabled={!!saving || !!saveDisabled}>
-            <i className="fas fa-save" />{" "}
+
+        {/* Body */}
+        <div
+          className="modal-body"
+          style={{ padding: "22px 24px 6px", overflowY: "auto", maxHeight: "60vh" }}
+        >
+          {children}
+        </div>
+
+        {/* Footer */}
+        <div
+          className="modal-footer"
+          style={{
+            padding: "14px 24px 20px",
+            borderTop: "1px solid #E8EEFB",
+            background: "transparent",
+            display: "flex",
+            gap: 10,
+            justifyContent: "flex-end",
+            alignItems: "center",
+          }}
+        >
+          <button
+            onClick={onSave}
+            disabled={!!saving || !!saveDisabled}
+            style={{
+              background:
+                saving || saveDisabled
+                  ? "linear-gradient(90deg, #b0aef8 0%, #a0e6ee 100%)"
+                  : "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)",
+              color: "#fff",
+              border: "none",
+              borderRadius: 9,
+              padding: "10px 24px",
+              fontSize: "0.85rem",
+              fontWeight: 700,
+              cursor: saving || saveDisabled ? "not-allowed" : "pointer",
+              boxShadow: saving || saveDisabled ? "none" : "0 4px 14px rgba(78, 64, 248, 0.30)",
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              letterSpacing: "0.01em",
+              transition: "all 0.15s",
+            }}
+          >
+            <i className="fas fa-save" style={{ fontSize: 12 }} />
             {saving ? t("Saving...") : saveLabel ? saveLabel : isEdit ? t("Save Changes") : t("Add Customer")}
           </button>
-          <button className="btn-cancel" onClick={onClose} disabled={!!saving}>
-            <i className="fas fa-times" /> {t("Cancel")}
+          <button
+            onClick={onClose}
+            disabled={!!saving}
+            style={{
+              border: "1.5px solid #C8D5EE",
+              background: "linear-gradient(160deg, #FFFFFF 0%, #F0F4FF 100%)",
+              color: "#5D54FF",
+              borderRadius: 9,
+              padding: "10px 20px",
+              fontSize: "0.85rem",
+              fontWeight: 600,
+              cursor: saving ? "not-allowed" : "pointer",
+              display: "flex",
+              alignItems: "center",
+              gap: 7,
+              letterSpacing: "0.01em",
+              transition: "all 0.15s",
+            }}
+          >
+            <i className="fas fa-times" style={{ fontSize: 11 }} />
+            {t("Cancel")}
           </button>
         </div>
       </div>
@@ -212,6 +371,27 @@ function FormField(props: {
 }) {
   const { t } = useLanguage();
   const { label, id, type = "text", value, onChange, error, placeholder, required, disabled } = props;
+  const [focused, setFocused] = React.useState(false);
+
+  const inputStyle: React.CSSProperties = {
+    width: "100%",
+    boxSizing: "border-box",
+    padding: "10px 14px",
+    fontSize: "0.9rem",
+    fontWeight: 500,
+    color: disabled ? "#A0AEC7" : "#0F2A66",
+    background: disabled ? "#F4F7FC" : focused ? "#FFFFFF" : "#F7F9FF",
+    border: error
+      ? "1.5px solid #F87171"
+      : focused
+      ? "1.5px solid #7C6DF0"
+      : "1.5px solid #D5DEEF",
+    borderRadius: 9,
+    outline: "none",
+    boxShadow: focused ? "0 0 0 3px rgba(101, 92, 255, 0.13)" : "none",
+    transition: "all 0.18s ease",
+    cursor: disabled ? "not-allowed" : "text",
+  };
 
   const common = {
     id,
@@ -219,19 +399,60 @@ function FormField(props: {
     value,
     placeholder,
     disabled,
+    style: inputStyle,
+    onFocus: () => setFocused(true),
+    onBlur: () => setFocused(false),
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChange(e.target.value),
   };
 
   return (
-    <div className="form-group">
-      <label htmlFor={id}>
+    <div className="form-group" style={{ marginBottom: 14 }}>
+      <label
+        htmlFor={id}
+        style={{
+          display: "block",
+          marginBottom: 6,
+          fontSize: 10.5,
+          fontWeight: 700,
+          color: "#8C9ABF",
+          textTransform: "uppercase",
+          letterSpacing: "0.08em",
+        }}
+      >
         {label}
-        {required ? <span className="required">*</span> : <span className="form-optional">{t("(optional)")}</span>}
+        {required ? (
+          <span style={{ color: "#EF4444", marginLeft: 3, fontWeight: 700 }}>*</span>
+        ) : (
+          <span
+            style={{
+              color: "#B8C5DC",
+              fontWeight: 500,
+              textTransform: "none",
+              letterSpacing: 0,
+              fontSize: 10,
+              marginLeft: 4,
+            }}
+          >
+            {t("(optional)")}
+          </span>
+        )}
       </label>
 
-      {type === "textarea" ? <textarea {...common} rows={3} /> : <input {...common} type={type} />}
+      {type === "textarea" ? (
+        <textarea {...common} rows={3} style={{ ...inputStyle, resize: "vertical", minHeight: 80 }} />
+      ) : (
+        <input {...common} type={type} />
+      )}
 
-      {error && <div className="error-message show">{error}</div>}
+      {error && (
+        <div
+          className="error-message show"
+          style={{ fontSize: 11, color: "#EF4444", marginTop: 4, fontWeight: 500, display: "flex", alignItems: "center", gap: 4 }}
+        >
+          <i className="fas fa-exclamation-circle" style={{ fontSize: 10 }} />
+          {error}
+        </div>
+      )}
     </div>
   );
 }
@@ -242,10 +463,10 @@ function FormField(props: {
 function CustomersTable(props: {
   data: CustomerRow[];
   counts: CountsMap;
+  loading: boolean;
   onViewDetails: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
-  formatCustomerId: (id: string) => string;
   searchQuery: string;
   canViewDetails: boolean;
   canUpdate: boolean;
@@ -256,16 +477,68 @@ function CustomersTable(props: {
   const {
     data,
     counts,
+    loading,
     onViewDetails,
     onEdit,
     onDelete,
-    formatCustomerId,
     searchQuery,
     canViewDetails,
     canUpdate,
     canDelete,
     canShowActions,
   } = props;
+
+  if (loading) {
+    return (
+      <div
+        className="empty-state"
+        style={{
+          minHeight: 260,
+          background: "linear-gradient(145deg, #f7f9ff 0%, #f3f6fd 45%, #eef3ff 100%)",
+          border: "1px solid #DBE4F6",
+          borderRadius: 16,
+          boxShadow: "0 8px 18px rgba(112, 144, 176, 0.10)",
+          padding: "26px 24px",
+          position: "relative",
+          overflow: "hidden",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            backgroundImage:
+              "linear-gradient(90deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.08) 26%, rgba(255,255,255,0.38) 44%, rgba(255,255,255,0.08) 63%, rgba(255,255,255,0.45) 100%)",
+          }}
+        />
+        <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: 0, height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)" }} />
+        <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: 16, justifyContent: "center", minHeight: 208, textAlign: "left", flexWrap: "wrap" }}>
+          <div
+            style={{
+              width: 60,
+              height: 60,
+              borderRadius: 14,
+              background: "linear-gradient(140deg, #1EC7C7 0%, #6D4FFF 100%)",
+              boxShadow: "0 6px 12px rgba(98, 109, 229, 0.20)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#ffffff",
+              flexShrink: 0,
+            }}
+          >
+            <i className="fas fa-spinner fa-spin" style={{ fontSize: 22 }} />
+          </div>
+          <div style={{ minWidth: 220 }}>
+            <div className="empty-text" style={{ marginBottom: 6 }}>{t("Loading Customers")}</div>
+            <div className="empty-subtext">{t("Please wait while we fetch your data")}</div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
@@ -314,59 +587,130 @@ function CustomersTable(props: {
   }
 
   const showAnyRowAction = canShowActions && (canViewDetails || canUpdate || canDelete);
+  const tableTitleStyle: React.CSSProperties = {
+    color: "#111827",
+    fontSize: 10.8,
+    fontWeight: 800,
+    letterSpacing: "0.06em",
+    textTransform: "uppercase",
+  };
+  const primaryInfoStyle: React.CSSProperties = {
+    color: "#0F2A66",
+    fontSize: "0.9rem",
+    fontWeight: 700,
+    lineHeight: 1.28,
+    letterSpacing: "0.01em",
+    display: "block",
+    width: "100%",
+  };
+  const tableShellStyle: React.CSSProperties = {
+    borderRadius: 16,
+    border: "1px solid #DCE6F8",
+    background: "linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%)",
+    boxShadow: "0 14px 34px rgba(15, 42, 102, 0.12)",
+    padding: 10,
+    overflowX: "auto",
+    overflowY: "hidden",
+    WebkitOverflowScrolling: "touch",
+    position: "relative",
+  };
+  const tableStyle: React.CSSProperties = {
+    width: "100%",
+    minWidth: 1020,
+    borderCollapse: "separate",
+    borderSpacing: 0,
+    tableLayout: "fixed",
+  };
+  const headerRowStyle: React.CSSProperties = {
+    background: "linear-gradient(90deg, #EEF4FF 0%, #E8F7FF 100%)",
+  };
+  const headerCellStyle: React.CSSProperties = {
+    ...tableTitleStyle,
+    padding: "9px 12px",
+    borderBottom: "1px solid #D9E5FA",
+    verticalAlign: "middle",
+    textAlign: "left",
+    whiteSpace: "nowrap",
+  };
+  const cellStyle: React.CSSProperties = {
+    padding: "6px 12px",
+    borderBottom: "1px solid #E7EEFC",
+    verticalAlign: "middle",
+    whiteSpace: "nowrap",
+    wordBreak: "normal",
+    overflowWrap: "normal",
+  };
+  const actionHeaderStyle: React.CSSProperties = {
+    ...headerCellStyle,
+    textAlign: "right",
+    paddingRight: 12,
+  };
 
   return (
-    <div className="table-wrapper">
-      <table className="customers-table">
+    <div className="table-wrapper customer-table-card-shell" style={tableShellStyle}>
+      <table className="customers-table customer-dashboard-table" style={tableStyle}>
+        <colgroup>
+          <col style={{ width: "24%" }} />
+          <col style={{ width: "18%" }} />
+          <col style={{ width: "20%" }} />
+          <col style={{ width: "14%" }} />
+          <col style={{ width: "12%" }} />
+          <col style={{ width: "12%" }} />
+        </colgroup>
         <thead>
-          <tr>
-            <th>{t("Customer ID")}</th>
-            <th>{t("Customer Name")}</th>
-            <th>{t("Mobile Number")}</th>
-            <th>{t("Company")}</th>
-            <th>{t("Contacts")}</th>
-            <th>{t("Deals")}</th>
-            <th>{t("Tickets")}</th>
-            <th>{t("Actions")}</th>
+          <tr style={headerRowStyle}>
+            <th style={headerCellStyle}>{t("Customer Name")}</th>
+            <th style={headerCellStyle}>{t("Contact Info")}</th>
+            <th style={headerCellStyle}>{t("Vehicle Make/Model")}</th>
+            <th style={headerCellStyle}>{t("Recent Service")}</th>
+            <th style={headerCellStyle}>{t("Total Spent")}</th>
+            <th style={actionHeaderStyle}>{t("Actions")}</th>
           </tr>
         </thead>
         <tbody>
-          {data.map((c) => {
+          {data.map((c, idx) => {
             const fullName = `${c.name ?? ""} ${c.lastname ?? ""}`.trim();
             const ct = counts[c.id] || { contacts: 0, deals: 0, tickets: 0 };
+            const rowStyle: React.CSSProperties = {
+              background: idx % 2 === 0 ? "rgba(255,255,255,0.96)" : "rgba(246,250,255,0.96)",
+            };
 
             return (
-              <tr key={c.id}>
-                <td dangerouslySetInnerHTML={{ __html: highlight(formatCustomerId(c.id), searchQuery) }} />
-
-                <td dangerouslySetInnerHTML={{ __html: highlight(fullName || "—", searchQuery) }} />
-                <td dangerouslySetInnerHTML={{ __html: highlight(c.phone ?? "—", searchQuery) }} />
-                <td dangerouslySetInnerHTML={{ __html: highlight(c.company ?? "—", searchQuery) }} />
-
-                <td>
-                  <span className="count-badge">{ct.contacts} {t("contacts")}</span>
+              <tr key={c.id} style={rowStyle}>
+                <td style={cellStyle}>
+                  <div className="customer-cell-primary" style={primaryInfoStyle} dangerouslySetInnerHTML={{ __html: highlight(fullName || "—", searchQuery) }} />
                 </td>
-                <td>
-                  <span className="count-badge">{ct.deals} {t("deals")}</span>
+                <td style={cellStyle}>
+                  <div className="customer-cell-primary" style={primaryInfoStyle} dangerouslySetInnerHTML={{ __html: highlight(c.phone ?? "—", searchQuery) }} />
                 </td>
-                <td>
-                  <span className="count-badge">{ct.tickets} {t("tickets")}</span>
+                <td style={cellStyle}>
+                  <div className="customer-cell-primary" style={primaryInfoStyle} dangerouslySetInnerHTML={{ __html: highlight(c.company ?? "—", searchQuery) }} />
+                </td>
+                <td style={cellStyle}>
+                  <span className="count-badge">
+                    {ct.tickets} {t("service records")}
+                  </span>
+                </td>
+                <td style={cellStyle}>
+                  <span className="customer-cell-primary" style={primaryInfoStyle}>{t("Not available")}</span>
                 </td>
 
-                <td>
+                <td style={{ ...cellStyle, textAlign: "right", paddingRight: 12 }}>
                   {showAnyRowAction ? (
-                    <div className="action-dropdown-container">
+                    <div className="action-dropdown-container" style={{ width: "100%", display: "flex", justifyContent: "flex-end", paddingRight: 0 }}>
                       <button
                         className={`btn-action-dropdown ${activeDropdown === c.id ? "active" : ""}`}
                         onClick={(e) => {
+                          e.stopPropagation();
                           const isActive = activeDropdown === c.id;
                           if (isActive) return setActiveDropdown(null);
 
                           const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
-                          const menuHeight = 160;
-                          const menuWidth = 220;
+                          const menuHeight = 220;
+                          const menuWidth = 230;
                           const spaceBelow = window.innerHeight - rect.bottom;
-                          const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
+                          const rawTop = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
+                          const top = Math.max(8, Math.min(rawTop, window.innerHeight - menuHeight - 8));
                           const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
 
                           flushSync(() => {
@@ -375,6 +719,23 @@ function CustomersTable(props: {
                           });
                         }}
                         type="button"
+                        style={{
+                          display: "inline-flex",
+                          alignItems: "center",
+                          gap: 6,
+                          padding: "6px 10px",
+                          borderRadius: 9,
+                          border: activeDropdown === c.id ? "none" : "1px solid #DDE7F6",
+                          background: activeDropdown === c.id ? "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)" : "#F7F9FF",
+                          color: activeDropdown === c.id ? "#FFFFFF" : "#5D54FF",
+                          fontSize: "0.84rem",
+                          fontWeight: 800,
+                          cursor: "pointer",
+                          boxShadow: activeDropdown === c.id ? "0 6px 14px rgba(78, 64, 248, 0.30)" : "none",
+                          marginRight: 2,
+                          minWidth: 102,
+                          justifyContent: "center",
+                        }}
                       >
                         <i className="fas fa-cogs" /> {t("Actions")} <i className="fas fa-chevron-down" />
                       </button>
@@ -395,44 +756,105 @@ function CustomersTable(props: {
         createPortal(
           <div
             className="action-dropdown-menu show action-dropdown-menu-fixed"
-            style={{ top: `${dropdownPosition.top}px`, left: `${dropdownPosition.left}px` }}
+            style={{
+              position: "fixed",
+              top: `${dropdownPosition.top}px`,
+              left: `${dropdownPosition.left}px`,
+              zIndex: 10050,
+              minWidth: 230,
+              background: "#FFFFFF",
+              border: "1px solid #DDE7F6",
+              borderRadius: 10,
+              boxShadow: "0 18px 32px rgba(28, 45, 94, 0.18)",
+              padding: 6,
+            }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
             {canViewDetails && (
               <button
                 className="dropdown-item view"
+                                type="button"
                 onClick={() => {
                   onViewDetails(activeDropdown);
                   setActiveDropdown(null);
                 }}
+                                style={{
+                                  width: "100%",
+                                  border: "none",
+                                  background: "transparent",
+                                  color: "#2A3B66",
+                                  fontSize: "0.84rem",
+                                  fontWeight: 600,
+                                  padding: "9px 10px",
+                                  borderRadius: 8,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  cursor: "pointer",
+                                  textAlign: "left",
+                                }}
               >
                 <i className="fas fa-eye" /> {t("View Details")}
               </button>
             )}
 
-            {canViewDetails && (canUpdate || canDelete) && <div className="dropdown-divider" />}
+                            {canViewDetails && (canUpdate || canDelete) && <div className="dropdown-divider" style={{ height: 1, background: "#E6ECF8", margin: "4px 6px" }}></div>}
 
             {canUpdate && (
               <>
                 <button
                   className="dropdown-item edit"
+                                  type="button"
                   onClick={() => {
                     onEdit(activeDropdown);
                     setActiveDropdown(null);
                   }}
+                                  style={{
+                                    width: "100%",
+                                    border: "none",
+                                    background: "transparent",
+                                    color: "#2A3B66",
+                                    fontSize: "0.84rem",
+                                    fontWeight: 600,
+                                    padding: "9px 10px",
+                                    borderRadius: 8,
+                                    display: "flex",
+                                    alignItems: "center",
+                                    gap: 8,
+                                    cursor: "pointer",
+                                    textAlign: "left",
+                                  }}
                 >
                   <i className="fas fa-edit" /> {t("Edit Customer")}
                 </button>
-                {canDelete && <div className="dropdown-divider" />}
+                                {canDelete && <div className="dropdown-divider" style={{ height: 1, background: "#E6ECF8", margin: "4px 6px" }}></div>}
               </>
             )}
 
             {canDelete && (
               <button
                 className="dropdown-item delete"
+                                type="button"
                 onClick={() => {
                   onDelete(activeDropdown);
                   setActiveDropdown(null);
                 }}
+                                style={{
+                                  width: "100%",
+                                  border: "none",
+                                  background: "transparent",
+                                  color: "#D14343",
+                                  fontSize: "0.84rem",
+                                  fontWeight: 700,
+                                  padding: "9px 10px",
+                                  borderRadius: 8,
+                                  display: "flex",
+                                  alignItems: "center",
+                                  gap: 8,
+                                  cursor: "pointer",
+                                  textAlign: "left",
+                                }}
               >
                 <i className="fas fa-trash" /> {t("Delete Customer")}
               </button>
@@ -464,6 +886,8 @@ function DetailsView(props: {
   canViewRelatedContacts: boolean;
   canViewRelatedDeals: boolean;
   canViewRelatedTickets: boolean;
+  themeClass: ArtTheme;
+  onToggleTheme: () => void;
 }) {
   const { t } = useLanguage();
   const {
@@ -483,212 +907,673 @@ function DetailsView(props: {
     canViewRelatedContacts,
     canViewRelatedDeals,
     canViewRelatedTickets,
+    themeClass,
+    onToggleTheme,
   } = props;
 
   const fullName = `${customer.name ?? ""} ${customer.lastname ?? ""}`.trim();
   const displayCustomerId = formatCustomerId(customer.id);
   const firstVehicle = vehicles[0] as any;
 
-  return (
-    <div className="pim-details-screen">
-      <div className="pim-details-header">
-        <div className="pim-details-title-container">
-          <h2>
-            <i className="fas fa-user-circle" /> {t("Customer Details -")} <span>{displayCustomerId}</span>
-          </h2>
+  type PremiumField = {
+    key: string;
+    iconClass: string;
+    label: string;
+    value: string;
+  };
+
+  const PremiumDetailsCard = ({
+    title,
+    iconClass,
+    fields,
+    forceSingleRow = false,
+  }: {
+    title: string;
+    iconClass: string;
+    fields: PremiumField[];
+    forceSingleRow?: boolean;
+  }) => (
+    <div
+      style={{
+        position: "relative",
+        background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)",
+        borderRadius: 12,
+        boxShadow: "0 10px 24px rgba(51, 84, 160, 0.08)",
+        border: "1px solid #DDE7F6",
+        overflow: "hidden",
+        marginBottom: 6,
+      }}
+    >
+      <div
+        aria-hidden="true"
+        style={{
+          position: "absolute",
+          left: 0,
+          right: 0,
+          top: 0,
+          height: 4,
+          background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)",
+          zIndex: 2,
+        }}
+      />
+      <div
+        style={{
+          padding: "12px 16px 11px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          background: "linear-gradient(180deg, #FEFEFF 0%, #FDFEFF 100%)",
+          position: "relative",
+          overflow: "hidden",
+          borderBottom: "2px solid #DDE6F4",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            top: -18,
+            right: -22,
+            height: 96,
+            width: 202,
+            background: "linear-gradient(to bottom left, rgba(67, 24, 255, 0.18), rgba(67, 24, 255, 0))",
+            borderBottomLeftRadius: 999,
+            pointerEvents: "none",
+          }}
+        />
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            right: 28,
+            top: 26,
+            width: 44,
+            height: 44,
+            borderRadius: 14,
+            opacity: 0.35,
+            backgroundImage:
+              "radial-gradient(circle, rgba(116, 137, 191, 0.55) 1.4px, transparent 1.5px)",
+            backgroundSize: "10px 10px",
+            pointerEvents: "none",
+          }}
+        />
+        <div style={{ position: "relative", zIndex: 1, display: "flex", alignItems: "center", gap: 12 }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: "50%",
+              background: "linear-gradient(180deg, #FFFFFF 0%, #EEF3FF 100%)",
+              border: "1px solid #D8E1F7",
+              boxShadow: "0 0 0 4px rgba(101, 92, 255, 0.08), 0 6px 14px rgba(71, 88, 180, 0.10)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#5D54FF",
+            }}
+          >
+            <i className={iconClass} style={{ fontSize: 13 }} />
+          </div>
+          <h3
+            style={{
+              margin: 0,
+              fontSize: 11,
+              fontWeight: 800,
+              color: "#111827",
+              lineHeight: 1.34,
+              letterSpacing: "0.05em",
+              textTransform: "uppercase",
+            }}
+          >
+            {title}
+          </h3>
         </div>
-        <button className="pim-btn-close-details" onClick={onClose} type="button">
-          <i className="fas fa-times" /> {t("Close Details")}
-        </button>
+      </div>
+      <div
+        style={{
+          display: "grid",
+          gridTemplateColumns: forceSingleRow
+            ? `repeat(${Math.max(fields.length, 1)}, minmax(160px, 1fr))`
+            : "repeat(4, minmax(0, 1fr))",
+          background: "#FFFFFF",
+          overflowX: forceSingleRow ? "auto" : "visible",
+        }}
+      >
+        {fields.map((field, index) => (
+          <div
+            key={field.key}
+            style={{
+              minHeight: 114,
+              padding: "20px 18px 18px",
+              borderLeft: index === 0 ? "none" : "1px solid #E3EAF6",
+              background: "linear-gradient(180deg, #FFFFFF 0%, #FBFDFF 100%)",
+            }}
+          >
+            <div
+              style={{
+                width: 32,
+                height: 32,
+                borderRadius: "50%",
+                background: "linear-gradient(180deg, #FFFFFF 0%, #EEF3FF 100%)",
+                border: "1px solid #DDE6F5",
+                color: "#5C55FF",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                marginBottom: 14,
+                boxShadow: "0 0 0 3px rgba(92, 85, 255, 0.05)",
+              }}
+            >
+              <i className={field.iconClass} style={{ fontSize: 12 }} />
+            </div>
+            <span
+              style={{
+                display: "block",
+                fontSize: "10.5px",
+                fontWeight: 600,
+                color: "#6F7EA8",
+                textTransform: "none",
+                letterSpacing: "0.01em",
+                marginBottom: 7,
+                lineHeight: 1.4,
+              }}
+            >
+              {field.label}
+            </span>
+            <span
+              style={{
+                display: "block",
+                fontSize: "0.92rem",
+                fontWeight: 600,
+                color: "#0F2A66",
+                lineHeight: 1.34,
+                letterSpacing: "0.01em",
+                wordBreak: "break-word",
+              }}
+            >
+              {field.value}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
+  const contactFields: PremiumField[] = [
+    {
+      key: "contact-phone",
+      iconClass: "fas fa-phone",
+      label: t("Phone:"),
+      value: customer.phone || t("Not provided"),
+    },
+    {
+      key: "contact-email",
+      iconClass: "fas fa-envelope",
+      label: t("Email:"),
+      value: customer.email || t("Not provided"),
+    },
+    {
+      key: "contact-address",
+      iconClass: "fas fa-map-marker-alt",
+      label: t("Address:"),
+      value: customer.company || t("Not provided"),
+    },
+    {
+      key: "contact-id",
+      iconClass: "fas fa-id-badge",
+      label: t("Customer ID:"),
+      value: displayCustomerId,
+    },
+  ];
+
+  const vehicleFields: PremiumField[] = [
+    {
+      key: "vehicle-total",
+      iconClass: "fas fa-car",
+      label: t("Total Vehicles"),
+      value: String(customerStats.vehicles),
+    },
+    {
+      key: "vehicle-completed-services",
+      iconClass: "fas fa-check-circle",
+      label: t("Completed Services"),
+      value: String(customerStats.completedServices),
+    },
+    ...vehicles.slice(0, 10).flatMap((vehicle, index) => {
+      const idx = index + 1;
+      const makeModel =
+        `${String((vehicle as any).make ?? "").trim()} ${String((vehicle as any).model ?? "").trim()}`.trim() || "—";
+      return [
+        {
+          key: `vehicle-${vehicle.id}-name`,
+          iconClass: "fas fa-car-side",
+          label: `${t("Vehicle")} ${idx}`,
+          value: makeModel,
+        },
+        {
+          key: `vehicle-${vehicle.id}-plate`,
+          iconClass: "fas fa-hashtag",
+          label: `${t("Plate")} ${idx}`,
+          value: String((vehicle as any).plateNumber ?? "").trim() || "—",
+        },
+        {
+          key: `vehicle-${vehicle.id}-vin`,
+          iconClass: "fas fa-barcode",
+          label: `${t("VIN")} ${idx}`,
+          value: String((vehicle as any).vin ?? "").trim() || "—",
+        },
+      ];
+    }),
+  ];
+
+  const relatedFields: PremiumField[] = (() => {
+    if (canViewRelatedTickets) {
+      if (loadingRelations) {
+        return [
+          {
+            key: "related-loading-tickets",
+            iconClass: "fas fa-spinner",
+            label: t("Status"),
+            value: t("Loading tickets…"),
+          },
+        ];
+      }
+
+      if (tickets.length) {
+        return tickets.slice(0, 10).map((item, index) => ({
+          key: `ticket-${item.id}`,
+          iconClass: "fas fa-briefcase",
+          label: `${t("Job")} ${index + 1}`,
+          value: `${item.title || "—"} • ${item.status || "—"} • ${item.priority || "—"}`,
+        }));
+      }
+
+      return [
+        {
+          key: "related-empty-tickets",
+          iconClass: "fas fa-folder-open",
+          label: t("Recent Activity"),
+          value: t("No tickets."),
+        },
+      ];
+    }
+
+    if (canViewRelatedDeals) {
+      if (loadingRelations) {
+        return [
+          {
+            key: "related-loading-deals",
+            iconClass: "fas fa-spinner",
+            label: t("Status"),
+            value: t("Loading deals…"),
+          },
+        ];
+      }
+
+      if (deals.length) {
+        return deals.slice(0, 10).map((item, index) => ({
+          key: `deal-${item.id}`,
+          iconClass: "fas fa-handshake",
+          label: `${t("Deal")} ${index + 1}`,
+          value: `${item.title || "—"} • ${item.stage || "—"} • ${typeof item.value === "number" ? `${item.value} QAR` : "—"}`,
+        }));
+      }
+
+      return [
+        {
+          key: "related-empty-deals",
+          iconClass: "fas fa-folder-open",
+          label: t("Recent Activity"),
+          value: t("No deals."),
+        },
+      ];
+    }
+
+    if (canViewRelatedContacts) {
+      if (loadingRelations) {
+        return [
+          {
+            key: "related-loading-contacts",
+            iconClass: "fas fa-spinner",
+            label: t("Status"),
+            value: t("Loading contacts…"),
+          },
+        ];
+      }
+
+      if (contacts.length) {
+        return contacts.slice(0, 10).map((item, index) => ({
+          key: `contact-${item.id}`,
+          iconClass: "fas fa-user-friends",
+          label: `${t("Contact")} ${index + 1}`,
+          value: `${item.fullName || "—"} • ${item.phone || "—"} • ${item.email || "—"}`,
+        }));
+      }
+
+      return [
+        {
+          key: "related-empty-contacts",
+          iconClass: "fas fa-folder-open",
+          label: t("Recent Activity"),
+          value: t("No contacts."),
+        },
+      ];
+    }
+
+    return [
+      {
+        key: "related-empty-fallback",
+        iconClass: "fas fa-folder-open",
+        label: t("Recent Activity"),
+        value: t("No recent activity available."),
+      },
+    ];
+  })();
+
+  return (
+    <div
+      style={{
+        background: "linear-gradient(145deg, #f8fafe 0%, #eef3ff 100%)",
+        minHeight: "calc(100vh - 120px)",
+        borderRadius: 18,
+        padding: "16px 8px",
+      }}
+    >
+      <div
+        style={{
+          position: "relative",
+          overflow: "hidden",
+          marginBottom: 14,
+          background: "linear-gradient(90deg, #F7F9FF 0%, #F3F6FD 46%, #EFF3FF 100%)",
+          border: "1px solid #DDE7FB",
+          borderRadius: 20,
+          boxShadow: "0 8px 20px rgba(103, 123, 176, 0.08)",
+          padding: "11px 15px 15px",
+        }}
+      >
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            inset: 0,
+            pointerEvents: "none",
+            backgroundImage:
+              "linear-gradient(90deg, rgba(255,255,255,0.52) 0%, rgba(255,255,255,0.08) 26%, rgba(255,255,255,0.38) 44%, rgba(255,255,255,0.08) 63%, rgba(255,255,255,0.45) 100%)",
+          }}
+        />
+
+        <div
+          aria-hidden="true"
+          style={{
+            position: "absolute",
+            left: "14%",
+            right: -3,
+            bottom: -1,
+            height: "40%",
+            pointerEvents: "none",
+            backgroundImage:
+              'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 1300 260\' preserveAspectRatio=\'none\'%3E%3Cpath d=\'M0 214 C 116 220 214 210 300 178 C 366 154 447 104 546 110 C 593 113 626 126 668 119 C 754 103 843 46 931 64 C 976 73 1011 100 1058 108 C 1134 121 1212 77 1300 91\' fill=\'none\' stroke=\'%2307D3B0\' stroke-opacity=\'0.8\' stroke-width=\'5.5\'/%3E%3Ccircle cx=\'546\' cy=\'110\' r=\'5.5\' fill=\'%2394EFE1\'/%3E%3Ccircle cx=\'931\' cy=\'64\' r=\'5.5\' fill=\'%2394EFE1\'/%3E%3C/svg%3E"), url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 1300 260\' preserveAspectRatio=\'none\'%3E%3Cpath d=\'M0 246 C 120 248 233 248 342 242 C 458 236 542 200 623 151 C 700 104 781 93 845 111 C 894 123 934 150 987 147 C 1057 143 1124 85 1207 78 C 1240 75 1269 84 1300 99\' fill=\'none\' stroke=\'%236C4CFF\' stroke-opacity=\'0.8\' stroke-width=\'5.5\'/%3E%3Ccircle cx=\'845\' cy=\'111\' r=\'5.5\' fill=\'%23B3A1FF\'/%3E%3Ccircle cx=\'987\' cy=\'147\' r=\'5.5\' fill=\'%23B3A1FF\'/%3E%3Ccircle cx=\'1207\' cy=\'78\' r=\'5.5\' fill=\'%23B3A1FF\'/%3E%3C/svg%3E"), linear-gradient(180deg, rgba(248,250,255,0) 0%, rgba(247,249,255,0.92) 82%, rgba(247,249,255,0.98) 100%)',
+            backgroundPosition: "bottom right, bottom right, bottom right",
+            backgroundRepeat: "no-repeat, no-repeat, no-repeat",
+            backgroundSize: "100% 100%, 100% 100%, 100% 100%",
+          }}
+        />
+
+        <div style={{ position: "relative", zIndex: 1 }}>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "flex-start",
+            justifyContent: "space-between",
+            gap: 10,
+            flexWrap: "wrap",
+            marginBottom: 12,
+          }}
+        >
+          <button
+            onClick={onClose}
+            type="button"
+            style={{
+              border: "1px solid #D6E0F4",
+              background: "rgba(255,255,255,0.88)",
+              color: "#6675A3",
+              borderRadius: 10,
+              height: 36,
+              padding: "0 9px",
+              fontSize: 12,
+              fontWeight: 700,
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 6,
+              cursor: "pointer",
+              boxShadow: "0 3px 7px rgba(157, 176, 220, 0.11)",
+              backdropFilter: "blur(10px)",
+              WebkitBackdropFilter: "blur(10px)",
+            }}
+          >
+            <span
+              style={{
+                width: 18,
+                height: 18,
+                borderRadius: 7,
+                display: "inline-flex",
+                alignItems: "center",
+                justifyContent: "center",
+                background: "linear-gradient(135deg, #F5F8FF, #E9EEFF)",
+                border: "1px solid #D8E2F8",
+                color: "#5E42FF",
+                flexShrink: 0,
+              }}
+            >
+              <i className="fas fa-arrow-left" style={{ fontSize: 10 }} />
+            </span>
+            {t("Back to Customers")}
+          </button>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <button
+              onClick={onToggleTheme}
+              type="button"
+              style={{
+                border: "1px solid #DDE5F8",
+                background: "rgba(255,255,255,0.92)",
+                color: "#1E2F67",
+                borderRadius: 12,
+                height: 40,
+                padding: "0 10px",
+                fontSize: 12,
+                fontWeight: 800,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                cursor: "pointer",
+                boxShadow: "0 6px 12px rgba(112, 144, 176, 0.08)",
+                backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)",
+              }}
+            >
+              <span
+                style={{
+                  width: 16,
+                  height: 16,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#5E42FF",
+                  flexShrink: 0,
+                }}
+              >
+                <i className="fas fa-gem" style={{ fontSize: 11 }} />
+              </span>
+              {themeClass === "theme-elegant-glass" ? t("Elegant Glass") : t("Executive Minimal")}
+            </button>
+            {canUpdate && (
+              <button
+                onClick={() => onEdit(customer.id)}
+                type="button"
+                style={{
+                  border: "none",
+                  background: "linear-gradient(135deg, #5B33FF 0%, #00D1BE 100%)",
+                  color: "#ffffff",
+                  borderRadius: 12,
+                  height: 40,
+                  padding: "0 10px",
+                  fontSize: 12,
+                  fontWeight: 800,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  cursor: "pointer",
+                  boxShadow: "0 7px 14px rgba(67, 24, 255, 0.22)",
+                }}
+              >
+                <span
+                  style={{
+                    width: 16,
+                    height: 16,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                  }}
+                >
+                  <i className="fas fa-edit" style={{ fontSize: 11 }} />
+                </span>
+                {t("Edit Customer")}
+              </button>
+            )}
+          </div>
+        </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <div
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 14,
+              background: "linear-gradient(140deg, #1EC7C7 0%, #6D4FFF 100%)",
+              boxShadow: "0 6px 12px rgba(98, 109, 229, 0.20)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#ffffff",
+              flexShrink: 0,
+            }}
+          >
+            <User size={20} strokeWidth={2.1} />
+          </div>
+
+          <div style={{ minWidth: 0 }}>
+            <h1
+              style={{
+                margin: 0,
+                color: "#102A68",
+                fontSize: 20,
+                fontWeight: 700,
+                lineHeight: 1.15,
+                letterSpacing: "-0.03em",
+              }}
+            >
+              {fullName || t("Customer Details")}
+            </h1>
+            <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 6 }}>
+              <span
+                style={{
+                  width: 2,
+                  alignSelf: "stretch",
+                  borderRadius: 999,
+                  background: "linear-gradient(180deg, #00D1BE 0%, #5E42FF 100%)",
+                }}
+              />
+              <p
+                style={{
+                  margin: 0,
+                  color: "#6F7EA8",
+                  fontSize: "10.5px",
+                  fontWeight: 600,
+                  letterSpacing: "0.01em",
+                  lineHeight: 1.4,
+                }}
+              >
+                {displayCustomerId}
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
       </div>
 
-      <div className="pim-details-body">
-        <div className="pim-details-grid">
+      <div style={{ padding: 0 }}>
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 6 }}>
           {canViewInfoCard && (
             <>
-              <div className="pim-detail-card customer-summary-card">
-                <div className="details-card-header">
-                  <h3>
-                    <i className="fas fa-user" /> {t("Customer Information")}
-                  </h3>
-                  {canUpdate && (
-                    <button className="btn-action btn-edit" onClick={() => onEdit(customer.id)} type="button">
-                      <i className="fas fa-edit" /> {t("Edit Customer")}
-                    </button>
-                  )}
-                </div>
+              <PremiumDetailsCard title={t("Contact Information")} iconClass="fas fa-user" fields={contactFields} />
 
-                <div className="pim-card-content customer-summary-grid">
-                  <div className="pim-info-item">
-                    <span className="pim-info-label">{t("Customer ID")}</span>
-                    <span className="pim-info-value">{displayCustomerId}</span>
-                  </div>
-                  <div className="pim-info-item">
-                    <span className="pim-info-label">{t("Customer Name")}</span>
-                    <span className="pim-info-value">{fullName || "—"}</span>
-                  </div>
-                  <div className="pim-info-item">
-                    <span className="pim-info-label">{t("Mobile")}</span>
-                    <span className="pim-info-value">{customer.phone || t("Not provided")}</span>
-                  </div>
-                  <div className="pim-info-item">
-                    <span className="pim-info-label">{t("Email")}</span>
-                    <span className="pim-info-value">{customer.email || t("Not provided")}</span>
-                  </div>
-                  <div className="pim-info-item">
-                    <span className="pim-info-label">{t("Registered Vehicles")}</span>
-                    <span className="pim-info-value"><span className="count-badge">{customerStats.vehicles} {t("vehicles")}</span></span>
-                  </div>
-                  <div className="pim-info-item">
-                    <span className="pim-info-label">{t("Completed Services")}</span>
-                    <span className="pim-info-value"><span className="count-badge">{customerStats.completedServices} {t("completed")}</span></span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="pim-detail-card customer-summary-card">
-                <div className="details-card-header">
-                  <h3>
-                    <i className="fas fa-car" /> {t("Vehicle Information")}
-                  </h3>
-                </div>
-
-                {firstVehicle ? (
-                  <div className="pim-card-content customer-summary-grid">
-                    <div className="pim-info-item">
-                      <span className="pim-info-label">{t("Vehicle ID")}</span>
-                      <span className="pim-info-value">{String(firstVehicle.vehicleId ?? firstVehicle.id ?? "—")}</span>
-                    </div>
-                    <div className="pim-info-item">
-                      <span className="pim-info-label">{t("Make")}</span>
-                      <span className="pim-info-value">{String(firstVehicle.make ?? "").trim() || "—"}</span>
-                    </div>
-                    <div className="pim-info-item">
-                      <span className="pim-info-label">{t("Model")}</span>
-                      <span className="pim-info-value">{String(firstVehicle.model ?? "").trim() || "—"}</span>
-                    </div>
-                    <div className="pim-info-item">
-                      <span className="pim-info-label">{t("Year")}</span>
-                      <span className="pim-info-value">{String(firstVehicle.year ?? "").trim() || "—"}</span>
-                    </div>
-                    <div className="pim-info-item">
-                      <span className="pim-info-label">{t("Type")}</span>
-                      <span className="pim-info-value">{String(firstVehicle.vehicleType ?? "").trim() || "—"}</span>
-                    </div>
-                    <div className="pim-info-item">
-                      <span className="pim-info-label">{t("Color")}</span>
-                      <span className="pim-info-value">{String(firstVehicle.color ?? "").trim() || "—"}</span>
-                    </div>
-                    <div className="pim-info-item">
-                      <span className="pim-info-label">{t("Plate Number")}</span>
-                      <span className="pim-info-value">{String(firstVehicle.plateNumber ?? "").trim() || "—"}</span>
-                    </div>
-                    <div className="pim-info-item">
-                      <span className="pim-info-label">{t("VIN")}</span>
-                      <span className="pim-info-value">{String(firstVehicle.vin ?? "").trim() || "N/A"}</span>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="pim-card-content">
-                    <div className="related-empty">{t("No vehicles.")}</div>
-                  </div>
-                )}
-              </div>
+              {loadingRelations ? (
+                <PremiumDetailsCard
+                  title={t("Associated Vehicles")}
+                  iconClass="fas fa-car"
+                  fields={[
+                    {
+                      key: "vehicles-loading",
+                      iconClass: "fas fa-spinner",
+                      label: t("Status"),
+                      value: t("Loading vehicles…"),
+                    },
+                  ]}
+                />
+              ) : vehicles.length ? (
+                <PremiumDetailsCard
+                  title={t("Associated Vehicles")}
+                  iconClass="fas fa-car"
+                  fields={vehicleFields}
+                  forceSingleRow
+                />
+              ) : (
+                <PremiumDetailsCard
+                  title={t("Associated Vehicles")}
+                  iconClass="fas fa-car"
+                  fields={[
+                    {
+                      key: "vehicles-empty",
+                      iconClass: "fas fa-folder-open",
+                      label: t("Status"),
+                      value: t("No vehicles."),
+                    },
+                  ]}
+                />
+              )}
             </>
           )}
 
           {canViewRelatedCard && (
-            <div className="pim-detail-card">
-              <div className="details-card-header">
-                <h3>
-                  <i className="fas fa-layer-group" /> {t("Related Records")}
-                </h3>
-                <div className="details-card-subtitle">
-                  {loadingRelations ? <span className="muted">{t("Loading…")}</span> : <span className="muted">{t("Latest 10 items per section")}</span>}
-                </div>
-              </div>
-
-              <div className="pim-card-content">
-
-                {canViewRelatedContacts && (
-                  <div className="related-section">
-                    <div className="related-title">
-                      <i className="fas fa-address-book" /> {t("Contacts")}
-                    </div>
-                    {loadingRelations ? (
-                      <div className="related-empty">{t("Loading contacts…")}</div>
-                    ) : contacts.length ? (
-                      <ul className="related-list">
-                        {contacts.slice(0, 10).map((x) => (
-                          <li key={x.id}>
-                            <b>{x.fullName}</b>
-                            <span className="muted"> • {x.phone || "—"} • {x.email || "—"}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="related-empty">{t("No contacts.")}</div>
-                    )}
-                  </div>
-                )}
-
-                {canViewRelatedDeals && (
-                  <div className="related-section">
-                    <div className="related-title">
-                      <i className="fas fa-handshake" /> {t("Deals")}
-                    </div>
-                    {loadingRelations ? (
-                      <div className="related-empty">{t("Loading deals…")}</div>
-                    ) : deals.length ? (
-                      <ul className="related-list">
-                        {deals.slice(0, 10).map((x) => (
-                          <li key={x.id}>
-                            <b>{x.title}</b>
-                            <span className="muted">
-                              {" "}
-                              • {x.stage || "—"} • {typeof x.value === "number" ? `${x.value} QAR` : "—"}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="related-empty">{t("No deals.")}</div>
-                    )}
-                  </div>
-                )}
-
-                {canViewRelatedTickets && (
-                  <div className="related-section">
-                    <div className="related-title">
-                      <i className="fas fa-ticket-alt" /> {t("Tickets")}
-                    </div>
-                    {loadingRelations ? (
-                      <div className="related-empty">{t("Loading tickets…")}</div>
-                    ) : tickets.length ? (
-                      <ul className="related-list">
-                        {tickets.slice(0, 10).map((x) => (
-                          <li key={x.id}>
-                            <b>{x.title}</b>
-                            <span className="muted"> • {x.status || "—"} • {x.priority || "—"}</span>
-                          </li>
-                        ))}
-                      </ul>
-                    ) : (
-                      <div className="related-empty">{t("No tickets.")}</div>
-                    )}
-                  </div>
-                )}
-
-              </div>
-            </div>
+            <PremiumDetailsCard
+              title={t("Job History / Recent Activity")}
+              iconClass="fas fa-history"
+              fields={relatedFields}
+            />
           )}
 
           {!canViewInfoCard && !canViewRelatedCard && (
-            <div className="pim-detail-card">
-              <div className="pim-card-content">
-                <div className="related-empty">{t("You don’t have permission to view customer detail sections.")}</div>
-              </div>
-            </div>
+            <PremiumDetailsCard
+              title={t("Customer Details")}
+              iconClass="fas fa-lock"
+              fields={[
+                {
+                  key: "permission-blocked",
+                  iconClass: "fas fa-ban",
+                  label: t("Permission"),
+                  value: t("You don’t have permission to view customer detail sections."),
+                },
+              ]}
+            />
+          )}
+
+          {!canViewInfoCard && canViewRelatedCard && firstVehicle && (
+            <PremiumDetailsCard
+              title={t("Associated Vehicles")}
+              iconClass="fas fa-car"
+              fields={vehicleFields}
+              forceSingleRow
+            />
           )}
         </div>
       </div>
@@ -701,6 +1586,7 @@ function DetailsView(props: {
 // -----------------------------
 export default function Customers({ permissions }: PageProps) {
   const { t } = useLanguage();
+  const { withLoading } = useGlobalLoading();
   const {
     can: rbacCan,
     canOption,
@@ -812,6 +1698,13 @@ export default function Customers({ permissions }: PageProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [themeClass, setThemeClass] = useState<ArtTheme>(() => {
+    if (typeof window === "undefined") return "theme-executive-minimal";
+    const stored = window.localStorage.getItem("crm-customer-theme");
+    return stored === "theme-elegant-glass" || stored === "theme-executive-minimal"
+      ? stored
+      : "theme-executive-minimal";
+  });
 
   const [viewMode, setViewMode] = useState<"list" | "details">("list");
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
@@ -885,6 +1778,24 @@ export default function Customers({ permissions }: PageProps) {
       });
     });
   }, []);
+
+  const toggleTheme = useCallback(() => {
+    setThemeClass((prev) => (prev === "theme-elegant-glass" ? "theme-executive-minimal" : "theme-elegant-glass"));
+  }, []);
+
+  useEffect(() => {
+    if (typeof document === "undefined") return;
+    document.body.classList.remove("theme-elegant-glass", "theme-executive-minimal");
+    document.body.classList.add(themeClass);
+    try {
+      window.localStorage.setItem("crm-customer-theme", themeClass);
+    } catch {
+      // ignore localStorage failures in restricted contexts
+    }
+    return () => {
+      document.body.classList.remove("theme-elegant-glass", "theme-executive-minimal");
+    };
+  }, [themeClass]);
 
   const computeCounts = useCallback((contactsList: ContactRow[], dealsList: DealRow[], ticketsList: TicketRow[]) => {
     const map: CountsMap = {};
@@ -1376,6 +2287,8 @@ export default function Customers({ permissions }: PageProps) {
           canViewRelatedContacts={canCustomersRelatedContacts}
           canViewRelatedDeals={canCustomersRelatedDeals}
           canViewRelatedTickets={canCustomersRelatedTickets}
+          themeClass={themeClass}
+          onToggleTheme={toggleTheme}
         />
 
         <Modal
@@ -1446,9 +2359,9 @@ export default function Customers({ permissions }: PageProps) {
               disabled={!canCustomersEdit}
             />
 
-            <div className="form-group">
-              <label htmlFor="editHeardFrom">
-                {t("Heard of us from *")}
+            <div className="form-group" style={{ marginBottom: 14 }}>
+              <label htmlFor="editHeardFrom" style={{ display: "block", marginBottom: 6, fontSize: 10.5, fontWeight: 700, color: "#8C9ABF", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                {t("Heard of us from")} <span style={{ color: "#EF4444", marginLeft: 3, fontWeight: 700 }}>*</span>
               </label>
               <select
                 id="editHeardFrom"
@@ -1465,6 +2378,7 @@ export default function Customers({ permissions }: PageProps) {
                   }))
                 }
                 disabled={!canCustomersEdit}
+                style={{ width: "100%", padding: "10px 14px", fontSize: "0.9rem", fontWeight: 500, color: "#0F2A66", background: "#F7F9FF", border: formErrors.heardFrom ? "1.5px solid #F87171" : "1.5px solid #D5DEEF", borderRadius: 9, outline: "none", boxSizing: "border-box" }}
               >
                 <option value="">{t("Select…")}</option>
                 {HEARD_FROM_OPTIONS.map((opt) => (
@@ -1473,7 +2387,7 @@ export default function Customers({ permissions }: PageProps) {
                   </option>
                 ))}
               </select>
-              {formErrors.heardFrom && <div className="error-message show">{formErrors.heardFrom}</div>}
+              {formErrors.heardFrom && <div style={{ fontSize: 11, color: "#EF4444", marginTop: 4, fontWeight: 500, display: "flex", alignItems: "center", gap: 4 }}><i className="fas fa-exclamation-circle" style={{ fontSize: 10 }} />{formErrors.heardFrom}</div>}
             </div>
 
             {formData.heardFrom === "refer_person" && (
@@ -1503,9 +2417,9 @@ export default function Customers({ permissions }: PageProps) {
             )}
 
             {formData.heardFrom === "social_media" && (
-              <div className="form-group">
-                <label htmlFor="editSocialPlatform">
-                  {t("Social Platform")} <span className="required">*</span>
+              <div className="form-group" style={{ marginBottom: 14 }}>
+                <label htmlFor="editSocialPlatform" style={{ display: "block", marginBottom: 6, fontSize: 10.5, fontWeight: 700, color: "#8C9ABF", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                  {t("Social Platform")} <span style={{ color: "#EF4444", marginLeft: 3, fontWeight: 700 }}>*</span>
                 </label>
                 <select
                   id="editSocialPlatform"
@@ -1513,6 +2427,7 @@ export default function Customers({ permissions }: PageProps) {
                   value={formData.socialPlatform}
                   onChange={(e) => setFormData((p) => ({ ...p, socialPlatform: e.target.value }))}
                   disabled={!canCustomersEdit}
+                  style={{ width: "100%", padding: "10px 14px", fontSize: "0.9rem", fontWeight: 500, color: "#0F2A66", background: "#F7F9FF", border: formErrors.socialPlatform ? "1.5px solid #F87171" : "1.5px solid #D5DEEF", borderRadius: 9, outline: "none", boxSizing: "border-box" }}
                 >
                   <option value="">{t("Select…")}</option>
                   {SOCIAL_PLATFORM_OPTIONS.map((opt) => (
@@ -1521,7 +2436,7 @@ export default function Customers({ permissions }: PageProps) {
                     </option>
                   ))}
                 </select>
-                {formErrors.socialPlatform && <div className="error-message show">{formErrors.socialPlatform}</div>}
+                {formErrors.socialPlatform && <div style={{ fontSize: 11, color: "#EF4444", marginTop: 4, fontWeight: 500, display: "flex", alignItems: "center", gap: 4 }}><i className="fas fa-exclamation-circle" style={{ fontSize: 10 }} />{formErrors.socialPlatform}</div>}
               </div>
             )}
 
@@ -1555,111 +2470,128 @@ export default function Customers({ permissions }: PageProps) {
   }
 
   return (
-    <div className="app-container customer-page" id="mainScreen">
-      <header className="app-header crm-unified-header">
-        <div className="header-left">
-          <p className="cust-kicker">{t("Customer Management")}</p>
-          <h1>
-            <i className="fas fa-users" /> {t("Customers")}
-          </h1>
-          <p className="cust-sub">{t("Manage customer information, vehicles, contacts, and relationships.")}</p>
-        </div>
-        <div className="header-right">
-          {canCustomersRefresh && (
-            <button className="btn-refresh" onClick={() => void load()} disabled={loading}>
-              <i className="fas fa-sync" /> {loading ? t("Loading...") : t("Refresh")}
-            </button>
-          )}
-        </div>
-      </header>
+    <div
+      className={`vehicle-page customer-page customer-dashboard-shell ${themeClass}`}
+      id="mainScreen"
+      style={{ background: "linear-gradient(145deg, #f8fafe 0%, #eef3ff 100%)", minHeight: "100vh" }}
+    >
+      <main className="main-content customer-dashboard-main" style={{ padding: "16px 8px" }}>
+        <section style={{ position: "relative", overflow: "hidden", marginBottom: 10, background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)", borderRadius: 12, boxShadow: "0 10px 24px rgba(51, 84, 160, 0.08)", border: "1px solid #DDE7F6" }}>
+          <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: 0, height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)", zIndex: 2 }} />
+          <div aria-hidden="true" style={{ position: "absolute", top: -18, right: -22, height: 96, width: 202, background: "linear-gradient(to bottom left, rgba(67, 24, 255, 0.18), rgba(67, 24, 255, 0))", borderBottomLeftRadius: 999, pointerEvents: "none" }} />
+          <div aria-hidden="true" style={{ position: "absolute", right: 28, top: 26, width: 44, height: 44, borderRadius: 14, opacity: 0.35, backgroundImage: "radial-gradient(circle, rgba(116, 137, 191, 0.55) 1.4px, transparent 1.5px)", backgroundSize: "10px 10px", pointerEvents: "none" }} />
+          <div style={{ position: "relative", zIndex: 1, padding: "17px 24px 17px", display: "grid", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 17 }}>
+                <div style={{ width: 42, height: 42, borderRadius: "50%", background: "linear-gradient(180deg, #FFFFFF 0%, #EEF3FF 100%)", border: "1px solid #D8E1F7", boxShadow: "0 0 0 4px rgba(101, 92, 255, 0.08), 0 6px 14px rgba(71, 88, 180, 0.10)", display: "flex", alignItems: "center", justifyContent: "center", color: "#5D54FF" }}>
+                  <i className="fas fa-users" style={{ fontSize: 16 }} />
+                </div>
+                <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#102A68", lineHeight: 1.15, letterSpacing: "-0.03em" }}>{t("Customers")}</h1>
+              </div>
 
-      <main className="main-content">
-        <section className="search-section">
-          {canCustomersSearch ? (
-            <div className="search-container">
-              <i className="fas fa-search search-icon" />
-              <input
-                type="text"
-                className="smart-search-input"
-                placeholder={t("Search by any customer details")}
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value);
-                  setCurrentPage(1);
-                }}
-                autoComplete="off"
-              />
-            </div>
-          ) : (
-            <div className="search-container" style={{ opacity: 0.8 }}>
-              <i className="fas fa-lock search-icon" />
-              <input
-                type="text"
-                className="smart-search-input"
-                placeholder={t("Search is disabled for your role")}
-                value=""
-                disabled
-                readOnly
-              />
-            </div>
-          )}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+              <button
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid #DDE7F6", background: "#F7F9FF", color: "#5D54FF", fontSize: "0.88rem", fontWeight: 700, cursor: "pointer" }}
+                onClick={toggleTheme} type="button"
+              >
+                <i className="fas fa-palette" />
+                {themeClass === "theme-elegant-glass" ? t("Elegant Glass") : t("Executive Minimal")}
+              </button>
 
-          <div className="search-stats">
+              {canCustomersSearch ? (
+                <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                  <i className="fas fa-search" style={{ position: "absolute", left: 10, color: "#8C9ABF", fontSize: 12, pointerEvents: "none" }} />
+                  <input
+                    type="text"
+                    style={{ paddingLeft: 30, paddingRight: 12, paddingTop: 7, paddingBottom: 7, borderRadius: 8, border: "1px solid #DDE7F6", background: "#FAFBFF", color: "#102A68", fontSize: "0.88rem", fontWeight: 700, outline: "none", minWidth: 220 }}
+                    placeholder={t("Search by any customer details")}
+                    value={searchQuery}
+                    onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1); }}
+                    autoComplete="off"
+                  />
+                </div>
+              ) : (
+                <div style={{ position: "relative", display: "flex", alignItems: "center", opacity: 0.7 }}>
+                  <i className="fas fa-lock" style={{ position: "absolute", left: 10, color: "#8C9ABF", fontSize: 12, pointerEvents: "none" }} />
+                  <input
+                    type="text"
+                    style={{ paddingLeft: 30, paddingRight: 12, paddingTop: 7, paddingBottom: 7, borderRadius: 8, border: "1px solid #DDE7F6", background: "#F5F7FF", color: "#8C9ABF", fontSize: "0.88rem", fontWeight: 700, outline: "none", minWidth: 220 }}
+                    placeholder={t("Search is disabled for your role")}
+                    value="" disabled readOnly
+                  />
+                </div>
+              )}
+
+              {canCustomersRefresh && (
+                <button
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid #DDE7F6", background: "#F7F9FF", color: "#5D54FF", fontSize: "0.88rem", fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1 }}
+                  onClick={() => void load()} disabled={loading}
+                >
+                  <i className="fas fa-sync" /> {loading ? t("Loading...") : t("Refresh")}
+                </button>
+              )}
+
+              {canCustomersAdd && (
+                <button
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 16px", borderRadius: 8, border: "none", background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)", color: "#fff", fontSize: "0.88rem", fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(78, 64, 248, 0.25)" }}
+                  onClick={openAddModal} type="button"
+                >
+                  <i className="fas fa-plus-circle" /> {t("Add New Customer")}
+                </button>
+              )}
+            </div>
+            </div>
+            <p style={{ margin: 0, marginLeft: 59, display: "inline-flex", alignItems: "center", gap: 8, fontSize: 11, color: "#8C9ABF", fontWeight: 700, letterSpacing: "0.02em", lineHeight: 1.35 }}>
+              <span
+                aria-hidden="true"
+                style={{ width: 2, height: 12, borderRadius: 999, background: "linear-gradient(180deg, #25D6E8 0%, #4E40F8 100%)", boxShadow: "0 0 0 2px rgba(78, 64, 248, 0.10)" }}
+              />
+              <span style={{ color: "#7E8FB9" }}>{t("Manage customer information, vehicles, contacts, and relationships.")}</span>
+            </p>
+          </div>
+        </section>
+
+        <section style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, padding: "8px 4px", marginBottom: 6 }}>
+          <div style={{ fontSize: 10, color: "#8C9ABF", fontWeight: 600 }}>
             {loading ? (
               t("Loading customers…")
             ) : searchResults.length === 0 ? (
               t("No customers found")
             ) : (
               <>
-                {t("Showing")} {Math.min((currentPage - 1) * pageSize + 1, searchResults.length)}-
-                {Math.min(currentPage * pageSize, searchResults.length)} {t("of")} {searchResults.length} {t("customers")}
+                {t("Showing")} {Math.min((currentPage - 1) * pageSize + 1, searchResults.length)}–
+                {Math.min(currentPage * pageSize, searchResults.length)} {t("of")} <strong style={{ color: "#102A68", fontSize: "0.88rem", fontWeight: 700 }}>{searchResults.length}</strong> {t("customers")}
                 {canCustomersSearch && searchQuery && (
-                  <span style={{ color: "var(--secondary-color)" }}> {`${t("(Filtered by: \"")}${searchQuery}")`}</span>
+                  <span style={{ color: "#5D54FF" }}> {`(${t("Filtered by:")}: "${searchQuery}")`}</span>
                 )}
               </>
             )}
           </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <label htmlFor="pageSizeSelect" style={{ fontSize: 10, color: "#8C9ABF", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em" }}>{t("Records per page:")}</label>
+            <select
+              id="pageSizeSelect"
+              style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #DDE7F6", background: "#FAFBFF", color: "#112A6D", fontSize: "0.88rem", fontWeight: 700, outline: "none" }}
+              value={pageSize}
+              onChange={(e) => { setPageSize(parseInt(e.target.value, 10)); setCurrentPage(1); }}
+            >
+              <option value="20">20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
         </section>
 
-        <section className="results-section">
-          <div className="section-header">
-            <h2>
-              <i className="fas fa-list" /> {t("Customers Records")}
-            </h2>
-
-            <div className="pagination-controls">
-              <div className="records-per-page">
-                <label htmlFor="pageSizeSelect">{t("Records per page:")}</label>
-                <select
-                  id="pageSizeSelect"
-                  className="page-size-select"
-                  value={pageSize}
-                  onChange={(e) => {
-                    setPageSize(parseInt(e.target.value, 10));
-                    setCurrentPage(1);
-                  }}
-                >
-                  <option value="20">20</option>
-                  <option value="50">50</option>
-                  <option value="100">100</option>
-                </select>
-              </div>
-
-              {canCustomersAdd && (
-                <button className="btn-new-customer" onClick={openAddModal} type="button">
-                  <i className="fas fa-plus-circle" /> {t("Add New Customer")}
-                </button>
-              )}
-            </div>
-          </div>
-
+        <section style={{ position: "relative", background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)", borderRadius: 12, boxShadow: "0 10px 24px rgba(51, 84, 160, 0.08)", border: "1px solid #DDE7F6", overflow: "hidden", marginBottom: 6 }}>
+          <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: 0, height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)", zIndex: 2 }} />
+          <div style={{ paddingTop: 4 }}>
           <CustomersTable
             data={paginatedData}
             counts={counts}
-            onViewDetails={openDetailsView}
+            loading={loading}
+            onViewDetails={(id) => void withLoading(openDetailsView(id), t("Loading customer details..."))}
             onEdit={openEditModal}
             onDelete={openDeleteConfirm}
-            formatCustomerId={formatCustomerId}
             searchQuery={canCustomersSearch ? searchQuery : ""}
             canViewDetails={canCustomersViewDetails}
             canUpdate={canCustomersEdit}
@@ -1668,7 +2600,7 @@ export default function Customers({ permissions }: PageProps) {
           />
 
           {totalPages > 1 && (
-            <div className="pagination">
+            <div className="pagination" style={{ borderTop: "1px solid #E4ECF7", padding: "10px 0 4px" }}>
               <button
                 className="pagination-btn"
                 onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
@@ -1710,19 +2642,16 @@ export default function Customers({ permissions }: PageProps) {
               </button>
             </div>
           )}
+          </div>
         </section>
       </main>
-
-      <footer className="app-footer">
-        <p>{t("Service Management System ©")} {new Date().getFullYear()} {t("| Customers Management Module")}</p>
-      </footer>
 
       <Modal
         isOpen={showAddCustomerModal}
         title={t("Add New Customer")}
         icon="fas fa-user-plus"
         onClose={() => setShowAddCustomerModal(false)}
-        onSave={handleAddCustomer}
+        onSave={() => void withLoading(handleAddCustomer(), t("Saving customer..."))}
         saving={saving}
         saveDisabled={!canCustomersAdd}
         saveLabel={t("Add Customer")}
@@ -1784,9 +2713,9 @@ export default function Customers({ permissions }: PageProps) {
             disabled={!canCustomersAdd}
           />
 
-          <div className="form-group">
-            <label htmlFor="newHeardFrom">
-              {t("Heard of us from *")}
+          <div className="form-group" style={{ marginBottom: 14 }}>
+            <label htmlFor="newHeardFrom" style={{ display: "block", marginBottom: 6, fontSize: 10.5, fontWeight: 700, color: "#8C9ABF", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              {t("Heard of us from")} <span style={{ color: "#EF4444", marginLeft: 3, fontWeight: 700 }}>*</span>
             </label>
             <select
               id="newHeardFrom"
@@ -1803,6 +2732,7 @@ export default function Customers({ permissions }: PageProps) {
                 }))
               }
               disabled={!canCustomersAdd}
+              style={{ width: "100%", padding: "10px 14px", fontSize: "0.9rem", fontWeight: 500, color: "#0F2A66", background: "#F7F9FF", border: formErrors.heardFrom ? "1.5px solid #F87171" : "1.5px solid #D5DEEF", borderRadius: 9, outline: "none", boxSizing: "border-box" }}
             >
               <option value="">{t("Select…")}</option>
               {HEARD_FROM_OPTIONS.map((opt) => (
@@ -1811,7 +2741,7 @@ export default function Customers({ permissions }: PageProps) {
                 </option>
               ))}
             </select>
-            {formErrors.heardFrom && <div className="error-message show">{formErrors.heardFrom}</div>}
+            {formErrors.heardFrom && <div style={{ fontSize: 11, color: "#EF4444", marginTop: 4, fontWeight: 500, display: "flex", alignItems: "center", gap: 4 }}><i className="fas fa-exclamation-circle" style={{ fontSize: 10 }} />{formErrors.heardFrom}</div>}
           </div>
 
           {formData.heardFrom === "refer_person" && (
@@ -1841,9 +2771,9 @@ export default function Customers({ permissions }: PageProps) {
           )}
 
           {formData.heardFrom === "social_media" && (
-            <div className="form-group">
-              <label htmlFor="newSocialPlatform">
-                {t("Social Platform")} <span className="required">*</span>
+            <div className="form-group" style={{ marginBottom: 14 }}>
+              <label htmlFor="newSocialPlatform" style={{ display: "block", marginBottom: 6, fontSize: 10.5, fontWeight: 700, color: "#8C9ABF", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                {t("Social Platform")} <span style={{ color: "#EF4444", marginLeft: 3, fontWeight: 700 }}>*</span>
               </label>
               <select
                 id="newSocialPlatform"
@@ -1851,6 +2781,7 @@ export default function Customers({ permissions }: PageProps) {
                 value={formData.socialPlatform}
                 onChange={(e) => setFormData((p) => ({ ...p, socialPlatform: e.target.value }))}
                 disabled={!canCustomersAdd}
+                style={{ width: "100%", padding: "10px 14px", fontSize: "0.9rem", fontWeight: 500, color: "#0F2A66", background: "#F7F9FF", border: formErrors.socialPlatform ? "1.5px solid #F87171" : "1.5px solid #D5DEEF", borderRadius: 9, outline: "none", boxSizing: "border-box" }}
               >
                 <option value="">{t("Select…")}</option>
                 {SOCIAL_PLATFORM_OPTIONS.map((opt) => (
@@ -1859,7 +2790,7 @@ export default function Customers({ permissions }: PageProps) {
                   </option>
                 ))}
               </select>
-              {formErrors.socialPlatform && <div className="error-message show">{formErrors.socialPlatform}</div>}
+              {formErrors.socialPlatform && <div style={{ fontSize: 11, color: "#EF4444", marginTop: 4, fontWeight: 500, display: "flex", alignItems: "center", gap: 4 }}><i className="fas fa-exclamation-circle" style={{ fontSize: 10 }} />{formErrors.socialPlatform}</div>}
             </div>
           )}
 
@@ -1884,7 +2815,7 @@ export default function Customers({ permissions }: PageProps) {
         title={t("Edit Customer")}
         icon="fas fa-user-edit"
         onClose={() => setShowEditCustomerModal(false)}
-        onSave={handleSaveCustomer}
+        onSave={() => void withLoading(handleSaveCustomer(), t("Saving customer changes..."))}
         isEdit
         saving={saving}
         saveDisabled={!canCustomersEdit}
@@ -1947,9 +2878,9 @@ export default function Customers({ permissions }: PageProps) {
             disabled={!canCustomersEdit}
           />
 
-          <div className="form-group">
-            <label htmlFor="editHeardFrom2">
-              Heard of us from <span className="required">*</span>
+          <div className="form-group" style={{ marginBottom: 14 }}>
+            <label htmlFor="editHeardFrom2" style={{ display: "block", marginBottom: 6, fontSize: 10.5, fontWeight: 700, color: "#8C9ABF", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+              {t("Heard of us from")} <span style={{ color: "#EF4444", marginLeft: 3, fontWeight: 700 }}>*</span>
             </label>
             <select
               id="editHeardFrom2"
@@ -1966,6 +2897,7 @@ export default function Customers({ permissions }: PageProps) {
                 }))
               }
               disabled={!canCustomersEdit}
+              style={{ width: "100%", padding: "10px 14px", fontSize: "0.9rem", fontWeight: 500, color: "#0F2A66", background: "#F7F9FF", border: formErrors.heardFrom ? "1.5px solid #F87171" : "1.5px solid #D5DEEF", borderRadius: 9, outline: "none", boxSizing: "border-box" }}
             >
               <option value="">{t("Select…")}</option>
               {HEARD_FROM_OPTIONS.map((opt) => (
@@ -1974,7 +2906,7 @@ export default function Customers({ permissions }: PageProps) {
                 </option>
               ))}
             </select>
-            {formErrors.heardFrom && <div className="error-message show">{formErrors.heardFrom}</div>}
+            {formErrors.heardFrom && <div style={{ fontSize: 11, color: "#EF4444", marginTop: 4, fontWeight: 500, display: "flex", alignItems: "center", gap: 4 }}><i className="fas fa-exclamation-circle" style={{ fontSize: 10 }} />{formErrors.heardFrom}</div>}
           </div>
 
           {formData.heardFrom === "refer_person" && (
@@ -2004,9 +2936,9 @@ export default function Customers({ permissions }: PageProps) {
           )}
 
           {formData.heardFrom === "social_media" && (
-            <div className="form-group">
-              <label htmlFor="editSocialPlatform2">
-                Social Platform <span className="required">*</span>
+            <div className="form-group" style={{ marginBottom: 14 }}>
+              <label htmlFor="editSocialPlatform2" style={{ display: "block", marginBottom: 6, fontSize: 10.5, fontWeight: 700, color: "#8C9ABF", textTransform: "uppercase", letterSpacing: "0.08em" }}>
+                {t("Social Platform")} <span style={{ color: "#EF4444", marginLeft: 3, fontWeight: 700 }}>*</span>
               </label>
               <select
                 id="editSocialPlatform2"
@@ -2014,15 +2946,16 @@ export default function Customers({ permissions }: PageProps) {
                 value={formData.socialPlatform}
                 onChange={(e) => setFormData((p) => ({ ...p, socialPlatform: e.target.value }))}
                 disabled={!canCustomersEdit}
+                style={{ width: "100%", padding: "10px 14px", fontSize: "0.9rem", fontWeight: 500, color: "#0F2A66", background: "#F7F9FF", border: formErrors.socialPlatform ? "1.5px solid #F87171" : "1.5px solid #D5DEEF", borderRadius: 9, outline: "none", boxSizing: "border-box" }}
               >
                 <option value="">{t("Select…")}</option>
                 {SOCIAL_PLATFORM_OPTIONS.map((opt) => (
                   <option key={opt.value} value={opt.value}>
-                    {opt.label}
+                    {t(opt.label)}
                   </option>
                 ))}
               </select>
-              {formErrors.socialPlatform && <div className="error-message show">{formErrors.socialPlatform}</div>}
+              {formErrors.socialPlatform && <div style={{ fontSize: 11, color: "#EF4444", marginTop: 4, fontWeight: 500, display: "flex", alignItems: "center", gap: 4 }}><i className="fas fa-exclamation-circle" style={{ fontSize: 10 }} />{formErrors.socialPlatform}</div>}
             </div>
           )}
 
@@ -2062,7 +2995,7 @@ export default function Customers({ permissions }: PageProps) {
               </div>
 
               <div className="delete-modal-actions">
-                <button className="btn-confirm-delete" onClick={() => void handleConfirmDelete()} disabled={saving}>
+                <button className="btn-confirm-delete" onClick={() => void withLoading(handleConfirmDelete(), t("Deleting customer..."))} disabled={saving}>
                   <i className="fas fa-trash" /> {t("Delete Customer")}
                 </button>
                 <button className="btn-cancel" onClick={() => setDeleteCustomerId(null)} disabled={saving}>

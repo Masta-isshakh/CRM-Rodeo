@@ -1260,21 +1260,22 @@ export default function JobOrderHistory({
     <div className="jh-root">
       <header className="jh-header crm-unified-header">
         <div className="jh-header-left">
-          <div style={{ fontSize: 11, fontWeight: 700, color: "var(--dr-brand)", textTransform: "uppercase", letterSpacing: "0.8px", marginBottom: 4 }}>
+          <div className="jh-kicker">
             <i className="fas fa-history" style={{ marginRight: 6 }} />
             {t("Records")}
           </div>
           <h1>
+            <span className="jh-title-icon" aria-hidden="true">
+              <i className="fas fa-clipboard-list" />
+            </span>
             {t("Job Order History")}
           </h1>
           <div className="jh-sub">
             {t("Cancelled + Unpaid and Completed + Fully Paid job orders (live from backend)")}
           </div>
         </div>
-      </header>
 
-      <main className="jh-main">
-        <section className="jh-search">
+        <div className="jh-header-right">
           <div className="jh-search-box">
             <i className="fas fa-search" />
             <input
@@ -1296,8 +1297,10 @@ export default function JobOrderHistory({
               </span>
             )}
           </div>
-        </section>
+        </div>
+      </header>
 
+      <main className="jh-main">
         <section className="jh-section">
           <div className="jh-section-head">
             <h2>
@@ -1350,7 +1353,7 @@ export default function JobOrderHistory({
                       <th>{t("Plate")}</th>
                       <th>{t("Work Status")}</th>
                       <th>{t("Payment Status")}</th>
-                      <th>{t("Actions")}</th>
+                      <th className="jh-actions-head">{t("Actions")}</th>
                     </tr>
                   </thead>
 
@@ -1371,8 +1374,8 @@ export default function JobOrderHistory({
                         <td>
                           <span className={paymentStatusClass(r.paymentStatus)}>{r.paymentStatus}</span>
                         </td>
-                        <td>
-                          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                        <td className="jh-actions-cell">
+                          <div className="jh-row-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                             <PermissionGate moduleId="jobhistory" optionId="jobhistory_view">
                               <button
                                 className="jh-btn jh-btn-primary"
@@ -1538,8 +1541,15 @@ function JobHistoryDetails({
     <div className="jh-details jo-details-v3">
       <div className="jh-details-head">
         <div className="jh-details-title">
+          <div className="jh-kicker">
+            <i className="fas fa-stream" style={{ marginRight: 6 }} />
+            {t("History Details")}
+          </div>
           <h2>
-            <i className="fas fa-clipboard-list" /> {t("Job Order Details")} - <span>{order.id}</span>
+            <span className="jh-title-icon" aria-hidden="true">
+              <i className="fas fa-clipboard-list" />
+            </span>
+            {t("Job Order Details")} - <span className="jh-order-id">{order.id}</span>
           </h2>
           {loading ? <span className="jh-loading">{t("Loading...")}</span> : null}
         </div>
@@ -1593,7 +1603,7 @@ function JobHistoryDetails({
                           <div className="epm-progress-fill" style={{ width: `${servicesProgressPercent}%`, height: "100%" }} />
                         </div>
                       </div>
-                      <span className="epm-progress-text" style={{ fontSize: "12px", color: "#666" }}>
+                      <span className="epm-progress-text" style={{ fontSize: "12px", color: "#6F7EA8" }}>
                         {servicesProgressLabel}
                       </span>
                     </div>

@@ -7,7 +7,6 @@ export const POLICY_LABELS = {
   EMPLOYEES: "Employees",
   ACTIVITY_LOG: "Activity Log",
   JOB_CARDS: "Job Cards",
-  CALL_TRACKING: "Call Tracking",
   INSPECTION_APPROVALS: "Inspection Approvals",
   INVENTORY: "Inventory",
 

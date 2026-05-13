@@ -169,6 +169,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   // QC results keyed by service index
   const [serviceQCResults, setServiceQCResults] = useState<Record<number, "Pass" | "Failed" | "Acceptable">>({});
   const [showQCConfirmation, setShowQCConfirmation] = useState(false);
+  const [qcSubmittingAction, setQcSubmittingAction] = useState<"approve" | "reject" | null>(null);
 
   // popups
   const [showPopup, setShowPopup] = useState(false);
@@ -398,7 +399,8 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
     }
   };
 
-  const closeDetailView = () => {
+  const closeDetailView = (force = false) => {
+    if (qcSubmittingAction && !force) return;
     setSelectedOrder(null);
     setScreenState("main");
     setServiceQCResults({});
@@ -571,14 +573,14 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   const persistQcResultsToOrder = async (nextWorkStatusLabel: string) => {
     if (!selectedOrder?.id) throw new Error(t("No order selected."));
 
-    // Load fresh detailed order (repo ensures correct shape)
-    const detailed = await getJobOrderByOrderNumber(String(selectedOrder.id));
-    if (!detailed) throw new Error(t("Order not found."));
+    // Reuse already-loaded details to avoid an extra roundtrip on approve/reject.
+    const detailed = selectedOrder as any;
+    if (!detailed?._backendId) throw new Error(t("Order not found."));
 
     const parsed = safeJsonParse<any>((selectedOrder as any)?._parsed ?? (selectedOrder as any)?.dataJson, {});
     const parsedServices = Array.isArray(parsed?.services) ? parsed.services : [];
 
-    const nextServices = (parsedServices.length ? parsedServices : Array.isArray(detailed.services) ? detailed.services : []).map(
+    const nextServices = (parsedServices.length ? parsedServices : Array.isArray(detailed?.services) ? detailed.services : []).map(
       (s: any, idx: number) => {
         // keep existing fields, only set QC result
         const qc = serviceQCResults[idx] || undefined;
@@ -593,13 +595,11 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
         ? (selectedOrder as any).documents
         : [];
 
-    const qcDoc = await uploadQcReportAndReturnDoc(String(selectedOrder.id));
+    const qcDocPromise = uploadQcReportAndReturnDoc(String(selectedOrder.id));
     const docsWithoutOld = docs.filter((d) => safeLower(d?.type) !== "quality check report");
 
-    const updatedDocs = qcDoc ? [...docsWithoutOld, qcDoc] : docsWithoutOld;
-
     // roadmap update is optional; keep safe: mark quality check done if roadmap exists
-    const roadmap = Array.isArray(parsed?.roadmap) ? parsed.roadmap : Array.isArray(detailed.roadmap) ? detailed.roadmap : [];
+    const roadmap = Array.isArray(parsed?.roadmap) ? parsed.roadmap : Array.isArray(detailed?.roadmap) ? detailed.roadmap : [];
     const actor = resolveActorName(currentUser);
 
     const nextRoadmap = roadmap.map((step: any) => {
@@ -633,6 +633,9 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
       return step;
     });
 
+    const qcDoc = await qcDocPromise;
+    const updatedDocs = qcDoc ? [...docsWithoutOld, qcDoc] : docsWithoutOld;
+
     // build updated order for jobOrderSave lambda (via repo)
     const updatedOrder = {
       ...detailed,
@@ -659,36 +662,36 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   };
 
   const handleApproveQC = async () => {
-    if (!canApproveQCAction) return;
-    setLoading(true);
+    if (!canApproveQCAction || qcSubmittingAction) return;
+    setQcSubmittingAction("approve");
     try {
       await persistQcResultsToOrder("Ready");
       setPopupMessage(t("Quality Check Approved! Order moved to Ready status."));
       setShowPopup(true);
       setShowQCConfirmation(false);
-      closeDetailView();
+      closeDetailView(true);
     } catch (e) {
       setPopupMessage(`${t("Approve failed:")} ${errMsg(e)}`);
       setShowPopup(true);
     } finally {
-      setLoading(false);
+      setQcSubmittingAction(null);
     }
   };
 
   const handleRejectQC = async () => {
-    if (!canRejectQCAction) return;
-    setLoading(true);
+    if (!canRejectQCAction || qcSubmittingAction) return;
+    setQcSubmittingAction("reject");
     try {
       await persistQcResultsToOrder("Service_Operation");
       setPopupMessage(t("Quality Check Rejected! Order returned to Service Execution (Service_Operation)."));
       setShowPopup(true);
       setShowQCConfirmation(false);
-      closeDetailView();
+      closeDetailView(true);
     } catch (e) {
       setPopupMessage(`${t("Reject failed:")} ${errMsg(e)}`);
       setShowPopup(true);
     } finally {
-      setLoading(false);
+      setQcSubmittingAction(null);
     }
   };
 
@@ -703,10 +706,8 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                 <i className="fas fa-check-double"></i> {t("Quality Check Module")}
               </h1>
             </div>
-          </header>
 
-          <main className="main-content">
-            <section className="search-section">
+            <div className="header-search-group search-section">
               <div className="search-container">
                 <i className="fas fa-search search-icon"></i>
                 <input
@@ -729,8 +730,10 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                       filteredJobs.length
                     )} ${t("of")} ${filteredJobs.length} ${t("quality check jobs")}`}
               </div>
-            </section>
+            </div>
+          </header>
 
+          <main className="main-content">
             <section className="results-section">
               <div className="section-header">
                 <h2>
@@ -975,7 +978,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                 {t("Quality Check Details")} - {t("Job Order")} #<span id="detailJobIdHeader">{selectedOrder.id}</span>
               </h2>
             </div>
-            <button className="close-detail pim-btn-close-details" type="button" onClick={closeDetailView}>
+            <button className="close-detail pim-btn-close-details" type="button" onClick={() => closeDetailView()} disabled={Boolean(qcSubmittingAction)}>
               <i className="fas fa-times"></i> {t("Close Details")}
             </button>
           </div>
@@ -1109,9 +1112,9 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                         className="qc-btn-finish"
                         type="button"
                         onClick={handleFinishQC}
-                        disabled={!allServicesEvaluated() || loading}
+                        disabled={!allServicesEvaluated() || loading || Boolean(qcSubmittingAction)}
                       >
-                        <i className="fas fa-flag-checkered"></i> {loading ? t("Saving...") : t("Finish")}
+                        <i className="fas fa-flag-checkered"></i> {loading || qcSubmittingAction ? t("Saving...") : t("Finish")}
                       </button>
                     </PermissionGate>
                   </div>
@@ -1177,16 +1180,24 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                   message={t("Quality Check Evaluation Complete. Please select an action:")}
                   confirmText={canApproveQCAction ? t("Approve Quality Check") : t("Close")}
                   cancelText={canRejectQCAction ? t("Reject Quality Check") : t("Cancel")}
-                  disableConfirm={!canApproveQCAction}
+                  loading={Boolean(qcSubmittingAction)}
+                  loadingText={
+                    qcSubmittingAction === "approve"
+                      ? t("Approving quality check...")
+                      : qcSubmittingAction === "reject"
+                        ? t("Rejecting quality check...")
+                        : t("Processing...")
+                  }
+                  disableConfirm={!canApproveQCAction || qcSubmittingAction === "reject"}
                   onConfirm={() => {
-                    if (canApproveQCAction) {
+                    if (canApproveQCAction && !qcSubmittingAction) {
                       void handleApproveQC();
                     } else {
                       setShowQCConfirmation(false);
                     }
                   }}
                   onCancel={() => {
-                    if (canRejectQCAction) {
+                    if (canRejectQCAction && !qcSubmittingAction) {
                       void handleRejectQC();
                     } else {
                       setShowQCConfirmation(false);

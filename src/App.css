@@ -153,34 +153,45 @@ body,
 }
 
 .crm-authenticator .amplify-field__show-password {
-  display: none;
+  display: inline-flex !important;
 }
-.crm-auth-password-toggle {
-  border: 0;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.92);
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  pointer-events: auto;
-  transition: background-color 120ms ease, color 120ms ease;
+
+.crm-auth-password-toggle,
+.crm-authenticator .amplify-field__show-password.crm-auth-password-toggle {
+  display: inline-flex !important;
+  border: 1px solid rgba(255, 255, 255, 0.58) !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.85) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  color: rgba(255, 255, 255, 0.98) !important;
+  width: 36px !important;
+  height: 36px !important;
+  border-radius: 14px !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  pointer-events: auto !important;
+  box-shadow: none !important;
+  transition: background-color 120ms ease, color 120ms ease, border-color 120ms ease !important;
+  padding: 0 !important;
+  margin: 0 !important;
 }
 
 .crm-auth-password-toggle:hover,
-.crm-auth-password-toggle:focus-visible {
-  background: rgba(255, 255, 255, 0.14);
-  color: #ffffff;
-  outline: none;
+.crm-auth-password-toggle:focus-visible,
+.crm-authenticator .amplify-field__show-password.crm-auth-password-toggle:hover,
+.crm-authenticator .amplify-field__show-password.crm-auth-password-toggle:focus-visible {
+  background: rgba(255, 255, 255, 0.14) !important;
+  border-color: rgba(255, 255, 255, 0.9) !important;
+  border-bottom-color: #ffffff !important;
+  color: #ffffff !important;
+  outline: none !important;
 }
 
-.crm-auth-password-toggle svg {
-  width: 18px;
-  height: 18px;
-  display: block;
+.crm-auth-password-toggle svg,
+.crm-auth-password-toggle .amplify-icon {
+  width: 18px !important;
+  height: 18px !important;
+  display: block !important;
 }
 
 .crm-auth-password-field {
@@ -200,7 +211,15 @@ body,
   right: 6px;
   top: 50%;
   transform: translateY(-50%);
-  z-index: 2;
+  z-index: 4;
+}
+
+.crm-auth-forgot-under-row {
+  display: flex !important;
+  justify-content: center !important;
+  margin-top: 12px !important;
+  margin-bottom: 18px !important;
+  padding-right: 0 !important;
 }
 
 .crm-authenticator input[type="password"]::-ms-reveal,
@@ -264,7 +283,7 @@ body,
 }
 
 .crm-authenticator .amplify-field:nth-of-type(2) .amplify-field-group::after {
-  content: "🔒";
+  content: "";
 }
 
 .crm-authenticator .amplify-button--primary {
@@ -285,11 +304,6 @@ body,
 .crm-authenticator .amplify-button--primary:focus {
   background: #f3f4f6 !important;
   color: #111827 !important;
-}
-
-.crm-authenticator .amplify-button--link,
-.crm-authenticator [data-amplify-authenticator-forgotpassword] {
-  display: none !important;
 }
 
 .crm-auth-meta-row {
@@ -317,6 +331,29 @@ body,
 
 .crm-auth-forgot-text {
   white-space: nowrap;
+}
+
+.crm-auth-forgot-link {
+  border: 1px solid rgba(255, 255, 255, 0.52) !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.1)) !important;
+  color: #ffffff !important;
+  font-size: 15px !important;
+  font-weight: 700 !important;
+  padding: 10px 24px !important;
+  cursor: pointer !important;
+  text-decoration: none !important;
+  border-radius: 12px !important;
+  box-shadow: 0 6px 14px rgba(2, 6, 23, 0.45) !important;
+  transition: all 0.2s ease !important;
+  font-family: inherit !important;
+}
+
+.crm-auth-forgot-link:hover,
+.crm-auth-forgot-link:focus-visible {
+  border-color: rgba(255, 255, 255, 0.72) !important;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.34), rgba(255, 255, 255, 0.16)) !important;
+  color: #dbeafe !important;
+  outline: none !important;
 }
 
 .crm-auth-register-text {

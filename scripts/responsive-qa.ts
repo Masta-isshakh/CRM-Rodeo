@@ -50,7 +50,6 @@ const TARGET_PAGES: PageDef[] = [
   { key: "exitpermit", label: "Exit Permit", title: "Exit Permit" },
   { key: "calltracking", label: "Call Tracking", title: "Call Tracking" },
   { key: "internalchat", label: "Internal Chat", title: "Internal Chat" },
-  { key: "emailinbox", label: "Email Inbox", title: "Email Inbox", external: true },
   { key: "inspection", label: "Inspection", title: "Inspection" },
   { key: "tickets", label: "Tickets", title: "Tickets" },
   { key: "employees", label: "Employees", title: "Employees" },

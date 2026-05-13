@@ -584,7 +584,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
     }
     setScannedItems((prev) => [...prev, { serial, name: "", notes: "" }]);
     setScanInput("");
-    setTimeout(() => scanRef.current?.focus(), 50);
+    requestAnimationFrame(() => scanRef.current?.focus());
   };
 
   const updateScannedItem = (idx: number, patch: Partial<ScannedEntry>) => {
@@ -602,8 +602,8 @@ export default function InventoryManagement({ permissions }: PageProps) {
     setSaving(true);
     try {
       const actor = (await getCurrentUser()).signInDetails?.loginId ?? "";
-      const now = new Date().toISOString();
-      for (const entry of valid) {
+      await Promise.all(valid.map(async (entry) => {
+        const now = new Date().toISOString();
         const name = entry.name.trim() || entry.serial;
         const product = await client.models.InventoryProduct.create({
           categoryId: modalCategory.id,
@@ -633,7 +633,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
             createdBy: actor,
           });
         }
-      }
+      }));
       setShowAddProdModal(false);
       setStatus({ msg: `${valid.length} ${t("item(s) added via scan.")}`, type: "success" });
       if (selectedSubcategory && selectedSubcategory.id === activeModalSubcategory.id && productsView === "products") {
@@ -887,6 +887,22 @@ export default function InventoryManagement({ permissions }: PageProps) {
   // ────────────────────────────────────────────────────────────────────────────
   return (
     <div className="inv-page">
+
+      <div className="inv-hero">
+        <div className="inv-hero-overlay" aria-hidden="true" />
+        <div className="inv-hero-lines" aria-hidden="true" />
+        <div className="inv-hero-top-row">
+          <div className="inv-title-wrap">
+            <h1 className="inv-title">{t("Inventory Management")}</h1>
+            <p className="inv-subtitle">{t("Manage inventory structure, stock, and checkout with Customer-style visual parity")}</p>
+          </div>
+          <div className="inv-hero-actions">
+            <button className="inv-btn inv-btn-secondary" type="button" onClick={loadCategories} disabled={loading || saving}>
+              <i className="fas fa-rotate-right" /> {t("Refresh")}
+            </button>
+          </div>
+        </div>
+      </div>
 
       {/* ── TABS ─────────────────────────────────────────────────────────── */}
       <div className="inv-tabs">
@@ -1800,7 +1816,10 @@ export default function InventoryManagement({ permissions }: PageProps) {
                   <button
                     type="button"
                     className={`inv-mode-btn${addMode === "scan" ? " active" : ""}`}
-                    onClick={() => { setAddMode("scan"); setTimeout(() => scanRef.current?.focus(), 100); }}
+                    onClick={() => {
+                      setAddMode("scan");
+                      requestAnimationFrame(() => scanRef.current?.focus());
+                    }}
                   >
                     <i className="fas fa-barcode" /> {t("By Scanning")}
                   </button>

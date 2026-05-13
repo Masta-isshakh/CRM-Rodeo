@@ -11,7 +11,6 @@ export type ActivityEntityType =
   | "Employee"
   | "Ticket"
   | "JobOrder"
-  | "CallTracking"
   | "InspectionApproval"
   | (string & {});
 

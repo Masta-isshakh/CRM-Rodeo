@@ -71,6 +71,14 @@ type SmsDeliveryStatusRow = {
   processedAt?: string;
 };
 
+type ConfirmDialogState = {
+  mode: "send" | "retry";
+  phones: string[];
+  messageText: string;
+  smsTypeValue: SmsType;
+  clearComposer: boolean;
+};
+
 const MAX_MESSAGE_CHARS = 160;
 const MAX_BATCH_RECIPIENTS = Number(import.meta.env.VITE_SMS_MAX_BATCH_RECIPIENTS ?? 250);
 const SEND_COOLDOWN_SECONDS = Number(import.meta.env.VITE_SMS_BATCH_COOLDOWN_SECONDS ?? 20);
@@ -170,6 +178,7 @@ export default function PushNotifications({ permissions }: PageProps) {
   const [lastResults, setLastResults] = useState<SendResult[] | null>(null);
   const [exportingCsv, setExportingCsv] = useState(false);
   const [showUnresolvedOnly, setShowUnresolvedOnly] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState | null>(null);
 
   const composerRef = useRef<HTMLTextAreaElement>(null);
 
@@ -460,7 +469,7 @@ export default function PushNotifications({ permissions }: PageProps) {
         setMessage("");
         setSelectedPhones(new Set());
       }
-      await loadData();
+      void loadData();
     } catch (err: any) {
       if (smsLogId) {
         try {
@@ -493,11 +502,8 @@ export default function PushNotifications({ permissions }: PageProps) {
     }
 
     const phones = Array.from(selectedPhones);
-    if (!window.confirm(`${t("Send SMS to")} ${phones.length} ${t("recipient(s)?")}\n\n"${message.slice(0, 80)}${message.length > 80 ? "…" : ""}"`)) {
-      return;
-    }
-
-    await executeSendBatch({
+    setConfirmDialog({
+      mode: "send",
       phones,
       messageText: message,
       smsTypeValue: smsType,
@@ -522,20 +528,32 @@ export default function PushNotifications({ permissions }: PageProps) {
       return;
     }
 
-    const confirmRetry = window.confirm(
-      `${t("Retry failed recipients only?")}\n${t("Recipients")}: ${failedPhones.length}\n${t("Message")}: "${String(log.message || "").slice(0, 80)}${String(log.message || "").length > 80 ? "…" : ""}"`
-    );
-    if (!confirmRetry) return;
-
-    setSelectedPhones(new Set(failedPhones));
-    setMessage(String(log.message || ""));
-    setSmsType((String(log.smsType || "Transactional") === "Promotional" ? "Promotional" : "Transactional"));
-
-    await executeSendBatch({
+    const retryType: SmsType = String(log.smsType || "Transactional") === "Promotional" ? "Promotional" : "Transactional";
+    setConfirmDialog({
+      mode: "retry",
       phones: failedPhones,
       messageText: String(log.message || ""),
-      smsTypeValue: String(log.smsType || "Transactional") === "Promotional" ? "Promotional" : "Transactional",
+      smsTypeValue: retryType,
       clearComposer: false,
+    });
+  };
+
+  const confirmSendAction = async () => {
+    if (!confirmDialog) return;
+    const payload = confirmDialog;
+    setConfirmDialog(null);
+
+    if (payload.mode === "retry") {
+      setSelectedPhones(new Set(payload.phones));
+      setMessage(payload.messageText);
+      setSmsType(payload.smsTypeValue);
+    }
+
+    await executeSendBatch({
+      phones: payload.phones,
+      messageText: payload.messageText,
+      smsTypeValue: payload.smsTypeValue,
+      clearComposer: payload.clearComposer,
     });
   };
 
@@ -655,14 +673,72 @@ export default function PushNotifications({ permissions }: PageProps) {
   const visibleAllSelected = filteredContacts.length > 0 && filteredContacts.every((c) => selectedPhones.has(c.phone));
 
   return (
-    <div className="pn-page">
-      <div className="pn-hero">
-        <div className="pn-hero-icon"><i className="fas fa-comment-sms" /></div>
-        <div>
-          <h1>{t("Push Notifications")}</h1>
-          <p>{t("Send SMS messages directly to customers and track the queue fanout pipeline end-to-end.")}</p>
-        </div>
-      </div>
+    <div
+      className="pn-page customer-page customer-dashboard-shell"
+      id="mainScreen"
+      style={{ background: "linear-gradient(145deg, #f8fafe 0%, #eef3ff 100%)", minHeight: "100vh" }}
+    >
+      <main className="main-content customer-dashboard-main" style={{ padding: "16px 8px" }}>
+        <section className="pn-customer-hero" style={{ position: "relative", overflow: "hidden", marginBottom: 10, background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)", borderRadius: 12, boxShadow: "0 10px 24px rgba(51, 84, 160, 0.08)", border: "1px solid #DDE7F6" }}>
+          <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: 0, height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)", zIndex: 2 }} />
+          <div aria-hidden="true" style={{ position: "absolute", top: -18, right: -22, height: 96, width: 202, background: "linear-gradient(to bottom left, rgba(67, 24, 255, 0.18), rgba(67, 24, 255, 0))", borderBottomLeftRadius: 999, pointerEvents: "none" }} />
+          <div aria-hidden="true" style={{ position: "absolute", right: 28, top: 26, width: 44, height: 44, borderRadius: 14, opacity: 0.35, backgroundImage: "radial-gradient(circle, rgba(116, 137, 191, 0.55) 1.4px, transparent 1.5px)", backgroundSize: "10px 10px", pointerEvents: "none" }} />
+
+          <div className="pn-customer-hero-content" style={{ position: "relative", zIndex: 1, padding: "17px 24px 17px", display: "grid", gap: 8 }}>
+            <div className="pn-customer-hero-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div className="pn-customer-hero-title-wrap" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div
+                  className="pn-customer-hero-icon"
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 14,
+                    background: "linear-gradient(140deg, #1EC7C7 0%, #6D4FFF 100%)",
+                    boxShadow: "0 6px 12px rgba(98, 109, 229, 0.20)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#ffffff",
+                    flexShrink: 0,
+                  }}
+                >
+                  <i className="fas fa-comment-sms" style={{ fontSize: 20 }} />
+                </div>
+                <h1 className="pn-customer-hero-title" style={{ margin: 0, color: "#102A68", fontSize: 20, fontWeight: 700, lineHeight: 1.15, letterSpacing: "-0.03em" }}>
+                  {t("Push Notifications")}
+                </h1>
+              </div>
+
+              <div className="pn-customer-hero-actions" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid #DDE7F6", background: "#F7F9FF", color: "#5D54FF", fontSize: "0.88rem", fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1 }}
+                  onClick={() => void loadData()}
+                  disabled={loading}
+                >
+                  <i className="fas fa-sync" /> {loading ? t("Loading...") : t("Refresh")}
+                </button>
+              </div>
+            </div>
+
+            <p className="pn-customer-hero-subtitle" style={{ margin: 0, marginLeft: 59, display: "inline-flex", alignItems: "center", gap: 8, fontSize: 11, color: "#8C9ABF", fontWeight: 700, letterSpacing: "0.02em", lineHeight: 1.35 }}>
+              <span
+                aria-hidden="true"
+                style={{ width: 2, height: 12, borderRadius: 999, background: "linear-gradient(180deg, #25D6E8 0%, #4E40F8 100%)", boxShadow: "0 0 0 2px rgba(78, 64, 248, 0.10)" }}
+              />
+              <span style={{ color: "#7E8FB9" }}>{t("Send SMS messages directly to customers and track the queue fanout pipeline end-to-end.")}</span>
+            </p>
+          </div>
+        </section>
+
+        <section className="pn-section-head" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, padding: "8px 4px", marginBottom: 6 }}>
+          <div style={{ fontSize: 10, color: "#8C9ABF", fontWeight: 600 }}>
+            {t("Showing")} <strong style={{ color: "#102A68", fontSize: "0.88rem", fontWeight: 700 }}>{filteredContacts.length}</strong> {t("contacts")} • <strong style={{ color: "#102A68", fontSize: "0.88rem", fontWeight: 700 }}>{logs.length}</strong> {t("batches")}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <label style={{ fontSize: 10, color: "#8C9ABF", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em" }}>{t("Max batch: ")}{MAX_BATCH_RECIPIENTS}</label>
+          </div>
+        </section>
 
       <div className="pn-layout">
         <section className="pn-panel pn-contacts-panel">
@@ -844,6 +920,36 @@ export default function PushNotifications({ permissions }: PageProps) {
           )}
         </div>
       </div>
+      </main>
+
+      {confirmDialog ? (
+        <div className="pn-confirm-backdrop" onClick={() => setConfirmDialog(null)}>
+          <div className="pn-confirm-modal" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-label={t("Confirm SMS send")}> 
+            <div className="pn-confirm-header">
+              <span>{confirmDialog.mode === "retry" ? t("Retry Failed SMS") : t("Confirm SMS Send")}</span>
+              <button type="button" className="pn-confirm-close" onClick={() => setConfirmDialog(null)} aria-label={t("Close")}>×</button>
+            </div>
+            <div className="pn-confirm-body">
+              <p>
+                {confirmDialog.mode === "retry"
+                  ? `${t("Retry failed recipients only?")} ${confirmDialog.phones.length} ${t("recipient(s)")}`
+                  : `${t("Send SMS to")} ${confirmDialog.phones.length} ${t("recipient(s)?")}`}
+              </p>
+              <div className="pn-confirm-meta">
+                <span>{t("Type")}: <strong>{confirmDialog.smsTypeValue}</strong></span>
+                <span>{t("Recipients")}: <strong>{confirmDialog.phones.length}</strong></span>
+              </div>
+              <div className="pn-confirm-preview">"{confirmDialog.messageText.slice(0, 180)}{confirmDialog.messageText.length > 180 ? "…" : ""}"</div>
+            </div>
+            <div className="pn-confirm-actions">
+              <button type="button" onClick={() => setConfirmDialog(null)}>{t("Cancel")}</button>
+              <button type="button" className="pn-confirm-primary" onClick={() => void confirmSendAction()} disabled={sending}>
+                {sending ? t("Sending...") : confirmDialog.mode === "retry" ? t("Retry now") : t("Send now")}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

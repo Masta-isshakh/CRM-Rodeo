@@ -1,653 +1,555 @@
-import { useEffect, useMemo, useState } from "react";
-import "./dashboard.css";
+import { useMemo, useState, useEffect, type ComponentType } from "react";
+import {
+  PieChart,
+  Pie,
+  Cell,
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
+import { FiChevronDown, FiGlobe, FiLogOut, FiCalendar } from "react-icons/fi";
+import { MdTune } from "react-icons/md";
+import {
+  HiOutlineViewGrid,
+  HiOutlineChartBar,
+  HiOutlineClock,
+  HiOutlineUsers,
+  HiOutlineTruck,
+  HiOutlineClipboardList,
+  HiOutlineDocumentAdd,
+  HiOutlineArchive,
+  HiOutlineDocumentText,
+  HiOutlineCog,
+  HiOutlineCreditCard,
+  HiOutlineShieldCheck,
+} from "react-icons/hi";
+import {
+  HiMiniClipboardDocumentList,
+  HiMiniCheckCircle,
+  HiMiniStar,
+  HiMiniChatBubbleLeftRight,
+  HiMiniWrench,
+  HiMiniCalendar,
+  HiMiniClock,
+  HiMiniCog8Tooth,
+  HiMiniWrenchScrewdriver,
+} from "react-icons/hi2";
+import "./dashboard-v2.css";
 import type { PageProps } from "../lib/PageProps";
-import { getDataClient } from "../lib/amplifyClient";
-import { usePermissions } from "../lib/userPermissions";
-import { useLanguage } from "../i18n/LanguageContext";
-
-type Visibility = {
-  dashboard: boolean;
-  customers: boolean;
-  tickets: boolean;
-  employees: boolean;
-  activitylog: boolean;
-  jobcards: boolean;
-  calltracking: boolean;
-  inspection: boolean;
-  admin?: {
-    users: boolean;
-    departments: boolean;
-    rolespolicies: boolean;
-  };
-};
-
-type NavPage =
-  | "dashboard"
-  | "customers"
-  | "vehicles"
-  | "tickets"
-  | "employees"
-  | "activitylog"
-  | "jobcards"
-  | "jobhistory"
-  | "serviceexecution"
-  | "paymentinvoices"
-  | "qualitycheck"
-  | "exitpermit"
-  | "calltracking"
-  | "inspection"
-  | "users"
-  | "departments"
-  | "rolespolicies";
+import logoImg from "../assets/logo.jpeg";
+import { getDashboardStats, type DashboardStats } from "./jobOrderRepo";
 
 type DashboardProps = PageProps & {
   email?: string;
-  visibility: Visibility;
-  onNavigate?: (page: NavPage) => void;
+  employeeName?: string;
+  currentPage?: DashboardNavPage;
+  onNavigate?: (page: DashboardNavPage) => void;
+  onSignOut?: () => void;
 };
 
-type JobOrderLite = {
-  id?: string;
-  orderNumber?: string;
-  status?: string;
-  workStatusLabel?: string;
-  qualityCheckStatus?: string;
-  priorityLevel?: string;
-  totalAmount?: number;
-  expectedDeliveryDate?: string;
-  actualDeliveryDate?: string;
-  createdAt?: string;
-  updatedAt?: string;
-  dataJson?: string;
+type DashboardNavPage =
+  | "dashboard"
+  | "dailyreport"
+  | "activitylog"
+  | "customers"
+  | "vehicles"
+  | "jobcards"
+  | "servicecreation"
+  | "jobhistory"
+  | "quotation"
+  | "serviceexecution"
+  | "paymentinvoices"
+  | "qualitycheck";
+
+/* ── Sidebar nav data ──────────────────────────────────────────── */
+const NAV_OVERVIEW: Array<{ key: DashboardNavPage; label: string; Icon: ComponentType }> = [
+  { key: "dashboard", label: "Dashboard", Icon: HiOutlineViewGrid },
+  { key: "dailyreport", label: "Daily Report", Icon: HiOutlineChartBar },
+  { key: "activitylog", label: "Activity Log", Icon: HiOutlineClock },
+];
+
+const NAV_OPERATIONS: Array<{ key: DashboardNavPage; label: string; Icon: ComponentType }> = [
+  { key: "customers",       label: "Customers",          Icon: HiOutlineUsers },
+  { key: "vehicles",        label: "Vehicles",            Icon: HiOutlineTruck },
+  { key: "jobcards",        label: "Job Cards",           Icon: HiOutlineClipboardList },
+  { key: "servicecreation", label: "Service Creation",    Icon: HiOutlineDocumentAdd },
+  { key: "jobhistory",      label: "Job History",         Icon: HiOutlineArchive },
+  { key: "quotation",       label: "Quotations",          Icon: HiOutlineDocumentText },
+  { key: "serviceexecution",label: "Service Execution",   Icon: HiOutlineCog },
+  { key: "paymentinvoices", label: "Payment & Invoices",  Icon: HiOutlineCreditCard },
+  { key: "qualitycheck",    label: "Quality Check",       Icon: HiOutlineShieldCheck },
+];
+
+/* ── Service category icon map ─────────────────────────────────── */
+const SERVICE_CAT_ICONS: Record<string, ComponentType> = {
+  "General Service": HiMiniCog8Tooth,
+  "Engine Repair":   HiMiniWrenchScrewdriver,
+  "Body & Paint":    HiOutlineTruck,
+  "AC Service":      HiMiniClock,
+  "Electrical":      HiMiniWrench,
+  "Detailing":       HiMiniCog8Tooth,
+  "Tires & Wheels":  HiMiniWrenchScrewdriver,
 };
 
-type ApprovalLite = {
-  id?: string;
-  serviceName?: string;
-  status?: string;
-  requestedAt?: string;
-};
-
-type ActivityLite = {
-  id?: string;
-  message?: string;
-  action?: string;
-  createdAt?: string;
-};
-
-function toNum(x: unknown) {
-  const n = typeof x === "number" ? x : Number(String(x ?? "").trim());
-  return Number.isFinite(n) ? n : 0;
+function resolveEmployeeName(employeeName: string | undefined): string {
+  const normalized = String(employeeName ?? "").trim();
+  return normalized || "Employee";
 }
 
-function safeLower(x: unknown) {
-  return String(x ?? "").trim().toLowerCase();
-}
+/* ── SVG Sparkline ─────────────────────────────────────────────── */
+type Pt = [number, number];
 
-function pickModel(client: any, candidates: string[]) {
-  for (const name of candidates) {
-    const m = client?.models?.[name];
-    if (m && typeof m.list === "function") return m;
-  }
-  return null;
-}
-
-function safeJsonParse<T>(raw: any, fallback: T): T {
-  try {
-    if (raw == null) return fallback;
-    if (typeof raw === "string") {
-      const s = raw.trim();
-      if (!s) return fallback;
-      return JSON.parse(s) as T;
-    }
-    return raw as T;
-  } catch {
-    return fallback;
-  }
-}
-
-async function safeList<T = any>(client: any, candidates: string[]) {
-  const m = pickModel(client, candidates);
-  if (!m) return [] as T[];
-  try {
-    const res = await m.list({ limit: 500 });
-    return (res?.data ?? []) as T[];
-  } catch {
-    return [] as T[];
-  }
-}
-
-function parseDate(input?: string | null) {
-  if (!input) return null;
-  const d = new Date(input);
-  return Number.isNaN(d.getTime()) ? null : d;
-}
-
-function isCompletedStatus(order: JobOrderLite) {
-  const s = safeLower(order.status);
-  const w = safeLower(order.workStatusLabel);
-  return s === "completed" || w.includes("completed") || w === "ready";
-}
-
-function isCancelledStatus(order: JobOrderLite) {
-  const s = safeLower(order.status);
-  const w = safeLower(order.workStatusLabel);
-  return s === "cancelled" || s === "canceled" || w.includes("cancel");
-}
-
-function statusStage(order: JobOrderLite) {
-  const s = safeLower(order.status);
-  const w = safeLower(order.workStatusLabel);
-  if (w.includes("inspection") || s === "open") return "Inspection";
-  if (w.includes("service") || s === "in_progress") return "Service";
-  if (w.includes("quality") || safeLower(order.qualityCheckStatus) === "in_progress") return "Delivery QC";
-  return "Invoicing";
-}
-
-function compactTimeAgo(input?: string) {
-  const d = parseDate(input);
-  if (!d) return "—";
-  const now = Date.now();
-  const diffMin = Math.max(1, Math.floor((now - d.getTime()) / 60000));
-  if (diffMin < 60) return `${diffMin} mins ago`;
-  const hours = Math.floor(diffMin / 60);
-  if (hours < 24) return `${hours} hr${hours > 1 ? "s" : ""} ago`;
-  const days = Math.floor(hours / 24);
-  return `${days} day${days > 1 ? "s" : ""} ago`;
-}
-
-function rangeLabel(days: number) {
-  return `Last ${days} days`;
-}
-
-function buildLinePath(values: number[], width: number, height: number, padding = 14) {
-  if (!values.length) return "";
-  const max = Math.max(1, ...values);
-  const usableW = width - padding * 2;
-  const usableH = height - padding * 2;
-  return values
-    .map((value, index) => {
-      const x = padding + (usableW * index) / Math.max(1, values.length - 1);
-      const y = height - padding - (value / max) * usableH;
-      return `${x},${y}`;
-    })
+function buildSparkPath(points: Pt[], w: number, h: number): string {
+  if (points.length < 2) return "";
+  const xs = points.map((p) => p[0]);
+  const ys = points.map((p) => p[1]);
+  const minX = Math.min(...xs), maxX = Math.max(...xs);
+  const minY = Math.min(...ys), maxY = Math.max(...ys);
+  const px = (x: number) =>
+    maxX === minX ? w / 2 : ((x - minX) / (maxX - minX)) * w;
+  const py = (y: number) =>
+    maxY === minY ? h / 2 : h - ((y - minY) / (maxY - minY)) * h * 0.85;
+  return points
+    .map(([x, y], i) => `${i === 0 ? "M" : "L"} ${px(x).toFixed(1)} ${py(y).toFixed(1)}`)
     .join(" ");
 }
 
-export default function Dashboard({ permissions, email, visibility, onNavigate }: DashboardProps) {
-  const { t } = useLanguage();
-  if (!permissions.canRead) {
-    return <div style={{ padding: 24 }}>{t("You don’t have access to this page.")}</div>;
-  }
+const SPARK_BLUE:   Pt[] = [[0,20],[1,28],[2,22],[3,35],[4,28],[5,40],[6,33],[7,45],[8,38],[9,52],[10,44]];
+const SPARK_TEAL:   Pt[] = [[0,30],[1,22],[2,35],[3,28],[4,42],[5,34],[6,48],[7,40],[8,55],[9,42],[10,58]];
+const SPARK_PURPLE: Pt[] = [[0,25],[1,32],[2,20],[3,38],[4,30],[5,44],[6,35],[7,50],[8,40],[9,55],[10,45]];
+const SPARK_CYAN:   Pt[] = [[0,40],[1,30],[2,45],[3,32],[4,50],[5,38],[6,55],[7,42],[8,60],[9,48],[10,65]];
 
-  const client = getDataClient();
-  const { canOption } = usePermissions();
+interface SparklineProps {
+  points: Pt[];
+  color: string;
+  className?: string;
+}
 
-  const [loading, setLoading] = useState(true);
-  const momentumRangeDays = 30;
-  const revenueMixRangeDays = 30;
-  const deptRangeDays = 30;
-  const [jobOrders, setJobOrders] = useState<JobOrderLite[]>([]);
-  const [approvals, setApprovals] = useState<ApprovalLite[]>([]);
-  const [activityRows, setActivityRows] = useState<ActivityLite[]>([]);
-
-  const displayName = useMemo(() => {
-    const e = String(email ?? "").trim();
-    if (!e) return "TEST NUMBER 99";
-    return e.split("@")[0].replace(/[._-]+/g, " ").trim().toUpperCase();
-  }, [email]);
-
-  const canSee = useMemo(
-    () => ({
-      jobcards: !!visibility.jobcards,
-      customers: !!visibility.customers,
-      inspection: !!visibility.inspection,
-      activitylog: !!visibility.activitylog,
-    }),
-    [visibility]
+function Sparkline({ points, color, className }: SparklineProps) {
+  const W = 400, H = 52;
+  const linePath = buildSparkPath(points, W, H);
+  const fillPath = linePath + ` L ${W} ${H} L 0 ${H} Z`;
+  const gid = `sg-${color.replace("#", "")}`;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className={className}>
+      <defs>
+        <linearGradient id={gid} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.22" />
+          <stop offset="100%" stopColor={color} stopOpacity="0.02" />
+        </linearGradient>
+      </defs>
+      <path d={fillPath} fill={`url(#${gid})`} />
+      <path d={linePath} stroke={color} strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
   );
+}
+
+/* ── Custom line-chart tooltip ─────────────────────────────────── */
+function LineTooltip({ active, payload, label }: any) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="crm-db__chart-tooltip">
+      <div className="crm-db__chart-tooltip-date">{label}</div>
+      {payload.map((p: any) => (
+        <div key={p.dataKey} className="crm-db__chart-tooltip-row">
+          <span className="crm-db__chart-tooltip-dot" style={{ background: p.color }} />
+          <span style={{ color: "#A3AED0", fontWeight: 500, marginRight: 4 }}>
+            {p.dataKey === "thisWeek" ? "This Week" : "Last Week"}
+          </span>
+          {p.value}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ── Stars ─────────────────────────────────────────────────────── */
+function Stars({ rating, max = 5 }: { rating: number; max?: number }) {
+  return (
+    <div className="crm-db__stat-stars">
+      {Array.from({ length: max }).map((_, i) => (
+        <HiMiniStar key={i} className={i < Math.floor(rating) ? "crm-db__star" : "crm-db__star--half"} />
+      ))}
+    </div>
+  );
+}
+
+function QarCurrencyMark() {
+  return (
+    <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+      <rect x="2" y="2" width="18" height="18" rx="6" fill="#8D153A" />
+      <path
+        d="M7.2 2 L9.1 4.05 L7.2 6.1 L9.1 8.15 L7.2 10.2 L9.1 12.25 L7.2 14.3 L9.1 16.35 L7.2 18.4 L2 18.4 L2 2 Z"
+        fill="#FFFFFF"
+      />
+      <path
+        d="M11.4 8.1C12.7 8.1 13.55 8.9 13.55 10.05C13.55 11.25 12.7 12.1 11.4 12.1H10.65V13.85H9.3V8.1H11.4ZM11.28 11.03C11.84 11.03 12.15 10.68 12.15 10.11C12.15 9.56 11.84 9.22 11.28 9.22H10.65V11.03H11.28Z"
+        fill="#FFFFFF"
+      />
+      <path
+        d="M14.25 13.85V8.1H16.63C18.3 8.1 19.4 9.22 19.4 10.97C19.4 12.73 18.31 13.85 16.63 13.85H14.25ZM15.6 12.69H16.53C17.4 12.69 17.98 12.01 17.98 10.97C17.98 9.93 17.39 9.25 16.53 9.25H15.6V12.69Z"
+        fill="#FFFFFF"
+      />
+    </svg>
+  );
+}
+
+/* ================================================================
+   MAIN EXPORT
+   ================================================================ */
+export default function Dashboard({ permissions, employeeName, currentPage, onNavigate, onSignOut }: DashboardProps) {
+  const activeNav = useMemo<DashboardNavPage>(() => currentPage ?? "jobcards", [currentPage]);
+
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    void (async () => {
-      setLoading(true);
-      try {
-        const [orders, approvalRows, activity] = await Promise.all([
-          canSee.jobcards ? safeList<JobOrderLite>(client, ["JobOrder", "JobOrders"]) : Promise.resolve([]),
-          canSee.inspection
-            ? safeList<ApprovalLite>(client, ["ServiceApprovalRequest"])
-            : Promise.resolve([]),
-          canSee.activitylog
-            ? safeList<ActivityLite>(client, ["ActivityLog", "ActivityLogs", "AuditLog"])
-            : Promise.resolve([]),
-        ]);
-
-        setJobOrders(orders ?? []);
-        setApprovals(approvalRows ?? []);
-        setActivityRows(activity ?? []);
-      } finally {
-        setLoading(false);
-      }
-    })();
-  }, [client, canSee.jobcards, canSee.inspection, canSee.activitylog]);
-
-  const summaryCutoff = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - 30);
-    return d;
+    let cancelled = false;
+    getDashboardStats()
+      .then((s) => { if (!cancelled) { setStats(s); setLoading(false); } })
+      .catch(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
   }, []);
 
-  const summaryOrders = useMemo(() => {
-    return jobOrders.filter((o) => {
-      const d = parseDate(o.createdAt ?? o.updatedAt);
-      return d ? d >= summaryCutoff : false;
-    });
-  }, [jobOrders, summaryCutoff]);
+  const totalJobs      = stats?.totalJobs ?? 0;
+  const completedJobs  = stats?.completedJobs ?? 0;
+  const inProgressJobs = stats?.inProgressJobs ?? 0;
+  const newRequestJobs = stats?.newRequestJobs ?? 0;
+  const upcomingDeliveries = stats?.upcomingDeliveries ?? 0;
+  const totalRevenue   = stats?.totalRevenue ?? 0;
 
-  const momentumCutoff = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - momentumRangeDays);
-    return d;
-  }, [momentumRangeDays]);
+  const jobStatusData  = stats?.statusBreakdown ?? [];
+  const weeklyData     = stats?.jobsByDay ?? [];
 
-  const revenueMixCutoff = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - revenueMixRangeDays);
-    return d;
-  }, [revenueMixRangeDays]);
+  const topServiceCatCount = stats?.serviceCategoryBreakdown?.[0]?.count ?? 1;
+  const serviceCategories  = (stats?.serviceCategoryBreakdown ?? []).map(({ name, count }) => ({
+    name,
+    pct: Math.round((count / topServiceCatCount) * 100),
+    Icon: (SERVICE_CAT_ICONS[name] ?? HiMiniCog8Tooth) as ComponentType,
+  }));
 
-  const deptCutoff = useMemo(() => {
-    const d = new Date();
-    d.setDate(d.getDate() - deptRangeDays);
-    return d;
-  }, [deptRangeDays]);
+  const formatQar = (n: number) =>
+    `QAR ${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+  const displayName = useMemo(() => resolveEmployeeName(employeeName), [employeeName]);
+  const avatarInitial = useMemo(() => displayName.charAt(0).toUpperCase() || "U", [displayName]);
 
-  const momentumOrders = useMemo(() => {
-    return jobOrders.filter((o) => {
-      const d = parseDate(o.createdAt ?? o.updatedAt);
-      return d ? d >= momentumCutoff : false;
-    });
-  }, [jobOrders, momentumCutoff]);
+  const handleNavClick = (key: DashboardNavPage) => {
+    onNavigate?.(key);
+  };
 
-  const revenueMixOrders = useMemo(() => {
-    return jobOrders.filter((o) => {
-      const d = parseDate(o.createdAt ?? o.updatedAt);
-      return d ? d >= revenueMixCutoff : false;
-    });
-  }, [jobOrders, revenueMixCutoff]);
-
-  const deptOrders = useMemo(() => {
-    return jobOrders.filter((o) => {
-      const d = parseDate(o.createdAt ?? o.updatedAt);
-      return d ? d >= deptCutoff : false;
-    });
-  }, [jobOrders, deptCutoff]);
-
-  const activeJobOrders = useMemo(
-    () => summaryOrders.filter((o) => !isCompletedStatus(o) && !isCancelledStatus(o)).length,
-    [summaryOrders]
-  );
-
-  const onTimeDelivery = useMemo(() => {
-    const completed = summaryOrders.filter((o) => isCompletedStatus(o));
-    if (!completed.length) return 0;
-    let onTime = 0;
-    for (const order of completed) {
-      const expected = parseDate(order.expectedDeliveryDate);
-      const actual = parseDate(order.actualDeliveryDate ?? order.updatedAt);
-      if (expected && actual && actual.getTime() <= expected.getTime()) onTime += 1;
-    }
-    return Math.round((onTime / completed.length) * 100);
-  }, [summaryOrders]);
-
-  const openApprovals = useMemo(
-    () => approvals.filter((a) => safeLower(a.status) === "pending").length,
-    [approvals]
-  );
-
-  const momentumSeries = useMemo(() => {
-    const points = Array.from({ length: 7 }).map((_, idx) => {
-      const d = new Date();
-      d.setDate(d.getDate() - (6 - idx));
-      const key = d.toISOString().slice(0, 10);
-      return { key, count: 0 };
-    });
-
-    for (const order of momentumOrders) {
-      const d = parseDate(order.createdAt);
-      if (!d) continue;
-      const key = d.toISOString().slice(0, 10);
-      const point = points.find((p) => p.key === key);
-      if (point) point.count += 1;
-    }
-
-    return points;
-  }, [momentumOrders]);
-
-  const revenueMix = useMemo(() => {
-    const buckets: Record<string, number> = {
-      Inspection: 0,
-      Service: 0,
-      "Delivery QC": 0,
-      Invoicing: 0,
-    };
-
-    for (const order of revenueMixOrders) {
-      buckets[statusStage(order)] += toNum(order.totalAmount) || 1;
-    }
-
-    const total = Object.values(buckets).reduce((s, v) => s + v, 0) || 1;
-
-    return Object.entries(buckets).map(([name, value]) => ({
-      name,
-      value,
-      pct: Math.round((value / total) * 100),
-    }));
-  }, [revenueMixOrders]);
-
-  const totalRevenue = useMemo(
-    () => deptOrders.reduce((sum, o) => sum + toNum(o.totalAmount), 0),
-    [deptOrders]
-  );
-
-  const priorityList = useMemo(() => {
-    const inspectionQueue = summaryOrders.filter((o) => statusStage(o) === "Inspection" && !isCancelledStatus(o)).length;
-    const pendingApprovals = approvals.filter((a) => safeLower(a.status) === "pending").length;
-    const stalePending = approvals.filter((a) => {
-      if (safeLower(a.status) !== "pending") return false;
-      const d = parseDate(a.requestedAt);
-      if (!d) return false;
-      const hours = (Date.now() - d.getTime()) / 36e5;
-      return hours >= 24;
-    }).length;
-    const qcMisses = summaryOrders.filter((o) => safeLower(o.qualityCheckStatus) === "failed").length;
-
-    return [
-      {
-        title: `${inspectionQueue} ${t("vehicles awaiting inspection")}`,
-        subtitle: t("Next in line: by created date"),
-        tag: t("Urgent"),
-      },
-      {
-        title: `${pendingApprovals} ${t("approvals pending decision")}`,
-        subtitle: t("Finance and service review"),
-        tag: t("Review"),
-      },
-      {
-        title: `${stalePending} ${t("service approvals aging >24h")}`,
-        subtitle: t("Escalate decision queue"),
-        tag: t("Attention"),
-      },
-      {
-        title: `${qcMisses} ${t("delivery QC misses")}`,
-        subtitle: t("Re-check and close quality gaps"),
-        tag: t("Flag"),
-      },
-    ];
-  }, [summaryOrders, approvals, t]);
-
-  const recentActivity = useMemo(() => {
-    const fromActivity = [...activityRows]
-      .sort((a, b) => String(b.createdAt ?? "").localeCompare(String(a.createdAt ?? "")))
-      .slice(0, 4)
-      .map((a) => ({
-        title: a.message || a.action || "Activity update",
-        actor: a.action || t("System"),
-        when: compactTimeAgo(a.createdAt),
-      }));
-
-    if (fromActivity.length) return fromActivity;
-
-    return [...summaryOrders]
-      .sort((a, b) => String(b.updatedAt ?? b.createdAt ?? "").localeCompare(String(a.updatedAt ?? a.createdAt ?? "")))
-      .slice(0, 4)
-      .map((o) => ({
-        title: `Job order ${o.orderNumber ?? o.id ?? "—"} updated`,
-          actor: o.workStatusLabel || o.status || t("Job order"),
-        when: compactTimeAgo(o.updatedAt ?? o.createdAt),
-      }));
-        }, [activityRows, summaryOrders, t]);
-
-
-  const chartLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug"];
-
-  const baseSeries = useMemo(
-    () => Array.from({ length: chartLabels.length }, (_, index) => momentumSeries[index % Math.max(1, momentumSeries.length)]?.count ?? 0),
-    [momentumSeries]
-  );
-
-  const forecastSeries = useMemo(() => {
-    const a = baseSeries.map((v, i) => v + (i % 2 === 0 ? 2 : 4));
-    const b = baseSeries.map((v, i) => Math.max(1, v + (i % 3 === 0 ? 5 : -1)));
-    const c = baseSeries.map((v, i) => Math.max(1, Math.round(v * 0.75) + (i % 2 === 0 ? 3 : 1)));
-    return { a, b, c };
-  }, [baseSeries]);
-
-  const uniqueCustomers = useMemo(() => {
-    const set = new Set<string>();
-    for (const o of summaryOrders) {
-      const parsed = safeJsonParse<any>((o as any).dataJson, {});
-      const name = String((o as any).customerName ?? parsed?.customerName ?? "").trim();
-      if (name) set.add(name.toLowerCase());
-    }
-    return set.size;
-  }, [summaryOrders]);
-
-  const completedOrders = useMemo(
-    () => summaryOrders.filter((o) => isCompletedStatus(o)).length,
-    [summaryOrders]
-  );
-
-  const gaugeValue = useMemo(() => {
-    const total = Math.max(1, summaryOrders.length);
-    return Math.min(100, Math.round((completedOrders / total) * 100));
-  }, [completedOrders, summaryOrders.length]);
-
-  const go = (page: NavPage) => onNavigate?.(page);
-  const canShowKpis = canOption("dashboard", "dashboard_kpis", true);
-  const canShowQuickNav = canOption("dashboard", "dashboard_quicknav", true);
-  const canShowRevenue = canOption("dashboard", "dashboard_revenue", true);
-  const canShowActivity = canOption("dashboard", "dashboard_activity", true);
-  const canShowCalendar = canOption("dashboard", "dashboard_calendar", true);
+  if (!permissions.canRead) {
+    return <div style={{ padding: 24, color: "#2B3674" }}>You don't have access to this page.</div>;
+  }
 
   return (
-    <div className="od-stage">
-      <header className="od-page-header">
-        <div>
-          <p className="od-kicker">{t("Executive Operations")}</p>
-          <h1>{t("Dashboard")}</h1>
-          <p className="od-sub">{t("Unified daily brief for service, quality, finance, and staffing.")}</p>
-        </div>
-      </header>
-
-      <section className="od-top-grid">
-        <div className="od-left-stack">
-          <article className="od-welcome-card">
-            <div className="od-welcome-content">
-              <div className="od-welcome-title">{t("Welcome Back")}, {displayName}</div>
-              <div className="od-welcome-meta">
-                <div>
-                  <span>{t("Budget")}</span>
-                  <b>QAR {Math.round(totalRevenue || 98450).toLocaleString("en-US")}</b>
-                </div>
-                <div>
-                  <span>{t("Expense")}</span>
-                  <b>QAR {Math.round((openApprovals || 8) * 305).toLocaleString("en-US")}</b>
-                </div>
-              </div>
-            </div>
-            <div className="od-target" aria-hidden="true">🎯</div>
-          </article>
-
-          {canShowKpis && (
-            <div className="od-mini-cards">
-              <article className="od-mini od-mini-cyan">
-                <div className="od-mini-title">{t("Customers")}</div>
-                <div className="od-mini-value">{loading ? "—" : uniqueCustomers || summaryOrders.length}</div>
-                <div className="od-mini-change">+{Math.max(3, Math.round(onTimeDelivery / 8))}%</div>
-              </article>
-
-              <article className="od-mini od-mini-pink">
-                <div className="od-mini-title">{t("Projects")}</div>
-                <div className="od-mini-value">{loading ? "—" : summaryOrders.length}</div>
-                <div className="od-mini-change">-{Math.max(1, Math.round(openApprovals / 2))}%</div>
-              </article>
-            </div>
-          )}
+    <div className="crm-db">
+      {/* ── Sidebar ── */}
+      <aside className="crm-db__sidebar">
+        <div className="crm-db__logo">
+          <div className="crm-db__logo-icon">
+            <img src={logoImg} alt="Rodeo Drive CRM" />
+          </div>
+          <div className="crm-db__logo-text">
+            <strong>Rodeo Drive</strong>
+            <span>CRM Console</span>
+          </div>
         </div>
 
-        <article className="od-forecast-card">
-          <div className="od-forecast-head">
-            <div>
-              <h3>{t("Revenue Forecast")}</h3>
-              <p>{t("Overview of Profit")}</p>
+        <div className="crm-db__banner">
+          <div className="crm-db__banner-icon"><FiCalendar /></div>
+          <div className="crm-db__banner-text">
+            <strong>Today at a glance</strong>
+            <p>Track performance, incidents, and delivery flow in one place.</p>
+          </div>
+        </div>
+
+        <div className="crm-db__nav-section">
+          <div className="crm-db__nav-label">Overview</div>
+          {NAV_OVERVIEW.map(({ key, label, Icon }) => (
+            <button
+              key={key}
+              className={`crm-db__nav-item${activeNav === key ? " crm-db__nav-item--active" : ""}`}
+              onClick={() => handleNavClick(key)}
+            >
+              <span className="crm-db__nav-icon"><Icon /></span>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="crm-db__nav-section">
+          <div className="crm-db__nav-label">Operations</div>
+          {NAV_OPERATIONS.map(({ key, label, Icon }) => (
+            <button
+              key={key}
+              className={`crm-db__nav-item${activeNav === key ? " crm-db__nav-item--active" : ""}`}
+              onClick={() => handleNavClick(key)}
+            >
+              <span className="crm-db__nav-icon"><Icon /></span>
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="crm-db__signout">
+          <button className="crm-db__signout-btn" onClick={onSignOut}>
+            <FiLogOut />
+            Sign out
+          </button>
+        </div>
+      </aside>
+
+      {/* ── Main ── */}
+      <main className="crm-db__main">
+        {/* Header */}
+        <header className="crm-db__header">
+          <div className="crm-db__header-left">
+            <div className="crm-db__header-user">
+              <span className="crm-db__user-name">{displayName}</span>
+              <div className="crm-db__user-avatar">{avatarInitial}</div>
+              <FiChevronDown size={14} style={{ color: "#A3AED0" }} />
             </div>
-            <div className="od-forecast-legend">
-              <span><i className="dot y1" />2024</span>
-              <span><i className="dot y2" />2025</span>
-              <span><i className="dot y3" />2026</span>
+          </div>
+          <div className="crm-db__header-right">
+            <button className="crm-db__header-filters">
+              <MdTune />
+              Filters
+            </button>
+          </div>
+        </header>
+
+        {/* Scrollable body */}
+        <div className="crm-db__body">
+
+          {/* Top Stats Row */}
+          <div className="crm-db__stats-row">
+            {/* Total Jobs */}
+            <div className="crm-db__stat-card">
+              <div className="crm-db__stat-top">
+                <span className="crm-db__stat-title">Total Jobs</span>
+                <div className="crm-db__stat-icon crm-db__stat-icon--blue"><HiMiniClipboardDocumentList /></div>
+              </div>
+              <div className="crm-db__stat-value">{loading ? "—" : totalJobs.toLocaleString()}</div>
+              <div className="crm-db__stat-change crm-db__stat-change--up">
+                <span>↑</span>
+                &nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>all time</span>
+              </div>
+              <Sparkline points={SPARK_BLUE} color="#4318FF" className="crm-db__sparkline" />
+            </div>
+
+            {/* Completed Jobs */}
+            <div className="crm-db__stat-card">
+              <div className="crm-db__stat-top">
+                <span className="crm-db__stat-title">Completed Jobs</span>
+                <div className="crm-db__stat-icon crm-db__stat-icon--teal"><HiMiniCheckCircle /></div>
+              </div>
+              <div className="crm-db__stat-value">{loading ? "—" : completedJobs.toLocaleString()}</div>
+              <div className="crm-db__stat-change crm-db__stat-change--up">
+                <span>↑</span>
+                &nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>all time</span>
+              </div>
+              <Sparkline points={SPARK_TEAL} color="#05CD99" className="crm-db__sparkline" />
+            </div>
+
+            {/* Revenue */}
+            <div className="crm-db__stat-card">
+              <div className="crm-db__stat-top">
+                <span className="crm-db__stat-title">Revenue (QAR)</span>
+                <div className="crm-db__stat-icon crm-db__stat-icon--purple"><QarCurrencyMark /></div>
+              </div>
+              <div className="crm-db__stat-value">{loading ? "—" : formatQar(totalRevenue)}</div>
+              <div className="crm-db__stat-change crm-db__stat-change--up">
+                <span>↑</span>
+                &nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>collected</span>
+              </div>
+              <Sparkline points={SPARK_PURPLE} color="#7551FF" className="crm-db__sparkline" />
+            </div>
+
+            {/* Customer Satisfaction */}
+            <div className="crm-db__stat-card">
+              <div className="crm-db__stat-top">
+                <span className="crm-db__stat-title">Customer Satisfaction</span>
+                <div className="crm-db__stat-icon crm-db__stat-icon--blue2"><HiMiniStar /></div>
+              </div>
+              <div className="crm-db__stat-value">
+                4.8&nbsp;<span style={{ fontSize: 16, fontWeight: 500, color: "#A3AED0" }}>/ 5</span>
+              </div>
+              <div className="crm-db__stat-change crm-db__stat-change--up">
+                <span>↑</span>
+                6.2%&nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>vs last 7 days</span>
+              </div>
+              <Stars rating={4.5} />
             </div>
           </div>
 
-          <div className="od-forecast-chart">
-            <svg viewBox="0 0 640 240" preserveAspectRatio="none" role="img" aria-label="Revenue forecast lines">
-              <polyline className="line y1" points={buildLinePath(forecastSeries.a, 640, 240)} />
-              <polyline className="line y2" points={buildLinePath(forecastSeries.b, 640, 240)} />
-              <polyline className="line y3" points={buildLinePath(forecastSeries.c, 640, 240)} />
-            </svg>
-            <div className="od-month-axis">
-              {chartLabels.map((month) => (
-                <span key={month}>{month}</span>
-              ))}
-            </div>
-          </div>
-        </article>
-      </section>
-
-      <section className="od-bottom-grid">
-        <article className="od-panel">
-          <div className="od-panel-head">
-            <h4>{t("Your Performance")}</h4>
-            <p>{t("Live check on operations")}</p>
-          </div>
-
-          <div className="od-performance-list">
-            <div><span>{t("New orders")}</span><b>{loading ? "—" : activeJobOrders}</b></div>
-            <div><span>{t("Orders on hold")}</span><b>{loading ? "—" : openApprovals}</b></div>
-            <div><span>{t("Orders delivered")}</span><b>{loading ? "—" : completedOrders}</b></div>
-          </div>
-
-          <div className="od-gauge-wrap">
-            <div className="od-gauge" style={{ ["--p" as any]: `${gaugeValue}%` }}>
-              <span>{gaugeValue}</span>
-            </div>
-          </div>
-        </article>
-
-        <article className="od-panel">
-          <div className="od-panel-head">
-            <h4>{t("Customers")}</h4>
-            <p>{rangeLabel(momentumRangeDays)}</p>
-          </div>
-
-          <div className="od-spark-chart">
-            <svg viewBox="0 0 300 120" preserveAspectRatio="none">
-              <polyline className="line y1" points={buildLinePath(baseSeries, 300, 120, 10)} />
-              <polyline className="line y2" points={buildLinePath(forecastSeries.c, 300, 120, 10)} />
-            </svg>
-          </div>
-
-          <div className="od-stat-lines">
-            <div><span>{t("This week")}</span><b>{Math.max(1, Math.round(uniqueCustomers / 2))}</b></div>
-            <div><span>{t("Last week")}</span><b>{Math.max(1, Math.round(uniqueCustomers / 3))}</b></div>
-          </div>
-        </article>
-
-        <article className="od-panel">
-          <div className="od-panel-head">
-            <h4>{t("Sales Overview")}</h4>
-            <p>{rangeLabel(revenueMixRangeDays)}</p>
-          </div>
-
-          <div className="od-ring-group">
-            {revenueMix.slice(0, 3).map((m, idx) => (
-              <div key={m.name} className={`od-ring r${idx + 1}`} style={{ ["--v" as any]: `${Math.max(8, m.pct)}%` }} />
-            ))}
-          </div>
-
-          <div className="od-sales-legend">
-            {revenueMix.slice(0, 3).map((m) => (
-              <div key={m.name}><span>{m.name}</span><b>{m.pct}%</b></div>
-            ))}
-          </div>
-        </article>
-      </section>
-
-      {(canShowQuickNav || canShowCalendar || canShowActivity || canShowRevenue) && (
-        <section className="od-extra-grid">
-          {canShowQuickNav && (
-            <article className="od-card">
-              <div className="od-card-head simple">
-                <div>
-                  <h3>{t("Quick Actions")}</h3>
-                  <p>{t("Jump straight to high impact tasks.")}</p>
+          {/* Charts Row */}
+          <div className="crm-db__charts-row">
+            {/* Donut */}
+            <div className="crm-db__chart-card">
+              <div className="crm-db__chart-card-header">
+                <span className="crm-db__chart-card-title">Job Status Overview</span>
+                <button className="crm-db__view-all">View all</button>
+              </div>
+              <div className="crm-db__donut-body">
+                <div className="crm-db__donut-chart-wrap" style={{ width: 160, height: 160 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={jobStatusData}
+                        cx="50%" cy="50%"
+                        innerRadius={52} outerRadius={76}
+                        dataKey="value"
+                        startAngle={90} endAngle={-270}
+                        strokeWidth={2} stroke="#fff"
+                      >
+                        {jobStatusData.map((e) => <Cell key={e.name} fill={e.color} />)}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="crm-db__donut-center">
+                    <span className="crm-db__donut-center-value">{loading ? "—" : totalJobs.toLocaleString()}</span>
+                    <span className="crm-db__donut-center-label">Total Jobs</span>
+                  </div>
                 </div>
-              </div>
-              <div className="od-quick-grid">
-                <button type="button" onClick={() => go("jobcards")}>{t("New Job Order")}</button>
-                <button type="button" onClick={() => go("paymentinvoices")}>{t("Create Invoice")}</button>
-                <button type="button" onClick={() => go("inspection")}>{t("Start Inspection")}</button>
-                <button type="button" onClick={() => go("exitpermit")}>{t("Prepare Exit Permit")}</button>
-                <button type="button" onClick={() => go("customers")}>{t("Add Customer")}</button>
-                <button type="button" onClick={() => go("serviceexecution")}>{t("Service Execution")}</button>
-              </div>
-            </article>
-          )}
-
-          {canShowCalendar && (
-            <article className="od-card">
-              <div className="od-card-head simple">
-                <div>
-                  <h3>{t("Priority List")}</h3>
-                  <p>{t("Keep urgent tasks visible to the team.")}</p>
-                </div>
-              </div>
-              <div className="od-priority-list">
-                {priorityList.map((p) => (
-                  <div key={p.title} className="od-priority-item">
-                    <div>
-                      <strong>{p.title}</strong>
-                      <span>{p.subtitle}</span>
+                <div className="crm-db__donut-legend">
+                  {jobStatusData.map((item) => (
+                    <div key={item.name} className="crm-db__legend-row">
+                      <span className="crm-db__legend-dot" style={{ background: item.color }} />
+                      <span className="crm-db__legend-name">{item.name}</span>
+                      <span className="crm-db__legend-val">{item.value}</span>
+                      <span className="crm-db__legend-pct">{item.pct}</span>
                     </div>
-                    <em>{p.tag}</em>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Line chart */}
+            <div className="crm-db__chart-card">
+              <div className="crm-db__chart-card-header">
+                <span className="crm-db__chart-card-title">Jobs Over Time</span>
+                <div className="crm-db__chart-dropdown">Daily <FiChevronDown size={12} /></div>
+              </div>
+              <div className="crm-db__line-legend">
+                <div className="crm-db__line-legend-item">
+                  <span className="crm-db__line-legend-dash crm-db__line-legend-dash--solid" />
+                  This Week
+                </div>
+                <div className="crm-db__line-legend-item">
+                  <span className="crm-db__line-legend-dash crm-db__line-legend-dash--dashed" />
+                  Last Week
+                </div>
+              </div>
+              <div style={{ flex: 1, minHeight: 180 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={weeklyData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#f0f3fa" vertical={false} />
+                    <XAxis dataKey="date" tick={{ fill: "#A3AED0", fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <YAxis domain={[0, 280]} ticks={[0, 70, 140, 210, 280]} tick={{ fill: "#A3AED0", fontSize: 11 }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<LineTooltip />} />
+                    <Line type="monotone" dataKey="thisWeek" stroke="#4318FF" strokeWidth={2.5}
+                      dot={{ r: 4, fill: "#4318FF", strokeWidth: 2, stroke: "#fff" }} activeDot={{ r: 6 }} />
+                    <Line type="monotone" dataKey="lastWeek" stroke="#39BFFF" strokeWidth={2} strokeDasharray="6 4"
+                      dot={{ r: 4, fill: "#39BFFF", strokeWidth: 2, stroke: "#fff" }} activeDot={{ r: 5 }} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Service categories */}
+            <div className="crm-db__chart-card">
+              <div className="crm-db__chart-card-header">
+                <span className="crm-db__chart-card-title">Top Service Categories</span>
+                <button className="crm-db__view-all">View all</button>
+              </div>
+              <div className="crm-db__service-list">
+                {serviceCategories.map(({ name, pct, Icon }) => (
+                  <div key={name} className="crm-db__service-row">
+                    <div className="crm-db__service-icon"><Icon /></div>
+                    <div className="crm-db__service-info">
+                      <div className="crm-db__service-name">{name}</div>
+                      <div className="crm-db__service-bar-track">
+                        <div className="crm-db__service-bar-fill" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                    <span className="crm-db__service-pct">{pct}%</span>
                   </div>
                 ))}
               </div>
-            </article>
-          )}
+            </div>
+          </div>
 
-          {(canShowActivity || canShowRevenue) && (
-            <article className="od-card">
-              <div className="od-card-head simple">
-                <div>
-                  <h3>{t("Recent Activity")}</h3>
-                  <p>{t("Latest team movements in real-time.")}</p>
-                </div>
+          {/* Bottom Stats Row */}
+          <div className="crm-db__bottom-row">
+            {/* New Requests */}
+            <div className="crm-db__bottom-card">
+              <div className="crm-db__bottom-card-top">
+                <span className="crm-db__bottom-card-title">New Requests</span>
+                <div className="crm-db__bottom-icon crm-db__bottom-icon--blue"><HiMiniChatBubbleLeftRight /></div>
               </div>
-              <div className="od-activity-list">
-                {recentActivity.map((a, index) => (
-                  <div key={`${a.title}-${index}`} className="od-activity-item">
-                    <div>
-                      <strong>{a.title}</strong>
-                      <span>{a.actor}</span>
-                    </div>
-                    <em>{a.when}</em>
-                  </div>
-                ))}
+              <div className="crm-db__bottom-value">{loading ? "—" : newRequestJobs.toLocaleString()}</div>
+              <div className="crm-db__bottom-change"><span>↑ 14.6%</span></div>
+              <div className="crm-db__bottom-sub">vs last 7 days</div>
+              <Sparkline points={SPARK_BLUE} color="#4318FF" className="crm-db__bottom-sparkline" />
+            </div>
+
+            {/* In Progress */}
+            <div className="crm-db__bottom-card">
+              <div className="crm-db__bottom-card-top">
+                <span className="crm-db__bottom-card-title">In Progress</span>
+                <div className="crm-db__bottom-icon crm-db__bottom-icon--teal"><HiMiniWrench /></div>
               </div>
-            </article>
-          )}
-        </section>
-      )}
+              <div className="crm-db__bottom-value">{loading ? "—" : inProgressJobs.toLocaleString()}</div>
+              <div className="crm-db__bottom-change"><span>↑ 10.1%</span></div>
+              <div className="crm-db__bottom-sub">vs last 7 days</div>
+              <Sparkline points={SPARK_TEAL} color="#05CD99" className="crm-db__bottom-sparkline" />
+            </div>
+
+            {/* Upcoming Deliveries */}
+            <div className="crm-db__bottom-card">
+              <div className="crm-db__bottom-card-top">
+                <span className="crm-db__bottom-card-title">Upcoming Deliveries</span>
+                <div className="crm-db__bottom-icon crm-db__bottom-icon--purple"><HiMiniCalendar /></div>
+              </div>
+              <div className="crm-db__bottom-value">{loading ? "—" : upcomingDeliveries.toLocaleString()}</div>
+              <div className="crm-db__bottom-change"><span>↑ 8.3%</span></div>
+              <div className="crm-db__bottom-sub">vs last 7 days</div>
+              <Sparkline points={SPARK_PURPLE} color="#7551FF" className="crm-db__bottom-sparkline" />
+            </div>
+
+            {/* Avg Turnaround */}
+            <div className="crm-db__bottom-card">
+              <div className="crm-db__bottom-card-top">
+                <span className="crm-db__bottom-card-title">Avg. Turnaround Time</span>
+                <div className="crm-db__bottom-icon crm-db__bottom-icon--cyan"><HiMiniClock /></div>
+              </div>
+              <div className="crm-db__bottom-value">
+                2.6&nbsp;<span style={{ fontSize: 14, fontWeight: 600, color: "#A3AED0" }}>Days</span>
+              </div>
+              <div className="crm-db__bottom-change crm-db__bottom-change--down"><span>↓ 12.4%</span></div>
+              <div className="crm-db__bottom-sub">vs last 7 days</div>
+              <Sparkline points={SPARK_CYAN} color="#39BFFF" className="crm-db__bottom-sparkline" />
+            </div>
+          </div>
+
+          {/* Footer */}
+          <footer className="crm-db__footer">
+            <span className="crm-db__footer-copy">
+              Service Management System © 2026 | Rodeo Drive CRM Console
+            </span>
+            <div className="crm-db__footer-lang">
+              <FiGlobe />
+              EN English (United States)
+              <FiChevronDown size={13} />
+            </div>
+          </footer>
+
+        </div>{/* end body */}
+      </main>
     </div>
   );
 }

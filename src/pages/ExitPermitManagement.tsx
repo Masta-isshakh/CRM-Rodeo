@@ -358,13 +358,13 @@ const getServiceStatusClass = (status: string) => {
 const getAdditionalServiceStatusClass = (status: string) => {
   switch (status) {
     case "Pending Approval":
-      return "epm-pending";
+      return "pending";
     case "Approved":
-      return "epm-approved";
+      return "approved";
     case "Declined":
-      return "epm-declined";
+      return "declined";
     default:
-      return "epm-pending";
+      return "pending";
   }
 };
 
@@ -700,9 +700,17 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
       setShowSuccessPopup(true);
 
       if (selectedOrder?.id === cancelOrderId) {
-        const reloaded = await getJobOrderByOrderNumber(cancelOrderId);
-        if (reloaded) reloaded.paymentStatus = derivePaymentStatusFromUiOrder(reloaded);
-        setSelectedOrder(reloaded);
+        void (async () => {
+          try {
+            const reloaded = await getJobOrderByOrderNumber(cancelOrderId);
+            if (reloaded) {
+              reloaded.paymentStatus = derivePaymentStatusFromUiOrder(reloaded);
+              setSelectedOrder(reloaded);
+            }
+          } catch {
+            // keep current state if post-cancel refresh fails
+          }
+        })();
       }
     } catch (e) {
       setErrorMessage(errMsg(e));
@@ -767,48 +775,55 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
       const permitDocBlob = new Blob([permitDocHtml], { type: "text/html" });
       await uploadData({ path: permitDocPath, data: permitDocBlob, options: { contentType: "text/html" } }).result;
 
-      const latestOrder = await getJobOrderByOrderNumber(orderNumber);
-      if (latestOrder) {
-        const parsed = safeJsonParse<any>(latestOrder?._parsed ?? latestOrder?.dataJson, {});
-        const existingDocs = Array.isArray(latestOrder?.documents)
-          ? latestOrder.documents
-          : Array.isArray(parsed?.documents)
-            ? parsed.documents
-            : [];
-
-        const newPermitDoc = {
-          id: `DOC-EXIT-${Date.now()}`,
-          name: `ExitPermit_${String(res.permitId)}.html`,
-          type: "Exit Permit",
-          category: "Permit",
-          addedAt: createdAtIso,
-          uploadedBy: actor,
-          storagePath: permitDocPath,
-          permitReference: String(res.permitId),
-          orderReference: orderNumber,
-        };
-
-        const updatedDocs = [...existingDocs, newPermitDoc];
-        await upsertJobOrder({
-          ...latestOrder,
-          documents: updatedDocs,
-          dataJson: JSON.stringify({
-            ...parsed,
-            documents: updatedDocs,
-          }),
-        });
-      }
-
       setSuccessPermitId(res.permitId);
       setSuccessOrderId(res.orderNumber);
       setShowExitPermitSuccessPopup(true);
       closeExitPermitModal();
 
-      if (selectedOrder?.id === orderNumber) {
-        const reloaded = await getJobOrderByOrderNumber(orderNumber);
-        if (reloaded) reloaded.paymentStatus = derivePaymentStatusFromUiOrder(reloaded);
-        setSelectedOrder(reloaded);
-      }
+      void (async () => {
+        try {
+          const latestOrder = await getJobOrderByOrderNumber(orderNumber);
+          if (!latestOrder) return;
+
+          const parsed = safeJsonParse<any>(latestOrder?._parsed ?? latestOrder?.dataJson, {});
+          const existingDocs = Array.isArray(latestOrder?.documents)
+            ? latestOrder.documents
+            : Array.isArray(parsed?.documents)
+              ? parsed.documents
+              : [];
+
+          const newPermitDoc = {
+            id: `DOC-EXIT-${Date.now()}`,
+            name: `ExitPermit_${String(res.permitId)}.html`,
+            type: "Exit Permit",
+            category: "Permit",
+            addedAt: createdAtIso,
+            uploadedBy: actor,
+            storagePath: permitDocPath,
+            permitReference: String(res.permitId),
+            orderReference: orderNumber,
+          };
+
+          const updatedDocs = [...existingDocs, newPermitDoc];
+          const mergedOrder = {
+            ...latestOrder,
+            documents: updatedDocs,
+            dataJson: JSON.stringify({
+              ...parsed,
+              documents: updatedDocs,
+            }),
+          };
+
+          await upsertJobOrder(mergedOrder);
+
+          if (selectedOrder?.id === orderNumber) {
+            mergedOrder.paymentStatus = derivePaymentStatusFromUiOrder(mergedOrder);
+            setSelectedOrder(mergedOrder);
+          }
+        } catch {
+          // background sync failure should not block successful permit creation UX
+        }
+      })();
     } catch (e2) {
       setErrorMessage(errMsg(e2));
       setShowErrorPopup(true);
@@ -832,10 +847,8 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
                 <i className="fas fa-id-card"></i> {t("Exit Permit Management")}
               </h1>
             </div>
-          </div>
 
-          <div className="epm-main-content">
-            <section className="epm-search-section">
+            <div className="epm-header-right epm-search-section">
               <div className="epm-search-container">
                 <i className="fas fa-search epm-search-icon"></i>
                 <input
@@ -854,8 +867,10 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
                     : t("No eligible job orders found")
                   : `${t("Showing")} ${startIndex + 1}-${endIndex} ${t("of")} ${searchResults.length} ${t("job orders")}`}
               </div>
-            </section>
+            </div>
+          </div>
 
+          <div className="epm-main-content">
             <section className="epm-results-section">
               <div className="epm-section-header">
                 <h2>

@@ -1,5 +1,5 @@
-// src/pages/JobOrderManagement.tsx
-// ✅ Full updated file - paste as-is
+﻿// src/pages/JobOrderManagement.tsx
+// âœ… Full updated file - paste as-is
 
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
@@ -48,9 +48,17 @@ import {
   getPackageGroupKey as getSharedPackageGroupKey,
   summarizeServicesSubtotalPackageAware,
 } from "../utils/billingFinance";
-import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
 import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
 import UnifiedBillingInvoicesSection from "../components/UnifiedBillingInvoicesSection";
+import { UnifiedJobSummaryCard } from "../components/UnifiedJobSummaryCard";
+import { UnifiedCustomerDetailsCard } from "../components/UnifiedCustomerDetailsCard";
+import { UnifiedVehicleInformationCard } from "../components/UnifiedVehicleInformationCard";
+import { UnifiedRequestedServicesCard } from "../components/UnifiedRequestedServicesCard";
+import { UnifiedBillingInvoicesCard } from "../components/UnifiedBillingInvoicesCard";
+import { UnifiedDocumentsCard } from "../components/UnifiedDocumentsCard";
+import { UnifiedQualityChecklistCard } from "../components/UnifiedQualityChecklistCard";
+import { UnifiedDeliveryTimeTrackingCard } from "../components/UnifiedDeliveryTimeTrackingCard";
+import { UnifiedJobOrderRoadmapCard } from "../components/UnifiedJobOrderRoadmapCard";
 
 function errMsg(e: unknown) {
   const anyE = e as any;
@@ -61,7 +69,7 @@ async function resolveMaybeStorageUrl(urlOrPath: string): Promise<string> {
   const v = String(urlOrPath || "").trim();
   if (!v) return "";
 
-  // ✅ Your storage resource uses "job-orders/*"
+  // âœ… Your storage resource uses "job-orders/*"
   if (v.startsWith("job-orders/")) {
     const out = await getUrl({ path: v });
     return out.url.toString();
@@ -97,7 +105,7 @@ function joFirstPreferredActor(...vals: any[]) {
 function toUsernameDisplay(v: any, identityMap?: Record<string, string>) {
   return resolveActorDisplay(v, {
     identityToUsernameMap: identityMap,
-    fallback: "—",
+    fallback: "â€”",
   });
 }
 
@@ -107,7 +115,7 @@ function joIsPlaceholderName(s: string) {
     !t ||
     t === "-" ||
     t === "--" ||
-    t === "—" ||
+    t === "â€”" ||
     t === "null" ||
     t === "undefined" ||
     t === "system user" ||
@@ -441,7 +449,7 @@ function ServiceSpecificationModal({ product, onClose, onConfirm }: any) {
       <div className="sc2-modal" onClick={(e) => e.stopPropagation()}>
         <div className="sc2-modal-header">
           <h3><i className="fas fa-palette"></i> {t("Service Specification")}</h3>
-          <button onClick={onClose}>✕</button>
+          <button onClick={onClose}>âœ•</button>
         </div>
         <div className="sc2-modal-body">
           <div className="sc2-grid-1">
@@ -536,7 +544,7 @@ function ServiceSpecificationModal({ product, onClose, onConfirm }: any) {
   );
 }
 
-/** ✅ Best creator name for the order (handles different payload shapes) */
+/** âœ… Best creator name for the order (handles different payload shapes) */
 function resolveCreatedBy(order: any, identityMap?: Record<string, string>) {
   const summary = order?.jobOrderSummary ?? {};
   const roadmap = Array.isArray(order?.roadmap) ? order.roadmap : [];
@@ -572,19 +580,19 @@ function resolveCreatedBy(order: any, identityMap?: Record<string, string>) {
       order?.customerDetails?.createdBy,
       order?.vehicleDetails?.createdBy
     );
-    return alt && !joIsPlaceholderName(alt) ? toUsernameDisplay(alt, identityMap) : toUsernameDisplay(primary || "—", identityMap);
+    return alt && !joIsPlaceholderName(alt) ? toUsernameDisplay(alt, identityMap) : toUsernameDisplay(primary || "â€”", identityMap);
   }
 
-  return toUsernameDisplay(primary || "—", identityMap);
+  return toUsernameDisplay(primary || "â€”", identityMap);
 }
 
-/** ✅ Roadmap actor should represent who performed the step (NOT assignment) */
+/** âœ… Roadmap actor should represent who performed the step (NOT assignment) */
 function resolveRoadmapActor(step: any, order: any, identityMap?: Record<string, string>) {
   const stepName = joStr(step?.step).toLowerCase();
   const isNewRequestStep = stepName === "new request" || stepName === "newrequest";
 
   const actor = joFirstPreferredActor(
-    // ✅ action performer fields first
+    // âœ… action performer fields first
     step?.actionByName,
     step?.actionBy,
     step?.performedBy,
@@ -594,11 +602,11 @@ function resolveRoadmapActor(step: any, order: any, identityMap?: Record<string,
     step?.createdByName,
     step?.createdBy,
 
-    // ✅ only then allow technician fields (some steps may use it as performer)
+    // âœ… only then allow technician fields (some steps may use it as performer)
     step?.technicianName,
     step?.technician,
 
-    // ✅ New Request fallback to createdBy
+    // âœ… New Request fallback to createdBy
     isNewRequestStep ? resolveCreatedBy(order, identityMap) : ""
   );
 
@@ -626,7 +634,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
   const [inspectionModalOpen, setInspectionModalOpen] = useState(false);
   const [currentInspectionItem, setCurrentInspectionItem] = useState<any>(null);
 
-  // ✅ Success popup state
+  // âœ… Success popup state
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [submittedOrderId, setSubmittedOrderId] = useState("");
   const [lastAction, setLastAction] = useState<"create" | "cancel" | "addService">("create");
@@ -634,7 +642,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
   const [addServiceSuccessData, setAddServiceSuccessData] = useState({ orderId: "", invoiceId: "" });
   const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
 
-  // ✅ Error popup state
+  // âœ… Error popup state
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorTitle, setErrorTitle] = useState("Operation failed");
   const [errorMessage, setErrorMessage] = useState<React.ReactNode>(null);
@@ -759,7 +767,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
 
   const formatAmount = (value: any) => `QAR ${Number(value || 0).toLocaleString()}`;
 
-  // ✅ Add service submit with ErrorPopup + SuccessPopup
+  // âœ… Add service submit with ErrorPopup + SuccessPopup
   const handleAddServiceSubmit = async ({ selectedServices, discountPercent }: any) => {
     if (!currentAddServiceOrder || !selectedServices || selectedServices.length === 0) {
       setScreenState("details");
@@ -876,7 +884,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
     }
   };
 
-  // ✅ Cancel: uses ErrorPopup + refresh
+  // âœ… Cancel: uses ErrorPopup + refresh
   const handleCancelOrder = async () => {
     if (!cancelOrderId) return;
 
@@ -969,8 +977,22 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
     }
   };
 
+  const handleButtonPressFeedback = useCallback((event: React.PointerEvent<HTMLDivElement>) => {
+    const target = (event.target as HTMLElement).closest("button, [role='button']") as HTMLElement | null;
+    if (!target) return;
+    if ((target as HTMLButtonElement).disabled || target.getAttribute("aria-disabled") === "true") return;
+
+    target.classList.remove("jo-btn-clicked");
+    void target.offsetWidth;
+    target.classList.add("jo-btn-clicked");
+
+    window.setTimeout(() => {
+      target.classList.remove("jo-btn-clicked");
+    }, 180);
+  }, []);
+
   return (
-    <div className="job-order-management">
+    <div className="job-order-management" onPointerDownCapture={handleButtonPressFeedback}>
       {screenState === "main" && (
         <MainScreen
           orders={paginatedOrders}
@@ -1090,30 +1112,55 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
             setShowSuccessPopup(false);
             setLastAction("create");
           }}
-          title={lastAction === "cancel" ? t("Cancelled") : t("Created")}
+          title={lastAction === "cancel" ? t("Order Cancelled") : t("Order Created")}
+          subtitle={lastAction === "cancel" ? t("Your action was successful") : t("Your job order has been created successfully")}
           message={
             lastAction === "cancel" ? (
               <>
-                <span style={{ fontSize: "1.2rem", fontWeight: "bold", color: "#4CAF50", display: "block", marginBottom: "15px" }}>
-                  <i className="fas fa-check-circle"></i> {t("Order Cancelled Successfully!")}
-                </span>
-                <span style={{ fontSize: "1.1rem", color: "#333", display: "block", marginTop: "10px" }}>
-                  <strong>{t("Job Order ID:")}</strong>{" "}
-                  <span style={{ color: "#2196F3", fontWeight: "600" }}>{submittedOrderId}</span>
-                </span>
-                <span style={{ fontSize: "0.95rem", color: "#666", display: "block", marginTop: "8px" }}>
-                  {t("This order is now marked as Cancelled.")}
-                </span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ padding: "12px 14px", background: "linear-gradient(90deg, rgba(16,185,129,0.08) 0%, rgba(37,214,232,0.04) 100%)", borderRadius: 10, border: "1px solid rgba(16,185,129,0.2)" }}>
+                    <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "#102A68", marginBottom: 6 }}>
+                      <i className="fas fa-check-circle" style={{ color: "#10B981", marginRight: 8 }} />
+                      {t("Status")}
+                    </div>
+                    <div style={{ fontSize: "0.82rem", color: "#10B981", fontWeight: 800 }}>
+                      {t("Order Marked as Cancelled")}
+                    </div>
+                  </div>
+                  <div style={{ padding: "12px 14px", background: "#F0F4FF", borderRadius: 10, border: "1px solid #DDE7F6" }}>
+                    <div style={{ fontSize: "0.74rem", fontWeight: 700, color: "#8C9ABF", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
+                      {t("Job Order ID")}
+                    </div>
+                    <div style={{ fontSize: "0.9rem", fontWeight: 800, color: "#4E40F8", fontFamily: "monospace" }}>
+                      {submittedOrderId}
+                    </div>
+                  </div>
+                </div>
               </>
             ) : (
               <>
-                <span style={{ fontSize: "1.2rem", fontWeight: "bold", color: "#4CAF50", display: "block", marginBottom: "15px" }}>
-                  <i className="fas fa-check-circle"></i> {t("Order Created Successfully!")}
-                </span>
-                <span style={{ fontSize: "1.1rem", color: "#333", display: "block", marginTop: "10px" }}>
-                  <strong>{t("Job Order ID:")}</strong>{" "}
-                  <span style={{ color: "#2196F3", fontWeight: "600" }}>{submittedOrderId}</span>
-                </span>
+                <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                  <div style={{ padding: "12px 14px", background: "linear-gradient(90deg, rgba(16,185,129,0.08) 0%, rgba(37,214,232,0.04) 100%)", borderRadius: 10, border: "1px solid rgba(16,185,129,0.2)" }}>
+                    <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "#102A68", marginBottom: 6 }}>
+                      <i className="fas fa-check-circle" style={{ color: "#10B981", marginRight: 8 }} />
+                      {t("Status")}
+                    </div>
+                    <div style={{ fontSize: "0.82rem", color: "#10B981", fontWeight: 800 }}>
+                      {t("Successfully Created")}
+                    </div>
+                  </div>
+                  <div style={{ padding: "12px 14px", background: "#F0F4FF", borderRadius: 10, border: "1px solid #DDE7F6" }}>
+                    <div style={{ fontSize: "0.74rem", fontWeight: 700, color: "#8C9ABF", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
+                      {t("Job Order ID")}
+                    </div>
+                    <div style={{ fontSize: "0.9rem", fontWeight: 800, color: "#4E40F8", fontFamily: "monospace" }}>
+                      {submittedOrderId}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: "0.82rem", color: "#8C9ABF", fontWeight: 600, paddingTop: 6, borderTop: "1px solid #EEF2FB" }}>
+                    {t("Your order has been added to the system and is ready for processing.")}
+                  </div>
+                </div>
               </>
             )
           }
@@ -1126,27 +1173,46 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         <SuccessPopup
           isVisible={true}
           onClose={() => setShowAddServiceSuccessPopup(false)}
-          title={t("Services added")}
+          title={t("Services Added")}
+          subtitle={t("Services have been added to the job order")}
           message={
             <>
-              <span style={{ fontSize: "1.2rem", fontWeight: "bold", color: "#4CAF50", display: "block", marginBottom: "15px" }}>
-                <i className="fas fa-check-circle"></i> {t("Services Added Successfully!")}
-              </span>
-              <span style={{ fontSize: "1.05rem", color: "#333", display: "block", marginTop: "10px" }}>
-                <strong>{t("Job Order ID:")}</strong>{" "}
-                <span style={{ color: "#2196F3", fontWeight: "600" }}>{addServiceSuccessData.orderId}</span>
-              </span>
-              <span style={{ fontSize: "1.05rem", color: "#333", display: "block", marginTop: "8px" }}>
-                <strong>{t("New Invoice ID:")}</strong>{" "}
-                <span style={{ color: "#27ae60", fontWeight: "600" }}>{addServiceSuccessData.invoiceId}</span>
-              </span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+                <div style={{ padding: "12px 14px", background: "linear-gradient(90deg, rgba(16,185,129,0.08) 0%, rgba(37,214,232,0.04) 100%)", borderRadius: 10, border: "1px solid rgba(16,185,129,0.2)" }}>
+                  <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "#102A68", marginBottom: 6 }}>
+                    <i className="fas fa-check-circle" style={{ color: "#10B981", marginRight: 8 }} />
+                    {t("Status")}
+                  </div>
+                  <div style={{ fontSize: "0.82rem", color: "#10B981", fontWeight: 800 }}>
+                    {t("Services Added Successfully")}
+                  </div>
+                </div>
+                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                  <div style={{ padding: "12px 14px", background: "#F0F4FF", borderRadius: 10, border: "1px solid #DDE7F6" }}>
+                    <div style={{ fontSize: "0.74rem", fontWeight: 700, color: "#8C9ABF", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
+                      {t("Order ID")}
+                    </div>
+                    <div style={{ fontSize: "0.88rem", fontWeight: 800, color: "#4E40F8", fontFamily: "monospace", wordBreak: "break-all" }}>
+                      {addServiceSuccessData.orderId}
+                    </div>
+                  </div>
+                  <div style={{ padding: "12px 14px", background: "#ECFFF8", borderRadius: 10, border: "1px solid #A5F3FC" }}>
+                    <div style={{ fontSize: "0.74rem", fontWeight: 700, color: "#8C9ABF", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
+                      {t("Invoice ID")}
+                    </div>
+                    <div style={{ fontSize: "0.88rem", fontWeight: 800, color: "#0F766E", fontFamily: "monospace", wordBreak: "break-all" }}>
+                      {addServiceSuccessData.invoiceId}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </>
           }
           autoCloseMs={2200}
         />
       )}
 
-      {/* ✅ Error Popup */}
+      {/* âœ… Error Popup */}
       <ErrorPopup
         isVisible={errorOpen}
         onClose={() => setErrorOpen(false)}
@@ -1201,6 +1267,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
 const JobOrderRecordsTable = memo(function JobOrderRecordsTable({
   orders,
   onToggleActions,
+  activeDropdownId,
 }: any) {
   const { t } = useLanguage();
   if (orders.length === 0) {
@@ -1216,65 +1283,65 @@ const JobOrderRecordsTable = memo(function JobOrderRecordsTable({
   }
 
   return (
-    <div className="table-wrapper">
-      <table className="job-order-table">
-        <thead>
-          <tr>
-            <th>{t("Create Date")}</th>
-            <th>{t("Job Card ID")}</th>
-            <th>{t("Order Type")}</th>
-            <th>{t("Customer Name")}</th>
-            <th>{t("Mobile Number")}</th>
-            <th>{t("Vehicle Plate")}</th>
-            <th>{t("Work Status")}</th>
-            <th>{t("Payment Status")}</th>
-            <th>{t("Actions")}</th>
-          </tr>
-        </thead>
-        <tbody>
-          {orders.map((order: any) => (
-            <tr key={order.id}>
-              <td className="date-column">{order.createDate}</td>
-              <td>{order.id}</td>
-              <td>
-                <span className={`order-type-badge ${order.orderType === "New Job Order" ? "order-type-new-job" : "order-type-service"}`}>
-                  {t(order.orderType)}
-                </span>
-              </td>
-              <td>{order.customerName}</td>
-              <td>{order.mobile}</td>
-              <td>{order.vehiclePlate}</td>
-              <td>
-                <span className={`status-badge ${getWorkStatusClass(order.workStatus)}`}>{displayWorkStatusLabel(order.workStatus)}</span>
-              </td>
-              <td>
-                <span className={`status-badge ${getPaymentStatusClass(order.paymentStatus)}`}>{normalizePaymentStatusLabel(order.paymentStatus)}</span>
-              </td>
-              <td>
-                <PermissionGate moduleId="joborder" optionId="joborder_actions">
-                  <div className="action-dropdown-container">
-                    <button
-                      className="btn-action-dropdown"
-                      onMouseDown={(e: any) => {
-                        e.preventDefault();
-                        onToggleActions(order.id, e.currentTarget as HTMLElement);
-                      }}
-                      onKeyDown={(e: any) => {
-                        if (e.key === "Enter" || e.key === " ") {
+    <div className="table-wrapper customer-table-card-shell jc-job-table-shell">
+      <table className="customers-table customer-dashboard-table job-order-table jc-job-table">
+          <thead>
+            <tr>
+              <th>{t("Create Date")}</th>
+              <th>{t("Job Card ID")}</th>
+              <th>{t("Order Type")}</th>
+              <th>{t("Customer Name")}</th>
+              <th>{t("Mobile Number")}</th>
+              <th>{t("Vehicle Plate")}</th>
+              <th>{t("Work Status")}</th>
+              <th>{t("Payment Status")}</th>
+              <th>{t("Actions")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {orders.map((order: any) => (
+              <tr key={order.id}>
+                <td data-label={t("Create Date")}>{order.createDate}</td>
+                <td data-label={t("Job Card ID")}>{order.id}</td>
+                <td data-label={t("Order Type")}>
+                  <span className={`order-type-badge ${order.orderType === "New Job Order" ? "order-type-new-job" : "order-type-service"}`}>
+                    {t(order.orderType)}
+                  </span>
+                </td>
+                <td data-label={t("Customer Name")}>{order.customerName}</td>
+                <td data-label={t("Mobile Number")}>{order.mobile}</td>
+                <td data-label={t("Vehicle Plate")}>{order.vehiclePlate}</td>
+                <td data-label={t("Work Status")}>
+                  <span className={`status-badge ${getWorkStatusClass(order.workStatus)}`}>{displayWorkStatusLabel(order.workStatus)}</span>
+                </td>
+                <td data-label={t("Payment Status")}>
+                  <span className={`status-badge ${getPaymentStatusClass(order.paymentStatus)}`}>{normalizePaymentStatusLabel(order.paymentStatus)}</span>
+                </td>
+                <td data-label={t("Actions")}>
+                  <PermissionGate moduleId="joborder" optionId="joborder_actions">
+                    <div className="action-dropdown-container">
+                      <button
+                        className={`btn-action-dropdown${activeDropdownId === order.id ? " active" : ""}`}
+                        onMouseDown={(e: any) => {
                           e.preventDefault();
                           onToggleActions(order.id, e.currentTarget as HTMLElement);
-                        }
-                      }}
-                    >
-                      <i className="fas fa-cogs"></i> {t("Actions")} <i className="fas fa-chevron-down"></i>
-                    </button>
-                  </div>
-                </PermissionGate>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                        }}
+                        onKeyDown={(e: any) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            onToggleActions(order.id, e.currentTarget as HTMLElement);
+                          }
+                        }}
+                      >
+                        <i className="fas fa-cogs"></i> {t("Actions")} <i className="fas fa-chevron-down"></i>
+                      </button>
+                    </div>
+                  </PermissionGate>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
     </div>
   );
 });
@@ -1283,6 +1350,7 @@ function MainScreen({
   orders,
   searchQuery,
   onSearchChange,
+  onRefresh,
   onViewDetails,
   onNewJob,
   currentPage,
@@ -1344,109 +1412,139 @@ function MainScreen({
   }, [activeDropdown]);
 
   return (
-    <div className="app-container">
-      <header className="app-header crm-unified-header">
-        <div className="header-left">
-          <p className="jo-kicker">{t("Executive Operations")}</p>
-          <h1>
-            <i className="fas fa-tools"></i> {t("Job Order Management")}
-          </h1>
-          <p className="jo-sub">{t("Unified daily brief for service, quality, finance, and staffing.")}</p>
-        </div>
-      </header>
-
-      <main className="main-content">
-        <section className="search-section">
-          <div className="search-container">
-            <i className="fas fa-search search-icon"></i>
-            <input
-              type="text"
-              className="smart-search-input"
-              placeholder={t("Search by any details")}
-              value={searchQuery}
-              onChange={(e) => onSearchChange(e.target.value)}
-            />
-          </div>
-          <div className="search-stats">
-            {loading
-              ? t("Loading...")
-              : totalCount === 0
-              ? t("No job orders found")
-              : `${t("Showing")} ${orders.length} ${t("of")} ${totalCount} ${t("job orders")}`}
-          </div>
-        </section>
-
-        <section className="results-section">
-          <div className="section-header">
-            <h2>
-              <i className="fas fa-list"></i> {t("Job Order Records")}
-            </h2>
-            <div className="pagination-controls">
-              <div className="records-per-page">
-                <label htmlFor="pageSizeSelect">{t("Records per page:")}</label>
-                <select id="pageSizeSelect" className="page-size-select" value={pageSize} onChange={(e) => onPageSizeChange(parseInt(e.target.value))}>
-                  <option value="20">20</option>
-                  <option value="50">50</option>
-                  <option value="100">100</option>
-                </select>
+    <div className="vehicle-page customer-page customer-dashboard-shell theme-elegant-glass" id="mainScreen" style={{ background: "linear-gradient(145deg, #f8fafe 0%, #eef3ff 100%)", minHeight: "100vh" }}>
+      <main className="main-content customer-dashboard-main" style={{ padding: "16px 8px" }}>
+        <section style={{ position: "relative", overflow: "hidden", marginBottom: 10, background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)", borderRadius: 12, boxShadow: "0 10px 24px rgba(51, 84, 160, 0.08)", border: "1px solid #DDE7F6" }}>
+          <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: 0, height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)", zIndex: 2 }} />
+          <div aria-hidden="true" style={{ position: "absolute", top: -18, right: -22, height: 96, width: 202, background: "linear-gradient(to bottom left, rgba(67, 24, 255, 0.18), rgba(67, 24, 255, 0))", borderBottomLeftRadius: 999, pointerEvents: "none" }} />
+          <div aria-hidden="true" style={{ position: "absolute", right: 28, top: 26, width: 44, height: 44, borderRadius: 14, opacity: 0.35, backgroundImage: "radial-gradient(circle, rgba(116, 137, 191, 0.55) 1.4px, transparent 1.5px)", backgroundSize: "10px 10px", pointerEvents: "none" }} />
+          <div style={{ position: "relative", zIndex: 1, padding: "17px 24px 17px", display: "grid", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 17 }}>
+                <div style={{ width: 42, height: 42, borderRadius: "50%", background: "linear-gradient(180deg, #FFFFFF 0%, #EEF3FF 100%)", border: "1px solid #D8E1F7", boxShadow: "0 0 0 4px rgba(101, 92, 255, 0.08), 0 6px 14px rgba(71, 88, 180, 0.10)", display: "flex", alignItems: "center", justifyContent: "center", color: "#5D54FF" }}>
+                  <i className="fas fa-clipboard-list" style={{ fontSize: 16 }} />
+                </div>
+                <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#102A68", lineHeight: 1.15, letterSpacing: "-0.03em" }}>{t("Job Orders")}</h1>
               </div>
-              <PermissionGate moduleId="joborder" optionId="joborder_add">
-                <button className="btn-new-job" onClick={onNewJob}>
-                  <i className="fas fa-plus-circle"></i> {t("New Job Order")}
-                </button>
-              </PermissionGate>
-            </div>
-          </div>
 
-          <JobOrderRecordsTable orders={orders} onToggleActions={toggleActionDropdown} />
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <button style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid #DDE7F6", background: "#F7F9FF", color: "#5D54FF", fontSize: "0.88rem", fontWeight: 700, cursor: "pointer" }} type="button">
+                  <i className="fas fa-palette" />
+                  {t("Elegant Glass")}
+                </button>
+
+                <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                  <i className="fas fa-search" style={{ position: "absolute", left: 10, color: "#8C9ABF", fontSize: 12, pointerEvents: "none" }} />
+                  <input
+                    type="text"
+                    style={{ paddingLeft: 30, paddingRight: 12, paddingTop: 7, paddingBottom: 7, borderRadius: 8, border: "1px solid #DDE7F6", background: "#FAFBFF", color: "#102A68", fontSize: "0.88rem", fontWeight: 700, outline: "none", minWidth: 220 }}
+                    placeholder={t("Search by any job order details")}
+                    value={searchQuery}
+                    onChange={(e) => onSearchChange(e.target.value)}
+                    autoComplete="off"
+                  />
+                </div>
+
+                <button style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid #DDE7F6", background: "#F7F9FF", color: "#5D54FF", fontSize: "0.88rem", fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1 }} onClick={() => void onRefresh()} disabled={loading} type="button">
+                  <i className="fas fa-sync" /> {loading ? t("Loading...") : t("Refresh")}
+                </button>
+
+                <PermissionGate moduleId="joborder" optionId="joborder_add">
+                  <button style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 16px", borderRadius: 8, border: "none", background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)", color: "#fff", fontSize: "0.88rem", fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(78, 64, 248, 0.25)" }} onClick={onNewJob} type="button">
+                    <i className="fas fa-plus-circle" /> {t("Add New Job Order")}
+                  </button>
+                </PermissionGate>
+              </div>
+            </div>
+            <p style={{ margin: 0, marginLeft: 59, display: "inline-flex", alignItems: "center", gap: 8, fontSize: 11, color: "#8C9ABF", fontWeight: 700, letterSpacing: "0.02em", lineHeight: 1.35 }}>
+              <span aria-hidden="true" style={{ width: 2, height: 12, borderRadius: 999, background: "linear-gradient(180deg, #25D6E8 0%, #4E40F8 100%)", boxShadow: "0 0 0 2px rgba(78, 64, 248, 0.10)" }} />
+              <span style={{ color: "#7E8FB9" }}>{t("Unified daily brief for service, quality, finance, and staffing.")}</span>
+            </p>
+          </div>
         </section>
 
-        {orders.length > 0 && totalPages > 1 && (
-          <div className="pagination">
-            <button className="pagination-btn" onClick={() => onPageChange(Math.max(1, currentPage - 1))} disabled={currentPage === 1}>
-              <i className="fas fa-chevron-left"></i>
-            </button>
-            <div className="page-numbers">
-              {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-                let pageNum;
-                if (totalPages <= 5) pageNum = i + 1;
-                else {
-                  const start = Math.max(1, currentPage - 2);
-                  const end = Math.min(totalPages, start + 4);
-                  const adjustedStart = Math.max(1, end - 4);
-                  pageNum = adjustedStart + i;
-                }
-                return (
-                  <button key={pageNum} className={`pagination-btn ${pageNum === currentPage ? "active" : ""}`} onClick={() => onPageChange(pageNum)}>
-                    {pageNum}
-                  </button>
-                );
-              })}
-            </div>
-            <button className="pagination-btn" onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages}>
-              <i className="fas fa-chevron-right"></i>
-            </button>
+        <section style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, padding: "8px 4px", marginBottom: 6 }}>
+          <div style={{ fontSize: 10, color: "#8C9ABF", fontWeight: 600 }}>
+            {loading ? (
+              t("Loading job ordersâ€¦")
+            ) : totalCount === 0 ? (
+              t("No job orders found")
+            ) : (
+              <>
+                {t("Showing")} {Math.min((currentPage - 1) * pageSize + 1, totalCount)}â€“
+                {Math.min(currentPage * pageSize, totalCount)} {t("of")} <strong style={{ color: "#102A68", fontSize: "0.88rem", fontWeight: 700 }}>{totalCount}</strong> {t("job orders")}
+                {searchQuery && <span style={{ color: "#5D54FF" }}> {`(${t("Filtered by:")}: "${searchQuery}")`}</span>}
+              </>
+            )}
           </div>
-        )}
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+            <label htmlFor="pageSizeSelect" style={{ fontSize: 10, color: "#8C9ABF", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.09em" }}>{t("Records per page:")}</label>
+            <select
+              id="pageSizeSelect"
+              style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #DDE7F6", background: "#FAFBFF", color: "#112A6D", fontSize: "0.88rem", fontWeight: 700, outline: "none" }}
+              value={pageSize}
+              onChange={(e) => onPageSizeChange(parseInt(e.target.value, 10))}
+            >
+              <option value="20">20</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+        </section>
+
+        <section style={{ position: "relative", background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)", borderRadius: 12, boxShadow: "0 10px 24px rgba(51, 84, 160, 0.08)", border: "1px solid #DDE7F6", overflow: "hidden", marginBottom: 6 }}>
+          <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: 0, height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)", zIndex: 2 }} />
+          <div style={{ paddingTop: 4 }}>
+            <JobOrderRecordsTable orders={orders} onToggleActions={toggleActionDropdown} activeDropdownId={activeDropdown} />
+
+            {orders.length > 0 && totalPages > 1 && (
+              <div className="pagination" style={{ borderTop: "1px solid #E4ECF7", padding: "10px 0 4px" }}>
+                <button className="pagination-btn" onClick={() => onPageChange(Math.max(1, currentPage - 1))} disabled={currentPage === 1}>
+                  <i className="fas fa-chevron-left" />
+                </button>
+                <div className="page-numbers">
+                  {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                    let pageNum: number;
+                    if (totalPages <= 5) pageNum = i + 1;
+                    else {
+                      const start = Math.max(1, currentPage - 2);
+                      const end = Math.min(totalPages, start + 4);
+                      const adjustedStart = Math.max(1, end - 4);
+                      pageNum = adjustedStart + i;
+                    }
+                    if (pageNum > totalPages) return null;
+                    return (
+                      <button key={pageNum} className={`pagination-btn ${pageNum === currentPage ? "active" : ""}`} onClick={() => onPageChange(pageNum)}>
+                        {pageNum}
+                      </button>
+                    );
+                  })}
+                </div>
+                <button className="pagination-btn" onClick={() => onPageChange(Math.min(totalPages, currentPage + 1))} disabled={currentPage === totalPages}>
+                  <i className="fas fa-chevron-right" />
+                </button>
+              </div>
+            )}
+          </div>
+        </section>
       </main>
 
       <footer className="app-footer">
-        <p>{t("Service Management System © 2023 | Job Order Management Module")}</p>
+        <p>{t("Service Management System Â© 2023 | Job Order Management Module")}</p>
       </footer>
 
       {typeof document !== "undefined" &&
         createPortal(
           <div
             className={`action-dropdown-menu show action-dropdown-menu-fixed ${activeDropdown ? "open" : "closed"}`}
-            style={
-              activeDropdown
-                ? { top: `${dropdownPosition.top}px`, left: `${dropdownPosition.left}px` }
-                : { top: "-9999px", left: "-9999px" }
-            }
+            style={activeDropdown ? { position: "fixed", top: `${dropdownPosition.top}px`, left: `${dropdownPosition.left}px`, zIndex: 10050, minWidth: 230, background: "#FFFFFF", border: "1px solid #DDE7F6", borderRadius: 10, boxShadow: "0 18px 32px rgba(28, 45, 94, 0.18)", padding: 6 } : { top: "-9999px", left: "-9999px" }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
           >
             <PermissionGate moduleId="joborder" optionId="joborder_viewdetails">
               <button
                 className="dropdown-item view"
+                type="button"
                 onClick={() => {
                   if (!activeDropdown) return;
                   const targetOrder = ordersById.get(String(activeDropdown));
@@ -1454,6 +1552,7 @@ function MainScreen({
                   activeDropdownRef.current = null;
                   setActiveDropdown(null);
                 }}
+                style={{ width: "100%", border: "none", background: "transparent", color: "#2A3B66", fontSize: "0.84rem", fontWeight: 600, padding: "9px 10px", borderRadius: 8, display: "flex", alignItems: "center", gap: 8, cursor: "pointer", textAlign: "left" }}
               >
                 <i className="fas fa-eye"></i> {t("View Details")}
               </button>
@@ -1461,15 +1560,17 @@ function MainScreen({
 
             <PermissionGate moduleId="joborder" optionId="joborder_cancel">
               <>
-                <div className="dropdown-divider"></div>
+                <div className="dropdown-divider" style={{ height: 1, background: "#E6ECF8", margin: "4px 6px" }}></div>
                 <button
                   className="dropdown-item delete"
+                  type="button"
                   onClick={() => {
                     if (!activeDropdown) return;
                     if (activeDropdown) onCancelOrder(activeDropdown);
                     activeDropdownRef.current = null;
                     setActiveDropdown(null);
                   }}
+                  style={{ width: "100%", border: "none", background: "transparent", color: "#D14343", fontSize: "0.84rem", fontWeight: 700, padding: "9px 10px", borderRadius: 8, display: "flex", alignItems: "center", gap: 8, cursor: "pointer", textAlign: "left" }}
                 >
                   <i className="fas fa-times-circle"></i> {t("Cancel Order")}
                 </button>
@@ -1485,82 +1586,112 @@ function MainScreen({
 // ============================================
 // DETAILS SCREEN
 // ============================================
-function DetailsScreen({ order, onClose, onAddService, currentUser, actorMap }: any) {
+function DetailsScreen({ order, onClose, onAddService, currentUser: _currentUser, actorMap }: any) {
   const { t } = useLanguage();
+  const displayOrderId = joFirst(order?.id, order?.orderNumber, order?.jobOrderId, "JO-000000");
+  const displayWorkStatus = displayWorkStatusLabel(order?.workStatus);
+  const displayCreateDate = joFirst(order?.createDate, order?.createdAt, order?.createdDate, "N/A");
+  const createdByDisplay = resolveCreatedBy(order, actorMap);
+
   return (
-<div className="pim-details-screen jo-details-v3">
-      <div className="pim-details-header">
-        <div className="pim-details-title-container">
-          <h2>
-            <i className="fas fa-clipboard-list"></i> {t("Job Order Details")} - {order.id}
-          </h2>
+    <div style={{ background: "linear-gradient(145deg, #f8fafe 0%, #eef3ff 100%)", minHeight: "100vh" }}>
+      {/* â”€â”€ Page Header â”€â”€ */}
+      <div style={{ position: "relative", background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)", borderBottom: "1px solid #DDE7F6", padding: "0 0 0", marginBottom: 0, boxShadow: "0 4px 18px rgba(51,84,160,0.07)" }}>
+        <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: 0, height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)", zIndex: 2 }} />
+        <div style={{ maxWidth: 1560, margin: "0 auto", padding: "16px 8px" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+            {/* Back */}
+            <button
+              onClick={onClose}
+              type="button"
+              style={{ display: "flex", alignItems: "center", gap: 7, border: "1px solid #DDE7F6", background: "#F7F9FF", color: "#5D54FF", fontWeight: 800, borderRadius: 9, padding: "8px 16px", cursor: "pointer", fontSize: "0.84rem" }}
+            >
+              <i className="fas fa-chevron-left" style={{ fontSize: 11 }} />
+              {t("Back to Job Cards")}
+            </button>
+
+            {/* Title center */}
+            <div style={{ flex: 1, minWidth: 200, textAlign: "center" }}>
+              <h1 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 800, color: "#102A68", letterSpacing: "0.01em" }}>{displayOrderId}</h1>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginTop: 5 }}>
+                <span className={`status-badge ${getWorkStatusClass(order?.workStatus)}`} style={{ fontSize: "0.78rem", fontWeight: 800 }}>{displayWorkStatus}</span>
+                <span style={{ fontSize: "0.78rem", color: "#8C9ABF", fontWeight: 600 }}>{t("Created")}: {displayCreateDate}</span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <PermissionGate moduleId="joborder" optionId="joborder_print">
+                <button
+                  type="button"
+                  onClick={() => window.print()}
+                  style={{ display: "flex", alignItems: "center", gap: 6, border: "1px solid #DDE7F6", background: "#F7F9FF", color: "#5D54FF", fontWeight: 700, borderRadius: 9, padding: "8px 14px", cursor: "pointer", fontSize: "0.82rem" }}
+                >
+                  <i className="fas fa-print" style={{ fontSize: 12 }} /> {t("Print")}
+                </button>
+              </PermissionGate>
+            </div>
+          </div>
         </div>
-        <button className="pim-btn-close-details" onClick={onClose}>
-          <i className="fas fa-times"></i> {t("Close Details")}
-        </button>
       </div>
 
-      <div className="pim-details-body">
-        <div className="pim-details-grid">
+      {/* â”€â”€ Content â”€â”€ */}
+      <div style={{ maxWidth: 1560, margin: "0 auto", padding: "16px 8px 40px" }}>
+        {/* One-column stack: each card on its own row */}
+        <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           <PermissionGate moduleId="joborder" optionId="joborder_summary">
-            <JobOrderSummaryCard order={order} currentUser={currentUser} actorMap={actorMap} className="jo-card-theme-summary" />
+            <UnifiedJobSummaryCard order={order} actorMap={actorMap} createdByOverride={createdByDisplay} />
           </PermissionGate>
+
           <PermissionGate moduleId="joborder" optionId="joborder_customer">
-            <UnifiedCustomerInfoCard order={order} className="cv-unified-card jo-card-theme-customer" />
+            <UnifiedCustomerDetailsCard order={order} />
           </PermissionGate>
+
           <PermissionGate moduleId="joborder" optionId="joborder_vehicle">
-            <UnifiedVehicleInfoCard order={order} className="cv-unified-card jo-card-theme-vehicle" />
+            <UnifiedVehicleInformationCard order={order} />
           </PermissionGate>
+
           <PermissionGate moduleId="joborder" optionId="joborder_services">
-            <ServicesCard order={order} onAddService={onAddService} />
+            <UnifiedRequestedServicesCard order={order} actorMap={actorMap} onAddService={onAddService} />
           </PermissionGate>
-          <PermissionGate moduleId="joborder" optionId="joborder_billing">
-            <BillingCard order={order} className="jo-card-theme-billing" />
-          </PermissionGate>
-          
-          {/* ✅ NEW: Quality Check Card */}
-          {order.qualityCheck && (
-            <PermissionGate moduleId="joborder" optionId="joborder_quality">
-              <QualityCheckCard order={order} />
-            </PermissionGate>
-          )}
-          
-          {/* ✅ NEW: Delivery Tracking Card */}
-          {order.deliveryInfo && (
-            <PermissionGate moduleId="joborder" optionId="joborder_delivery">
-              <DeliveryTrackingCard order={order} />
-            </PermissionGate>
-          )}
-          
+
+          <UnifiedBillingInvoicesCard order={order} />
+          <UnifiedDocumentsCard order={order} />
+          <UnifiedQualityChecklistCard order={order} actorMap={actorMap} />
+          <UnifiedDeliveryTimeTrackingCard order={order} />
+          <UnifiedJobOrderRoadmapCard order={order} actorMap={actorMap} />
         </div>
 
-        {/* Roadmap Timeline - Full Width */}
-        <PermissionGate moduleId="joborder" optionId="joborder_roadmap">
-          <RoadmapCard order={order} currentUser={currentUser} actorMap={actorMap} />
-        </PermissionGate>
-
-        {/* ✅ Documents (Billing docs if available) - Full Width at bottom */}
-<PermissionGate moduleId="joborder" optionId="joborder_documents">
-  <JobOrderDocumentsCard order={order} />
-</PermissionGate>
+        {/* Keep legacy wrappers type-checked until all modules migrate to unified cards. */}
+        {false && (
+          <>
+            <JobOrderSummaryCard order={order} actorMap={actorMap} className="" />
+            <ServicesCard order={order} onAddService={onAddService} className="" />
+            <BillingCard order={order} className="" />
+            <JobOrderDocumentsCard order={order} className="" />
+            <QualityCheckCard order={order} className="" />
+            <DeliveryTrackingCard order={order} className="" />
+            <RoadmapCard order={order} actorMap={actorMap} className="" />
+          </>
+        )}
       </div>
     </div>
   );
 }
 
+
 // ============================================
-// NEW JOB SCREEN (unchanged UI)
+// NEW JOB SCREEN
 // ============================================
 function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }: any) {
   const client = useMemo(() => getDataClient(), []);
   const { canOption, getOptionNumber } = usePermissions();
   const { t } = useLanguage();
   const [step, setStep] = useState(1);
-  const [orderType, setOrderType] = useState<any>(null); // 'new' or 'service'
+  const [orderType, setOrderType] = useState<any>(null);
   const [customerType, setCustomerType] = useState<any>(null);
   const [customerData, setCustomerData] = useState<any>(null);
   const [vehicleData, setVehicleData] = useState<any>(null);
-
   const [selectedServices, setSelectedServices] = useState<any[]>([]);
   const [additionalServices, setAdditionalServices] = useState<any[]>([]);
   const [discountAmount, setDiscountAmount] = useState(0);
@@ -1586,38 +1717,23 @@ function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }
         if (!cancelled) setActorIdentityMap({});
       }
     })();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [client]);
 
   const formatAmount = (value: any) => `QAR ${Number(value || 0).toLocaleString()}`;
 
   const handleVehicleSelected = async (vehicleInfo: any) => {
     setVehicleData(vehicleInfo);
-
     const plate = vehicleInfo.plateNumber || vehicleInfo.license || "";
     const completed = plate ? await listCompletedOrdersByPlateNumber(plate) : [];
     setVehicleCompletedServices(completed);
-
-    if (orderType === "service" && completed.length === 0) {
-      setOrderType("new");
-    }
+    if (orderType === "service" && completed.length === 0) setOrderType("new");
   };
 
   useEffect(() => {
     if (!prefill) return;
-
-    if (prefill.customerData) {
-      setCustomerType("existing");
-      setCustomerData(prefill.customerData);
-    }
-
-    if (prefill.vehicleData) {
-      void handleVehicleSelected(prefill.vehicleData);
-    }
-
+    if (prefill.customerData) { setCustomerType("existing"); setCustomerData(prefill.customerData); }
+    if (prefill.vehicleData) { void handleVehicleSelected(prefill.vehicleData); }
     if (prefill.startStep) setStep(Math.max(1, prefill.startStep));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prefill]);
@@ -1625,309 +1741,201 @@ function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }
   const handleSubmit = async () => {
     if (isSubmitting) return;
     setIsSubmitting(true);
-
     try {
-    const now = new Date();
-    const year = now.getFullYear();
-    const authEmail = resolveAuthenticatedEmail(currentUser);
-    const jobOrderId = `JO-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
-
-    const customerName = String(
-      customerData?.name ??
-        customerData?.displayName ??
-        customerData?.fullName ??
-        [customerData?.firstName, customerData?.lastName].filter(Boolean).join(" ")
-    ).trim();
-    const customerMobile = String(customerData?.mobile ?? customerData?.phone ?? customerData?.phoneNumber ?? "").trim();
-    const vehiclePlate = String(
-      vehicleData?.plateNumber ??
-        vehicleData?.license ??
-        vehicleData?.licensePlate ??
-        vehicleData?.plate ??
-        vehicleData?.registrationNumber ??
-        ""
-    ).trim();
-
-    const safeCustomerName = customerName || "Walk-in Customer";
-    const safeCustomerMobile = customerMobile || "N/A";
-    const safeVehiclePlate = vehiclePlate || "N/A";
-
-    const servicesToBill = orderType === "service" ? additionalServices : selectedServices;
-    const { subtotal } = summarizeServicesPricing(servicesToBill);
-    const maxAllowedDiscountAmount = (Math.max(0, subtotal) * centralDiscountPercent) / 100;
-    const discount = Math.min(
-      Math.max(0, discountAmount || 0),
-      Math.max(0, subtotal),
-      Math.max(0, maxAllowedDiscountAmount)
-    );
-    const discountPercent = subtotal > 0 ? (discount / subtotal) * 100 : 0;
-    const netAmount = subtotal - discount;
-
-    const billId = `BILL-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
-    const invoiceNumber = `INV-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
-    const actorIdentity = authEmail || resolveActorUsername(currentUser, "—");
-    const actorDisplayName = resolveCurrentActorDisplay(currentUser, actorIdentity, actorIdentityMap);
-
-    const newOrder = {
-      id: jobOrderId,
-      orderType: orderType === "service" ? "Service Order" : "New Job Order",
-      customerName: safeCustomerName,
-      mobile: safeCustomerMobile,
-      vehiclePlate: safeVehiclePlate,
-      workStatus: "New Request",
-      paymentStatus: "Unpaid",
-      createdBy: actorIdentity,
-      createdByName: actorDisplayName,
-      updatedBy: actorIdentity,
-      updatedByName: actorDisplayName,
-      createDate: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
-      jobOrderSummary: {
-        createDate: new Date().toLocaleString(),
+      const now = new Date();
+      const year = now.getFullYear();
+      const authEmail = resolveAuthenticatedEmail(currentUser);
+      const jobOrderId = `JO-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
+      const customerName = String(customerData?.name ?? customerData?.displayName ?? customerData?.fullName ?? [customerData?.firstName, customerData?.lastName].filter(Boolean).join(" ")).trim();
+      const customerMobile = String(customerData?.mobile ?? customerData?.phone ?? customerData?.phoneNumber ?? "").trim();
+      const vehiclePlate = String(vehicleData?.plateNumber ?? vehicleData?.license ?? vehicleData?.licensePlate ?? vehicleData?.plate ?? vehicleData?.registrationNumber ?? "").trim();
+      const safeCustomerName = customerName || "Walk-in Customer";
+      const safeCustomerMobile = customerMobile || "N/A";
+      const safeVehiclePlate = vehiclePlate || "N/A";
+      const servicesToBill = orderType === "service" ? additionalServices : selectedServices;
+      const { subtotal } = summarizeServicesPricing(servicesToBill);
+      const maxAllowedDiscountAmount = (Math.max(0, subtotal) * centralDiscountPercent) / 100;
+      const discount = Math.min(Math.max(0, discountAmount || 0), Math.max(0, subtotal), Math.max(0, maxAllowedDiscountAmount));
+      const discountPercent = subtotal > 0 ? (discount / subtotal) * 100 : 0;
+      const netAmount = subtotal - discount;
+      const billId = `BILL-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
+      const invoiceNumber = `INV-${year}-${String(Math.floor(Math.random() * 1000000)).padStart(6, "0")}`;
+      const actorIdentity = authEmail || resolveActorUsername(currentUser, "system");
+      const actorDisplayName = resolveCurrentActorDisplay(currentUser, actorIdentity, actorIdentityMap);
+      const newOrder = {
+        id: jobOrderId,
+        orderType: orderType === "service" ? "Service Order" : "New Job Order",
+        customerName: safeCustomerName,
+        mobile: safeCustomerMobile,
+        vehiclePlate: safeVehiclePlate,
+        workStatus: "New Request",
+        paymentStatus: "Unpaid",
         createdBy: actorIdentity,
         createdByName: actorDisplayName,
-        expectedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleString(),
-      },
-      customerDetails: {
-        customerId: customerData.id,
-        email: customerData.email,
-        address: customerData.address || null,
-        heardFrom: customerData.heardFrom || null,
-        referralPersonName: customerData.referralPersonName || null,
-        referralPersonMobile: customerData.referralPersonMobile || null,
-        socialPlatform: customerData.socialPlatform || null,
-        heardFromOtherNote: customerData.heardFromOtherNote || null,
-        registeredVehicles: `${customerData.vehicles?.length ?? customerData.registeredVehiclesCount ?? 1} vehicles`,
-        registeredVehiclesCount: customerData.vehicles?.length ?? customerData.registeredVehiclesCount ?? 1,
-        completedServicesCount: customerData.completedServicesCount ?? 0,
-        customerSince: customerData.customerSince || new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
-      },
-      vehicleDetails: {
-        vehicleId: vehicleData.vehicleId || "VEH-" + Math.floor(Math.random() * 10000),
-        ownedBy: safeCustomerName,
-        make: vehicleData.make || vehicleData.factory,
-        model: vehicleData.model,
-        year: vehicleData.year,
-        type: vehicleData.vehicleType || vehicleData.carType,
-        color: vehicleData.color,
-        plateNumber: vehicleData.plateNumber || vehicleData.license,
-        vin: vehicleData.vin || "N/A",
-        registrationDate: vehicleData.registrationDate || "N/A",
-      },
-      services:
-        orderType === "service"
-          ? additionalServices.map((s: any) => ({
-              name: s.name,
-              price: s.price || 0,
-              serviceCode: s.serviceCode || undefined,
-              catalogId: s.catalogId || undefined,
-              packageCode: s.packageCode || undefined,
-              packageName: s.packageName || undefined,
-              packagePrice: s.packagePrice || undefined,
-              specificationBrandId: s.specificationBrandId || undefined,
-              specificationBrandName: s.specificationBrandName || undefined,
-              specificationColorHex: s.specificationColorHex || undefined,
-              specificationProductId: s.specificationProductId || undefined,
-              specificationProductName: s.specificationProductName || undefined,
-              specificationMeasurement: s.specificationMeasurement || undefined,
-              status: "New",
-              started: "Not started",
-              ended: "Not completed",
-              duration: "Not started",
-              technician: "Not assigned",
-              notes: "Additional service for completed order",
-            }))
-          : selectedServices.map((s: any) => ({
-              name: s.name,
-              price: s.price || 0,
-              serviceCode: s.serviceCode || undefined,
-              catalogId: s.catalogId || undefined,
-              packageCode: s.packageCode || undefined,
-              packageName: s.packageName || undefined,
-              packagePrice: s.packagePrice || undefined,
-              specificationBrandId: s.specificationBrandId || undefined,
-              specificationBrandName: s.specificationBrandName || undefined,
-              specificationColorHex: s.specificationColorHex || undefined,
-              specificationProductId: s.specificationProductId || undefined,
-              specificationProductName: s.specificationProductName || undefined,
-              specificationMeasurement: s.specificationMeasurement || undefined,
-              status: "New",
-              started: "Not started",
-              ended: "Not completed",
-              duration: "Not started",
-              technician: "Not assigned",
-              notes: "New service request",
-            })),
-      billing: {
-        billId,
-        totalAmount: formatAmount(subtotal),
-        discount: formatAmount(discount),
-        netAmount: formatAmount(netAmount),
-        amountPaid: formatAmount(0),
-        balanceDue: formatAmount(netAmount),
-        paymentMethod: null,
-        invoices: [
-          {
+        updatedBy: actorIdentity,
+        updatedByName: actorDisplayName,
+        createDate: new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+        jobOrderSummary: {
+          createDate: new Date().toLocaleString(),
+          createdBy: actorIdentity,
+          createdByName: actorDisplayName,
+          expectedDelivery: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000).toLocaleString(),
+        },
+        customerDetails: {
+          customerId: customerData.id,
+          email: customerData.email,
+          address: customerData.address || null,
+          heardFrom: customerData.heardFrom || null,
+          referralPersonName: customerData.referralPersonName || null,
+          referralPersonMobile: customerData.referralPersonMobile || null,
+          socialPlatform: customerData.socialPlatform || null,
+          heardFromOtherNote: customerData.heardFromOtherNote || null,
+          registeredVehicles: `${customerData.vehicles?.length ?? customerData.registeredVehiclesCount ?? 1} vehicles`,
+          registeredVehiclesCount: customerData.vehicles?.length ?? customerData.registeredVehiclesCount ?? 1,
+          completedServicesCount: customerData.completedServicesCount ?? 0,
+          customerSince: customerData.customerSince || new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" }),
+        },
+        vehicleDetails: {
+          vehicleId: vehicleData.vehicleId || "VEH-" + Math.floor(Math.random() * 10000),
+          ownedBy: safeCustomerName,
+          make: vehicleData.make || vehicleData.factory,
+          model: vehicleData.model,
+          year: vehicleData.year,
+          type: vehicleData.vehicleType || vehicleData.carType,
+          color: vehicleData.color,
+          plateNumber: vehicleData.plateNumber || vehicleData.license,
+          vin: vehicleData.vin || "N/A",
+          registrationDate: vehicleData.registrationDate || "N/A",
+        },
+        services: (orderType === "service" ? additionalServices : selectedServices).map((s: any) => ({
+          name: s.name,
+          price: s.price || 0,
+          serviceCode: s.serviceCode || undefined,
+          catalogId: s.catalogId || undefined,
+          packageCode: s.packageCode || undefined,
+          packageName: s.packageName || undefined,
+          packagePrice: s.packagePrice || undefined,
+          specificationBrandId: s.specificationBrandId || undefined,
+          specificationBrandName: s.specificationBrandName || undefined,
+          specificationColorHex: s.specificationColorHex || undefined,
+          specificationProductId: s.specificationProductId || undefined,
+          specificationProductName: s.specificationProductName || undefined,
+          specificationMeasurement: s.specificationMeasurement || undefined,
+          status: "New",
+          started: "Not started",
+          ended: "Not completed",
+          duration: "Not started",
+          technician: "Not assigned",
+          notes: orderType === "service" ? "Additional service for completed order" : "New service request",
+        })),
+        billing: {
+          billId,
+          totalAmount: formatAmount(subtotal),
+          discount: formatAmount(discount),
+          netAmount: formatAmount(netAmount),
+          amountPaid: formatAmount(0),
+          balanceDue: formatAmount(netAmount),
+          paymentMethod: null,
+          invoices: [{
             number: invoiceNumber,
             amount: formatAmount(netAmount),
             discount: formatAmount(discount),
             status: "Unpaid",
             paymentMethod: null,
             services: servicesToBill.map((s: any) => getServiceDisplayName(s)),
-          },
-        ],
-      },
-      roadmap: [
-        {
-          step: "New Request",
-          stepStatus: "Active",
-          startTimestamp: new Date().toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }),
-          endTimestamp: null,
-          actionBy: actorIdentity,
-          actionByName: actorDisplayName,
-          status: "InProgress",
+          }],
         },
-        { step: "Inspection", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
-        { step: "Service_Operation", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
-        { step: "Quality Check", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
-        { step: "Ready", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
-      ],
-      inspectionResult: null,
-      deliveryQualityCheck: null,
-      exitPermit: null,
-      additionalServiceRequests: [],
-      documents: [],
-      customerNotes: orderNotes || null,
-
-      discountPercent,
-      expectedDeliveryDate,
-      expectedDeliveryTime,
-    };
-
-    await onSubmit(newOrder);
+        roadmap: [
+          { step: "New Request", stepStatus: "Active", startTimestamp: new Date().toLocaleString("en-GB", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit", hour12: true }), endTimestamp: null, actionBy: actorIdentity, actionByName: actorDisplayName, status: "InProgress" },
+          { step: "Inspection", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
+          { step: "Service_Operation", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
+          { step: "Quality Check", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
+          { step: "Ready", stepStatus: "Upcoming", startTimestamp: null, endTimestamp: null, actionBy: "Not assigned", status: "Upcoming" },
+        ],
+        inspectionResult: null,
+        deliveryQualityCheck: null,
+        exitPermit: null,
+        additionalServiceRequests: [],
+        documents: [],
+        customerNotes: orderNotes || null,
+        discountPercent,
+        expectedDeliveryDate,
+        expectedDeliveryTime,
+      };
+      await onSubmit(newOrder);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-return (
-  <div className="pim-details-screen jo-wizard-screen">
-    <div className="pim-details-header jo-wizard-header">
-      <div className="pim-details-title-container">
-        <h2>
-          <i className="fas fa-plus-circle"></i> {t("Create New Job Order")}
-        </h2>
-      </div>
-      <button className="pim-btn-close-details jo-wizard-cancel-btn" onClick={onClose}>
-        <i className="fas fa-times"></i> {t("Cancel")}
-      </button>
-    </div>
-
-    <div className="pim-details-body jo-wizard-body">
-      <div className="progress-bar jo-wizard-stepper">
-        {[1, 2, 3, 4, 5].map((s) => (
-          <div key={s} className={`progress-step ${s < step ? "completed" : s === step ? "active" : ""}`}>
-            <span>{s}</span>
-            <div className="step-label">{[t("Customer"), t("Vehicle"), t("Order Type"), t("Services"), t("Confirm")][s - 1]}</div>
+  return (
+    <div className="pim-details-screen jo-wizard-screen" style={{ background: "linear-gradient(145deg, #f8fafe 0%, #eef3ff 100%)", minHeight: "100vh", padding: 0 }}>
+      <div style={{ maxWidth: 1560, margin: "0 auto", padding: "16px 8px" }}>
+        <div className="pim-details-header jo-wizard-header" style={{ position: "relative", background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)", border: "1px solid #DDE7F6", borderRadius: 14, boxShadow: "0 10px 28px rgba(51,84,160,0.10)", padding: "16px 18px", marginBottom: 16 }}>
+          <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: 0, height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)", borderTopLeftRadius: 14, borderTopRightRadius: 14 }} />
+          <div className="pim-details-title-container" style={{ paddingTop: 8 }}>
+            <h2 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 800, color: "#102A68" }}><i className="fas fa-plus-circle"></i> {t("Create New Job Order")}</h2>
           </div>
-        ))}
+          <button className="pim-btn-close-details jo-wizard-cancel-btn" onClick={onClose} style={{ border: "1px solid #DDE7F6", background: "#F7F9FF", color: "#5D54FF", fontWeight: 700, borderRadius: 9, padding: "8px 14px" }}>
+            <i className="fas fa-times"></i> {t("Cancel")}
+          </button>
+        </div>
+        <div className="pim-details-body jo-wizard-body" style={{ position: "relative", background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)", border: "1px solid #DDE7F6", borderRadius: 14, boxShadow: "0 10px 28px rgba(51,84,160,0.10)", padding: "16px 18px 22px" }}>
+          <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: 0, height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)", borderTopLeftRadius: 14, borderTopRightRadius: 14 }} />
+          <div className="progress-bar jo-wizard-stepper" style={{ display: "grid", gridTemplateColumns: "repeat(5, minmax(64px, 1fr))", gap: 10, margin: "8px 0 20px" }}>
+          {[1, 2, 3, 4, 5].map((s) => (
+            <div key={s} className={`progress-step ${s < step ? "completed" : s === step ? "active" : ""}`} style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 6 }}>
+              <span style={{ width: 36, height: 36, borderRadius: "50%", display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: "0.86rem", fontWeight: 800, color: s === step ? "#FFFFFF" : s < step ? "#FFFFFF" : "#8C9ABF", background: s === step || s < step ? "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)" : "#EEF3FF", boxShadow: s === step ? "0 8px 18px rgba(78,64,248,0.25)" : "none" }}>{s}</span>
+              <div className="step-label" style={{ fontSize: "0.72rem", fontWeight: 700, color: s === step ? "#102A68" : "#8C9ABF", textAlign: "center", lineHeight: 1.2 }}>{[t("Customer"), t("Vehicle"), t("Order Type"), t("Services"), t("Confirm")][s - 1]}</div>
+            </div>
+          ))}
+        </div>
+        {step === 1 && (
+          <StepOneCustomer customerType={customerType} setCustomerType={setCustomerType} customerData={customerData} setCustomerData={setCustomerData} onNext={() => setStep(2)} onCancel={onClose} actorUsername={actorUsername} />
+        )}
+        {step === 2 && (
+          <StepTwoVehicle vehicleData={vehicleData} setVehicleData={setVehicleData} customerData={customerData} setCustomerData={setCustomerData} onVehicleSelected={handleVehicleSelected} onNext={() => setStep(3)} onBack={() => setStep(1)} actorUsername={actorUsername} />
+        )}
+        {step === 3 && vehicleCompletedServices.length > 0 && (
+          <OrderTypeSelection vehicleCompletedServices={vehicleCompletedServices} orderType={orderType} onSelectOrderType={(type: any) => { setOrderType(type); setStep(4); }} onBack={() => setStep(2)} />
+        )}
+        {step === 3 && vehicleCompletedServices.length === 0 && (
+          <NoCompletedServicesMessage onNext={() => { setOrderType("new"); setStep(4); }} onBack={() => setStep(2)} />
+        )}
+        {step === 4 && (
+          <StepThreeServices products={products} selectedServices={orderType === "service" ? additionalServices : selectedServices} setSelectedServices={orderType === "service" ? setAdditionalServices : setSelectedServices} vehicleType={vehicleData?.carType || vehicleData?.vehicleType || "SUV"} maxDiscountPercent={centralDiscountPercent} discountAmount={discountAmount} setDiscountAmount={setDiscountAmount} orderNotes={orderNotes} setOrderNotes={setOrderNotes} expectedDeliveryDate={expectedDeliveryDate} setExpectedDeliveryDate={setExpectedDeliveryDate} expectedDeliveryTime={expectedDeliveryTime} setExpectedDeliveryTime={setExpectedDeliveryTime} onNext={() => setStep(5)} onBack={() => setStep(3)} orderType={orderType} vehicleCompletedServices={vehicleCompletedServices} />
+        )}
+          {step === 5 && (
+            <StepFourConfirm orderType={orderType} customerData={customerData} vehicleData={vehicleData} selectedServices={orderType === "service" ? additionalServices : selectedServices} maxDiscountPercent={centralDiscountPercent} discountAmount={discountAmount} orderNotes={orderNotes} expectedDeliveryDate={expectedDeliveryDate} expectedDeliveryTime={expectedDeliveryTime} isSubmitting={isSubmitting} onBack={() => setStep(4)} onSubmit={handleSubmit} />
+          )}
+        </div>
       </div>
 
-      {step === 1 && (
-        <StepOneCustomer
-          customerType={customerType}
-          setCustomerType={setCustomerType}
-          customerData={customerData}
-          setCustomerData={setCustomerData}
-          onNext={() => setStep(2)}
-          onCancel={onClose}
-          actorUsername={actorUsername}
-        />
-      )}
-
-      {step === 2 && (
-        <StepTwoVehicle
-          vehicleData={vehicleData}
-          setVehicleData={setVehicleData}
-          customerData={customerData}
-          setCustomerData={setCustomerData}
-          onVehicleSelected={handleVehicleSelected}
-          onNext={() => setStep(3)}
-          onBack={() => setStep(1)}
-          actorUsername={actorUsername}
-        />
-      )}
-
-      {step === 3 && vehicleCompletedServices.length > 0 && (
-        <OrderTypeSelection
-          vehicleCompletedServices={vehicleCompletedServices}
-          orderType={orderType}
-          onSelectOrderType={(type: any) => {
-            setOrderType(type);
-            setStep(4);
-          }}
-          onBack={() => setStep(2)}
-        />
-      )}
-
-      {step === 3 && vehicleCompletedServices.length === 0 && (
-        <NoCompletedServicesMessage
-          onNext={() => {
-            setOrderType("new");
-            setStep(4);
-          }}
-          onBack={() => setStep(2)}
-        />
-      )}
-
-      {step === 4 && (
-        <StepThreeServices
-          products={products}
-          selectedServices={orderType === "service" ? additionalServices : selectedServices}
-          setSelectedServices={orderType === "service" ? setAdditionalServices : setSelectedServices}
-          vehicleType={vehicleData?.carType || vehicleData?.vehicleType || "SUV"}
-          maxDiscountPercent={centralDiscountPercent}
-          discountAmount={discountAmount}
-          setDiscountAmount={setDiscountAmount}
-          orderNotes={orderNotes}
-          setOrderNotes={setOrderNotes}
-          expectedDeliveryDate={expectedDeliveryDate}
-          setExpectedDeliveryDate={setExpectedDeliveryDate}
-          expectedDeliveryTime={expectedDeliveryTime}
-          setExpectedDeliveryTime={setExpectedDeliveryTime}
-          onNext={() => setStep(5)}
-          onBack={() => setStep(3)}
-          orderType={orderType}
-          vehicleCompletedServices={vehicleCompletedServices}
-        />
-      )}
-
-      {step === 5 && (
-        <StepFourConfirm
-          orderType={orderType}
-          customerData={customerData}
-          vehicleData={vehicleData}
-          selectedServices={orderType === "service" ? additionalServices : selectedServices}
-          maxDiscountPercent={centralDiscountPercent}
-          discountAmount={discountAmount}
-          orderNotes={orderNotes}
-          expectedDeliveryDate={expectedDeliveryDate}
-          expectedDeliveryTime={expectedDeliveryTime}
-          isSubmitting={isSubmitting}
-          onBack={() => setStep(4)}
-          onSubmit={handleSubmit}
-        />
+      {/* Premium Loading Overlay */}
+      {isSubmitting && (
+        <div className="loading-overlay">
+          <div className="loading-container">
+            <div className="jo-create-spinner-wrapper">
+              <div className="jo-create-spinner" />
+              <div className="jo-create-pulse-ring" />
+            </div>
+            <div className="loading-text">
+              <h3>
+                {t("Creating Job Order")}
+                <span className="loading-dots">
+                  <span className="loading-dot" />
+                  <span className="loading-dot" />
+                  <span className="loading-dot" />
+                </span>
+              </h3>
+              <p>{t("Please wait while we process your order")}</p>
+            </div>
+          </div>
+        </div>
       )}
     </div>
-  </div>
-);
+  );
 }
-
-// ======================================================================
-// ✅ IMPORTANT
-// Keep the rest of your components exactly as in your current file:
-// StepOneCustomer, StepTwoVehicle, StepThreeServices, AddServiceScreen,
-// InspectionModal, StepFourConfirm, cards, utility functions, export.
-// ======================================================================
 
 // ============================================
 // CUSTOMER STEP (backend search/create)
@@ -2089,24 +2097,24 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
 
   // UI same as yours (unchanged)
   return (
-    <div className="form-card">
-      <div className="form-card-title">
+    <div className="form-card bg-white rounded-2xl border-none shadow-[0_8px_24px_rgba(112,144,176,0.12)] p-6 [&_label]:text-sm [&_label]:font-semibold [&_label]:text-[#2B3674] [&_label]:mb-2 [&_label]:block [&_input]:w-full [&_input]:bg-white [&_input]:border [&_input]:border-[#E7EDF8] [&_input]:rounded-xl [&_input]:px-4 [&_input]:py-3 [&_input]:text-sm [&_input]:text-[#2B3674] [&_input]:placeholder:text-[#A3AED0] [&_input]:focus:outline-none [&_input]:focus:ring-2 [&_input]:focus:ring-[#4318FF]/20 [&_input]:focus:border-[#4318FF] [&_input]:transition-all [&_select]:w-full [&_select]:bg-white [&_select]:border [&_select]:border-[#E7EDF8] [&_select]:rounded-xl [&_select]:px-4 [&_select]:py-3 [&_select]:text-sm [&_select]:text-[#2B3674] [&_select]:focus:outline-none [&_select]:focus:ring-2 [&_select]:focus:ring-[#4318FF]/20 [&_select]:focus:border-[#4318FF] [&_select]:transition-all">
+      <div className="form-card-title mb-6 flex items-center gap-2">
         <i className="fas fa-user"></i>
-        <h2>{t("Customer Information")}</h2>
+        <h2 className="text-lg font-bold text-[#2B3674]">{t("Customer Information")}</h2>
       </div>
       <div className="form-card-content">
-        <div className="option-selector">
-          <div className={`option-btn ${customerType === "new" ? "selected" : ""}`} onClick={() => setCustomerType("new")}>
+        <div className="option-selector grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          <div className={`option-btn rounded-xl border px-4 py-3 font-bold transition-all cursor-pointer ${customerType === "new" ? "bg-[#4318FF] text-white border-[#4318FF]" : "bg-[#F4F7FE] text-[#A3AED0] border-[#E7EDF8]"}`} onClick={() => setCustomerType("new")}>
             {t("New Customer")}
           </div>
-          <div className={`option-btn ${customerType === "existing" ? "selected" : ""}`} onClick={() => setCustomerType("existing")}>
+          <div className={`option-btn rounded-xl border px-4 py-3 font-bold transition-all cursor-pointer ${customerType === "existing" ? "bg-[#4318FF] text-white border-[#4318FF]" : "bg-[#F4F7FE] text-[#A3AED0] border-[#E7EDF8]"}`} onClick={() => setCustomerType("existing")}>
             {t("Existing Customer")}
           </div>
         </div>
 
         {customerType === "new" && !verifiedCustomer && (
           <div>
-            <div className="form-row">
+            <div className="form-row grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="form-group">
                 <label>{t("Full Name")} *</label>
                 <input value={fullName} onChange={(e) => setFullName(e.target.value)} />
@@ -2116,7 +2124,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
                 <input value={phone} onChange={(e) => setPhone(e.target.value)} />
               </div>
             </div>
-            <div className="form-row">
+            <div className="form-row grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="form-group">
                 <label>{t("Email")}</label>
                 <input value={email} onChange={(e) => setEmail(e.target.value)} type="email" placeholder={t("Optional")} />
@@ -2127,7 +2135,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
               </div>
             </div>
 
-            <div className="form-row">
+            <div className="form-row grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="form-group">
                 <label>{t("Heard of us from")} *</label>
                 <select
@@ -2150,7 +2158,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
             </div>
 
             {heardFrom === "refer_person" && (
-              <div className="form-row">
+              <div className="form-row grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="form-group">
                   <label>{t("Referred Person Name")} *</label>
                   <input value={referralPersonName} onChange={(e) => setReferralPersonName(e.target.value)} />
@@ -2163,7 +2171,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
             )}
 
             {heardFrom === "social_media" && (
-              <div className="form-row">
+              <div className="form-row grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="form-group">
                   <label>{t("Platform")} *</label>
                   <select value={socialPlatform} onChange={(e) => setSocialPlatform(e.target.value)}>
@@ -2178,7 +2186,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
             )}
 
             {heardFrom === "other" && (
-              <div className="form-row">
+              <div className="form-row grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="form-group">
                   <label>{t("Other Note")} *</label>
                   <input value={heardFromOtherNote} onChange={(e) => setHeardFromOtherNote(e.target.value)} />
@@ -2186,7 +2194,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
               </div>
             )}
             <button
-              className="btn btn-primary"
+              className="btn btn-primary bg-[#4318FF] text-white rounded-xl px-6 py-3 font-bold hover:bg-[#3A14DF] transition-all shadow-[0_8px_22px_rgba(67,24,255,0.25)]"
               onClick={() => void handleSave()}
               disabled={
                 saving ||
@@ -2300,24 +2308,24 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
                     <>
                       <div className="verified-row">
                         <span className="verified-label">{t("Referred Name")}:</span>
-                        <span className="verified-value">{verifiedCustomer.referralPersonName || "—"}</span>
+                        <span className="verified-value">{verifiedCustomer.referralPersonName || "â€”"}</span>
                       </div>
                       <div className="verified-row">
                         <span className="verified-label">{t("Referred Mobile")}:</span>
-                        <span className="verified-value">{verifiedCustomer.referralPersonMobile || "—"}</span>
+                        <span className="verified-value">{verifiedCustomer.referralPersonMobile || "â€”"}</span>
                       </div>
                     </>
                   )}
                   {String(verifiedCustomer.heardFrom ?? "") === "social_media" && (
                     <div className="verified-row">
                       <span className="verified-label">{t("Platform")}:</span>
-                      <span className="verified-value">{verifiedCustomer.socialPlatform || "—"}</span>
+                      <span className="verified-value">{verifiedCustomer.socialPlatform || "â€”"}</span>
                     </div>
                   )}
                   {String(verifiedCustomer.heardFrom ?? "") === "other" && (
                     <div className="verified-row">
                       <span className="verified-label">{t("Other Note")}:</span>
-                      <span className="verified-value">{verifiedCustomer.heardFromOtherNote || "—"}</span>
+                      <span className="verified-value">{verifiedCustomer.heardFromOtherNote || "â€”"}</span>
                     </div>
                   )}
                   <div className="verified-row">
@@ -2419,11 +2427,11 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
         )}
       </div>
 
-      <div className="action-buttons">
-        <button className="btn btn-secondary" onClick={onCancel}>
+      <div className="action-buttons mt-8 flex flex-wrap justify-end gap-3">
+        <button className="btn btn-secondary bg-white text-[#2B3674] border border-[#E7EDF8] rounded-xl px-6 py-3 font-bold hover:bg-[#F4F7FE]" onClick={onCancel}>
           {t("Cancel")}
         </button>
-        <button className="btn btn-primary" onClick={onNext} disabled={!customerData}>
+        <button className="btn btn-primary bg-[#4318FF] text-white rounded-xl px-6 py-3 font-bold hover:bg-[#3A14DF] transition-all shadow-[0_8px_22px_rgba(67,24,255,0.25)]" onClick={onNext} disabled={!customerData}>
           {t("Next: Vehicle")}
         </button>
       </div>
@@ -2443,7 +2451,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
   const [license, setLicense] = useState("");
   const [carType, setCarType] = useState("SUV");
   const [color, setColor] = useState("");
-  const [vinNumber, setVinNumber] = useState(""); // ✅ NEW manual VIN
+  const [vinNumber, setVinNumber] = useState(""); // âœ… NEW manual VIN
   const manufacturerOptions = QATAR_MANUFACTURERS;
   const modelOptions = useMemo(() => getModelsByManufacturer(factory), [factory]);
   const colorOptions = VEHICLE_COLORS;
@@ -2493,10 +2501,10 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
   };
 
   return (
-    <div className="form-card">
-      <div className="form-card-title">
+    <div className="form-card bg-white rounded-2xl border-none shadow-[0_8px_24px_rgba(112,144,176,0.12)] p-6 [&_label]:text-sm [&_label]:font-semibold [&_label]:text-[#2B3674] [&_label]:mb-2 [&_label]:block [&_input]:w-full [&_input]:bg-white [&_input]:border [&_input]:border-[#E7EDF8] [&_input]:rounded-xl [&_input]:px-4 [&_input]:py-3 [&_input]:text-sm [&_input]:text-[#2B3674] [&_input]:placeholder:text-[#A3AED0] [&_input]:focus:outline-none [&_input]:focus:ring-2 [&_input]:focus:ring-[#4318FF]/20 [&_input]:focus:border-[#4318FF] [&_input]:transition-all [&_select]:w-full [&_select]:bg-white [&_select]:border [&_select]:border-[#E7EDF8] [&_select]:rounded-xl [&_select]:px-4 [&_select]:py-3 [&_select]:text-sm [&_select]:text-[#2B3674] [&_select]:focus:outline-none [&_select]:focus:ring-2 [&_select]:focus:ring-[#4318FF]/20 [&_select]:focus:border-[#4318FF] [&_select]:transition-all">
+      <div className="form-card-title mb-6 flex items-center gap-2">
         <i className="fas fa-car"></i>
-        <h2>{t("Vehicle Information")}</h2>
+        <h2 className="text-lg font-bold text-[#2B3674]">{t("Vehicle Information")}</h2>
       </div>
       <div className="form-card-content">
         {hasVehicles && !showNewVehicleForm && !vehicleData && (
@@ -2552,7 +2560,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
               </button>
             )}
 
-            <div className="form-row">
+            <div className="form-row grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="form-group">
                 <label>{t("Manufacturer")} *</label>
                 <select value={factory} onChange={(e) => setFactory(e.target.value)}>
@@ -2576,7 +2584,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
               </div>
             </div>
 
-            <div className="form-row">
+            <div className="form-row grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="form-group">
                 <label>{t("Year")} *</label>
                 <select value={year} onChange={(e) => setYear(e.target.value)}>
@@ -2593,8 +2601,8 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
               </div>
             </div>
 
-            {/* ✅ NEW ROW: VIN + Vehicle Type */}
-            <div className="form-row">
+            {/* âœ… NEW ROW: VIN + Vehicle Type */}
+            <div className="form-row grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="form-group">
                 <label>{t("VIN Number")}</label>
                 <input
@@ -2616,7 +2624,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
               </div>
             </div>
 
-            <div className="form-row">
+            <div className="form-row grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="form-group">
                 <label>{t("Color")} *</label>
                 <select value={color} onChange={(e) => setColor(e.target.value)}>
@@ -2631,7 +2639,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
             </div>
 
             <button
-              className="btn btn-success"
+              className="btn btn-success bg-[#4318FF] text-white rounded-xl px-6 py-3 font-bold hover:bg-[#3A14DF] transition-all shadow-[0_8px_22px_rgba(67,24,255,0.25)]"
               onClick={() => void handleSaveNewVehicle()}
               disabled={!(factory && model && year && license && carType && color)}
             >
@@ -2679,11 +2687,11 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
         )}
       </div>
 
-      <div className="action-buttons">
-        <button className="btn btn-secondary" onClick={onBack}>
+      <div className="action-buttons mt-8 flex flex-wrap justify-end gap-3">
+        <button className="btn btn-secondary bg-white text-[#2B3674] border border-[#E7EDF8] rounded-xl px-6 py-3 font-bold hover:bg-[#F4F7FE]" onClick={onBack}>
           {t("Back")}
         </button>
-        <button className="btn btn-primary" onClick={onNext} disabled={!vehicleData}>
+        <button className="btn btn-primary bg-[#4318FF] text-white rounded-xl px-6 py-3 font-bold hover:bg-[#3A14DF] transition-all shadow-[0_8px_22px_rgba(67,24,255,0.25)]" onClick={onNext} disabled={!vehicleData}>
           {t("Next: Services")}
         </button>
       </div>
@@ -2826,7 +2834,7 @@ function StepThreeServices({
       setPendingSpecificationProduct(catalogProduct);
       return;
     }
-    // No spec flow — add directly as complimentary (price 0)
+    // No spec flow â€” add directly as complimentary (price 0)
     setSelectedServices(
       dedupeSelectedServices([
         ...selectedServices,
@@ -2926,15 +2934,15 @@ function StepThreeServices({
   const total = subtotal - discount;
 
   return (
-    <div className="form-card">
-      <div className="form-card-title">
+    <div className="form-card jo-services-premium-card bg-white rounded-2xl border-none shadow-[0_8px_24px_rgba(112,144,176,0.12)] p-6 [&_label]:text-sm [&_label]:font-semibold [&_label]:text-[#2B3674] [&_label]:mb-2 [&_label]:block [&_textarea]:w-full [&_textarea]:bg-white [&_textarea]:border [&_textarea]:border-[#E7EDF8] [&_textarea]:rounded-xl [&_textarea]:px-4 [&_textarea]:py-3 [&_textarea]:text-sm [&_textarea]:text-[#2B3674] [&_textarea]:placeholder:text-[#A3AED0] [&_textarea]:focus:outline-none [&_textarea]:focus:ring-2 [&_textarea]:focus:ring-[#4318FF]/20 [&_textarea]:focus:border-[#4318FF] [&_textarea]:transition-all [&_input]:bg-white [&_input]:border [&_input]:border-[#E7EDF8] [&_input]:rounded-xl [&_input]:px-3 [&_input]:py-2 [&_input]:text-sm [&_input]:text-[#2B3674]">
+      <div className="form-card-title mb-6 flex items-center gap-2">
         <i className="fas fa-concierge-bell"></i>
-        <h2>{t("Services Selection")}</h2>
+        <h2 className="text-lg font-bold text-[#2B3674]">{t("Services Selection")}</h2>
       </div>
 
-      <div className="form-card-content">
+      <div className="form-card-content jo-services-premium-content">
 
-        {/* ── COMPLETED SERVICES MODE (service order + completed history) ── */}
+        {/* â”€â”€ COMPLETED SERVICES MODE (service order + completed history) â”€â”€ */}
         {useCompletedPool ? (
           <>
             <div className="jo-completed-svc-banner">
@@ -3098,7 +3106,7 @@ function StepThreeServices({
             </div>
           </>
         ) : (
-          /* ── CATALOG MODE (new order or no completed services) ── */
+          /* â”€â”€ CATALOG MODE (new order or no completed services) â”€â”€ */
           <>
             <p>{t("Select services for")} {vehicleType}:</p>
 
@@ -3194,47 +3202,47 @@ function StepThreeServices({
           </>
         )}
 
-        <div style={{ marginTop: "20px" }}>
-          <label style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "#333" }}>
-            <i className="fas fa-sticky-note" style={{ marginRight: "8px" }}></i>
+        <div className="jo-services-notes-block">
+          <label className="jo-services-input-label">
+            <i className="fas fa-sticky-note"></i>
             {t("Notes / Comments (Optional)")}
           </label>
           <textarea
+            className="jo-services-textarea"
             value={orderNotes}
             onChange={(e) => setOrderNotes(e.target.value)}
             placeholder={t("Add any special instructions, notes, or comments for this order...")}
             rows={4}
-            style={{ width: "100%", padding: "12px", border: "1px solid #ddd", borderRadius: "8px", fontSize: "14px", fontFamily: "inherit", resize: "vertical", boxSizing: "border-box" }}
           />
         </div>
 
-        <div style={{ marginTop: "20px" }}>
-          <label style={{ display: "block", marginBottom: "8px", fontWeight: "500", color: "#333" }}>
-            <i className="fas fa-calendar-check" style={{ marginRight: "8px" }}></i>
+        <div className="jo-services-delivery-block">
+          <label className="jo-services-input-label">
+            <i className="fas fa-calendar-check"></i>
             {t("Expected Delivery Date & Time")}
           </label>
-          <div style={{ display: "flex", gap: "12px" }}>
-            <div style={{ flex: 1 }}>
+          <div className="jo-services-datetime-grid">
+            <div>
               <input
+                className="jo-services-input"
                 type="date"
                 value={expectedDeliveryDate}
                 onChange={(e) => setExpectedDeliveryDate(e.target.value)}
                 min={new Date().toISOString().split("T")[0]}
-                style={{ width: "100%", padding: "12px", border: "1px solid #ddd", borderRadius: "8px", fontSize: "14px", boxSizing: "border-box" }}
               />
             </div>
-            <div style={{ flex: 1 }}>
+            <div>
               <input
+                className="jo-services-input"
                 type="time"
                 value={expectedDeliveryTime}
                 onChange={(e) => setExpectedDeliveryTime(e.target.value)}
-                style={{ width: "100%", padding: "12px", border: "1px solid #ddd", borderRadius: "8px", fontSize: "14px", boxSizing: "border-box" }}
               />
             </div>
           </div>
         </div>
 
-        <div className="price-summary-box">
+        <div className="price-summary-box jo-services-price-summary">
           <h4>{t("Price Summary")}</h4>
           <div className="price-row">
             <span>{packageCount > 0 ? t("Packages & Services:") : t("Services:")}</span>
@@ -3293,11 +3301,11 @@ function StepThreeServices({
         </div>
       </div>
 
-      <div className="action-buttons">
-        <button className="btn btn-secondary" onClick={onBack}>
+      <div className="action-buttons mt-8 flex flex-wrap justify-end gap-3">
+        <button className="btn btn-secondary bg-white text-[#2B3674] border border-[#E7EDF8] rounded-xl px-6 py-3 font-bold hover:bg-[#F4F7FE]" onClick={onBack}>
           {t("Back")}
         </button>
-        <button className="btn btn-primary" onClick={onNext} disabled={selectedServices.length === 0 || (!useCompletedPool && products.length === 0)}>
+        <button className="btn btn-primary bg-[#4318FF] text-white rounded-xl px-6 py-3 font-bold hover:bg-[#3A14DF] transition-all shadow-[0_8px_22px_rgba(67,24,255,0.25)]" onClick={onNext} disabled={selectedServices.length === 0 || (!useCompletedPool && products.length === 0)}>
           {t("Next: Confirm")}
         </button>
       </div>
@@ -3404,20 +3412,41 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
   const total = subtotal - discount;
 
   return (
-<div className="pim-details-screen jo-details-v3">
-      <div className="pim-details-header">
-        <div className="pim-details-title-container">
-          <h2>
-            <i className="fas fa-plus-circle"></i> {t("Add Services to Job Order")}
-          </h2>
-        </div>
-        <button className="pim-btn-close-details" onClick={onClose}>
-          <i className="fas fa-times"></i> {t("Cancel")}
-        </button>
-      </div>
+    <div className="pim-details-screen customer-details-screen dashboard-customer-details-bg customer-details-exact theme-elegant-glass jc-skin jo-details-v3" style={{ background: "linear-gradient(145deg, #f8fafe 0%, #eef3ff 100%)", minHeight: "100vh", padding: 0 }}>
+      <div style={{ maxWidth: 1560, margin: "0 auto", padding: "16px 8px 32px" }}>
+        <section style={{ position: "relative", overflow: "hidden", marginBottom: 14, background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)", borderRadius: 12, boxShadow: "0 10px 24px rgba(51, 84, 160, 0.08)", border: "1px solid #DDE7F6" }}>
+          <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: 0, height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)", zIndex: 2 }} />
+          <div aria-hidden="true" style={{ position: "absolute", top: -18, right: -22, height: 96, width: 202, background: "linear-gradient(to bottom left, rgba(67, 24, 255, 0.18), rgba(67, 24, 255, 0))", borderBottomLeftRadius: 999, pointerEvents: "none" }} />
+          <div style={{ position: "relative", zIndex: 1, padding: "17px 24px 17px", display: "grid", gap: 8 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <button onClick={onClose} type="button" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid #DDE7F6", background: "#F7F9FF", color: "#5D54FF", fontSize: "0.88rem", fontWeight: 700, cursor: "pointer" }}>
+                <i className="fas fa-arrow-left"></i> {t("Back to Job Order")}
+              </button>
+              <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <button type="button" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid #DDE7F6", background: "#F7F9FF", color: "#5D54FF", fontSize: "0.88rem", fontWeight: 700, cursor: "pointer" }}>
+                  <i className="fas fa-palette"></i>
+                  {t("Elegant Glass")}
+                </button>
+                <button onClick={onClose} type="button" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid #DDE7F6", background: "#F7F9FF", color: "#5D54FF", fontSize: "0.88rem", fontWeight: 700, cursor: "pointer" }}>
+                  <i className="fas fa-times"></i> {t("Cancel")}
+                </button>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: 17, flexWrap: "wrap" }}>
+              <div style={{ width: 42, height: 42, borderRadius: "50%", background: "linear-gradient(180deg, #FFFFFF 0%, #EEF3FF 100%)", border: "1px solid #D8E1F7", boxShadow: "0 0 0 4px rgba(101, 92, 255, 0.08), 0 6px 14px rgba(71, 88, 180, 0.10)", display: "flex", alignItems: "center", justifyContent: "center", color: "#5D54FF" }}>
+                <i className="fas fa-concierge-bell" style={{ fontSize: 16 }} />
+              </div>
+              <div>
+                <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#102A68", lineHeight: 1.15, letterSpacing: "-0.03em" }}>{t("Add Services to Job Order")}</h1>
+                <p style={{ margin: "4px 0 0", fontSize: "0.84rem", color: "#8C9ABF", fontWeight: 600 }}>{order?.id || ""}</p>
+              </div>
+            </div>
+          </div>
+        </section>
 
-      <div className="pim-details-body">
-        <div className="form-card">
+        <div className="pim-details-body customer-details-body">
+          <div className="form-card customer-details-card customer-details-card--wide" style={{ position: "relative", background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)", border: "1px solid #DDE7F6", borderRadius: 14, boxShadow: "0 10px 28px rgba(51, 84, 160, 0.10)", overflow: "hidden", padding: "18px 20px 20px" }}>
+          <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: 0, height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)" }} />
           <div className="form-card-title">
             <i className="fas fa-concierge-bell"></i>
             <h2>{t("Services Selection")}</h2>
@@ -3550,7 +3579,7 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
                 </div>
               </PermissionGate>
               {noRemainingDiscountAllowance ? (
-                <div style={{ marginTop: 8, fontSize: 12, color: "#b91c1c", fontWeight: 600 }}>
+                <div className="jo-services-discount-warning">
                   {t("No additional discount can be applied. The order has already reached the role policy discount limit.")}
                 </div>
               ) : null}
@@ -3590,6 +3619,7 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
             )}
           </div>
         </div>
+      </div>
       </div>
     </div>
   );
@@ -3668,16 +3698,16 @@ function StepFourConfirm({
       vehicleData?.vehicleDetails?.id ??
       vehicleData?.vehicleId ??
       ""
-    ).trim() || "—";
+    ).trim() || "â€”";
   const plate = vehicleData?.plateNumber || vehicleData?.license || "N/A";
   const vin = vehicleData?.vin || "Not provided";
 
 
   return (
-    <div className="form-card confirm-review-card">
-      <div className="form-card-title">
+    <div className="form-card confirm-review-card bg-white rounded-2xl border-none shadow-[0_8px_24px_rgba(112,144,176,0.12)] p-6">
+      <div className="form-card-title mb-6 flex items-center gap-2">
         <i className="fas fa-check-circle"></i>
-        <h2>{t("Order Confirmation")}</h2>
+        <h2 className="text-lg font-bold text-[#2B3674]">{t("Order Confirmation")}</h2>
       </div>
 
       <div className="form-card-content">
@@ -3689,7 +3719,7 @@ function StepFourConfirm({
               <div>
                 <div className="jo-confirm-strip-title">{orderType === "service" ? t("Service Order") : t("New Job Order")}</div>
                 <div className="jo-confirm-strip-subtitle">
-                  {[vehicleData?.make, vehicleData?.model].filter(Boolean).join(" ")} {plate ? `• ${plate}` : ""}
+                  {[vehicleData?.make, vehicleData?.model].filter(Boolean).join(" ")} {plate ? `â€¢ ${plate}` : ""}
                 </div>
               </div>
             </div>
@@ -3921,11 +3951,11 @@ function StepFourConfirm({
         )}
       </div>
 
-      <div className="action-buttons confirm-action-buttons">
-        <button className="btn btn-secondary" onClick={onBack} disabled={isSubmitting}>
+      <div className="action-buttons confirm-action-buttons mt-8 flex flex-wrap justify-end gap-3">
+        <button className="btn btn-secondary bg-white text-[#2B3674] border border-[#E7EDF8] rounded-xl px-6 py-3 font-bold hover:bg-[#F4F7FE]" onClick={onBack} disabled={isSubmitting}>
           {t("Back")}
         </button>
-        <button className="btn btn-primary" onClick={onSubmit} disabled={isSubmitting}>
+        <button className="btn btn-primary bg-[#4318FF] text-white rounded-xl px-6 py-3 font-bold hover:bg-[#3A14DF] transition-all shadow-[0_8px_22px_rgba(67,24,255,0.25)]" onClick={onSubmit} disabled={isSubmitting}>
           {isSubmitting ? (
             <>
               <i className="fas fa-spinner fa-spin" style={{ marginRight: 8 }}></i>
@@ -4011,7 +4041,7 @@ function resolveCompletedServiceActor(service: any): string {
   return out || "Not assigned";
 }
 
-function ServicesCard({ order, onAddService }: any) {
+function ServicesCard({ order, onAddService, className = "" }: any) {
   const { t } = useLanguage();
   const serviceProgress = (() => {
     const services = Array.isArray(order?.services) ? order.services : [];
@@ -4034,94 +4064,83 @@ function ServicesCard({ order, onAddService }: any) {
   })();
   
   return (
-    <div className="pim-detail-card jo-card-theme-services" style={{ gridColumn: 'span 12' }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "15px" }}>
-        <div style={{ flex: 1 }}>
-          <h3 style={{ margin: '0 0 12px 0' }}>
-            <i className="fas fa-tasks"></i> {t("Services Summary")} ({order.services?.length || 0})
-          </h3>
-          {/* ✅ NEW: Service Progress Bar */}
-          {serviceProgress.progress && (
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-              <div style={{ flex: 1, minHeight: '8px' }}>
-                <div className="epm-progress-bar" style={{ height: '8px' }}>
-                  <div 
-                    className="epm-progress-fill" 
-                    style={{ width: `${serviceProgress.progress.percent}%`, height: '100%' }}
-                  ></div>
-                </div>
-              </div>
-              <span className="epm-progress-text" style={{ fontSize: '12px', color: '#666' }}>
-                {serviceProgress.progress.label}
-              </span>
-            </div>
-          )}
-        </div>
+    <div className={`pim-detail-card customer-details-card ${className}`.trim()}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', marginBottom: '12px' }}>
+        <h3 className="customer-details-card-title" style={{ margin: 0 }}>
+          <i className="fas fa-tasks"></i> {t("Services Summary")} ({order.services?.length || 0})
+        </h3>
         <PermissionGate moduleId="joborder" optionId="joborder_addservice">
-          <button className="btn-add-service" onClick={onAddService} style={{ padding: "8px 16px", fontSize: "14px" }}>
+          <button className="btn-add-service" onClick={onAddService} style={{ whiteSpace: 'nowrap', padding: '8px 14px', fontSize: '13px', background: '#0891b2', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '6px' }}>
             <i className="fas fa-plus-circle"></i> {t("Add Service")}
           </button>
         </PermissionGate>
       </div>
+
+      {serviceProgress.progress && (
+        <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ flex: 1, height: '6px', background: '#E5E7EB', borderRadius: '3px', overflow: 'hidden' }}>
+            <div style={{ width: `${serviceProgress.progress.percent}%`, height: '100%', background: '#05CD99', transition: 'width 0.3s' }}></div>
+          </div>
+          <span style={{ fontSize: '12px', color: '#A3AED0', fontWeight: '600', whiteSpace: 'nowrap' }}>{serviceProgress.progress.label}</span>
+        </div>
+      )}
 
       <div className="pim-services-list">
         {order.services && order.services.length > 0 ? (
           groupServicesByPackage(order.services).map((group: any) => (
             <Fragment key={group.key}>
               {group.packageTitle && (
-                <div className="jo-package-group-header-block">
-                  <div className="jo-package-group-header-content" data-no-translate="true" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
-                    <span>
-                      <i className="fas fa-box-open jo-package-group-icon" aria-hidden="true"></i>
-                      {group.packageTitle}
-                    </span>
-                    <span style={{ fontWeight: 800 }}>{`QAR ${(group.packagePrice ?? 0).toLocaleString()}`}</span>
-                  </div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: '12px 0', borderBottom: '1px solid #F1F4FA', marginBottom: '8px' }}>
+                  <span style={{ fontWeight: '600', color: '#2B3674' }}>
+                    <i className="fas fa-box-open" style={{ marginRight: '8px', color: '#A3AED0' }}></i>
+                    {group.packageTitle}
+                  </span>
+                  <span style={{ fontWeight: '700', color: '#2B3674' }}>{`QAR ${(group.packagePrice ?? 0).toLocaleString()}`}</span>
                 </div>
               )}
               {group.items.map((service: any, idx: number) => (
-                <div key={`${group.key}-${idx}`} className="pim-service-item">
-                  <div className="pim-service-header">
-                    <span className="pim-service-name" data-no-translate="true">{getServiceDisplayName(service)}</span>
-                    <span className="pim-service-price">
+                <div key={`${group.key}-${idx}`} style={{ paddingBottom: '12px', borderBottom: '1px solid #F1F4FA', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                    <span style={{ fontWeight: '600', color: '#2B3674' }} data-no-translate="true">{getServiceDisplayName(service)}</span>
+                    <span style={{ fontSize: '13px', color: '#A3AED0' }}>
                       {group.packageTitle ? t("Included in package") : service.price ? `QAR ${service.price.toLocaleString()}` : t("N/A")}
                     </span>
                   </div>
-                  <div className="pim-service-meta">
+                  <div style={{ display: 'grid', gap: '6px', fontSize: '13px' }}>
                     {getServiceSpecificationLabel(service) && (
-                      <div className="pim-service-meta-row" style={{ gridColumn: 'span 2' }}>
-                        <span className="pim-service-meta-label">{t("Specification")}:</span>
-                        <div className="pim-service-meta-value">{renderServiceSpecificationBadges(service)}</div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                        <span style={{ color: '#A3AED0', fontWeight: '600' }}>{t("Specification")}:</span>
+                        <div>{renderServiceSpecificationBadges(service)}</div>
                       </div>
                     )}
-                    <div className="pim-service-meta-row">
-                      <span className="pim-service-meta-label">{t("Status")}:</span>
-                      <span className="pim-service-meta-value">{service.status || t("N/A")}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                      <span style={{ color: '#A3AED0', fontWeight: '600' }}>{t("Status")}:</span>
+                      <span style={{ color: '#2B3674', fontWeight: '600' }}>{service.status || t("N/A")}</span>
                     </div>
-                    <div className="pim-service-meta-row">
-                      <span className="pim-service-meta-label">{t("Technician")}:</span>
-                      <span className="pim-service-meta-value">{resolveCompletedServiceActor(service)}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                      <span style={{ color: '#A3AED0', fontWeight: '600' }}>{t("Technician")}:</span>
+                      <span style={{ color: '#2B3674', fontWeight: '600' }}>{resolveCompletedServiceActor(service)}</span>
                     </div>
                     {service.started && (
-                      <div className="pim-service-meta-row">
-                        <span className="pim-service-meta-label">{t("Started")}:</span>
-                        <span className="pim-service-meta-value">{service.started}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                        <span style={{ color: '#A3AED0', fontWeight: '600' }}>{t("Started")}:</span>
+                        <span style={{ color: '#2B3674', fontWeight: '600' }}>{service.started}</span>
                       </div>
                     )}
                     {service.ended && (
-                      <div className="pim-service-meta-row">
-                        <span className="pim-service-meta-label">{t("Ended")}:</span>
-                        <span className="pim-service-meta-value">{service.ended}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                        <span style={{ color: '#A3AED0', fontWeight: '600' }}>{t("Ended")}:</span>
+                        <span style={{ color: '#2B3674', fontWeight: '600' }}>{service.ended}</span>
                       </div>
                     )}
-                    <div className="pim-service-meta-row">
-                      <span className="pim-service-meta-label">{t("Duration")}:</span>
-                      <span className="pim-service-meta-value">{formatServiceDuration(service.started, service.ended)}</span>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                      <span style={{ color: '#A3AED0', fontWeight: '600' }}>{t("Duration")}:</span>
+                      <span style={{ color: '#2B3674', fontWeight: '600' }}>{formatServiceDuration(service.started, service.ended)}</span>
                     </div>
                     {service.notes && (
-                      <div className="pim-service-meta-row" style={{ gridColumn: 'span 2' }}>
-                        <span className="pim-service-meta-label">{t("Notes")}:</span>
-                        <span className="pim-service-meta-value">{service.notes}</span>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
+                        <span style={{ color: '#A3AED0', fontWeight: '600' }}>{t("Notes")}:</span>
+                        <span style={{ color: '#2B3674', fontWeight: '600' }}>{service.notes}</span>
                       </div>
                     )}
                   </div>
@@ -4130,12 +4149,12 @@ function ServicesCard({ order, onAddService }: any) {
             </Fragment>
           ))
         ) : (
-          <div className="empty-state" style={{ padding: "30px", margin: '0' }}>
-            <div className="empty-icon">
+          <div style={{ textAlign: "center", padding: "30px", margin: '0', color: '#A3AED0' }}>
+            <div style={{ fontSize: '32px', marginBottom: '12px' }}>
               <i className="fas fa-clipboard-list"></i>
             </div>
-            <div className="empty-text">{t("No services added yet")}</div>
-            <div className="empty-subtext">{t("Click \"Add Service\" to add services to this job order")}</div>
+            <div style={{ fontSize: '16px', color: '#2B3674', fontWeight: '600', marginBottom: '6px' }}>{t("No services added yet")}</div>
+            <div style={{ fontSize: '13px', color: '#A3AED0' }}>{t("Click \"Add Service\" to add services to this job order")}</div>
           </div>
         )}
       </div>
@@ -4144,7 +4163,34 @@ function ServicesCard({ order, onAddService }: any) {
 }
 
 function BillingCard({ order, className = "" }: any) {
-  return <UnifiedBillingInvoicesSection order={order} className={`epm-detail-card ${className}`.trim()} style={{ gridColumn: "span 12" }} />;
+  const { t } = useLanguage();
+  const billing = order?.billing || {};
+  const summaryCells = [
+    { key: "total", label: t("Total Amount"), value: joFirst(billing?.totalAmount, order?.totalAmount, "N/A") },
+    { key: "discount", label: t("Discount"), value: joFirst(billing?.discount, order?.discountAmount, "N/A") },
+    { key: "net", label: t("Net Amount"), value: joFirst(billing?.netAmount, order?.netAmount, "N/A") },
+    { key: "payment", label: t("Payment Status"), value: normalizePaymentStatusLabel(order?.paymentStatus) },
+  ];
+
+  return (
+    <div className={`customer-details-card customer-details-card--wide bg-white rounded-2xl border-none shadow-[0_8px_24px_rgba(112,144,176,0.12)] p-6 ${className}`.trim()}>
+      <div className="mb-6 flex items-center gap-2">
+        <i className="fas fa-file-invoice-dollar text-[#2B3674]"></i>
+        <h3 className="customer-details-card-title text-lg font-bold text-[#2B3674]">{t("Billing & Invoices")}</h3>
+      </div>
+
+      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {summaryCells.map((cell) => (
+          <div key={cell.key} className="customer-details-info-row">
+            <span className="customer-details-info-label">{cell.label}</span>
+            <span className="customer-details-info-value">{joFirst(cell.value, "N/A")}</span>
+          </div>
+        ))}
+      </div>
+
+      <UnifiedBillingInvoicesSection order={order} className="customer-details-unified-billing" style={{ gridColumn: "span 12" }} />
+    </div>
+  );
 }
 
 type DocUi = {
@@ -4160,7 +4206,7 @@ type DocUi = {
   billReference?: string;
 };
 
-function JobOrderDocumentsCard({ order }: any) {
+function JobOrderDocumentsCard({ order, className = "" }: any) {
   const { t } = useLanguage();
   const docs: DocUi[] = Array.isArray(order?.documents) ? order.documents : [];
 
@@ -4181,61 +4227,67 @@ function JobOrderDocumentsCard({ order }: any) {
   };
 
   return (
-    <div className="pim-detail-card jo-docs-card jo-card-theme-docs">
-      <h3 className="jo-docs-title">
-        <span className="jo-docs-title-left">
-          <i className="fas fa-folder-open"></i> Documents ({docs.length})
-        </span>
-      </h3>
-
-      <div className="pim-card-content jo-docs-content">
-        {docs.length ? (
-          <div className="jo-docs-list">
-            {docs.map((d, idx) => {
-              const name = String(d?.name ?? "").trim() || `Document ${idx + 1}`;
-              const raw = String(d?.storagePath || d?.url || "").trim();
-              const generatedAt = docGeneratedAt(d);
-              const meta = [d?.type, d?.category, d?.paymentReference, generatedAt ? `Generated: ${generatedAt}` : ""]
-                .filter(Boolean)
-                .join(" • ");
-
-              return (
-                <div key={d?.id ?? `${name}-${idx}`} className="jo-doc-row">
-                  <div className="jo-doc-left">
-                    <div className="jo-doc-name">{name}</div>
-                    <div className="jo-doc-meta">{meta || "—"}</div>
-                  </div>
-
-                  <div className="jo-doc-actions">
-                    <PermissionGate moduleId="joborder" optionId="joborder_download">
-                      <button
-                        type="button"
-                        className="btn btn-primary jo-doc-btn"
-                        disabled={!raw}
-                        onClick={async () => {
-                          await downloadDocument(raw);
-                        }}
-                        title={!raw ? t("No file path/url available") : t("Download")}
-                      >
-                        <i className="fas fa-download" /> {t("Download")}
-                      </button>
-                    </PermissionGate>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="jo-doc-empty">{t("No documents available.")}</div>
-        )}
+    <div className={`customer-details-card customer-details-card--wide bg-white rounded-2xl border-none shadow-[0_8px_24px_rgba(112,144,176,0.12)] p-6 ${className}`.trim()}>
+      <div className="mb-6 flex items-center gap-2">
+        <i className="fas fa-folder-open text-[#2B3674]"></i>
+        <h3 className="customer-details-card-title text-lg font-bold text-[#2B3674]">{t("Documents")} ({docs.length})</h3>
       </div>
+
+      {docs.length ? (
+        <div className="flex flex-col gap-3">
+          {docs.map((d, idx) => {
+            const name = String(d?.name ?? "").trim() || `Document ${idx + 1}`;
+            const raw = String(d?.storagePath || d?.url || "").trim();
+            const generatedAt = docGeneratedAt(d);
+            const typeAndCategory = [d?.type, d?.category].filter(Boolean).join(" / ") || "N/A";
+
+            return (
+              <div key={d?.id ?? `${name}-${idx}`} className="customer-details-info-row rounded-xl border border-[#F1F4FA] p-4">
+                <div className="border-b border-[#F1F4FA] pb-3">
+                  <span className="customer-details-info-label">{t("Document")}</span>
+                  <span className="customer-details-info-value">{name}</span>
+                </div>
+                <div className="mt-3 border-b border-[#F1F4FA] pb-3">
+                  <span className="customer-details-info-label">{t("Type")}</span>
+                  <span className="customer-details-info-value">{typeAndCategory}</span>
+                </div>
+                <div className="mt-3 border-b border-[#F1F4FA] pb-3">
+                  <span className="customer-details-info-label">{t("Generated")}</span>
+                  <span className="customer-details-info-value">{joFirst(generatedAt, "N/A")}</span>
+                </div>
+                <div className="mt-3">
+                  <span className="customer-details-info-label">{t("Action")}</span>
+                  <PermissionGate moduleId="joborder" optionId="joborder_download">
+                    <button
+                      type="button"
+                      disabled={!raw}
+                      onClick={async () => {
+                        await downloadDocument(raw);
+                      }}
+                      className="mt-2 rounded-xl bg-[#4318FF] px-6 py-3 text-sm font-bold text-white transition-all hover:bg-[#3A14DF] shadow-[0_8px_22px_rgba(67,24,255,0.25)] disabled:cursor-not-allowed disabled:bg-gray-300 disabled:text-[#A3AED0]"
+                      title={!raw ? t("No file path/url available") : t("Download")}
+                    >
+                      <i className="fas fa-download mr-2" />
+                      {t("Download")}
+                    </button>
+                  </PermissionGate>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-sm font-semibold text-[#64748b]">
+          {t("No documents available.")}
+        </div>
+      )}
     </div>
   );
 }
 // ============================================
-// ✅ NEW: QUALITY CHECK CARD
+// âœ… NEW: QUALITY CHECK CARD
 // ============================================
-function QualityCheckCard({ order }: any) {
+function QualityCheckCard({ order, className = "" }: any) {
   const { t } = useLanguage();
   const services = Array.isArray(order?.services) ? order.services : [];
 
@@ -4274,36 +4326,56 @@ function QualityCheckCard({ order }: any) {
   };
 
   return (
-    <div className="pim-detail-card jo-qc-card jo-card-theme-quality">
-      <h3 className="jo-qc-heading">
-        <span className="jo-qc-title-dot" aria-hidden="true"></span>
-        {t("Quality Check List")}
-      </h3>
-      <div className="jo-qc-list">
-        {services.length > 0 ? (
-          services.map((service: any, idx: number) => {
+    <div className={`customer-details-card customer-details-card--wide bg-white rounded-2xl border-none shadow-[0_8px_24px_rgba(112,144,176,0.12)] p-6 ${className}`.trim()}>
+      <div className="mb-6 flex items-center gap-2">
+        <i className="fas fa-check-circle text-[#2B3674]"></i>
+        <h3 className="customer-details-card-title text-lg font-bold text-[#2B3674]">{t("Quality Check List")}</h3>
+      </div>
+
+      {services.length > 0 ? (
+        <div className="flex flex-col gap-3">
+          {services.map((service: any, idx: number) => {
             const serviceName = typeof service === "string" ? service : joFirst(service?.name, `Service ${idx + 1}`);
             const qc = normalizeQcResult(getServiceQcResult(service));
+            const tech = resolveCompletedServiceActor(service);
 
             return (
-              <div key={`${serviceName}-${idx}`} className="jo-qc-row">
-                <span className="jo-qc-name">{serviceName}</span>
-                <span className={`jo-qc-badge jo-qc-${qc.className}`}>{qc.label}</span>
+              <div key={`${serviceName}-${idx}`} className="customer-details-info-row rounded-xl border border-[#F1F4FA] p-4">
+                <div className="border-b border-[#F1F4FA] pb-3">
+                  <span className="customer-details-info-label">{t("Service")}</span>
+                  <span className="customer-details-info-value">{serviceName}</span>
+                </div>
+                <div className="mt-3 border-b border-[#F1F4FA] pb-3">
+                  <span className="customer-details-info-label">{t("Result")}</span>
+                  <span
+                    className="mt-1 inline-flex rounded-full px-2 py-1 text-xs font-bold text-white"
+                    style={{ background: qc.className === "pass" ? "#05CD99" : qc.className === "failed" ? "#DC2626" : qc.className === "acceptable" ? "#FFA234" : "#8F9BBA" }}
+                  >
+                    {qc.label}
+                  </span>
+                </div>
+                <div className="mt-3">
+                  <span className="customer-details-info-label">{t("Technician")}</span>
+                  <span className="customer-details-info-value">{tech}</span>
+                </div>
               </div>
             );
-          })
-        ) : (
-          <div className="jo-qc-empty">{t("No services to evaluate")}</div>
-        )}
-      </div>
+          })}
+        </div>
+      ) : (
+        <div className="rounded-lg border border-dashed border-gray-300 p-8 text-center text-sm font-semibold text-[#64748b]">
+          {t("No services to evaluate")}
+        </div>
+      )}
     </div>
   );
 }
 
 // ============================================
-// ✅ NEW: DELIVERY TRACKING CARD
+// âœ… NEW: DELIVERY TRACKING CARD
 // ============================================
-function DeliveryTrackingCard({ order }: any) {
+function DeliveryTrackingCard({ order, className = "" }: any) {
+  const { t } = useLanguage();
   const delivery = order.deliveryInfo || {};
   
   if (!delivery.expected && !delivery.actual && !delivery.estimatedHours && !delivery.actualHours) return null;
@@ -4311,37 +4383,33 @@ function DeliveryTrackingCard({ order }: any) {
   const deliveryItems = [
     {
       key: "expected-date",
-      label: "Expected Date",
-      value: delivery.expectedDate || "Not set",
-      icon: "fas fa-calendar-day",
+      label: `${t("Expected Date")}:`,
+      value: delivery.expectedDate || t("Not provided"),
     },
     {
       key: "expected-time",
-      label: "Expected Time",
-      value: delivery.expectedTime || "Not set",
-      icon: "fas fa-clock",
+      label: `${t("Expected Time")}:`,
+      value: delivery.expectedTime || t("Not provided"),
     },
     {
       key: "estimated-duration",
-      label: "Estimated Duration",
-      value: delivery.estimatedHours || "Not set",
-      icon: "fas fa-hourglass-half",
+      label: `${t("Estimated Duration")}:`,
+      value: delivery.estimatedHours || t("Not provided"),
     },
   ];
 
   return (
-    <div className="pim-detail-card jo-delivery-card jo-card-theme-delivery">
-      <h3>
-        <i className="fas fa-truck"></i> Delivery & Time Tracking
-      </h3>
-      <div className="jo-delivery-grid" role="list" aria-label="Delivery and time tracking details">
+    <div className={`customer-details-card customer-details-card--wide bg-white rounded-2xl border-none shadow-[0_8px_24px_rgba(112,144,176,0.12)] p-6 ${className}`.trim()}>
+      <div className="mb-6 flex items-center gap-2">
+        <i className="fas fa-truck text-[#2B3674]"></i>
+        <h3 className="customer-details-card-title text-lg font-bold text-[#2B3674]">{t("Delivery & Time Tracking")}</h3>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-4">
         {deliveryItems.map((item) => (
-          <div key={item.key} className="jo-delivery-tile" role="listitem">
-            <div className="jo-delivery-tile-head">
-              <i className={item.icon}></i>
-              <span>{item.label}</span>
-            </div>
-            <div className="jo-delivery-tile-value">{item.value}</div>
+          <div key={item.key} className="customer-details-info-row">
+            <span className="customer-details-info-label">{item.label}</span>
+            <span className="customer-details-info-value">{joFirst(item.value, "N/A")}</span>
           </div>
         ))}
       </div>
@@ -4352,7 +4420,7 @@ function DeliveryTrackingCard({ order }: any) {
 // ============================================
 // ROADMAP CARD - Timeline Visualization
 // ============================================
-function RoadmapCard({ order, actorMap }: any) {
+function RoadmapCard({ order, actorMap, className = "" }: any) {
   const { t } = useLanguage();
   if (!order.roadmap || order.roadmap.length === 0) return null;
 
@@ -4412,18 +4480,18 @@ function RoadmapCard({ order, actorMap }: any) {
   };
   
 
-  // ✅ FIX: better actor resolution to avoid wrong field
+  // âœ… FIX: better actor resolution to avoid wrong field
 
   const getStatusLabel = (step: any) => step?.stepStatus || step?.status || "Pending";
 
   return (
-    <div className="pim-roadmap-container jo-roadmap-compact jo-card-theme-roadmap">
-      <div className="pim-roadmap-title jo-card-theme-roadmap-title">
-        <i className="fas fa-route"></i>
-        {t("Job Order Roadmap")}
+    <div className={`customer-details-card customer-details-card--wide bg-white rounded-2xl border-none shadow-[0_8px_24px_rgba(112,144,176,0.12)] p-6 ${className}`.trim()}>
+      <div className="mb-6 flex items-center gap-2">
+        <i className="fas fa-route text-[#2B3674]"></i>
+        <h3 className="customer-details-card-title text-lg font-bold text-[#2B3674]">{t("Job Order Roadmap")}</h3>
       </div>
 
-      <div className="jo-roadmap-list">
+      <div className="flex flex-col gap-3">
         {roadmap.map((step: any, idx: number) => {
           const actorFromStep = resolveRoadmapActor(step, order, actorMap);
           const stepName = normalizeStepName(step?.step);
@@ -4457,32 +4525,38 @@ function RoadmapCard({ order, actorMap }: any) {
           const completedLabel = inferredCompletedAt || "Not completed";
 
           const stepClass = getStepClass(step?.stepStatus || step?.status);
+          const statusColor = stepClass === 'active' ? '#39BFFF' : stepClass === 'completed' ? '#05CD99' : '#8F9BBA';
 
           return (
-            <div key={idx} className={`jo-roadmap-row ${stepClass}`}>
-              <div className="jo-roadmap-row-stage">
-                <div className={`jo-roadmap-icon ${stepClass}`}>
-                  <i className={`fas ${getStepIcon(step.step)}`}></i>
-                </div>
-                <div>
-                  <div className="jo-roadmap-stage-title">{stepLabel}</div>
-                  <div className={`jo-roadmap-status-chip ${stepClass}`}>{getStatusLabel(step)}</div>
+            <div key={idx} className="rounded-xl border border-[#F1F4FA] p-4">
+              <div className="border-b border-[#F1F4FA] pb-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#A3AED0]">{t("Step")}</span>
+                <div className="flex items-center gap-2">
+                  <span
+                    style={{ background: statusColor }}
+                    className="inline-flex h-6 w-6 items-center justify-center rounded-full text-xs text-white"
+                  >
+                    <i className={`fas ${getStepIcon(step.step)}`}></i>
+                  </span>
+                  <span className="mt-1 block text-sm font-bold text-[#2B3674]">{stepLabel}</span>
                 </div>
               </div>
+              <div className="mt-3 border-b border-[#F1F4FA] pb-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#A3AED0]">{t("Status")}</span>
+                <span className="mt-1 block text-sm font-bold text-[#2B3674]">{getStatusLabel(step)}</span>
+              </div>
+              <div className="mt-3 border-b border-[#F1F4FA] pb-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#A3AED0]">{t("Started")}</span>
+                <span className="mt-1 block text-sm font-bold text-[#2B3674]">{inferredStartedAt || t("Not started")}</span>
+              </div>
+              <div className="mt-3 border-b border-[#F1F4FA] pb-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#A3AED0]">{t("Completed")}</span>
+                <span className="mt-1 block text-sm font-bold text-[#2B3674]">{completedLabel}</span>
+              </div>
 
-              <div className="jo-roadmap-row-meta">
-                <div className="jo-roadmap-meta-block">
-                  <span>{t("Started")}</span>
-                  <strong>{inferredStartedAt || t("Not started")}</strong>
-                </div>
-                <div className="jo-roadmap-meta-block">
-                  <span>{t("Completed")}</span>
-                  <strong>{completedLabel}</strong>
-                </div>
-                <div className="jo-roadmap-meta-block">
-                  <span>{t("Action done by")}</span>
-                  <strong>{actor}</strong>
-                </div>
+              <div className="mt-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-[#A3AED0]">{t("Action done by")}</span>
+                <span className="mt-1 block text-sm font-bold text-[#2B3674]">{actor || t("Not assigned")}</span>
               </div>
             </div>
           );
@@ -4498,30 +4572,30 @@ function RoadmapCard({ order, actorMap }: any) {
 function OrderTypeSelection({ vehicleCompletedServices, onSelectOrderType, onBack, orderType }: any) {
   const { t } = useLanguage();
   return (
-    <div className="form-card">
-      <div className="form-card-title">
+    <div className="form-card bg-white rounded-2xl border-none shadow-[0_8px_24px_rgba(112,144,176,0.12)] p-6">
+      <div className="form-card-title mb-6 flex items-center gap-2">
         <i className="fas fa-list-check"></i>
-        <h2>{t("Select Order Type")}</h2>
+        <h2 className="text-lg font-bold text-[#2B3674]">{t("Select Order Type")}</h2>
       </div>
       <div className="form-card-content">
-        <p style={{ marginBottom: "20px", color: "#666", fontSize: "14px" }}>
+        <p className="mb-5 text-sm text-[#A3AED0]">
           {t("This vehicle has")} {vehicleCompletedServices.length} {t("completed service(s). Choose the type of order you want to create:")}
         </p>
 
-        <div className="option-selector">
-          <div className={`option-btn ${orderType === "new" ? "selected" : ""}`} onClick={() => onSelectOrderType("new")}>
+        <div className="option-selector grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className={`option-btn rounded-xl border px-4 py-4 font-bold transition-all cursor-pointer ${orderType === "new" ? "bg-[#4318FF] text-white border-[#4318FF]" : "bg-[#F4F7FE] text-[#A3AED0] border-[#E7EDF8]"}`} onClick={() => onSelectOrderType("new")}>
             <i className="fas fa-file-alt" style={{ marginRight: "8px" }}></i>
             {t("New Job Order")}
           </div>
-          <div className={`option-btn ${orderType === "service" ? "selected" : ""}`} onClick={() => onSelectOrderType("service")}>
+          <div className={`option-btn rounded-xl border px-4 py-4 font-bold transition-all cursor-pointer ${orderType === "service" ? "bg-[#4318FF] text-white border-[#4318FF]" : "bg-[#F4F7FE] text-[#A3AED0] border-[#E7EDF8]"}`} onClick={() => onSelectOrderType("service")}>
             <i className="fas fa-tools" style={{ marginRight: "8px" }}></i>
             {t("Service Order")}
           </div>
         </div>
       </div>
 
-      <div className="action-buttons">
-        <button className="btn btn-secondary" onClick={onBack}>
+      <div className="action-buttons mt-8 flex justify-end">
+        <button className="btn btn-secondary bg-white text-[#2B3674] border border-[#E7EDF8] rounded-xl px-6 py-3 font-bold hover:bg-[#F4F7FE]" onClick={onBack}>
           <i className="fas fa-arrow-left" style={{ marginRight: "8px" }}></i>
           {t("Back")}
         </button>
@@ -4533,25 +4607,25 @@ function OrderTypeSelection({ vehicleCompletedServices, onSelectOrderType, onBac
 function NoCompletedServicesMessage({ onNext, onBack }: any) {
   const { t } = useLanguage();
   return (
-    <div className="form-card">
-      <div className="form-card-title">
+    <div className="form-card bg-white rounded-2xl border-none shadow-[0_8px_24px_rgba(112,144,176,0.12)] p-6">
+      <div className="form-card-title mb-6 flex items-center gap-2">
         <i className="fas fa-info-circle"></i>
-        <h2>{t("Order Type")}</h2>
+        <h2 className="text-lg font-bold text-[#2B3674]">{t("Order Type")}</h2>
       </div>
       <div className="form-card-content">
-        <div style={{ marginBottom: "20px", padding: "15px", backgroundColor: "#fff3cd", borderRadius: "8px", border: "1px solid #ffc107" }}>
-          <i className="fas fa-exclamation-circle" style={{ color: "#ff9800", marginRight: "8px" }}></i>
-          <span style={{ color: "#ff9800", fontWeight: "500" }}>
+        <div className="mb-5 rounded-xl border border-[#E7EDF8] bg-[#F4F7FE] p-4 text-sm">
+          <i className="fas fa-exclamation-circle mr-2 text-[#A3AED0]" />
+          <span className="font-semibold text-[#2B3674]">
             {t("This vehicle has no completed services yet. Proceeding with New Job Order.")}
           </span>
         </div>
       </div>
 
-      <div className="action-buttons">
-        <button className="btn btn-secondary" onClick={onBack}>
+      <div className="action-buttons jo-services-actions mt-8 flex flex-wrap justify-end gap-3">
+        <button className="btn btn-secondary bg-white text-[#2B3674] border border-[#E7EDF8] rounded-xl px-6 py-3 font-bold hover:bg-[#F4F7FE]" onClick={onBack}>
           {t("Back")}
         </button>
-        <button className="btn btn-primary" onClick={onNext}>
+        <button className="btn btn-primary bg-[#4318FF] text-white rounded-xl px-6 py-3 font-bold hover:bg-[#3A14DF] transition-all shadow-[0_8px_22px_rgba(67,24,255,0.25)]" onClick={onNext}>
           {t("Continue")}
         </button>
       </div>

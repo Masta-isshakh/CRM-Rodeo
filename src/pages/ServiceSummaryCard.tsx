@@ -5,6 +5,7 @@ import {
   closestCenter,
   KeyboardSensor,
   PointerSensor,
+  TouchSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
@@ -256,6 +257,8 @@ function ServiceItem({
   jobOrderBackendId,
   orderNumber,
   canAssign,
+  dragHandleAttributes,
+  dragHandleListeners,
 }: {
   service: Service;
   editMode: boolean;
@@ -265,6 +268,8 @@ function ServiceItem({
   jobOrderBackendId?: string;
   orderNumber?: string;
   canAssign: boolean;
+  dragHandleAttributes?: Record<string, any>;
+  dragHandleListeners?: Record<string, any>;
 }) {
   const approval = useApprovalRequests();
 
@@ -400,7 +405,12 @@ function ServiceItem({
       <div className="service-header">
         <div className="service-name">
           {/* drag handle only visible in edit mode */}
-          <span className="drag-handle" style={{ visibility: editMode ? "visible" : "hidden" }}>
+          <span
+            className="drag-handle"
+            style={{ visibility: editMode ? "visible" : "hidden" }}
+            {...(editMode ? dragHandleAttributes : {})}
+            {...(editMode ? dragHandleListeners : {})}
+          >
             <FaGripVertical />
           </span>
           <span data-no-translate="true">{getServiceDisplayName(service)}</span>
@@ -551,10 +561,7 @@ function SortableServiceItem(props: React.ComponentProps<typeof ServiceItem> & {
 
   return (
     <div ref={setNodeRef} style={style}>
-      {/* inject listeners/attributes into the handle via CSS selector by placing them on wrapper */}
-      <div {...attributes} {...listeners}>
-        <ServiceItem {...props} />
-      </div>
+      <ServiceItem {...props} dragHandleAttributes={attributes} dragHandleListeners={listeners} />
     </div>
   );
 }
@@ -633,6 +640,7 @@ export default function ServiceSummaryCard({
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 140, tolerance: 8 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
   );
 
@@ -750,11 +758,16 @@ export default function ServiceSummaryCard({
 
     setAddBusy(true);
     setAddError(null);
+    setAddOpen(false);
     try {
-      await onAddService(name, price);
-      setAddOpen(false);
+      const ok = await onAddService(name, price);
+      if (!ok) {
+        setAddError("Failed to add service");
+        setAddOpen(true);
+      }
     } catch (e: any) {
       setAddError(String(e?.message ?? e ?? "Failed to add service"));
+      setAddOpen(true);
     } finally {
       setAddBusy(false);
     }
@@ -986,7 +999,7 @@ export default function ServiceSummaryCard({
                 Cancel
               </button>
               <button className="sem-btn sem-btn-primary" onClick={submitAdd} disabled={addBusy}>
-                {addBusy ? "Adding..." : "Create approval request"}
+                {addBusy ? "Adding..." : "Add service or package"}
               </button>
             </div>
           </div>

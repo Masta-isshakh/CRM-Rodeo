@@ -4,6 +4,102 @@
   margin: auto;
 }
 
+/* ── Header row ─────────────────────────────────────────────────────── */
+.activity-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.activity-header h2 {
+  margin: 0;
+}
+
+.activity-refresh-btn {
+  border: 1px solid rgba(15, 23, 42, 0.18);
+  background: #f8fafc;
+  color: #0b1224;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 18px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.activity-refresh-btn:hover:not(:disabled) {
+  background: #e2e8f0;
+}
+
+.activity-refresh-btn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+/* ── Error banner ────────────────────────────────────────────────────── */
+.activity-error {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  background: #fef2f2;
+  border: 1px solid #fca5a5;
+  border-radius: 10px;
+  padding: 12px 16px;
+  margin: 16px 0;
+  color: #991b1b;
+  font-size: 14px;
+}
+
+.activity-retry-btn {
+  border: 1px solid #fca5a5;
+  background: #fee2e2;
+  color: #991b1b;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 5px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.activity-retry-btn:hover {
+  background: #fecaca;
+}
+
+/* ── Loading state ───────────────────────────────────────────────────── */
+.activity-loading {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 36px 0;
+  color: #64748b;
+  font-size: 15px;
+}
+
+.activity-spinner {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  border: 3px solid rgba(47, 125, 225, 0.2);
+  border-top-color: #2f7de1;
+  animation: actSpinAnim 0.75s linear infinite;
+}
+
+@keyframes actSpinAnim {
+  to { transform: rotate(360deg); }
+}
+
+/* ── Empty ───────────────────────────────────────────────────────────── */
+.activity-empty {
+  opacity: 0.65;
+  padding: 24px 0;
+}
+
+/* ── Timeline ────────────────────────────────────────────────────────── */
 .timeline {
   margin-top: 24px;
   display: flex;
@@ -22,30 +118,26 @@
 }
 
 .badge {
-  min-width: 80px;
+  flex-shrink: 0;
+  min-width: 72px;
   text-align: center;
   padding: 6px 10px;
   border-radius: 20px;
   font-size: 12px;
   font-weight: 600;
   color: white;
+  height: fit-content;
 }
 
-.badge.create {
-  background: #16a34a;
-}
-
-.badge.update {
-  background: #2563eb;
-}
-
-.badge.delete {
-  background: #dc2626;
-}
+.badge.create { background: #16a34a; }
+.badge.update { background: #2563eb; }
+.badge.delete { background: #dc2626; }
 
 .content .message {
   font-weight: 600;
   color: #0f172a;
+  margin: 0 0 4px;
+  word-break: break-word;
 }
 
 .content .meta {
@@ -53,46 +145,37 @@
   color: #64748b;
 }
 
+/* ── Responsive ──────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .activity-page {
+    padding: 16px 12px;
+    max-width: 100%;
+  }
+
+  .timeline-item {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .badge {
+    align-self: flex-start;
+  }
+}
+
+@media (max-width: 480px) {
+  .activity-page {
+    padding: 12px 8px;
+  }
+
+  .activity-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
 /* ========================================
    FINAL OVERRIDES: PERFORMANCE + 98% WIDTH
    (Requested by user - visual only)
 ======================================== */
 
-.activity-page *,
-.activity-page button,
-.activity-page .timeline-item {
-  animation: none !important;
-  transition: none !important;
-}
 
-.activity-page,
-.activity-page .timeline,
-.activity-page .timeline-item {
-  width: 98% !important;
-  max-width: 98% !important;
-  margin-left: auto !important;
-  margin-right: auto !important;
-}
-
-@media (max-width: 768px) {
-  .activity-page,
-  .activity-page .timeline,
-  .activity-page .timeline-item {
-    width: min(98%, calc(100vw - 12px)) !important;
-    max-width: calc(100vw - 12px) !important;
-  }
-
-  .activity-page .timeline-item {
-    width: 100% !important;
-    max-width: 100% !important;
-  }
-}
-
-@media (max-width: 480px) {
-  .activity-page,
-  .activity-page .timeline,
-  .activity-page .timeline-item {
-    width: min(98%, calc(100vw - 10px)) !important;
-    max-width: calc(100vw - 10px) !important;
-  }
-}

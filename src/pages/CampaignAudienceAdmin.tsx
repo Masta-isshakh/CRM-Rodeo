@@ -948,10 +948,6 @@ export default function CampaignAudienceAdmin() {
   const latestBatch = batches[0] ?? null;
 
   const parseWorkbookFile = async (file: File) => {
-    await new Promise<void>((resolve) => {
-      window.requestAnimationFrame(() => resolve());
-    });
-
     const buffer = await file.arrayBuffer();
     const workbook = XLSX.read(buffer, { type: "array", cellDates: true, cellNF: true, cellText: true });
     const nextSheets: Record<string, SheetData> = {};
@@ -1262,33 +1258,47 @@ export default function CampaignAudienceAdmin() {
 
   return (
     <div className="campaign-admin-page">
-      <section className="campaign-hero crm-unified-header">
-        <div>
-          <h1>
-            <i className="fas fa-bullhorn" aria-hidden="true" />
-            {t("Campaign Audience")}
-          </h1>
-          <p>
-            {t("Upload a large Excel file once, keep the imported dataset in the database, and filter it safely for WhatsApp campaigns.")}
-          </p>
-        </div>
-        <div className="campaign-hero-stats">
-          <div className="campaign-stat-card">
-            <span>{t("Imported rows")}</span>
-            <strong>{leads.length.toLocaleString()}</strong>
-          </div>
-          <div className="campaign-stat-card">
-            <span>{t("Unique mobiles")}</span>
-            <strong>{new Set(leads.map((lead) => toText(lead.normalizedMobileNumber)).filter(Boolean)).size.toLocaleString()}</strong>
-          </div>
-          <div className="campaign-stat-card">
-            <span>{t("Last import")}</span>
-            <strong>{latestBatch ? formatDateForUi(toText(latestBatch.importedAt)) : "—"}</strong>
-          </div>
-        </div>
-      </section>
+      <div className="campaign-shell">
+        <div className="campaign-list-page">
+          <section className="campaign-card campaign-hero-card">
+            <div className="campaign-details-page-head">
+              <div className="campaign-details-page-title-wrap">
+                <div className="campaign-details-head-main">
+                  <span className="campaign-details-head-icon" aria-hidden="true">
+                    <i className="fas fa-bullhorn" aria-hidden="true" />
+                  </span>
+                  <div className="campaign-details-head-text">
+                    <h1>{t("Campaign Audience")}</h1>
+                    <div className="campaign-details-page-sub-row">
+                      <span className="campaign-details-sub-rail" aria-hidden="true" />
+                      <p>
+                        {t("Upload a large Excel file once, keep the imported dataset in the database, and filter it safely for WhatsApp campaigns.")}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
 
-      <div className="campaign-grid">
+            <div className="campaign-hero-body">
+              <div className="campaign-hero-stats">
+                <div className="campaign-stat-card">
+                  <span>{t("Imported rows")}</span>
+                  <strong>{leads.length.toLocaleString()}</strong>
+                </div>
+                <div className="campaign-stat-card">
+                  <span>{t("Unique mobiles")}</span>
+                  <strong>{new Set(leads.map((lead) => toText(lead.normalizedMobileNumber)).filter(Boolean)).size.toLocaleString()}</strong>
+                </div>
+                <div className="campaign-stat-card">
+                  <span>{t("Last import")}</span>
+                  <strong>{latestBatch ? formatDateForUi(toText(latestBatch.importedAt)) : "—"}</strong>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <div className="campaign-grid">
         <section className="campaign-card">
           <div className="campaign-card-head">
             <div>
@@ -1379,7 +1389,7 @@ export default function CampaignAudienceAdmin() {
                         {previewPagedRows.map((row, index) => (
                           <tr key={`preview-${index}-${previewPage}`}>
                             {previewDisplayColumns.map((column) => (
-                              <td key={`${index}-${column}`}>{toText(row[column]) || "—"}</td>
+                              <td key={`${index}-${column}`} data-label={column}>{toText(row[column]) || "—"}</td>
                             ))}
                           </tr>
                         ))}
@@ -1684,7 +1694,7 @@ export default function CampaignAudienceAdmin() {
                             const isDateLike = isDateColumnName(column);
                             const fallback = isServiceDateColumnName(column) ? lead.serviceDate : undefined;
                             const value = isDateLike ? formatDateForUi(normalizeDateForExport(rawValue, fallback)) : rawValue;
-                            return <td key={`${String(lead.id)}-${column}`}>{value || "—"}</td>;
+                            return <td key={`${String(lead.id)}-${column}`} data-label={column}>{value || "—"}</td>;
                           })}
                         </tr>
                         );
@@ -1750,6 +1760,8 @@ export default function CampaignAudienceAdmin() {
             </>
           )}
         </section>
+          </div>
+        </div>
       </div>
     </div>
   );

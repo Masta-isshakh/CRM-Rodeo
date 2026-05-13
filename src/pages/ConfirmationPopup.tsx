@@ -12,6 +12,7 @@ type Props = {
 
   confirmText?: string;
   cancelText?: string;
+  loadingText?: string;
 
   tone?: Tone;                // controls confirm button color
   loading?: boolean;          // disable buttons + show spinner
@@ -38,6 +39,7 @@ export default function ConfirmationPopup({
   message = "Are you sure you want to continue?",
   confirmText = "Confirm",
   cancelText = "Cancel",
+  loadingText = "Processing...",
   tone = "danger",
   loading = false,
   disableConfirm = false,
@@ -123,7 +125,7 @@ export default function ConfirmationPopup({
             {loading ? (
               <span className="cp-loading">
                 <span className="cp-spinner" aria-hidden="true" />
-                Processing...
+                {loadingText}
               </span>
             ) : (
               confirmText

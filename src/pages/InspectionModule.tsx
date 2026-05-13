@@ -579,18 +579,18 @@ function InspectionModule({ currentUser }: any) {
 
     setLoading(true);
     try {
-      const paths: string[] = [];
-      for (const f of list) {
-        const p = await uploadInspectionPhoto({
-          jobOrderId: activeOrder._backendId,
-          orderNumber: activeRow.id,
-          sectionKey,
-          itemId,
-          file: f,
-          actor: resolveActorName(currentUser),
-        });
-        paths.push(p);
-      }
+      const paths = await Promise.all(
+        list.map((f) =>
+          uploadInspectionPhoto({
+            jobOrderId: activeOrder._backendId,
+            orderNumber: activeRow.id,
+            sectionKey,
+            itemId,
+            file: f,
+            actor: resolveActorName(currentUser),
+          })
+        )
+      );
 
       setInspectionState((prev: AnyObj) => {
         const updated = { ...prev };
@@ -673,15 +673,16 @@ function InspectionModule({ currentUser }: any) {
       updated._backendId = backendId;
 
       setActiveOrder(updated);
-      await refreshOrders();
-
-      await upsertInspectionState({
-        jobOrderId: updated._backendId,
-        orderNumber: activeRow.id,
-        status: "IN_PROGRESS",
-        inspectionState,
-        actor: actorEmail,
-      });
+      await Promise.all([
+        refreshOrders(),
+        upsertInspectionState({
+          jobOrderId: updated._backendId,
+          orderNumber: activeRow.id,
+          status: "IN_PROGRESS",
+          inspectionState,
+          actor: actorEmail,
+        }),
+      ]);
 
       setPopupMessage(t("Inspection started."));
       setShowPopup(true);
@@ -871,7 +872,7 @@ function InspectionModule({ currentUser }: any) {
             actor: actorEmail,
           });
 
-          await refreshOrders();
+          void refreshOrders();
 
           setPopupMessage(t("Inspection finished! Status changed to Service_Operation."));
           setShowPopup(true);
@@ -903,7 +904,7 @@ function InspectionModule({ currentUser }: any) {
     setLoading(true);
     try {
       await cancelJobOrderByOrderNumber(cancelOrderId);
-      await refreshOrders();
+      void refreshOrders();
       setPopupMessage(
         <>
           <span style={{ fontWeight: 700, color: "#16a34a", display: "block", marginBottom: 8 }}>
@@ -950,29 +951,58 @@ function InspectionModule({ currentUser }: any) {
   return (
     <div className="inspection-module" ref={reportRef}>
       {screenState === "main" && (
-        <div className="app-container">
-          <header className="app-header crm-unified-header">
-            <div className="header-left">
-              <h1>
-                <i className="fas fa-car"></i> {t("Inspection Module")}
-              </h1>
-            </div>
-          </header>
+        <div className="app-container customer-page customer-dashboard-shell theme-elegant-glass jc-main-screen">
+          <main className="main-content customer-dashboard-main">
+            <section
+              className="jc-main-hero"
+              style={{ position: "relative", overflow: "hidden", marginBottom: 10, background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)", borderRadius: 12, boxShadow: "0 10px 24px rgba(51, 84, 160, 0.08)", border: "1px solid #DDE7F6" }}
+            >
+              <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: 0, height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)", zIndex: 2 }} />
+              <div aria-hidden="true" style={{ position: "absolute", top: -18, right: -22, height: 96, width: 202, background: "linear-gradient(to bottom left, rgba(67, 24, 255, 0.18), rgba(67, 24, 255, 0))", borderBottomLeftRadius: 999, pointerEvents: "none" }} />
+              <div aria-hidden="true" style={{ position: "absolute", right: 28, top: 26, width: 44, height: 44, borderRadius: 14, opacity: 0.35, backgroundImage: "radial-gradient(circle, rgba(116, 137, 191, 0.55) 1.4px, transparent 1.5px)", backgroundSize: "10px 10px", pointerEvents: "none" }} />
 
-          <main className="main-content">
-            <section className="search-section">
-              <div className="search-container">
-                <i className="fas fa-search search-icon"></i>
-                <input
-                  type="text"
-                  className="smart-search-input"
-                  placeholder={t("Search by any details")}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  autoComplete="off"
-                />
+              <div style={{ position: "relative", zIndex: 1, padding: "17px 24px 17px", display: "grid", gap: 8 }}>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 17 }}>
+                    <div style={{ width: 42, height: 42, borderRadius: "50%", background: "linear-gradient(180deg, #FFFFFF 0%, #EEF3FF 100%)", border: "1px solid #D8E1F7", boxShadow: "0 0 0 4px rgba(101, 92, 255, 0.08), 0 6px 14px rgba(71, 88, 180, 0.10)", display: "flex", alignItems: "center", justifyContent: "center", color: "#5D54FF" }}>
+                      <i className="fas fa-clipboard-check" style={{ fontSize: 16 }} />
+                    </div>
+                    <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: "#102A68", lineHeight: 1.15, letterSpacing: "-0.03em" }}>{t("Inspection Module")}</h1>
+                  </div>
+
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                    <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                      <i className="fas fa-search" style={{ position: "absolute", left: 10, color: "#8C9ABF", fontSize: 12, pointerEvents: "none" }} />
+                      <input
+                        type="text"
+                        style={{ paddingLeft: 30, paddingRight: 12, paddingTop: 7, paddingBottom: 7, borderRadius: 8, border: "1px solid #DDE7F6", background: "#FAFBFF", color: "#102A68", fontSize: "0.88rem", fontWeight: 700, outline: "none", minWidth: 220 }}
+                        placeholder={t("Search by any inspection details")}
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        autoComplete="off"
+                      />
+                    </div>
+
+                    <button
+                      style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid #DDE7F6", background: "#F7F9FF", color: "#5D54FF", fontSize: "0.88rem", fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1 }}
+                      onClick={() => void refreshOrders()}
+                      disabled={loading}
+                      type="button"
+                    >
+                      <i className="fas fa-sync" /> {loading ? t("Loading...") : t("Refresh")}
+                    </button>
+                  </div>
+                </div>
+
+                <p style={{ margin: 0, marginLeft: 59, display: "inline-flex", alignItems: "center", gap: 8, fontSize: 11, color: "#8C9ABF", fontWeight: 700, letterSpacing: "0.02em", lineHeight: 1.35 }}>
+                  <span aria-hidden="true" style={{ width: 2, height: 12, borderRadius: 999, background: "linear-gradient(180deg, #25D6E8 0%, #4E40F8 100%)", boxShadow: "0 0 0 2px rgba(78, 64, 248, 0.10)" }} />
+                  <span style={{ color: "#7E8FB9" }}>{t("Track incoming inspections, move active vehicles forward, and keep the queue review-ready.")}</span>
+                </p>
               </div>
-              <div className="search-stats">
+            </section>
+
+            <section className="customer-top-meta-row jc-main-meta-row">
+              <div className="search-stats customer-search-stats">
                 {loading
                   ? t("Loading...")
                   : filteredRows.length === 0
@@ -982,36 +1012,32 @@ function InspectionModule({ currentUser }: any) {
                       filteredRows.length
                     )} ${t("of")} ${filteredRows.length} ${t("inspection jobs")}`}
               </div>
-            </section>
 
-            <section className="results-section">
-              <div className="section-header">
-                <h2>
-                  <i className="fas fa-list"></i> {t("Inspection Jobs Records")}
-                </h2>
-                <div className="pagination-controls">
-                  <div className="records-per-page">
-                    <label htmlFor="inspectionPageSize">{t("Records per page:")}</label>
-                    <select
-                      id="inspectionPageSize"
-                      className="page-size-select"
-                      value={pageSize}
-                      onChange={(event) => {
-                        setPageSize(parseInt(event.target.value, 10));
-                        setCurrentPage(1);
-                      }}
-                    >
-                      <option value="20">20</option>
-                      <option value="50">50</option>
-                      <option value="100">100</option>
-                    </select>
-                  </div>
+              <div className="pagination-controls customer-page-size-control">
+                <div className="records-per-page">
+                  <label htmlFor="inspectionPageSize">{t("Records per page:")}</label>
+                  <select
+                    id="inspectionPageSize"
+                    className="page-size-select"
+                    value={pageSize}
+                    onChange={(event) => {
+                      setPageSize(parseInt(event.target.value, 10));
+                      setCurrentPage(1);
+                    }}
+                  >
+                    <option value="20">20</option>
+                    <option value="50">50</option>
+                    <option value="100">100</option>
+                  </select>
                 </div>
               </div>
+            </section>
 
+            <section className="results-section customer-results-section jc-main-results-section">
+              <div className="customer-table-card jc-main-table-card">
               {filteredRows.length > 0 ? (
-                <div className="table-wrapper">
-                  <table className="job-order-table">
+                <div className="table-wrapper customer-table-card-shell jc-job-table-shell">
+                  <table className="job-order-table customer-dashboard-table jc-job-table">
                     <thead>
                       <tr>
                         <th>Create Date</th>
@@ -1027,22 +1053,22 @@ function InspectionModule({ currentUser }: any) {
                     <tbody>
                       {paginated.map((job) => (
                         <tr key={job.id}>
-                          <td className="date-column">{job.createDate}</td>
-                          <td>{job.id}</td>
-                          <td>
+                          <td className="date-column" data-label={t("Create Date")}>{job.createDate}</td>
+                          <td data-label={t("Job Card ID")}>{job.id}</td>
+                          <td data-label={t("Order Type")}>
                             <span className={`order-type-badge ${job.orderType === "New Job Order" ? "order-type-new-job" : "order-type-service"}`}>
                               {job.orderType}
                             </span>
                           </td>
-                          <td>{job.customerName}</td>
-                          <td>{job.mobile}</td>
-                          <td>{job.vehiclePlate}</td>
-                          <td>
+                          <td data-label={t("Customer Name")}>{job.customerName}</td>
+                          <td data-label={t("Mobile Number")}>{job.mobile}</td>
+                          <td data-label={t("Vehicle Plate")}>{job.vehiclePlate}</td>
+                          <td data-label={t("Work Status")}>
                             <span className={`status-badge ${job.workStatus === "New Request" ? "status-new-request" : "status-inspection"}`}>
                               {job.workStatus}
                             </span>
                           </td>
-                          <td>
+                          <td data-label={t("Actions")}>
                             <PermissionGate moduleId="inspection" optionId="inspection_actions">
                               <div className="action-dropdown-container">
                                 <button className={`btn-action-dropdown ${activeDropdown === job.id ? "active" : ""}`} onClick={(e) => handleOpenDropdown(e.currentTarget as HTMLElement, job.id)}>
@@ -1064,7 +1090,8 @@ function InspectionModule({ currentUser }: any) {
                   <p>{t("No inspection jobs found")}</p>
                 </div>
               )}
-
+              </div>
+            </section>
               {totalPages > 1 && (
                 <div className="pagination">
                   <button className="pagination-btn" onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1}>
@@ -1092,12 +1119,11 @@ function InspectionModule({ currentUser }: any) {
                   </button>
                 </div>
               )}
-            </section>
           </main>
 
-          <div className="inspection-footer">
+          <footer className="app-footer">
             <p>{t("Service Management System © 2023 | Inspection Module")}</p>
-          </div>
+          </footer>
         </div>
       )}
 
@@ -1112,7 +1138,7 @@ function InspectionModule({ currentUser }: any) {
       )}
 
       {screenState === "details" && activeRow && activeOrder && detailData && (
-        <div className="detail-view pim-details-screen jo-details-v3" id="detailView">
+        <div className="detail-view pim-details-screen customer-details-screen dashboard-customer-details-bg customer-details-exact theme-elegant-glass jc-skin jo-details-v3" id="detailView">
           <div className="detail-header pim-details-header">
             <div className="detail-title-container">
               <h2>
@@ -1603,7 +1629,7 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
   const total = subtotal - discount;
 
   return (
-    <div className="pim-details-screen">
+    <div className="pim-details-screen customer-details-screen dashboard-customer-details-bg customer-details-exact theme-elegant-glass jc-skin jo-wizard-screen bg-[#F4F7FE] p-6 md:p-8">
       <div className="pim-details-header">
         <div className="pim-details-title-container">
           <h2><i className="fas fa-plus-circle"></i> {t("Add Services to Job Order")}</h2>

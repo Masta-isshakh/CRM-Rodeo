@@ -1934,13 +1934,19 @@ export default function FileSharing({ permissions }: PageProps) {
       probe.setAttribute("aria-hidden", "true");
       probe.src = protocolUrl;
       document.body.appendChild(probe);
-      window.setTimeout(() => {
+      window.requestAnimationFrame(() => {
         try {
-          document.body.removeChild(probe);
+          window.requestAnimationFrame(() => {
+            try {
+              document.body.removeChild(probe);
+            } catch {
+              // noop
+            }
+          });
         } catch {
           // noop
         }
-      }, 1200);
+      });
     } catch {
       window.location.href = protocolUrl;
     }
@@ -2811,7 +2817,11 @@ export default function FileSharing({ permissions }: PageProps) {
   }
 
   return (
-    <div className="filesharing-page drive-v2">
+    <div
+      className="filesharing-page drive-v2 customer-page customer-dashboard-shell"
+      id="mainScreen"
+      style={{ background: "linear-gradient(145deg, #f8fafe 0%, #eef3ff 100%)", minHeight: "100vh" }}
+    >
       {openOfficeModal && (
         <div className="filesharing-modal-backdrop office-launch-backdrop" onClick={() => setOpenOfficeModal(null)}>
           <div className="office-launch-modal" onClick={(e) => e.stopPropagation()}>
@@ -2852,7 +2862,7 @@ export default function FileSharing({ permissions }: PageProps) {
                 className="office-launch-btn office-launch-btn--primary"
                 onClick={() => {
                   launchDesktopOfficeProtocol(openOfficeModal.protocolUrl);
-                  setTimeout(() => setOpenOfficeModal(null), 1200);
+                  setOpenOfficeModal(null);
                 }}
               >
                 <i className={openOfficeModal.kind === "doc" ? "fas fa-file-word" : "fas fa-file-excel"} />
@@ -2955,43 +2965,124 @@ export default function FileSharing({ permissions }: PageProps) {
         </div>
       ) : null}
 
-      <section className="drive-topbar">
-        <div className="drive-topbar-brand">{t("Drive")}</div>
-        <div className="drive-topbar-search">
-          <i className="fas fa-search" />
-          <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder={t("Search in Drive")} />
-        </div>
-        <div className="drive-topbar-actions">
-          <button type="button" onClick={() => setLayout((v) => (v === "list" ? "grid" : "list"))}>{layout === "list" ? t("Grid") : t("List")}</button>
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortBy)}>
-            <option value="custom">{t("Custom order")}</option>
-            <option value="modified">{t("Last modified")}</option>
-            <option value="name">{t("Name")}</option>
-            <option value="size">{t("Size")}</option>
-          </select>
-          <button type="button" onClick={() => void loadData()} disabled={loading}>{t("Refresh")}</button>
-        </div>
-      </section>
+      <main className="main-content customer-dashboard-main" style={{ padding: "16px 8px" }}>
+        <section className="filesharing-customer-hero" style={{ position: "relative", overflow: "hidden", marginBottom: 10, background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)", borderRadius: 12, boxShadow: "0 10px 24px rgba(51, 84, 160, 0.08)", border: "1px solid #DDE7F6" }}>
+          <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: 0, height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)", zIndex: 2 }} />
+          <div aria-hidden="true" style={{ position: "absolute", top: -18, right: -22, height: 96, width: 202, background: "linear-gradient(to bottom left, rgba(67, 24, 255, 0.18), rgba(67, 24, 255, 0))", borderBottomLeftRadius: 999, pointerEvents: "none" }} />
+          <div aria-hidden="true" style={{ position: "absolute", right: 28, top: 26, width: 44, height: 44, borderRadius: 14, opacity: 0.35, backgroundImage: "radial-gradient(circle, rgba(116, 137, 191, 0.55) 1.4px, transparent 1.5px)", backgroundSize: "10px 10px", pointerEvents: "none" }} />
 
-      <section className="drive-workspace-strip">
-        <div className="drive-workspace-copy">
-          <div className="drive-workspace-kicker">{t("Company workspace")}</div>
-          <h1>{t("Simple department sharing, modern drive style")}</h1>
-          <p>
-            {t("Upload, organize, share, and govern files from one workspace while keeping quota and permission control in admin hands.")}
-          </p>
-          <div className="drive-chip-row">
-            <span className="drive-chip"><i className="fas fa-hdd" /> {formatBytes(selfUsageBytes)} / {selfQuotaLabel}</span>
-            <span className="drive-chip"><i className="fas fa-building" /> {directory.find((u) => u.email === selfEmail)?.departmentName || t("No department")}</span>
-            <span className="drive-chip"><i className="fas fa-link" /> {activeLinks.length} {t("active links")}</span>
+          <div className="filesharing-customer-hero-content" style={{ position: "relative", zIndex: 1, padding: "17px 24px 17px", display: "grid", gap: 8 }}>
+            <div className="filesharing-customer-hero-row" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <div className="filesharing-customer-hero-title-wrap" style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+                <div
+                  className="filesharing-customer-hero-icon"
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 14,
+                    background: "linear-gradient(140deg, #1EC7C7 0%, #6D4FFF 100%)",
+                    boxShadow: "0 6px 12px rgba(98, 109, 229, 0.20)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#ffffff",
+                    flexShrink: 0,
+                  }}
+                >
+                  <i className="fas fa-folder-tree" style={{ fontSize: 20 }} />
+                </div>
+                <h1 className="filesharing-customer-hero-title" style={{ margin: 0, color: "#102A68", fontSize: 20, fontWeight: 700, lineHeight: 1.15, letterSpacing: "-0.03em" }}>{t("File Sharing")}</h1>
+              </div>
+
+              <div className="filesharing-customer-hero-actions" style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <div className="filesharing-customer-hero-search" style={{ position: "relative", display: "flex", alignItems: "center" }}>
+                  <i className="fas fa-search" style={{ position: "absolute", left: 10, color: "#8C9ABF", fontSize: 12, pointerEvents: "none" }} />
+                  <input
+                    type="text"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder={t("Search in Drive")}
+                    style={{ paddingLeft: 30, paddingRight: 12, paddingTop: 7, paddingBottom: 7, borderRadius: 8, border: "1px solid #DDE7F6", background: "#FAFBFF", color: "#102A68", fontSize: "0.88rem", fontWeight: 700, outline: "none", minWidth: 220 }}
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid #DDE7F6", background: "#F7F9FF", color: "#5D54FF", fontSize: "0.88rem", fontWeight: 700, cursor: loading ? "not-allowed" : "pointer", opacity: loading ? 0.7 : 1 }}
+                  onClick={() => void loadData()}
+                  disabled={loading}
+                >
+                  <i className="fas fa-sync" /> {loading ? t("Loading...") : t("Refresh")}
+                </button>
+
+                {canUpload ? (
+                  <button
+                    type="button"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 16px", borderRadius: 8, border: "none", background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)", color: "#fff", fontSize: "0.88rem", fontWeight: 700, cursor: "pointer", boxShadow: "0 4px 12px rgba(78, 64, 248, 0.25)" }}
+                    onClick={openUploadPicker}
+                  >
+                    <i className="fas fa-file-arrow-up" /> {t("Upload")}
+                  </button>
+                ) : null}
+
+                {canCreateFolder ? (
+                  <button
+                    type="button"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid #DDE7F6", background: "#F7F9FF", color: "#5D54FF", fontSize: "0.88rem", fontWeight: 700, cursor: "pointer" }}
+                    onClick={openNewFolderComposer}
+                  >
+                    <i className="fas fa-folder-plus" /> {t("Folder")}
+                  </button>
+                ) : null}
+
+                {canAdminPanel ? (
+                  <button
+                    type="button"
+                    style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid #DDE7F6", background: "#F7F9FF", color: "#5D54FF", fontSize: "0.88rem", fontWeight: 700, cursor: "pointer" }}
+                    onClick={() => setView("admin")}
+                  >
+                    <i className="fas fa-shield-halved" /> {t("Admin console")}
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
+            <p className="filesharing-customer-hero-subtitle" style={{ margin: 0, marginLeft: 59, display: "inline-flex", alignItems: "center", gap: 8, fontSize: 11, color: "#8C9ABF", fontWeight: 700, letterSpacing: "0.02em", lineHeight: 1.35 }}>
+              <span
+                aria-hidden="true"
+                style={{ width: 2, height: 12, borderRadius: 999, background: "linear-gradient(180deg, #25D6E8 0%, #4E40F8 100%)", boxShadow: "0 0 0 2px rgba(78, 64, 248, 0.10)" }}
+              />
+              <span style={{ color: "#7E8FB9" }}>
+                {t("Upload, organize, share, and govern files from one workspace while keeping quota and permission control in admin hands.")}
+              </span>
+            </p>
           </div>
-        </div>
-        <div className="drive-workspace-actions">
-          {canUpload ? <button type="button" className="filesharing-primary" onClick={openUploadPicker}><i className="fas fa-file-arrow-up" /> {t("Upload")}</button> : null}
-          {canCreateFolder ? <button type="button" onClick={openNewFolderComposer}><i className="fas fa-folder-plus" /> {t("Folder")}</button> : null}
-          {canAdminPanel ? <button type="button" onClick={() => setView("admin")}><i className="fas fa-shield-halved" /> {t("Admin console")}</button> : null}
-        </div>
-      </section>
+        </section>
+
+        <section className="filesharing-section-head" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, padding: "8px 4px", marginBottom: 6 }}>
+          <div style={{ fontSize: 10, color: "#8C9ABF", fontWeight: 600 }}>
+            {t("Showing")} <strong style={{ color: "#102A68", fontSize: "0.88rem", fontWeight: 700 }}>{visibleRows.length}</strong> {t("items")} • {formatBytes(selfUsageBytes)} / {selfQuotaLabel} • {activeLinks.length} {t("active links")}
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+            <button
+              type="button"
+              style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "6px 10px", borderRadius: 9, border: "1px solid #DDE7F6", background: "#F7F9FF", color: "#5D54FF", fontSize: "0.84rem", fontWeight: 800, cursor: "pointer", minWidth: 92, justifyContent: "center" }}
+              onClick={() => setLayout((v) => (v === "list" ? "grid" : "list"))}
+            >
+              <i className={layout === "list" ? "fas fa-table-cells" : "fas fa-list"} /> {layout === "list" ? t("Grid") : t("List")}
+            </button>
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as SortBy)}
+              style={{ padding: "5px 10px", borderRadius: 7, border: "1px solid #DDE7F6", background: "#FAFBFF", color: "#112A6D", fontSize: "0.88rem", fontWeight: 700, outline: "none" }}
+            >
+              <option value="custom">{t("Custom order")}</option>
+              <option value="modified">{t("Last modified")}</option>
+              <option value="name">{t("Name")}</option>
+              <option value="size">{t("Size")}</option>
+            </select>
+          </div>
+        </section>
 
       <section className="drive-shell">
         <aside className="drive-sidebar">
@@ -3824,6 +3915,7 @@ export default function FileSharing({ permissions }: PageProps) {
           ) : null}
         </main>
       </section>
+      </main>
 
       {status ? <div className="filesharing-status">{status}</div> : null}
 

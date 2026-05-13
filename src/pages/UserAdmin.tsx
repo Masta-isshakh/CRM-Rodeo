@@ -4,6 +4,7 @@ import { Button } from "@aws-amplify/ui-react";
 import { createPortal, flushSync } from "react-dom";
 import { fetchAuthSession, getCurrentUser } from "aws-amplify/auth";
 import { useLanguage } from "../i18n/LanguageContext";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 
 import type { Schema } from "../../amplify/data/resource";
 import type { PageProps } from "../lib/PageProps";
@@ -173,6 +174,7 @@ type MenuState =
 
 export default function Users(_: PageProps) {
   const { t } = useLanguage();
+  const { withLoading } = useGlobalLoading();
   const client = getDataClient();
   const { canOption, isAdminGroup, email: currentUserEmail } = usePermissions();
   const isDev = import.meta.env.DEV;
@@ -693,6 +695,12 @@ export default function Users(_: PageProps) {
 
   const visibleRows = canViewUsersList ? filtered : [];
 
+  const activeUsersCount = useMemo(
+    () => users.filter((u) => Boolean((u as any).isActive ?? true)).length,
+    [users]
+  );
+  const inactiveUsersCount = Math.max(0, users.length - activeUsersCount);
+
   const total = visibleRows.length;
   const from = total ? pageIndex * pageSize + 1 : 0;
   const to = Math.min(total, (pageIndex + 1) * pageSize);
@@ -773,7 +781,8 @@ export default function Users(_: PageProps) {
       setDepartmentKey("");
       setRoleKey("");
       setLineManagerEmail("");
-      await load();
+      setInviteOpen(false);
+      void load();
     } catch (e: any) {
       console.error(e);
       setInviteStatus(e?.message ?? t("inviteFailed"));
@@ -815,9 +824,16 @@ export default function Users(_: PageProps) {
         throw new Error(errs.map((x: any) => x.message).join(" | "));
       }
 
+      setUsers((prev) =>
+        prev.filter(
+          (u) =>
+            String(u.email ?? "").trim().toLowerCase() !==
+            String(deleteTargetUser.email ?? "").trim().toLowerCase()
+        )
+      );
       closeDeletePopup();
       window.dispatchEvent(new Event("rbac:refresh"));
-      await load();
+      void load();
     } catch (e: any) {
       console.error(e);
       setStatus(e?.message ?? t("failedToDeleteUser"));
@@ -980,8 +996,8 @@ export default function Users(_: PageProps) {
 
       setDetailsStatus(t("userUpdatedSuccessfully"));
       setDetailsEditing(false);
-      await load();
       setDetailsOpen(false);
+      void load();
     } catch (e: any) {
       console.error(e);
       setDetailsStatus(e?.message ?? t("failedToUpdateUser"));
@@ -1215,7 +1231,40 @@ export default function Users(_: PageProps) {
                   <path d="M16 13c-1.54 0-4.2.78-5.6 2.07A3.97 3.97 0 0 1 12 17v2h12v-2c0-2.66-5.33-4-8-4Z" fill="currentColor" opacity="0.9" />
                 </svg>
               </span>
-              <h1>{t("userManagementSystem")}</h1>
+              <div className="ums-topbar-text">
+                <div className="ums-topbar-kicker">{t("usersList")}</div>
+                <h1>{t("userManagementSystem")}</h1>
+                <p>{t("viewAndManageUserAccountSettings")}</p>
+              </div>
+            </div>
+
+            <div className="ums-topbar-right">
+              <div className="ums-topbar-search">
+                <div className="ums-search-wrap">
+                  <span className="ums-search-icon" aria-hidden>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                      <path
+                        d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Zm6.1-1.4 4.3 4.3"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </span>
+                  <input
+                    className="ums-search"
+                    value={search}
+                    onChange={(e) => setSearch(e.target.value)}
+                    placeholder={t("searchByEmployeeNameEmailEtc")}
+                  />
+                </div>
+              </div>
+
+              <div className="ums-topbar-metrics" aria-label={t("usersList")}>
+                <span className="ums-topbar-metric">{t("users")}: {users.length}</span>
+                <span className="ums-topbar-metric">{t("Active")}: {activeUsersCount}</span>
+                <span className="ums-topbar-metric">{t("Inactive")}: {inactiveUsersCount}</span>
+              </div>
             </div>
           </div>
         )}
@@ -1224,8 +1273,23 @@ export default function Users(_: PageProps) {
           <div className="ums-card ums-details-page" role="region" aria-label={t("editUserDetails")}>
             <div className="ums-details-page-head">
               <div className="ums-details-page-title-wrap">
-                <h3><span className="ums-section-icon" aria-hidden>●</span>{t("userDetails")}</h3>
-                <div className="ums-details-page-sub">{t("viewAndManageUserAccountSettings")}</div>
+                <div className="ums-details-head-main">
+                  <span className="ums-details-head-icon" aria-hidden>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                      <path d="M16 11c1.66 0 3-1.34 3-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3Z" fill="currentColor" opacity="0.9" />
+                      <path d="M8 11c1.66 0 3-1.34 3-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3Z" fill="currentColor" opacity="0.9" />
+                      <path d="M8 13c-2.67 0-8 1.34-8 4v2h10v-2c0-1.12.45-2.13 1.2-2.93C10.33 13.42 9.2 13 8 13Z" fill="currentColor" opacity="0.9" />
+                      <path d="M16 13c-1.54 0-4.2.78-5.6 2.07A3.97 3.97 0 0 1 12 17v2h12v-2c0-2.66-5.33-4-8-4Z" fill="currentColor" opacity="0.9" />
+                    </svg>
+                  </span>
+                  <div className="ums-details-head-text">
+                    <h3>{t("userDetails")}</h3>
+                    <div className="ums-details-page-sub-row">
+                      <span className="ums-details-sub-rail" aria-hidden />
+                      <div className="ums-details-page-sub">{t("viewAndManageUserAccountSettings")}</div>
+                    </div>
+                  </div>
+                </div>
               </div>
               <button className="ums-back-btn" onClick={() => setDetailsOpen(false)} aria-label={t("backToUsersList")}>
                 {t("backToUsers")}
@@ -1444,7 +1508,7 @@ export default function Users(_: PageProps) {
                       <div className="ums-toggle-sub">{t("sendPasswordResetEmailToUser")}</div>
                     </div>
                     <Button
-                      onClick={() => void sendResetPassword(detailsUser)}
+                      onClick={() => void withLoading(sendResetPassword(detailsUser), t("Sending reset password..."))}
                       isDisabled={loading || isRootAdminSyntheticUser(detailsUser)}
                       disabled={!canEditUsers || loading}
                     >
@@ -1462,8 +1526,8 @@ export default function Users(_: PageProps) {
               {detailsEditing && (
                 <Button
                   variation="primary"
-                  onClick={saveUserChanges}
-                          disabled={isRootAdminSyntheticUser(detailsUser) || !canEditUsers}
+                  onClick={() => void withLoading(saveUserChanges(), t("Saving user changes..."))}
+                  disabled={isRootAdminSyntheticUser(detailsUser) || !canEditUsers}
                   isLoading={loading}
                 >
                   {t("Save Changes")}

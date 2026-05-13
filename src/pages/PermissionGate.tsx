@@ -113,17 +113,6 @@ export function resolvePolicyAndOp(moduleId: string, optionId: string): Resolved
     return null;
   }
 
-  // CALL TRACKING
-  if (m === "calltracking" || m === "calls") {
-    if (o === "calltracking_list" || o === "calltracking_refresh") {
-      return { policyKey: "CALL_TRACKING", op: "canRead" };
-    }
-    if (o === "calltracking_create") return { policyKey: "CALL_TRACKING", op: "canCreate", fallbackOps: ["canUpdate"] };
-    if (o === "calltracking_edit") return { policyKey: "CALL_TRACKING", op: "canUpdate" };
-    if (o === "calltracking_delete") return { policyKey: "CALL_TRACKING", op: "canDelete" };
-    return null;
-  }
-
   // INTERNAL CHAT
   if (m === "internalchat" || m === "chat") {
     if (
@@ -168,14 +157,6 @@ export function resolvePolicyAndOp(moduleId: string, optionId: string): Resolved
     }
     if (o === "pushnotifications_send" || o === "pushnotifications_compose") {
       return { policyKey: "PUSH_NOTIFICATIONS", op: "canUpdate", fallbackOps: ["canCreate"] };
-    }
-    return null;
-  }
-
-  // EMAIL INBOX
-  if (m === "emailinbox" || m === "email") {
-    if (o === "emailinbox_list" || o === "emailinbox_open") {
-      return { policyKey: "EMAIL_INBOX", op: "canRead" };
     }
     return null;
   }

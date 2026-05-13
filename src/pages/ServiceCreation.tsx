@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { flushSync } from "react-dom";
 import PermissionGate from "./PermissionGate";
+import SuccessPopup from "./SuccessPopup";
 import "./ServiceCreation.css";
 import {
   createServiceBrandSpecificationItem,
@@ -21,6 +22,7 @@ import {
   type ServiceSpecificationBrand,
 } from "./serviceCatalogRepo";
 import { useLanguage } from "../i18n/LanguageContext";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 
 type Tab = "services" | "packages" | "specifications";
 type ModalType = "none" | "category" | "service" | "package" | "specification";
@@ -262,12 +264,16 @@ function resolveServiceSpecificationIds(
 
 export default function ServiceCreation() {
   const { t } = useLanguage();
+  const { withLoading } = useGlobalLoading();
   const [activeTab, setActiveTab] = useState<Tab>("services");
   const [modalType, setModalType] = useState<ModalType>("none");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [banner, setBanner] = useState<{ message: string; isError?: boolean } | null>(null);
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [successPopupTitle, setSuccessPopupTitle] = useState("");
+  const [successPopupSubtitle, setSuccessPopupSubtitle] = useState("");
 
   const [categories, setCategories] = useState<ServiceCategoryItem[]>([]);
   const [catalog, setCatalog] = useState<ServiceCatalogItem[]>([]);
@@ -542,10 +548,15 @@ export default function ServiceCreation() {
       if (categoryForm.id) {
         await updateServiceCategoryItem({ id: categoryForm.id, ...payload });
         setBanner({ message: t("Category updated successfully.") });
+        setSuccessPopupTitle(t("Category Updated"));
+        setSuccessPopupSubtitle(t("Category updated successfully."));
       } else {
         await createServiceCategoryItem(payload);
         setBanner({ message: t("Category created successfully.") });
+        setSuccessPopupTitle(t("Category Created"));
+        setSuccessPopupSubtitle(t("Category created successfully."));
       }
+      setShowSuccessPopup(true);
 
       closeModal();
       await loadData();
@@ -623,10 +634,15 @@ export default function ServiceCreation() {
       if (serviceForm.id) {
         await updateServiceCatalogItem({ id: serviceForm.id, ...payload });
         setBanner({ message: t("Service updated successfully.") });
+        setSuccessPopupTitle(t("Service Updated"));
+        setSuccessPopupSubtitle(t("Service updated successfully."));
       } else {
         await createServiceCatalogItem(payload);
         setBanner({ message: t("Service created successfully.") });
+        setSuccessPopupTitle(t("Service Created Successfully"));
+        setSuccessPopupSubtitle(t("The service has been added to the catalog."));
       }
+      setShowSuccessPopup(true);
 
       closeModal();
       await loadData();
@@ -673,10 +689,15 @@ export default function ServiceCreation() {
       if (packageForm.id) {
         await updateServiceCatalogItem({ id: packageForm.id, ...payload });
         setBanner({ message: t("Package updated successfully.") });
+        setSuccessPopupTitle(t("Package Updated"));
+        setSuccessPopupSubtitle(t("Package updated successfully."));
       } else {
         await createServiceCatalogItem(payload);
         setBanner({ message: t("Package created successfully.") });
+        setSuccessPopupTitle(t("Package Created Successfully"));
+        setSuccessPopupSubtitle(t("The package has been added to the catalog."));
       }
+      setShowSuccessPopup(true);
 
       closeModal();
       await loadData();
@@ -776,12 +797,16 @@ export default function ServiceCreation() {
         await createServiceBrandSpecificationItem(payload);
       }
 
-      setBanner({
-        message:
-          sanitized.length > 0
-            ? t("Brand specification saved successfully.")
-            : t("Brand specification cleared successfully."),
-      });
+      const specMsg =
+        sanitized.length > 0
+          ? t("Brand specification saved successfully.")
+          : t("Brand specification cleared successfully.");
+      setBanner({ message: specMsg });
+      setSuccessPopupTitle(
+        brandSpecificationForm.id ? t("Specification Updated") : t("Specification Created Successfully")
+      );
+      setSuccessPopupSubtitle(specMsg);
+      setShowSuccessPopup(true);
       closeModal();
       await loadData();
     } catch (e: any) {
@@ -819,7 +844,7 @@ export default function ServiceCreation() {
           <p className="sc2-sub">{t("Configure services, packages, and brand specifications with bilingual visibility.")}</p>
         </div>
         <div className="sc2-page-header-right">
-          <button className="sc2-btn blue sc2-refresh" onClick={() => void loadData()} disabled={loading || saving}>
+          <button className="sc2-btn blue sc2-refresh" onClick={() => void withLoading(loadData(), t("Loading service catalog..."))} disabled={loading || saving}>
             <i className="fas fa-sync"></i> {loading ? t("Loading...") : t("Refresh")}
           </button>
         </div>
@@ -1451,12 +1476,12 @@ export default function ServiceCreation() {
             {error && <div className="sc2-form-error">{error}</div>}
 
             <div className="sc2-modal-actions">
-              {modalType === "category" && <button className="sc2-btn green" disabled={saving} onClick={() => void saveCategory()}>{saving ? t("Saving...") : editingCategory ? t("Update Category") : t("Add Category")}</button>}
-              {modalType === "service" && <button className="sc2-btn blue" disabled={saving} onClick={() => void saveService()}>{saving ? t("Saving...") : editingService ? t("Update Service") : t("Add Service")}</button>}
-              {modalType === "package" && <button className="sc2-btn blue" disabled={saving} onClick={() => void savePackage()}>{saving ? t("Saving...") : editingPackage ? t("Update Package") : t("Add Package")}</button>}
+              {modalType === "category" && <button className="sc2-btn green" disabled={saving} onClick={() => void withLoading(saveCategory(), t("Saving category..."))}>{saving ? t("Saving...") : editingCategory ? t("Update Category") : t("Add Category")}</button>}
+              {modalType === "service" && <button className="sc2-btn blue" disabled={saving} onClick={() => void withLoading(saveService(), t("Saving service..."))}>{saving ? t("Saving...") : editingService ? t("Update Service") : t("Add Service")}</button>}
+              {modalType === "package" && <button className="sc2-btn blue" disabled={saving} onClick={() => void withLoading(savePackage(), t("Saving package..."))}>{saving ? t("Saving...") : editingPackage ? t("Update Package") : t("Add Package")}</button>}
               {modalType === "specification" ? (
                 <>
-                  <button className="sc2-btn blue" disabled={saving} onClick={() => void saveSpecifications()}>{saving ? t("Saving...") : t("Save Brand")}</button>
+                  <button className="sc2-btn blue" disabled={saving} onClick={() => void withLoading(saveSpecifications(), t("Saving specification brands..."))}>{saving ? t("Saving...") : t("Save Brand")}</button>
                   <button className="sc2-btn ghost" onClick={closeModal}>{t("Cancel")}</button>
                 </>
               ) : (
@@ -1465,6 +1490,26 @@ export default function ServiceCreation() {
             </div>
           </div>
         </div>
+      )}
+
+      {showSuccessPopup && (
+        <SuccessPopup
+          isVisible={true}
+          onClose={() => setShowSuccessPopup(false)}
+          title={successPopupTitle}
+          subtitle={successPopupSubtitle}
+          message={
+            <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+              <div style={{ padding: "12px 14px", background: "linear-gradient(90deg, rgba(16,185,129,0.08) 0%, rgba(37,214,232,0.04) 100%)", borderRadius: 10, border: "1px solid rgba(16,185,129,0.2)" }}>
+                <div style={{ fontSize: "0.88rem", fontWeight: 700, color: "#102A68", marginBottom: 6 }}>
+                  <i className="fas fa-check-circle" style={{ color: "#10B981", marginRight: 8 }} />
+                  {successPopupSubtitle}
+                </div>
+              </div>
+            </div>
+          }
+          autoCloseMs={2400}
+        />
       )}
 
       {pendingDelete && (
@@ -1482,7 +1527,7 @@ export default function ServiceCreation() {
             </div>
             <div className="sc2-modal-actions">
               <button className="sc2-btn ghost" onClick={() => setPendingDelete(null)}>{t("Cancel")}</button>
-              <button className="sc2-btn danger" disabled={saving} onClick={() => void confirmDelete()}>
+              <button className="sc2-btn danger" disabled={saving} onClick={() => void withLoading(confirmDelete(), t("Deleting item..."))}>
                 {saving ? t("Deleting...") : t("Delete")}
               </button>
             </div>

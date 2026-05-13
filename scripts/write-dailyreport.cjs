@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+const fs = require("fs");
+const path = require("path");
+
+const content = `import { useEffect, useMemo, useState } from "react";
 import { FiDownload } from "react-icons/fi";
 import type { PageProps } from "../lib/PageProps";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -288,7 +291,7 @@ export default function DailyReport({ permissions }: PageProps) {
           );
 
         const incidents = rangedLogs.filter((x) => {
-          const text = `${safeText(x.raw?.action)} ${safeText(x.raw?.message)} ${safeText(x.raw?.type)}`.toLowerCase();
+          const text = \`\${safeText(x.raw?.action)} \${safeText(x.raw?.message)} \${safeText(x.raw?.type)}\`.toLowerCase();
           return text.includes("error") || text.includes("failed") || text.includes("warning");
         }).length;
 
@@ -345,7 +348,7 @@ export default function DailyReport({ permissions }: PageProps) {
             return {
               id: String(o?.id ?? idx),
               dateTime: created
-                ? `${created.toLocaleDateString()} ${created.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                ? \`\${created.toLocaleDateString()} \${created.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}\`
                 : "—",
               jobOrderId: firstText(o, ["jobOrderId", "jobCardNumber", "orderNumber", "id"]),
               status: firstText(o, ["status", "workStatus", "workStatusLabel"]) || "—",
@@ -381,7 +384,7 @@ export default function DailyReport({ permissions }: PageProps) {
               name: firstText(c, ["name", "customerName", "fullName"]) || "—",
               phone: firstText(c, ["mobileNumber", "phone", "whatsapp", "contactNumber"]) || "—",
               dateTime: d
-                ? `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+                ? \`\${d.toLocaleDateString()} \${d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}\`
                 : "—",
             };
           });
@@ -390,7 +393,7 @@ export default function DailyReport({ permissions }: PageProps) {
           .map((order, idx) => {
             const parts = order.vehicleInfo.split(" • ");
             return {
-              id: `${order.id}-${idx}`,
+              id: \`\${order.id}-\${idx}\`,
               plate: parts[0] || "—",
               make: parts[1] || "—",
               model: parts[2] || "—",
@@ -452,7 +455,7 @@ export default function DailyReport({ permissions }: PageProps) {
         safeText(billing?.billId ?? billing?.invoiceNumber ?? billing?.invoiceNo);
 
       return {
-        id: `${order.id}-${index}`,
+        id: \`\${order.id}-\${index}\`,
         branch: branch || "—",
         vehicleModel: vehicleModel || "—",
         advisor: advisor || "—",
@@ -484,7 +487,7 @@ export default function DailyReport({ permissions }: PageProps) {
   }
 
   return (
-    <div className={`dr2-page flavor-${flavor}`}>
+    <div className={\`dr2-page flavor-\${flavor}\`}>
       {/* ── HEADER ── */}
       <header className="dr2-header">
         <div className="dr2-header-left">
@@ -517,7 +520,7 @@ export default function DailyReport({ permissions }: PageProps) {
               <button
                 key={option.key}
                 type="button"
-                className={`dr2-flavor-btn${option.key === flavor ? " is-active" : ""}`}
+                className={\`dr2-flavor-btn\${option.key === flavor ? " is-active" : ""}\`}
                 onClick={() => setFlavor(option.key)}
                 aria-pressed={option.key === flavor}
               >
@@ -530,19 +533,19 @@ export default function DailyReport({ permissions }: PageProps) {
             className="dr2-export-btn"
             onClick={() => {
               const lines = [
-                `${t("Daily Report")} - ${dateFrom} ${t("to")} ${dateTo}`,
-                `${t("Jobs Created")}: ${metrics.jobsCreated}`,
-                `${t("Jobs Completed")}: ${metrics.jobsCompleted}`,
-                `${t("Revenue")}: ${formatMoney(metrics.totalRevenue)}`,
-                `${t("New Customers")}: ${metrics.newCustomers}`,
-                `${t("Active Employees")}: ${metrics.activeEmployees}`,
-                `${t("Incidents")}: ${metrics.incidents}`,
-              ].join("\n");
+                \`\${t("Daily Report")} - \${dateFrom} \${t("to")} \${dateTo}\`,
+                \`\${t("Jobs Created")}: \${metrics.jobsCreated}\`,
+                \`\${t("Jobs Completed")}: \${metrics.jobsCompleted}\`,
+                \`\${t("Revenue")}: \${formatMoney(metrics.totalRevenue)}\`,
+                \`\${t("New Customers")}: \${metrics.newCustomers}\`,
+                \`\${t("Active Employees")}: \${metrics.activeEmployees}\`,
+                \`\${t("Incidents")}: \${metrics.incidents}\`,
+              ].join("\\n");
               const blob = new Blob([lines], { type: "text/plain;charset=utf-8" });
               const url = URL.createObjectURL(blob);
               const a = document.createElement("a");
               a.href = url;
-              a.download = `daily-report-${dateFrom}-to-${dateTo}.txt`;
+              a.download = \`daily-report-\${dateFrom}-to-\${dateTo}.txt\`;
               a.click();
               URL.revokeObjectURL(url);
             }}
@@ -555,7 +558,7 @@ export default function DailyReport({ permissions }: PageProps) {
       {/* ── KPI CARDS ── */}
       <section className="dr2-summary-grid" aria-label={t("Daily KPIs")}>
         {cards.map((card) => (
-          <article key={card.label} className={`dr2-summary-card tone-${card.tone}`}>
+          <article key={card.label} className={\`dr2-summary-card tone-\${card.tone}\`}>
             <div>
               <p className="dr2-card-label">{card.label}</p>
               <p className="dr2-card-value">{card.value}</p>
@@ -572,13 +575,13 @@ export default function DailyReport({ permissions }: PageProps) {
             <span>{t("Completion Rate")}</span>
             <strong>{completionRate}%</strong>
           </div>
-          <div className="dr2-progress"><span style={{ width: `${completionRate}%` }} /></div>
+          <div className="dr2-progress"><span style={{ width: \`\${completionRate}%\` }} /></div>
 
           <div className="dr2-metric-line">
             <span>{t("Quality Score")}</span>
             <strong>{qualityScore}/100</strong>
           </div>
-          <div className="dr2-progress quality"><span style={{ width: `${qualityScore}%` }} /></div>
+          <div className="dr2-progress quality"><span style={{ width: \`\${qualityScore}%\` }} /></div>
 
           <ul className="dr2-highlights">
             <li>{t("Top priority: keep rework and incident count under control before shift handoff.")}</li>
@@ -645,7 +648,7 @@ export default function DailyReport({ permissions }: PageProps) {
                           {order.customerSources.length > 0
                             ? order.customerSources.map((key) => (
                                 <button
-                                  key={`${order.id}-customer-${key}`}
+                                  key={\`\${order.id}-customer-\${key}\`}
                                   type="button"
                                   className={(rawInspectorState[order.id]?.focusKeys ?? []).includes(key) ? "is-active" : ""}
                                   onClick={(e) => openRawInspectorWithKey(order.id, key, e.ctrlKey || e.metaKey)}
@@ -662,7 +665,7 @@ export default function DailyReport({ permissions }: PageProps) {
                           {order.vehicleSources.length > 0
                             ? order.vehicleSources.map((key) => (
                                 <button
-                                  key={`${order.id}-vehicle-${key}`}
+                                  key={\`\${order.id}-vehicle-\${key}\`}
                                   type="button"
                                   className={(rawInspectorState[order.id]?.focusKeys ?? []).includes(key) ? "is-active" : ""}
                                   onClick={(e) => openRawInspectorWithKey(order.id, key, e.ctrlKey || e.metaKey)}
@@ -679,7 +682,7 @@ export default function DailyReport({ permissions }: PageProps) {
                           {order.serviceSources.length > 0
                             ? order.serviceSources.map((key) => (
                                 <button
-                                  key={`${order.id}-service-${key}`}
+                                  key={\`\${order.id}-service-\${key}\`}
                                   type="button"
                                   className={(rawInspectorState[order.id]?.focusKeys ?? []).includes(key) ? "is-active" : ""}
                                   onClick={(e) => openRawInspectorWithKey(order.id, key, e.ctrlKey || e.metaKey)}
@@ -706,14 +709,14 @@ export default function DailyReport({ permissions }: PageProps) {
                       <summary>{t("Raw Details")}</summary>
                       <div className="dr2-json-view">
                         {JSON.stringify(order.raw, null, 2)
-                          .split("\n")
+                          .split("\\n")
                           .map((line, idx) => {
                             const focusedKeys = rawInspectorState[order.id]?.focusKeys ?? [];
-                            const isHit = focusedKeys.some((key) => line.includes(`"${key}"`));
+                            const isHit = focusedKeys.some((key) => line.includes(\`"\${key}"\`));
                             return (
                               <div
-                                key={`${order.id}-json-${idx}`}
-                                className={`dr2-json-line${isHit ? " is-hit" : ""}`}
+                                key={\`\${order.id}-json-\${idx}\`}
+                                className={\`dr2-json-line\${isHit ? " is-hit" : ""}\`}
                               >
                                 {line || " "}
                               </div>
@@ -827,3 +830,9 @@ export default function DailyReport({ permissions }: PageProps) {
     </div>
   );
 }
+`;
+
+const outPath = path.join(__dirname, "..", "src", "pages", "DailyReport.tsx");
+fs.writeFileSync(outPath, content, "utf8");
+console.log("DailyReport.tsx written:", outPath);
+console.log("Size:", fs.statSync(outPath).size, "bytes");

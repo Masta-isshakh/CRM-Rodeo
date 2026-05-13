@@ -7,6 +7,7 @@ import "./RoleAccessControl.css";
 import { getDataClient } from "../lib/amplifyClient";
 import { matchesSearchQuery } from "../lib/searchUtils";
 import { resolveActorUsername } from "../utils/actorIdentity";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 import { resolvePolicyAndOp } from "./PermissionGate";
 
 function normalizeKey(x: unknown) {
@@ -129,20 +130,6 @@ const MODULE_DEFINITIONS = [
     ],
   },
   {
-    id: "calltracking",
-    title: "Call Tracking",
-    icon: "fas fa-phone",
-    category: "core",
-    options: [
-      { id: "calltracking_list", label: "Show Call Tracking in sidebar", prefix: "-" },
-      { id: "calltracking_create", label: "Create Call Record", prefix: "a." },
-      { id: "calltracking_refresh", label: "Refresh", prefix: "b." },
-      { id: "calltracking_edit", label: "Edit Call Record", prefix: "c." },
-      { id: "calltracking_delete", label: "Delete Call Record", prefix: "d." },
-    ],
-  },
-
-  {
     id: "internalchat",
     title: "Internal Chat",
     icon: "fas fa-comments",
@@ -195,17 +182,6 @@ const MODULE_DEFINITIONS = [
       { id: "pushnotifications_send", label: "Send SMS notifications", prefix: "a." },
       { id: "pushnotifications_compose", label: "Compose message", prefix: "b." },
       { id: "pushnotifications_view_history", label: "View send history", prefix: "c." },
-    ],
-  },
-
-  {
-    id: "emailinbox",
-    title: "Email Inbox",
-    icon: "fas fa-envelope-open-text",
-    category: "core",
-    options: [
-      { id: "emailinbox_list", label: "Show Email Inbox in sidebar", prefix: "-" },
-      { id: "emailinbox_open", label: "Open Amazon WorkMail inbox", prefix: "a." },
     ],
   },
 
@@ -711,6 +687,7 @@ const OptionNode = ({
 
 export default function RoleAccessControl() {
   const { t } = useLanguage();
+  const { withLoading } = useGlobalLoading();
   const client = useMemo(() => getDataClient(), []);
   const [loading, setLoading] = useState(false);
 
@@ -876,6 +853,16 @@ export default function RoleAccessControl() {
       return matchesCategory && matchesSearch;
     });
   }, [activeCategory, searchTerm, modulesWithSearchIndex]);
+
+  const enabledVisibleModulesCount = useMemo(
+    () => visibleModules.filter((module: any) => Boolean(permissions[module.id]?.enabled)).length,
+    [visibleModules, permissions]
+  );
+
+  const visibleOptionsCount = useMemo(
+    () => visibleModules.reduce((total: number, module: any) => total + flattenOptions(module.options ?? []).length, 0),
+    [visibleModules]
+  );
 
   const handleToggleModule = (moduleId: string) => {
     setExpandedModules((prev) => ({ ...prev, [moduleId]: !prev[moduleId] }));
@@ -1246,7 +1233,7 @@ export default function RoleAccessControl() {
       ];
 
       if (allWriteTasks.length > 0) {
-        await runInBatches(allWriteTasks, 25, (completed, total) => {
+        await runInBatches(allWriteTasks, 50, (completed, total) => {
           setSaveProgress({ active: true, completed, total });
         });
       } else {
@@ -1295,11 +1282,17 @@ export default function RoleAccessControl() {
         ),
       ]);
 
-      for (const row of existingToggles ?? []) {
-        if (row?.id) await (client.models as any).RoleOptionToggle.delete({ id: row.id });
-      }
-      for (const row of existingNums ?? []) {
-        if (row?.id) await (client.models as any).RoleOptionNumber.delete({ id: row.id });
+      const resetTasks: Array<() => Promise<any>> = [
+        ...(existingToggles ?? [])
+          .filter((row) => row?.id)
+          .map((row) => () => (client.models as any).RoleOptionToggle.delete({ id: row.id })),
+        ...(existingNums ?? [])
+          .filter((row) => row?.id)
+          .map((row) => () => (client.models as any).RoleOptionNumber.delete({ id: row.id })),
+      ];
+
+      if (resetTasks.length > 0) {
+        await runInBatches(resetTasks, 50);
       }
 
       setPermissions(buildDefaultPermissions());
@@ -1323,167 +1316,230 @@ export default function RoleAccessControl() {
         <div className="rac-bg-orb-b" />
         <div className="rac-bg-grid" />
       </div>
-      <div className="rac-container">
-        <header className="rac-header">
-          <div className="rac-header-text">
-            <h1>{t("roleAccessControl")}</h1>
-            <p>{t("manageOptionLevelPermissions")}</p>
-          </div>
-          <div className="rac-header-actions">
-            <button
-              type="button"
-              className="rac-btn rac-btn-green"
-              onClick={() => setShowCreateRole(true)}
-              disabled={loading}
-            >
-              <i className="fas fa-plus" /> {t("createNewRole")}
-            </button>
-          </div>
-        </header>
+      <div className="rac-shell">
+        <div className="rac-list-page">
+          <div className="rac-card rac-hero-card">
+            <div className="rac-details-page-head">
+              <div className="rac-details-page-title-wrap">
+                <div className="rac-details-head-main">
+                  <span className="rac-details-head-icon" aria-hidden>
+                    <i className="fas fa-user-shield" />
+                  </span>
+                  <div className="rac-details-head-text">
+                    <h3>{t("roleAccessControl")}</h3>
+                    <div className="rac-details-page-sub-row">
+                      <span className="rac-details-sub-rail" aria-hidden />
+                      <div className="rac-details-page-sub">{t("manageOptionLevelPermissions")}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-        <section className="rac-role-section">
-          <div className="rac-role-selector">
-            <div>
-              <label htmlFor="rac-role-select">{t("selectRoleToModify")}</label>
-              <select
-                id="rac-role-select"
-                value={currentRoleId}
-                onChange={(e) => setCurrentRoleId(e.target.value)}
+              <button
+                type="button"
+                className="rac-add-btn"
+                onClick={() => setShowCreateRole(true)}
                 disabled={loading}
               >
-                {roles.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.name}
-                  </option>
-                ))}
-              </select>
+                <span className="rac-add-icon" aria-hidden>+</span>
+                {t("createNewRole")}
+              </button>
             </div>
 
-            <div className="rac-current-role">
-              <i className="fas fa-user-shield" />
-              {t("currentlyEditing")}<span>{selectedRole?.name ?? "—"}</span>
-            </div>
+            <div className="rac-hero-body">
+              <div className="rac-hero-grid">
+                <div className="rac-hero-field">
+                  <label className="rac-label" htmlFor="rac-role-select">{t("selectRoleToModify")}</label>
+                  <select
+                    id="rac-role-select"
+                    className="rac-input rac-select"
+                    value={currentRoleId}
+                    onChange={(e) => setCurrentRoleId(e.target.value)}
+                    disabled={loading}
+                  >
+                    {roles.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
-          </div>
-        </section>
-
-        <div className="rac-search-box">
-          <i className="fas fa-search" />
-          <input
-            type="text"
-            placeholder={t("searchPermissionsPlaceholder")}
-            value={searchTerm}
-            onChange={(event) => setSearchTerm(event.target.value)}
-          />
-        </div>
-
-        <div className="rac-tabs">
-          {[
-            { id: "all", label: t("allModules") },
-            { id: "core", label: t("coreOperations") },
-            { id: "financial", label: t("financial") },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              className={`rac-tab ${activeCategory === tab.id ? "active" : ""}`}
-              onClick={() => setActiveCategory(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-
-        <section className="rac-modules">
-          {visibleModules.map((module: any) => {
-            const moduleState = permissions[module.id] || { enabled: false, options: {} };
-            const isExpanded = !!expandedModules[module.id];
-
-            return (
-              <div
-                key={module.id}
-                className={`rac-module-card ${moduleState.enabled ? "" : "rac-module-disabled"}`}
-              >
-                <div
-                  className={`rac-module-header ${isExpanded ? "expanded" : ""}`}
-                  onClick={() => handleToggleModule(module.id)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      handleToggleModule(module.id);
-                    }
-                  }}
-                  role="button"
-                  tabIndex={0}
-                >
-                  <div className="rac-module-title">
-                    <i className={module.icon} />
-                    <span>{t(module.title)}</span>
-                    <span className={`rac-status-indicator ${moduleState.enabled ? "enabled" : "disabled"}`} />
-                  </div>
-
-                  <div className="rac-module-toggle" onClick={(e) => e.stopPropagation()}>
-                    <span className="rac-toggle-label">{t("enableDisable")}</span>
-                    <label className="rac-toggle">
-                      <input
-                        type="checkbox"
-                        checked={moduleState.enabled}
-                        onChange={(event) => handleToggleModuleEnabled(module.id, event.target.checked)}
-                      />
-                      <span className="rac-slider" />
-                    </label>
-                    <i className="fas fa-chevron-down rac-expand-icon" />
+                <div className="rac-current-role">
+                  <span className="rac-current-role-icon" aria-hidden>
+                    <i className="fas fa-id-badge" />
+                  </span>
+                  <div className="rac-current-role-copy">
+                    <span className="rac-current-role-label">{t("currentlyEditing")}</span>
+                    <strong>{selectedRole?.name ?? "—"}</strong>
                   </div>
                 </div>
 
-                <div className={`rac-module-content ${isExpanded ? "expanded" : ""}`}>
-                  {(module.options ?? []).map((option: any) => (
-                    <OptionNode
-                      key={option.id}
-                      moduleId={module.id}
-                      option={option}
-                      level={1}
-                      moduleEnabled={moduleState.enabled}
-                      permissions={permissions}
-                      onToggleOption={handleToggleOption}
-                      percentValues={percentValues}
-                      onPercentChange={handlePercentChange}
-                      parentEnabled={moduleState.enabled}
+                <div className="rac-hero-search">
+                  <div className="rac-search-wrap">
+                    <span className="rac-search-icon" aria-hidden>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                        <path
+                          d="M10.5 18a7.5 7.5 0 1 1 0-15 7.5 7.5 0 0 1 0 15Zm6.1-1.4 4.3 4.3"
+                          stroke="currentColor"
+                          strokeWidth="2"
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                    </span>
+                    <input
+                      type="text"
+                      className="rac-search"
+                      placeholder={t("searchPermissionsPlaceholder")}
+                      value={searchTerm}
+                      onChange={(event) => setSearchTerm(event.target.value)}
                     />
+                  </div>
+                </div>
+
+                <div className="rac-topbar-metrics" aria-label={t("roleAccessControl")}>
+                  <span className="rac-topbar-metric">Roles: {roles.length}</span>
+                  <span className="rac-topbar-metric">Modules: {visibleModules.length}</span>
+                  <span className="rac-topbar-metric">Active: {enabledVisibleModulesCount}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="rac-card rac-filters-card">
+            <div className="rac-table-header">
+              <div className="rac-table-title">
+                <span className="rac-list-icon" aria-hidden>≡</span>
+                <h2>{t("allModules")}</h2>
+              </div>
+
+              <div className="rac-table-actions">
+                <div className="rac-tabs" role="tablist" aria-label={t("allModules")}>
+                  {[
+                    { id: "all", label: t("allModules") },
+                    { id: "core", label: t("coreOperations") },
+                    { id: "financial", label: t("financial") },
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      type="button"
+                      className={`rac-tab ${activeCategory === tab.id ? "active" : ""}`}
+                      onClick={() => setActiveCategory(tab.id)}
+                    >
+                      {tab.label}
+                    </button>
                   ))}
                 </div>
               </div>
-            );
-          })}
-        </section>
+            </div>
 
-        <section className="rac-actions">
-          <button type="button" className="rac-btn rac-btn-ghost" onClick={handleReset} disabled={loading}>
-            <i className="fas fa-undo" /> {t("resetDeleteBackendRows")}
-          </button>
-
-          <div className="rac-save-wrap">
-            <button type="button" className="rac-btn rac-btn-primary" onClick={handleSave} disabled={loading}>
-              <i className="fas fa-save" /> {loading
-                ? `${t("savingChanges")}... (${saveProgress.completed}/${saveProgress.total || "?"})`
-                : t("saveToBackend")}
-            </button>
-
-            {loading && saveProgress.active && saveProgress.total > 0 && (
-              <div className="rac-save-progress" aria-live="polite">
-                <div className="rac-save-progress-text">
-                  {t("savingChanges")}... ({saveProgress.completed}/{saveProgress.total})
-                </div>
-                <div className="rac-save-progress-bar" role="progressbar" aria-valuemin={0} aria-valuemax={saveProgress.total} aria-valuenow={saveProgress.completed}>
-                  <div
-                    className="rac-save-progress-fill"
-                    style={{ width: `${Math.max(0, Math.min(100, (saveProgress.completed / saveProgress.total) * 100))}%` }}
-                  />
-                </div>
-              </div>
-            )}
+            <div className="rac-showing">
+              {t("Showing")} {visibleModules.length} {t("of")} {modulesWithSearchIndex.length} modules · {visibleOptionsCount} options
+            </div>
           </div>
-        </section>
+
+          <div className="rac-card rac-modules-card">
+            <div className="rac-modules-body">
+              <section className="rac-modules">
+                {visibleModules.map((module: any) => {
+                  const moduleState = permissions[module.id] || { enabled: false, options: {} };
+                  const isExpanded = !!expandedModules[module.id];
+
+                  return (
+                    <div
+                      key={module.id}
+                      className={`rac-module-card ${moduleState.enabled ? "" : "rac-module-disabled"}`}
+                    >
+                      <div
+                        className={`rac-module-header ${isExpanded ? "expanded" : ""}`}
+                        onClick={() => handleToggleModule(module.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            handleToggleModule(module.id);
+                          }
+                        }}
+                        role="button"
+                        tabIndex={0}
+                      >
+                        <div className="rac-module-title">
+                          <span className="rac-section-icon" aria-hidden>
+                            <i className={module.icon} />
+                          </span>
+                          <div className="rac-module-title-copy">
+                            <h4>{t(module.title)}</h4>
+                            <div className="rac-module-meta">{flattenOptions(module.options ?? []).length} options</div>
+                          </div>
+                          <span className={`rac-status-indicator ${moduleState.enabled ? "enabled" : "disabled"}`} />
+                        </div>
+
+                        <div className="rac-module-toggle" onClick={(e) => e.stopPropagation()}>
+                          <span className="rac-toggle-label">{t("enableDisable")}</span>
+                          <label className="rac-switch" aria-label={t("enableDisable")}>
+                            <input
+                              type="checkbox"
+                              checked={moduleState.enabled}
+                              onChange={(event) => handleToggleModuleEnabled(module.id, event.target.checked)}
+                            />
+                            <span className="rac-switch-slider" />
+                          </label>
+                          <i className="fas fa-chevron-down rac-expand-icon" />
+                        </div>
+                      </div>
+
+                      <div className={`rac-module-content ${isExpanded ? "expanded" : ""}`}>
+                        {(module.options ?? []).map((option: any) => (
+                          <OptionNode
+                            key={option.id}
+                            moduleId={module.id}
+                            option={option}
+                            level={1}
+                            moduleEnabled={moduleState.enabled}
+                            permissions={permissions}
+                            onToggleOption={handleToggleOption}
+                            percentValues={percentValues}
+                            onPercentChange={handlePercentChange}
+                            parentEnabled={moduleState.enabled}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </section>
+            </div>
+          </div>
+
+          <div className="rac-card rac-actions-card">
+            <section className="rac-actions">
+              <button type="button" className="rac-btn rac-btn-ghost" onClick={() => void withLoading(handleReset(), t("Resetting changes..."))} disabled={loading}>
+                <i className="fas fa-undo" /> {t("resetDeleteBackendRows")}
+              </button>
+
+              <div className="rac-save-wrap">
+                <button type="button" className="rac-btn rac-btn-primary" onClick={() => void withLoading(handleSave(), t("Saving role policies..."))} disabled={loading}>
+                  <i className="fas fa-save" /> {loading
+                    ? `${t("savingChanges")}... (${saveProgress.completed}/${saveProgress.total || "?"})`
+                    : t("saveToBackend")}
+                </button>
+
+                {loading && saveProgress.active && saveProgress.total > 0 && (
+                  <div className="rac-save-progress" aria-live="polite">
+                    <div className="rac-save-progress-text">
+                      {t("savingChanges")}... ({saveProgress.completed}/{saveProgress.total})
+                    </div>
+                    <div className="rac-save-progress-bar" role="progressbar" aria-valuemin={0} aria-valuemax={saveProgress.total} aria-valuenow={saveProgress.completed}>
+                      <div
+                        className="rac-save-progress-fill"
+                        style={{ width: `${Math.max(0, Math.min(100, (saveProgress.completed / saveProgress.total) * 100))}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </section>
+          </div>
+        </div>
       </div>
 
       {/* Create role modal */}
@@ -1520,7 +1576,7 @@ export default function RoleAccessControl() {
               <button type="button" className="rac-btn rac-btn-ghost" onClick={() => setShowCreateRole(false)} disabled={loading}>
                 {t("cancel")}
               </button>
-              <button type="button" className="rac-btn rac-btn-primary" onClick={() => void createRole()} disabled={loading}>
+              <button type="button" className="rac-btn rac-btn-primary" onClick={() => void withLoading(createRole(), t("Creating role..."))} disabled={loading}>
                 <i className="fas fa-plus" /> {loading ? t("creating") : t("createRole")}
               </button>
             </div>

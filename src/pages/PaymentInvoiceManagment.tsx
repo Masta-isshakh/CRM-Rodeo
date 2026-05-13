@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 import { createPortal, flushSync } from "react-dom";
 import "./PaymentInvoiceManagment.css";
 import "./JobOrderHistory.css";
@@ -287,10 +288,14 @@ function findServiceByInvoiceName(services: any[], invoiceServiceName: string) {
 // snapshot as the Billing section, so Total cannot drift between sections.
 function resolveLockedPaymentFinancials(order: any, paymentRows: any[]) {
   const dynamic = resolveDynamicBillingSnapshot(order, { paymentRows });
+  const paymentSnap = (dynamic as any)?.paymentSnap ?? {};
+  const fallbackAmountPaid = paymentRows?.length
+    ? sumApprovedPayments(paymentRows)
+    : toNum(order?.billing?.amountPaid ?? order?.amountPaid);
   return {
-    totalAmount: roundMoney(Math.max(0, toNum(dynamic.paymentSnap.totalAmount))),
-    discount: roundMoney(Math.max(0, toNum(dynamic.paymentSnap.discount))),
-    amountPaid: roundMoney(Math.max(0, toNum(dynamic.paymentSnap.amountPaid))),
+    totalAmount: roundMoney(Math.max(0, toNum(paymentSnap.totalAmount ?? order?.billing?.totalAmount ?? order?.totalAmount))),
+    discount: roundMoney(Math.max(0, toNum(paymentSnap.discount ?? order?.billing?.discount ?? order?.discount))),
+    amountPaid: roundMoney(Math.max(0, toNum(paymentSnap.amountPaid ?? fallbackAmountPaid))),
   };
 }
 
@@ -342,16 +347,47 @@ function buildPackageAuditBreakdown(services: any[]) {
   };
 }
 
+function extractIncludedServiceLabels(service: any): string[] {
+  const rawCandidates = [
+    service?.includedServices,
+    service?.includedServiceNames,
+    service?.services,
+    service?.items,
+  ];
+
+  for (const candidate of rawCandidates) {
+    if (!Array.isArray(candidate)) continue;
+    const labels = candidate
+      .map((entry: any) => {
+        if (typeof entry === "string") return entry.trim();
+        return String(entry?.name ?? entry?.serviceName ?? entry?.title ?? "").trim();
+      })
+      .filter(Boolean);
+    if (labels.length > 0) return labels;
+  }
+
+  return [];
+}
+
 function buildJobOrderBillLines(services: any[]) {
   const packageMap = new Map<string, { label: string; amount: number; includedServices: string[] }>();
   const packageOrder: string[] = [];
-  const standaloneLines: Array<{ label: string; amount: number; type: "service"; itemCount: number }> = [];
+  const standaloneLines: Array<{ label: string; amount: number; type: "service"; itemCount: number; packageLabel?: string }> = [];
 
   for (const service of services || []) {
     const servicePrice = Math.max(0, toNum(service?.price));
-    const packageKey = getPackageGroupKey(service);
+    const explicitPackageKey = getPackageGroupKey(service);
+    const includedFromPayload = extractIncludedServiceLabels(service);
+    const packageName = String(service?.packageName || service?.packageCode || service?.name || service?.serviceName || "Unnamed Package").trim() || "Unnamed Package";
+    const fallbackPackageKey = `pkg:${String(service?.packageCode || service?.packageName || service?.serviceCode || service?.id || packageName)
+      .trim()
+      .toLowerCase()}`;
+    const packageKey = explicitPackageKey || (includedFromPayload.length > 0 ? fallbackPackageKey : "");
+
     if (!packageKey) {
-      const standaloneLabel = String(service?.name ?? service?.serviceName ?? service?.title ?? "Service").trim() || "Service";
+      const standaloneEn = String(service?.name ?? service?.serviceName ?? service?.title ?? "").trim();
+      const standaloneAr = String(service?.nameAr ?? service?.serviceNameAr ?? "").trim();
+      const standaloneLabel = standaloneEn && standaloneAr ? `${standaloneEn} / ${standaloneAr}` : standaloneEn || standaloneAr || "Service";
       standaloneLines.push({
         label: standaloneLabel,
         amount: roundMoney(servicePrice),
@@ -361,9 +397,11 @@ function buildJobOrderBillLines(services: any[]) {
       continue;
     }
 
-    const packageName = String(service?.packageName || service?.packageCode || "Unnamed Package").trim() || "Unnamed Package";
     const packagePrice = Math.max(0, toCurrencyNumber(service?.packagePrice));
-    const includedLabel = String(service?.name ?? service?.serviceName ?? service?.title ?? "Service").trim() || "Service";
+    const includedEn = String(service?.name ?? service?.serviceName ?? service?.title ?? "").trim();
+    const includedAr = String(service?.nameAr ?? service?.serviceNameAr ?? "").trim();
+    const includedLabel = includedEn && includedAr ? `${includedEn} / ${includedAr}` : includedEn || includedAr || "Service";
+    const includedLabels = explicitPackageKey ? [includedLabel] : includedFromPayload;
     const current = packageMap.get(packageKey) || {
       label: packageName,
       amount: 0,
@@ -371,10 +409,18 @@ function buildJobOrderBillLines(services: any[]) {
     };
     if (!packageMap.has(packageKey)) packageOrder.push(packageKey);
 
+    const nextAmount =
+      packagePrice > 0
+        ? packagePrice
+        : explicitPackageKey
+          ? current.amount + servicePrice
+          : Math.max(current.amount, servicePrice);
+    const mergedIncluded = Array.from(new Set([...current.includedServices, ...includedLabels]));
+
     packageMap.set(packageKey, {
       label: current.label || packageName,
-      amount: packagePrice > 0 ? packagePrice : current.amount + servicePrice,
-      includedServices: [...current.includedServices, includedLabel],
+      amount: nextAmount,
+      includedServices: mergedIncluded,
     });
   }
 
@@ -429,6 +475,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   const client = useMemo(() => getDataClient(), []);
   const { t } = useLanguage();
   const { canOption, getOptionNumber } = usePermissions();
+  const { withLoading } = useGlobalLoading();
   const [userLabelMap, setUserLabelMap] = useState<Record<string, string>>({});
 
   // ✅ numeric limit (percent)
@@ -913,6 +960,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     setLoading(true);
     try {
+      await withLoading((async () => {
       const detailed = await getJobOrderByOrderNumber(orderKey);
       if (!detailed?._backendId) throw new Error(t("Order not found in backend."));
 
@@ -989,6 +1037,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         setSelectedOrder(merged);
         setShowDetailsScreen(true);
       });
+      })(), t("Loading payment details..."));
     } catch (e) {
       setErrorMessage(`${t("Load failed:")} ${errMsg(e)}`);
       setShowErrorPopup(true);
@@ -1249,114 +1298,116 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       return;
     }
 
-    setLoading(true);
-    try {
-      const actor = resolveActorUsername(currentUser, "user");
+    // Close modal immediately for optimistic UI (non-blocking)
+    closePaymentPopup();
+    setSuccessMessage(
+      <>
+        <span className="pim-pop-title"><i className="fas fa-check-circle" /> {t("Payment Recorded")}</span>
+        <span className="pim-pop-text">
+          {t("Payment")} <strong>{fmtQar(amountToPay)}</strong> {t("recorded successfully.")}
+          {method === "Transfer" ? ` ${t("Transfer proof uploaded to Documents.")}` : ""}
+        </span>
+      </>
+    );
+    setShowSuccessPopup(true);
 
-      let newDoc: DocItem | null = null;
-      if (method === "Transfer" && paymentForm.transferProofDataUrl) {
-        const blob = dataUrlToBlob(paymentForm.transferProofDataUrl);
-        const key = `job-orders/${paymentForm.orderNumber}/payments/${Date.now()}-${safeFileName(paymentForm.transferProofName || "transfer_proof")}`;
-        await uploadData({ path: key, data: blob, options: { contentType: blob.type || "application/octet-stream" } }).result;
+    // Fire-and-forget background operations (no await, no blocking)
+    void withLoading((async () => {
+      try {
+        const actor = resolveActorUsername(currentUser, "user");
 
-        newDoc = {
-          id: `DOC-${Date.now()}`,
-          name: paymentForm.transferProofName || "Transfer Proof",
-          type: "Transfer Proof",
-          category: "Payment",
-          addedAt: new Date().toISOString(),
-          uploadedBy: actor,
-          storagePath: key,
-          paymentReference: `Payment ${new Date().toLocaleString("en-GB")}`,
-        };
-      }
+        let newDoc: DocItem | null = null;
+        if (method === "Transfer" && paymentForm.transferProofDataUrl) {
+          const blob = dataUrlToBlob(paymentForm.transferProofDataUrl);
+          const key = `job-orders/${paymentForm.orderNumber}/payments/${Date.now()}-${safeFileName(paymentForm.transferProofName || "transfer_proof")}`;
+          await uploadData({ path: key, data: blob, options: { contentType: blob.type || "application/octet-stream" } }).result;
 
-      const parsed = parsedSnapshot;
-      const existingDocs: DocItem[] = Array.isArray(selectedOrder?.documents)
-        ? selectedOrder.documents
-        : Array.isArray(parsed?.documents)
-          ? parsed.documents
-          : [];
+          newDoc = {
+            id: `DOC-${Date.now()}`,
+            name: paymentForm.transferProofName || "Transfer Proof",
+            type: "Transfer Proof",
+            category: "Payment",
+            addedAt: new Date().toISOString(),
+            uploadedBy: actor,
+            storagePath: key,
+            paymentReference: `Payment ${new Date().toLocaleString("en-GB")}`,
+          };
+        }
 
-      const updatedDocs = newDoc ? [...existingDocs, newDoc] : existingDocs;
+        const parsed = parsedSnapshot;
+        const existingDocs: DocItem[] = Array.isArray(selectedOrder?.documents)
+          ? selectedOrder.documents
+          : Array.isArray(parsed?.documents)
+            ? parsed.documents
+            : [];
 
-      const netAmount = beforePayment.netAmount;
-      const afterPaymentAmountPaid = roundMoney(beforePayment.amountPaid + amountToPay);
-      const afterPayment = computePaymentSnapshot(totalAmount, discount, afterPaymentAmountPaid);
+        const updatedDocs = newDoc ? [...existingDocs, newDoc] : existingDocs;
 
-      // ✅ IMPORTANT: write TOP-LEVEL fields that the Lambda actually consumes
-      const updatedOrder = {
-        ...selectedOrder,
+        const netAmount = beforePayment.netAmount;
+        const afterPaymentAmountPaid = roundMoney(beforePayment.amountPaid + amountToPay);
+        const afterPayment = computePaymentSnapshot(totalAmount, discount, afterPaymentAmountPaid);
+        const previousAmountPaid = roundMoney(beforePayment.amountPaid);
+        const lastPaymentAmount = roundMoney(amountToPay);
 
-        totalAmount,              // numeric (authoritative locked total)
-        discount,                 // numeric
-        netAmount,                // numeric
-        amountPaid: afterPayment.amountPaid,   // numeric
-        balanceDue: afterPayment.balanceDue,   // numeric
-        paymentMethod: method,    // top-level
-        billId: String(selectedOrder?.billing?.billId ?? ""), // keep if exists
-
-        documents: updatedDocs,
-        billing: {
-          ...(selectedOrder.billing || {}),
-          totalAmount: fmtQar(totalAmount),
-          discount: fmtQar(discount),
-          netAmount: fmtQar(netAmount),
-          amountPaid: fmtQar(afterPayment.amountPaid),
-          balanceDue: fmtQar(afterPayment.balanceDue),
+        const updatedOrder = {
+          ...selectedOrder,
+          totalAmount,
+          discount,
+          netAmount,
+          amountPaid: afterPayment.amountPaid,
+          balanceDue: afterPayment.balanceDue,
           paymentMethod: method,
-        },
-        paymentStatus: afterPayment.paymentStatusLabel,
-        paymentStatusEnum: afterPayment.paymentStatusEnum,
-        dataJson: JSON.stringify({
-          ...parsed,
+          billId: String(selectedOrder?.billing?.billId ?? ""),
           documents: updatedDocs,
           billing: {
-            ...(parsed?.billing || {}),
-            totalAmount,
-            discount,
-            netAmount,
-            amountPaid: afterPayment.amountPaid,
-            balanceDue: afterPayment.balanceDue,
+            ...(selectedOrder.billing || {}),
+            totalAmount: fmtQar(totalAmount),
+            discount: fmtQar(discount),
+            netAmount: fmtQar(netAmount),
+            amountPaid: fmtQar(afterPayment.amountPaid),
+            previousAmountPaid: fmtQar(previousAmountPaid),
+            lastPaymentAmount: fmtQar(lastPaymentAmount),
+            balanceDue: fmtQar(afterPayment.balanceDue),
             paymentMethod: method,
           },
-          paymentStatusLabel: afterPayment.paymentStatusLabel,
-        }),
-      };
+          paymentStatus: afterPayment.paymentStatusLabel,
+          paymentStatusEnum: afterPayment.paymentStatusEnum,
+          dataJson: JSON.stringify({
+            ...parsed,
+            documents: updatedDocs,
+            billing: {
+              ...(parsed?.billing || {}),
+              totalAmount,
+              discount,
+              netAmount,
+              amountPaid: afterPayment.amountPaid,
+              previousAmountPaid,
+              lastPaymentAmount,
+              balanceDue: afterPayment.balanceDue,
+              paymentMethod: method,
+            },
+            paymentStatusLabel: afterPayment.paymentStatusLabel,
+          }),
+        };
 
-      await upsertJobOrder(updatedOrder);
+        await upsertJobOrder(updatedOrder);
+        await (client.mutations as any).jobOrderPaymentCreate({
+          jobOrderId: String(paymentForm.jobOrderId),
+          amount: Number(amountToPay),
+          method,
+          reference: "",
+          paidAt: new Date().toISOString(),
+          notes: "",
+          createdBy: actor,
+        });
 
-      // audited payment row -> recomputeJobOrderPaymentSummary
-      await (client.mutations as any).jobOrderPaymentCreate({
-        jobOrderId: String(paymentForm.jobOrderId),
-        amount: Number(amountToPay),
-        method,
-        reference: "",
-        paidAt: new Date().toISOString(),
-        notes: "",
-        createdBy: actor,
-      });
-
-      setSuccessMessage(
-        <>
-          <span className="pim-pop-title"><i className="fas fa-check-circle" /> {t("Payment Recorded")}</span>
-          <span className="pim-pop-text">
-            {t("Payment")} <strong>{fmtQar(amountToPay)}</strong> {t("recorded successfully.")}
-            {method === "Transfer" ? ` ${t("Transfer proof uploaded to Documents.")}` : ""}
-          </span>
-        </>
-      );
-      setShowSuccessPopup(true);
-      closePaymentPopup();
-
-      invalidateDetailsCaches(String(paymentForm.orderNumber), String(paymentForm.jobOrderId));
-      await refreshDetails();
-    } catch (e) {
-      setErrorMessage(`${t("Payment failed:")} ${errMsg(e)}`);
-      setShowErrorPopup(true);
-    } finally {
-      setLoading(false);
-    }
+        invalidateDetailsCaches(String(paymentForm.orderNumber), String(paymentForm.jobOrderId));
+        await refreshDetails();
+      } catch (e) {
+        setErrorMessage(`${t("Payment failed:")} ${errMsg(e)}`);
+        setShowErrorPopup(true);
+      }
+    })(), t("Saving payment..."));
   };
 
   // -------------------- refund popup --------------------
@@ -1433,103 +1484,103 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       return;
     }
 
-    setLoading(true);
-    try {
-      const parsed = safeJsonParse<any>(selectedOrder?._parsed ?? selectedOrder?.dataJson, {});
-      const beforePayment = resolveLockedPaymentFinancials(selectedOrder, paymentRowsRaw);
-      const payments = [...paymentRowsRaw].sort((a, b) =>
-        String(b.paidAt ?? b.createdAt ?? "").localeCompare(String(a.paidAt ?? a.createdAt ?? ""))
-      );
+    // Close modal immediately for optimistic UI
+    closeRefundPopup();
+    setSuccessMessage(
+      <>
+        <span className="pim-pop-title"><i className="fas fa-check-circle" /> {t("Refund Processed")}</span>
+        <span className="pim-pop-text">{t("Refund")} <strong>{fmtQar(refundAmount)}</strong> {t("processed successfully.")}</span>
+      </>
+    );
+    setShowSuccessPopup(true);
 
-      let remaining = roundMoney(refundAmount);
+    // Fire-and-forget background operations
+    void (async () => {
+      try {
+        const parsed = safeJsonParse<any>(selectedOrder?._parsed ?? selectedOrder?.dataJson, {});
+        const beforePayment = resolveLockedPaymentFinancials(selectedOrder, paymentRowsRaw);
+        const payments = [...paymentRowsRaw].sort((a, b) =>
+          String(b.paidAt ?? b.createdAt ?? "").localeCompare(String(a.paidAt ?? a.createdAt ?? ""))
+        );
 
-      for (const p of payments) {
-        if (remaining <= 0) break;
+        let remaining = roundMoney(refundAmount);
 
-        const amt = roundMoney(toNum(p.amount));
-        if (amt <= 0) continue;
+        for (const p of payments) {
+          if (remaining <= 0) break;
 
-        if (remaining + 0.00001 < amt) {
-          const newAmt = roundMoney(amt - remaining);
-          await (client.mutations as any).jobOrderPaymentUpdate({
-            id: String(p.id),
-            amount: Number(newAmt),
-          });
-          remaining = 0;
-          break;
-        } else {
-          await (client.mutations as any).jobOrderPaymentDelete({
-            id: String(p.id),
-          });
-          remaining = roundMoney(remaining - amt);
+          const amt = roundMoney(toNum(p.amount));
+          if (amt <= 0) continue;
+
+          if (remaining + 0.00001 < amt) {
+            const newAmt = roundMoney(amt - remaining);
+            await (client.mutations as any).jobOrderPaymentUpdate({
+              id: String(p.id),
+              amount: Number(newAmt),
+            });
+            remaining = 0;
+            break;
+          } else {
+            await (client.mutations as any).jobOrderPaymentDelete({
+              id: String(p.id),
+            });
+            remaining = roundMoney(remaining - amt);
+          }
         }
-      }
 
-      if (remaining > 0.009) {
-        setErrorMessage(t("Refund could not be fully applied (insufficient payments)."));
-        setShowErrorPopup(true);
-        return;
-      }
+        if (remaining > 0.009) {
+          setErrorMessage(t("Refund could not be fully applied (insufficient payments)."));
+          setShowErrorPopup(true);
+          return;
+        }
 
-      const netAmount = beforePayment.totalAmount - beforePayment.discount;
-      const afterPaymentAmountPaid = roundMoney(Math.max(0, beforePayment.amountPaid - refundAmount));
-      const afterPayment = computePaymentSnapshot(beforePayment.totalAmount, beforePayment.discount, afterPaymentAmountPaid);
-      const paymentMethod = String(selectedOrder?.billing?.paymentMethod ?? selectedOrder?.paymentMethod ?? "");
+        const netAmount = beforePayment.totalAmount - beforePayment.discount;
+        const afterPaymentAmountPaid = roundMoney(Math.max(0, beforePayment.amountPaid - refundAmount));
+        const afterPayment = computePaymentSnapshot(beforePayment.totalAmount, beforePayment.discount, afterPaymentAmountPaid);
+        const paymentMethod = String(selectedOrder?.billing?.paymentMethod ?? selectedOrder?.paymentMethod ?? "");
 
-      const updatedOrder = {
-        ...selectedOrder,
-        totalAmount: beforePayment.totalAmount,
-        discount: beforePayment.discount,
-        netAmount,
-        amountPaid: afterPayment.amountPaid,
-        balanceDue: afterPayment.balanceDue,
-        paymentMethod,
-        billId: String(selectedOrder?.billing?.billId ?? selectedOrder?.billId ?? ""),
-        billing: {
-          ...(selectedOrder.billing || {}),
-          totalAmount: fmtQar(beforePayment.totalAmount),
-          discount: fmtQar(beforePayment.discount),
-          netAmount: fmtQar(netAmount),
-          amountPaid: fmtQar(afterPayment.amountPaid),
-          balanceDue: fmtQar(afterPayment.balanceDue),
+        const updatedOrder = {
+          ...selectedOrder,
+          totalAmount: beforePayment.totalAmount,
+          discount: beforePayment.discount,
+          netAmount,
+          amountPaid: afterPayment.amountPaid,
+          balanceDue: afterPayment.balanceDue,
           paymentMethod,
-        },
-        paymentStatus: afterPayment.paymentStatusLabel,
-        paymentStatusEnum: afterPayment.paymentStatusEnum,
-        dataJson: JSON.stringify({
-          ...parsed,
+          billId: String(selectedOrder?.billing?.billId ?? selectedOrder?.billId ?? ""),
           billing: {
-            ...(parsed?.billing || {}),
-            totalAmount: beforePayment.totalAmount,
-            discount: beforePayment.discount,
-            netAmount,
-            amountPaid: afterPayment.amountPaid,
-            balanceDue: afterPayment.balanceDue,
+            ...(selectedOrder.billing || {}),
+            totalAmount: fmtQar(beforePayment.totalAmount),
+            discount: fmtQar(beforePayment.discount),
+            netAmount: fmtQar(netAmount),
+            amountPaid: fmtQar(afterPayment.amountPaid),
+            balanceDue: fmtQar(afterPayment.balanceDue),
             paymentMethod,
           },
-          paymentStatusLabel: afterPayment.paymentStatusLabel,
-        }),
-      };
+          paymentStatus: afterPayment.paymentStatusLabel,
+          paymentStatusEnum: afterPayment.paymentStatusEnum,
+          dataJson: JSON.stringify({
+            ...parsed,
+            billing: {
+              ...(parsed?.billing || {}),
+              totalAmount: beforePayment.totalAmount,
+              discount: beforePayment.discount,
+              netAmount,
+              amountPaid: afterPayment.amountPaid,
+              balanceDue: afterPayment.balanceDue,
+              paymentMethod,
+            },
+            paymentStatusLabel: afterPayment.paymentStatusLabel,
+          }),
+        };
 
-      await upsertJobOrder(updatedOrder);
-
-      setSuccessMessage(
-        <>
-          <span className="pim-pop-title"><i className="fas fa-check-circle" /> {t("Refund Processed")}</span>
-          <span className="pim-pop-text">{t("Refund")} <strong>{fmtQar(refundAmount)}</strong> {t("processed successfully.")}</span>
-        </>
-      );
-      setShowSuccessPopup(true);
-      closeRefundPopup();
-
-      invalidateDetailsCaches(String(refundForm.orderNumber), String(refundForm.jobOrderId));
-      await refreshDetails();
-    } catch (e) {
-      setErrorMessage(`${t("Refund failed:")} ${errMsg(e)}`);
-      setShowErrorPopup(true);
-    } finally {
-      setLoading(false);
-    }
+        await upsertJobOrder(updatedOrder);
+        invalidateDetailsCaches(String(refundForm.orderNumber), String(refundForm.jobOrderId));
+        await refreshDetails();
+      } catch (e) {
+        setErrorMessage(`${t("Refund failed:")} ${errMsg(e)}`);
+        setShowErrorPopup(true);
+      }
+    })();
   };
 
   const generateBillPdf = async (order: any): Promise<Blob> => {
@@ -1540,6 +1591,8 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const pagePadTop = 8; // 0.8cm from template
     const pagePadBottom = 8;
     const contentW = pageW - marginX * 2;
+    const BILL_TITLE_FONT_SIZE = 10;
+    const BILL_BODY_FONT_SIZE = 10;
 
     const billing = order?.billing ?? {};
     const billId = safeText(billing.billId || order?.id || "BILL");
@@ -1589,6 +1642,24 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const netAmount = toNum(billing.netAmount || 0);
     const amountPaid = toNum(billing.amountPaid || 0);
     const balanceDue = toNum(billing.balanceDue || 0);
+
+    // Derive last payment amount from live payment rows (sorted by date, most recent first).
+    // This is the authoritative source — not the potentially stale billing field.
+    const sortedPayRows: Array<{ amount: number; paidAt?: string; createdAt?: string }> = Array.isArray(order?._paymentRowsRaw)
+      ? [...order._paymentRowsRaw].sort((a: any, b: any) =>
+          String(b.paidAt ?? b.createdAt ?? "").localeCompare(String(a.paidAt ?? a.createdAt ?? ""))
+        )
+      : [];
+    const lastPaymentAmount = roundMoney(Math.max(0,
+      sortedPayRows.length > 0
+        ? toNum(sortedPayRows[0].amount)
+        : toNum(billing.lastPaymentAmount || billing.latestPaymentAmount || 0)
+    ));
+    const previousAmountPaid = roundMoney(Math.max(0,
+      sortedPayRows.length > 1
+        ? sortedPayRows.slice(1).reduce((sum: number, r: any) => sum + toNum(r.amount), 0)
+        : toNum(billing.previousAmountPaid || billing.amountPaidBeforeLast || (lastPaymentAmount > 0 ? amountPaid - lastPaymentAmount : 0))
+    ));
     const dynamicPaymentSnap = computePaymentSnapshot(totalAmount, discount, amountPaid);
     const paymentStatusLabel = normalizePaymentStatusLabel(
       safeText(order?.paymentStatusEnum || billing.paymentStatus || dynamicPaymentSnap.paymentStatusEnum),
@@ -1616,6 +1687,41 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         return await blobToDataUrl(await logoRes.blob());
       } catch {
         return "";
+      }
+    })();
+
+    const roundedLogoDataUrl = await (async () => {
+      if (!logoDataUrl || typeof document === "undefined") return logoDataUrl;
+      try {
+        const sourceImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => resolve(img);
+          img.onerror = reject;
+          img.src = logoDataUrl;
+        });
+
+        const side = Math.max(1, Math.min(sourceImg.naturalWidth || 256, sourceImg.naturalHeight || 256));
+        const sx = Math.max(0, Math.floor(((sourceImg.naturalWidth || side) - side) / 2));
+        const sy = Math.max(0, Math.floor(((sourceImg.naturalHeight || side) - side) / 2));
+
+        const canvas = document.createElement("canvas");
+        canvas.width = side;
+        canvas.height = side;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return logoDataUrl;
+
+        ctx.clearRect(0, 0, side, side);
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(side / 2, side / 2, side / 2, 0, Math.PI * 2);
+        ctx.closePath();
+        ctx.clip();
+        ctx.drawImage(sourceImg, sx, sy, side, side, 0, 0, side, side);
+        ctx.restore();
+
+        return canvas.toDataURL("image/png");
+      } catch {
+        return logoDataUrl;
       }
     })();
 
@@ -1650,6 +1756,8 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       return lines.length;
     };
 
+    const containsArabic = (value: string) => /[\u0600-\u06FF]/.test(String(value ?? ""));
+
     const drawArabicLine = (
       text: string,
       xRightMm: number,
@@ -1661,14 +1769,15 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     ) => {
       if (typeof document === "undefined") {
         doc.setFont("helvetica", style === "bolditalic" ? "bold" : style === "bold" ? "bold" : "normal");
-        doc.setFontSize(style === "bolditalic" ? 12 : 9);
+        doc.setFontSize(fontPx);
         doc.text(text, xRightMm, yTopMm + 3.4, { align: "right" });
         return;
       }
 
       const pxPerMm = 96 / 25.4;
       const scale = 2;
-      const lineH = 4.4;
+      const arabicVisualScale = 1.14;
+      const lineH = Math.max(4.4, fontPx * 0.52);
       const widthPx = Math.max(1, Math.ceil(maxWidthMm * pxPerMm * scale));
       const heightPx = Math.max(1, Math.ceil(lineH * pxPerMm * scale));
       const canvas = document.createElement("canvas");
@@ -1678,7 +1787,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       const ctx = canvas.getContext("2d");
       if (!ctx) {
         doc.setFont("helvetica", style === "bolditalic" ? "bold" : style === "bold" ? "bold" : "normal");
-        doc.setFontSize(style === "bolditalic" ? 12 : 9);
+        doc.setFontSize(fontPx);
         doc.text(text, xRightMm, yTopMm + 3.4, { align: "right" });
         return;
       }
@@ -1690,7 +1799,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       ctx.direction = "rtl";
       ctx.textAlign = "right";
       ctx.textBaseline = "middle";
-      ctx.font = `${fontStyle} ${fontWeight} ${Math.round(fontPx * scale)}px Tahoma, Arial, "Segoe UI", sans-serif`;
+      ctx.font = `${fontStyle} ${fontWeight} ${Math.round(fontPx * arabicVisualScale * scale)}px Tahoma, Arial, "Segoe UI", sans-serif`;
       ctx.fillText(text, widthPx - 2, heightPx / 2 + 0.5);
 
       doc.addImage(canvas.toDataURL("image/png"), "PNG", xRightMm - maxWidthMm, yTopMm, maxWidthMm, lineH);
@@ -1720,7 +1829,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     const footerPadTop = 3.4; // 0.8rem
     const footerBasePadY = 2.1; // 0.5rem
-    const footerTop = pageH - pagePadBottom - (footerPadTop + footerBasePadY + footerQrSize + 1.6);
+    const footerTop = pageH - pagePadBottom - (footerPadTop + footerBasePadY + footerQrSize + 11.2);
     const footerContentTop = footerTop + footerPadTop;
 
     doc.setDrawColor(44, 62, 80);
@@ -1731,47 +1840,50 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     // Header: left English lines
     doc.setTextColor(24, 24, 24);
     doc.setFont("helvetica", "bolditalic");
-    doc.setFontSize(12); // 16px
+    doc.setFontSize(BILL_TITLE_FONT_SIZE);
     doc.text("RODEO DRIVE", leftColX, headerContentTop + 4.8);
     doc.setFont("helvetica", "italic");
-    doc.setFontSize(9); // 12px
+    doc.setFontSize(BILL_BODY_FONT_SIZE);
     doc.text("Gloss Perfected", leftColX, headerContentTop + 8.7);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9); // 12px
+    doc.setFontSize(BILL_BODY_FONT_SIZE);
     doc.text("Block 2, Shop No. SYS 066, Block 21,", leftColX, headerContentTop + 12.6);
     doc.text("Near Dragon Mart Al Sayer, Doha.", leftColX, headerContentTop + 16.5);
 
     // Header: center logo
-    if (logoDataUrl) {
-      doc.addImage(logoDataUrl, "PNG", centerColX, headerContentTop, headerLogoW, headerLogoH);
+    if (roundedLogoDataUrl) {
+      const headerLogoSize = Math.min(headerLogoW, headerLogoH);
+      const headerLogoX = centerColX + (headerLogoW - headerLogoSize) / 2;
+      const headerLogoY = headerContentTop + (headerLogoH - headerLogoSize) / 2;
+      doc.addImage(roundedLogoDataUrl, "PNG", headerLogoX, headerLogoY, headerLogoSize, headerLogoSize);
     }
 
     // Header: right Arabic lines (canvas rendering preserves Arabic shaping)
-    drawArabicLine("روديو درايف", rightColRightX, headerContentTop + 2.6, sideColW, 16, "bolditalic");
-    drawArabicLine("اللمعان المثالي", rightColRightX, headerContentTop + 6.8, sideColW, 12, "italic");
-    drawArabicLine("مبنى 2 ، محل رقم SYS 066 ، مبنى 21 ،", rightColRightX, headerContentTop + 11.0, sideColW, 12, "normal");
-    drawArabicLine("بالقرب من دراجون مارت ال ساير ، الدوحة.", rightColRightX, headerContentTop + 15.2, sideColW, 12, "normal");
+    drawArabicLine("روديو درايف", rightColRightX, headerContentTop + 2.6, sideColW, BILL_TITLE_FONT_SIZE, "bolditalic");
+    drawArabicLine("اللمعان المثالي", rightColRightX, headerContentTop + 6.8, sideColW, BILL_BODY_FONT_SIZE, "italic");
+    drawArabicLine("مبنى 2 ، محل رقم SYS 066 ، مبنى 21 ،", rightColRightX, headerContentTop + 11.0, sideColW, BILL_BODY_FONT_SIZE, "normal");
+    drawArabicLine("بالقرب من دراجون مارت ال ساير ، الدوحة.", rightColRightX, headerContentTop + 15.2, sideColW, BILL_BODY_FONT_SIZE, "normal");
 
     // Body title and meta
     const bodyTop = headerBottom + 8;
     doc.setTextColor(20, 31, 46);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(17);
+    doc.setFontSize(BILL_TITLE_FONT_SIZE);
     doc.text("INVOICE", marginX, bodyTop);
-    drawArabicLine("فاتورة", pageW - marginX, bodyTop - 3.1, 30, 16, "bolditalic");
+    drawArabicLine("فاتورة", pageW - marginX, bodyTop - 3.1, 30, BILL_TITLE_FONT_SIZE, "bolditalic");
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(9.5);
+    doc.setFontSize(BILL_BODY_FONT_SIZE);
     doc.text(`Bill #: ${billId}`, marginX, bodyTop + 6);
     doc.text(`Date: ${billDateOnly}`, marginX + 45, bodyTop + 6);
     doc.text(`Status: ${paymentStatus}`, marginX + 88, bodyTop + 6);
     doc.text(`Order ID: ${safeText(order?.id) || "-"}`, pageW - marginX, bodyTop + 6, { align: "right" });
-    doc.setFontSize(8.6);
+    doc.setFontSize(BILL_BODY_FONT_SIZE);
     doc.text(`Issued At: ${billIssuedAtDisplay}`, marginX, bodyTop + 10.5);
     doc.text(`Issued By: ${billGeneratedBy}`, pageW - marginX, bodyTop + 10.5, { align: "right" });
-    drawArabicLine(`رقم الفاتورة: ${billId} | التاريخ: ${billDateOnly}`, pageW - marginX, bodyTop + 11.9, 95, 10, "normal");
-    drawArabicLine(`الحالة: ${paymentStatusArabic} | رقم الطلب: ${safeText(order?.id) || "-"}`, pageW - marginX, bodyTop + 16.2, 95, 10, "normal");
-    drawArabicLine(`وقت الإصدار: ${billIssuedAtDisplay} | أنشأ الفاتورة: ${billGeneratedBy}`, pageW - marginX, bodyTop + 20.5, 120, 10, "normal");
+    drawArabicLine(`رقم الفاتورة: ${billId} | التاريخ: ${billDateOnly}`, pageW - marginX, bodyTop + 11.9, 95, BILL_BODY_FONT_SIZE, "normal");
+    drawArabicLine(`الحالة: ${paymentStatusArabic} | رقم الطلب: ${safeText(order?.id) || "-"}`, pageW - marginX, bodyTop + 16.2, 95, BILL_BODY_FONT_SIZE, "normal");
+    drawArabicLine(`وقت الإصدار: ${billIssuedAtDisplay} | أنشأ الفاتورة: ${billGeneratedBy}`, pageW - marginX, bodyTop + 20.5, 120, BILL_BODY_FONT_SIZE, "normal");
 
     doc.setDrawColor(188, 196, 206);
     doc.setLineWidth(0.3);
@@ -1787,26 +1899,26 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     doc.roundedRect(marginX + infoW + infoGap, infoTop, infoW, 28, 1.5, 1.5, "FD");
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
+    doc.setFontSize(BILL_TITLE_FONT_SIZE);
     doc.text("BILL TO", marginX + 3, infoTop + 5);
     doc.text("VEHICLE", marginX + infoW + infoGap + 3, infoTop + 5);
-    drawArabicLine("العميل", marginX + infoW - 3, infoTop + 1.8, 22, 10, "bolditalic");
-    drawArabicLine("المركبة", marginX + infoW + infoGap + infoW - 3, infoTop + 1.8, 24, 10, "bolditalic");
+    drawArabicLine("العميل", marginX + infoW - 3, infoTop + 1.8, 22, BILL_TITLE_FONT_SIZE, "bolditalic");
+    drawArabicLine("المركبة", marginX + infoW + infoGap + infoW - 3, infoTop + 1.8, 24, BILL_TITLE_FONT_SIZE, "bolditalic");
 
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8.3);
+    doc.setFontSize(BILL_BODY_FONT_SIZE);
     doc.text(clipText(safeText(order?.customerName) || "-", infoW - 6), marginX + 3, infoTop + 10);
     doc.text(`Mobile: ${safeText(order?.mobile) || "-"}`, marginX + 3, infoTop + 14.5);
     doc.text(`Order: ${safeText(order?.id) || "-"}`, marginX + 3, infoTop + 19);
-    drawArabicLine(`الجوال: ${safeText(order?.mobile) || "-"}`, marginX + infoW - 3, infoTop + 12.1, infoW - 8, 9, "normal");
-    drawArabicLine(`رقم الطلب: ${safeText(order?.id) || "-"}`, marginX + infoW - 3, infoTop + 16.6, infoW - 8, 9, "normal");
+    drawArabicLine(`الجوال: ${safeText(order?.mobile) || "-"}`, marginX + infoW - 3, infoTop + 12.1, infoW - 8, BILL_BODY_FONT_SIZE, "normal");
+    drawArabicLine(`رقم الطلب: ${safeText(order?.id) || "-"}`, marginX + infoW - 3, infoTop + 16.6, infoW - 8, BILL_BODY_FONT_SIZE, "normal");
 
     const vehicleName = `${safeText(order?.vehicleDetails?.make)} ${safeText(order?.vehicleDetails?.model)}`.trim() || "-";
     doc.text(clipText(vehicleName, infoW - 6), marginX + infoW + infoGap + 3, infoTop + 10);
     doc.text(`Plate: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 14.5);
     doc.text(`VIN: ${safeText(order?.vehicleDetails?.vin) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 19);
-    drawArabicLine(`رقم اللوحة: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "-"}`, marginX + infoW + infoGap + infoW - 3, infoTop + 12.1, infoW - 8, 9, "normal");
-    drawArabicLine(`الرقم التعريفي: ${safeText(order?.vehicleDetails?.vin) || "-"}`, marginX + infoW + infoGap + infoW - 3, infoTop + 16.6, infoW - 8, 9, "normal");
+    drawArabicLine(`رقم اللوحة: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "-"}`, marginX + infoW + infoGap + infoW - 3, infoTop + 12.1, infoW - 8, BILL_BODY_FONT_SIZE, "normal");
+    drawArabicLine(`الرقم التعريفي: ${safeText(order?.vehicleDetails?.vin) || "-"}`, marginX + infoW + infoGap + infoW - 3, infoTop + 16.6, infoW - 8, BILL_BODY_FONT_SIZE, "normal");
 
     // Job-order metadata block
     const metaTop = infoTop + 30.8;
@@ -1815,40 +1927,41 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     doc.setDrawColor(220, 226, 234);
     doc.roundedRect(marginX, metaTop, contentW, metaH, 1.5, 1.5, "FD");
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.2);
+    doc.setFontSize(BILL_TITLE_FONT_SIZE);
     doc.text("JOB ORDER DETAILS", marginX + 2.5, metaTop + 4.2);
-    drawArabicLine("تفاصيل أمر العمل", pageW - marginX - 2.5, metaTop + 0.9, 42, 10, "bolditalic");
+    drawArabicLine("تفاصيل أمر العمل", pageW - marginX - 2.5, metaTop + 0.9, 42, BILL_TITLE_FONT_SIZE, "bolditalic");
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(8);
+    doc.setFontSize(BILL_BODY_FONT_SIZE);
     doc.text(`Type: ${orderTypeLabel || "-"}`, marginX + 2.5, metaTop + 8.6);
     doc.text(`Work Status: ${workStatusLabel || "-"}`, marginX + 72, metaTop + 8.6);
     doc.text(`Payment Method: ${paymentMethodLabel || "-"}`, marginX + 2.5, metaTop + 11.9);
     doc.text(`Opened: ${jobCreatedAtDisplay}`, marginX + 2.5, metaTop + 15.2);
     doc.text(`Last Update: ${jobUpdatedAtDisplay}`, marginX + 2.5, metaTop + 18.5);
-    drawArabicLine(`نوع الطلب: ${orderTypeLabel || "-"}`, pageW - marginX - 2.5, metaTop + 6.1, 66, 7.6, "normal");
-    drawArabicLine(`حالة العمل: ${workStatusLabel || "-"}`, pageW - marginX - 2.5, metaTop + 9.4, 66, 7.6, "normal");
-    drawArabicLine(`طريقة الدفع: ${paymentMethodLabel || "-"}`, pageW - marginX - 2.5, metaTop + 12.7, 66, 7.6, "normal");
-    drawArabicLine(`تاريخ الفتح: ${jobCreatedAtDisplay}`, pageW - marginX - 2.5, metaTop + 16.0, 66, 7.6, "normal");
-    drawArabicLine(`آخر تحديث: ${jobUpdatedAtDisplay}`, pageW - marginX - 2.5, metaTop + 19.3, 66, 7.6, "normal");
+    drawArabicLine(`نوع الطلب: ${orderTypeLabel || "-"}`, pageW - marginX - 2.5, metaTop + 6.1, 66, BILL_BODY_FONT_SIZE, "normal");
+    drawArabicLine(`حالة العمل: ${workStatusLabel || "-"}`, pageW - marginX - 2.5, metaTop + 9.4, 66, BILL_BODY_FONT_SIZE, "normal");
+    drawArabicLine(`طريقة الدفع: ${paymentMethodLabel || "-"}`, pageW - marginX - 2.5, metaTop + 12.7, 66, BILL_BODY_FONT_SIZE, "normal");
+    drawArabicLine(`تاريخ الفتح: ${jobCreatedAtDisplay}`, pageW - marginX - 2.5, metaTop + 16.0, 66, BILL_BODY_FONT_SIZE, "normal");
+    drawArabicLine(`آخر تحديث: ${jobUpdatedAtDisplay}`, pageW - marginX - 2.5, metaTop + 19.3, 66, BILL_BODY_FONT_SIZE, "normal");
 
     // Services table area
     const tableTop = metaTop + metaH + 3;
-    const tableHeaderH = 7;
-    const rowH = 6.4;
+    const tableHeaderH = 11;
+    const rowH = 10.5;
+    const tableFontSize = BILL_BODY_FONT_SIZE;
     const noW = 12;
     const amountW = 36;
     const descW = contentW - noW - amountW;
-    const summaryReserve = 43;
+    const summaryReserve = 60;
     const maxRows = Math.max(1, Math.floor((footerTop - summaryReserve - (tableTop + tableHeaderH)) / rowH));
 
     doc.setFillColor(44, 62, 80);
     doc.setTextColor(255, 255, 255);
     doc.rect(marginX, tableTop, contentW, tableHeaderH, "F");
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(8.5);
-    doc.text("No", marginX + noW / 2, tableTop + 4.7, { align: "center" });
-    doc.text("Description", marginX + noW + 2, tableTop + 4.7);
-    doc.text("Amount", pageW - marginX - 2, tableTop + 4.7, { align: "right" });
+    doc.setFontSize(tableFontSize);
+    doc.text("No", marginX + noW / 2, tableTop + 7.8, { align: "center" });
+    doc.text("Description", marginX + noW + 2, tableTop + 7.8);
+    doc.text("Amount", pageW - marginX - 2, tableTop + 7.8, { align: "right" });
 
     const shownServices = services.slice(0, maxRows);
     doc.setTextColor(20, 31, 46);
@@ -1869,8 +1982,8 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       const isPackageHeader = service.type === "package";
       const isIncludedService = service.type === "package-included";
       doc.setFont("helvetica", isPackageHeader ? "bold" : "normal");
-      doc.setFontSize(isIncludedService ? 8 : 8.3);
-      doc.text(String(idx + 1), marginX + noW / 2, y + 4.4, { align: "center" });
+      doc.setFontSize(tableFontSize);
+      doc.text(String(idx + 1), marginX + noW / 2, y + 6.9, { align: "center" });
       const descriptionText =
         service.type === "package"
           ? `Package: ${safeText(service.name)}`
@@ -1881,42 +1994,54 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       if (isIncludedService) {
         doc.setTextColor(113, 128, 150);
       }
-      const wrappedLines = drawWrapped(
-        clipText(descriptionText, descW - 4),
-        descriptionX,
-        y + 4.4,
-        descW - 4,
-        3.8,
-      );
+      const clippedDescription = clipText(descriptionText, descW - 4);
+      const wrappedLines = containsArabic(clippedDescription)
+        ? 1
+        : drawWrapped(
+            clippedDescription,
+            descriptionX,
+            y + 6.9,
+            descW - 4,
+            5.2,
+          );
+      if (containsArabic(clippedDescription)) {
+        drawArabicLine(clippedDescription, marginX + noW + descW - 2, y + 1.4, descW - 4, tableFontSize, isPackageHeader ? "bold" : "normal", isIncludedService ? "#718096" : "#111827");
+      }
       if (wrappedLines > 1) {
         // Keep row compact and single-line visually for print consistency.
         doc.setTextColor(95, 109, 123);
-        doc.setFontSize(7);
-        doc.text("...", marginX + noW + descW - 5, y + 4.4, { align: "right" });
+        doc.setFontSize(BILL_BODY_FONT_SIZE);
+        doc.text("...", marginX + noW + descW - 5, y + 6.9, { align: "right" });
         doc.setTextColor(20, 31, 46);
       }
-      const amountText = service.price == null ? "-" : fmtQar(toNum(service.price));
-      doc.text(amountText, pageW - marginX - 2, y + 4.4, { align: "right" });
+      const amountText = service.price == null ? "" : fmtQar(toNum(service.price));
+      doc.text(amountText, pageW - marginX - 2, y + 6.9, { align: "right" });
       doc.setTextColor(20, 31, 46);
     });
 
     let summaryTop = tableTop + tableHeaderH + shownServices.length * rowH + 4;
     if (services.length > shownServices.length) {
       doc.setFont("helvetica", "italic");
-      doc.setFontSize(7.3);
+      doc.setFontSize(BILL_BODY_FONT_SIZE);
       doc.setTextColor(110, 118, 128);
       doc.text(`+ ${services.length - shownServices.length} additional service(s) omitted to keep one-page A4 print`, marginX, summaryTop);
       summaryTop += 4.8;
       doc.setTextColor(20, 31, 46);
     }
 
-    const summaryX = pageW - marginX - 78;
-    const summaryW = 78;
-    const summaryRowH = 6.5;
+    const summaryW = 94;
+    const summaryX = pageW - marginX - summaryW;
+    const summaryEnglishX = summaryX + 3;
+    const summaryAmountX = summaryX + summaryW - 2;
+    const summaryArabicRightX = summaryAmountX - 24;
+    const summaryArabicW = 26;
+    const summaryRowH = 8.5;
     const summaryRows = [
       ["Total Amount", "إجمالي المبلغ", totalAmount],
       ["Discount", "الخصم", discount],
       ["Net Amount", "الصافي", netAmount],
+      ["Paid Before Last", "المدفوع قبل آخر دفعة", previousAmountPaid],
+      ["Last Amount Paid", "آخر مبلغ مدفوع", lastPaymentAmount],
       ["Amount Paid", "المدفوع", amountPaid],
       ["Balance Due", "المتبقي", balanceDue],
     ] as const;
@@ -1934,25 +2059,25 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         doc.setTextColor(20, 31, 46);
       }
       doc.setFont("helvetica", idx >= 2 ? "bold" : "normal");
-      doc.setFontSize(8.8);
-      doc.text(`${enLabel} |`, summaryX + 3, y + 2.8);
+      doc.setFontSize(BILL_BODY_FONT_SIZE);
+      doc.text(`${enLabel} |`, summaryEnglishX, y + 2.8);
       drawArabicLine(
         arLabel,
-        summaryX + 48,
+        summaryArabicRightX,
         y - 0.3,
-        24,
-        8,
+        summaryArabicW,
+        BILL_BODY_FONT_SIZE,
         idx >= 2 ? "bold" : "normal",
         idx === summaryRows.length - 1 ? "#FFFFFF" : "#181818",
       );
-      doc.text(fmtQar(value), pageW - marginX - 2, y + 2.8, { align: "right" });
+      doc.text(fmtQar(value), summaryAmountX, y + 2.8, { align: "right" });
     });
 
     // Footer: exact 3-column structure from template
     doc.setTextColor(24, 24, 24);
     doc.setFont("helvetica", "bolditalic");
-    doc.setFontSize(8); // 8pt equivalent in template
-    const footerLineH = 3.65;
+    doc.setFontSize(BILL_BODY_FONT_SIZE);
+    const footerLineH = Math.max(5.2, BILL_BODY_FONT_SIZE * 0.38);
     doc.text("RODEO DRIVE TRADING & SERVICES", footerLeftColX, footerContentTop + footerLineH * 1);
     doc.text("C.R. No: 122716", footerLeftColX, footerContentTop + footerLineH * 2);
     doc.text("LLC - capital QAR 200,000", footerLeftColX, footerContentTop + footerLineH * 3);
@@ -1961,11 +2086,11 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     doc.addImage(qrDataUrl, "PNG", footerCenterColX, footerContentTop, footerQrSize, footerQrSize);
 
-    drawArabicLine("روديو درايف للتجارة والخدمات", footerRightColRightX, footerContentTop + footerLineH * 1 - 2.9, footerSideColW, 10, "bolditalic");
-    drawArabicLine("س.ت:122716", footerRightColRightX, footerContentTop + footerLineH * 2 - 2.9, footerSideColW, 10, "bolditalic");
-    drawArabicLine("شركة ذات مسؤلية محدودة برأس مال 200,000 رق", footerRightColRightX, footerContentTop + footerLineH * 3 - 2.9, footerSideColW, 10, "bolditalic");
-    drawArabicLine("T:+974 44311871 | M:+974 3320 2409", footerRightColRightX, footerContentTop + footerLineH * 4 - 2.9, footerSideColW, 10, "bolditalic");
-    drawArabicLine("E: info@rodeodrive.me W:wwwRodeodrive.me", footerRightColRightX, footerContentTop + footerLineH * 5 - 2.9, footerSideColW, 10, "bolditalic");
+    drawArabicLine("روديو درايف للتجارة والخدمات", footerRightColRightX, footerContentTop + footerLineH * 1 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
+    drawArabicLine("س.ت:122716", footerRightColRightX, footerContentTop + footerLineH * 2 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
+    drawArabicLine("شركة ذات مسؤلية محدودة برأس مال 200,000 رق", footerRightColRightX, footerContentTop + footerLineH * 3 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
+    drawArabicLine("T:+974 44311871 | M:+974 3320 2409", footerRightColRightX, footerContentTop + footerLineH * 4 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
+    drawArabicLine("E: info@rodeodrive.me W:wwwRodeodrive.me", footerRightColRightX, footerContentTop + footerLineH * 5 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
 
     return doc.output("blob") as Blob;
   };
@@ -1974,77 +2099,83 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     if (!selectedOrder) return;
     if (isGeneratingBill) return;
 
-    flushSync(() => setIsGeneratingBill(true));
-    try {
-      const billing = selectedOrder?.billing ?? {};
-      const billId = String(billing.billId || selectedOrder.id || "BILL");
-      const actor = resolveActorUsername(currentUser, "user");
-      const billIssuedAt = new Date().toISOString();
+    // Set generating state and show success immediately (optimistic)
+    setIsGeneratingBill(true);
+    setBillGeneratedMessage(t("Bill generated successfully and added to Documents."));
+    setShowBillGeneratedPopup(true);
 
-      const docs: DocItem[] = Array.isArray(selectedOrder.documents) ? selectedOrder.documents : [];
-      const existingBills = docs.filter((d) => String(d.type).toLowerCase() === "invoice/bill");
+    // Fire-and-forget background PDF generation
+    void (async () => {
+      try {
+        const billing = selectedOrder?.billing ?? {};
+        const billId = String(billing.billId || selectedOrder.id || "BILL");
+        const actor = resolveActorUsername(currentUser, "user");
+        const billIssuedAt = new Date().toISOString();
 
-      const currDetails = {
-        netAmount: toNum(billing.netAmount),
-        amountPaid: toNum(billing.amountPaid),
-        discount: toNum(billing.discount),
-        balanceDue: toNum(billing.balanceDue),
-      };
+        const docs: DocItem[] = Array.isArray(selectedOrder.documents) ? selectedOrder.documents : [];
+        const existingBills = docs.filter((d) => String(d.type).toLowerCase() === "invoice/bill");
 
-      const duplicate = existingBills.find((b) => b.billDetails && JSON.stringify(b.billDetails) === JSON.stringify(currDetails));
-      if (duplicate) {
-        setBillExistsMessage(t("Bill with the same payment details already exists in Documents."));
-        setShowBillExistsPopup(true);
-        return;
-      }
+        const currDetails = {
+          netAmount: toNum(billing.netAmount),
+          amountPaid: toNum(billing.amountPaid),
+          discount: toNum(billing.discount),
+          balanceDue: toNum(billing.balanceDue),
+        };
 
-      const pdfBlob = await generateBillPdf({
-        ...selectedOrder,
-        billing: {
-          ...billing,
+        const duplicate = existingBills.find((b) => b.billDetails && JSON.stringify(b.billDetails) === JSON.stringify(currDetails));
+        if (duplicate) {
+          setBillExistsMessage(t("Bill with the same payment details already exists in Documents."));
+          setShowBillExistsPopup(true);
+          setShowBillGeneratedPopup(false);
+          return;
+        }
+
+        const pdfBlob = await generateBillPdf({
+          ...selectedOrder,
+          _paymentRowsRaw: paymentRowsRaw,
+          billing: {
+            ...billing,
+            billIssuedAt,
+            billGeneratedBy: actor,
+          },
+        });
+        const key = `job-orders/${selectedOrder.id}/billing/Bill_${billId}_${Date.now()}.pdf`;
+
+        await uploadData({ path: key, data: pdfBlob, options: { contentType: "application/pdf" } }).result;
+
+        const newDoc: DocItem = {
+          id: `DOC-${Date.now()}`,
+          name: `Bill_${billId}.pdf`,
+          type: "Invoice/Bill",
+          category: "Billing",
+          addedAt: new Date().toISOString(),
+          uploadedBy: actor,
+          storagePath: key,
+          billReference: billId,
           billIssuedAt,
-          billGeneratedBy: actor,
-        },
-      });
-      const key = `job-orders/${selectedOrder.id}/billing/Bill_${billId}_${Date.now()}.pdf`;
+          billDetails: currDetails,
+        };
 
-      await uploadData({ path: key, data: pdfBlob, options: { contentType: "application/pdf" } }).result;
+        const parsed = safeJsonParse<any>(selectedOrder?._parsed ?? selectedOrder?.dataJson, {});
+        const updatedDocs = [...docs, newDoc];
 
-      const newDoc: DocItem = {
-        id: `DOC-${Date.now()}`,
-        name: `Bill_${billId}.pdf`,
-        type: "Invoice/Bill",
-        category: "Billing",
-        addedAt: new Date().toISOString(),
-        uploadedBy: actor,
-        storagePath: key,
-        billReference: billId,
-        billIssuedAt,
-        billDetails: currDetails,
-      };
+        const updatedOrder = {
+          ...selectedOrder,
+          documents: updatedDocs,
+          dataJson: JSON.stringify({ ...parsed, documents: updatedDocs }),
+        };
 
-      const parsed = safeJsonParse<any>(selectedOrder?._parsed ?? selectedOrder?.dataJson, {});
-      const updatedDocs = [...docs, newDoc];
-
-      const updatedOrder = {
-        ...selectedOrder,
-        documents: updatedDocs,
-        dataJson: JSON.stringify({ ...parsed, documents: updatedDocs }),
-      };
-
-      await upsertJobOrder(updatedOrder);
-
-      setBillGeneratedMessage(t("Bill generated successfully and added to Documents."));
-      setShowBillGeneratedPopup(true);
-
-      invalidateDetailsCaches(String(selectedOrder?.id), String(selectedOrder?._backendId ?? ""));
-      await refreshDetails();
-    } catch (e) {
-      setErrorMessage(`${t("Bill generation failed:")} ${errMsg(e)}`);
-      setShowErrorPopup(true);
-    } finally {
-      setIsGeneratingBill(false);
-    }
+        await upsertJobOrder(updatedOrder);
+        invalidateDetailsCaches(String(selectedOrder?.id), String(selectedOrder?._backendId ?? ""));
+        await refreshDetails();
+      } catch (e) {
+        setErrorMessage(`${t("Bill generation failed:")} ${errMsg(e)}`);
+        setShowErrorPopup(true);
+        setShowBillGeneratedPopup(false);
+      } finally {
+        setIsGeneratingBill(false);
+      }
+    })();
   };
 
   // -------------------- UI helpers --------------------
@@ -2119,10 +2250,8 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const maxDiscountQarUi = paymentDiscountAllowance?.maxAllowedTotalDiscountAmount ?? 0;
     const noRemainingDiscountAllowance = (paymentDiscountAllowance?.maxAdditionalDiscountAmount ?? 0) <= 0.00001;
     const serviceAudit = buildPackageAuditBreakdown(Array.isArray(selectedOrder?.services) ? selectedOrder.services : []);
-    const canRecordPayment = summaryPaymentSnap.balanceDue > 0.00001;
-
     return (
-      <div className="pim-details-screen jo-details-v3">
+      <div className="pim-details-screen">
         <div className="pim-details-header">
           <div className="pim-details-title-container">
             <h2><i className="fas fa-clipboard-list"></i> {t("Job Order Details")} - {selectedOrder.id}</h2>
@@ -2182,7 +2311,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                   <h3><i className="fas fa-receipt"></i> {t("Billing & Invoices")}</h3>
                   <div className="pim-actions">
                     <PermissionGate moduleId="payment" optionId="payment_pay">
-                      <button className="pim-btn pim-btn-primary" type="button" onClick={openPaymentPopup} disabled={!canRecordPayment}>
+                      <button className="pim-btn pim-btn-primary" type="button" onClick={openPaymentPopup} disabled={loading || !selectedOrder}>
                         <i className="fas fa-credit-card"></i> {t("Payment")}
                       </button>
                     </PermissionGate>
@@ -2231,20 +2360,20 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                         <tbody>
                           {serviceAudit.packageLines.map((line) => (
                             <tr key={line.key}>
-                              <td>
+                              <td data-label={t("Package / Group")}>
                                 <span className="bi-package-name"><i className="fas fa-box-open"></i> {line.title}</span>
                               </td>
-                              <td style={{ textAlign: "center" }}>{line.itemCount}</td>
-                              <td style={{ textAlign: "right", fontWeight: 900 }}>{fmtQar(line.total)}</td>
+                              <td data-label={t("Included Services")} style={{ textAlign: "center" }}>{line.itemCount}</td>
+                              <td data-label={t("Total")} style={{ textAlign: "right", fontWeight: 900 }}>{fmtQar(line.total)}</td>
                             </tr>
                           ))}
                           {serviceAudit.standaloneCount > 0 && (
                             <tr>
-                              <td>
+                              <td data-label={t("Package / Group")}>
                                 <span className="bi-package-name"><i className="fas fa-tools"></i> {t("Individual Services (Non-package)")}</span>
                               </td>
-                              <td style={{ textAlign: "center" }}>{serviceAudit.standaloneCount}</td>
-                              <td style={{ textAlign: "right", fontWeight: 900 }}>{fmtQar(serviceAudit.standaloneTotal)}</td>
+                              <td data-label={t("Included Services")} style={{ textAlign: "center" }}>{serviceAudit.standaloneCount}</td>
+                              <td data-label={t("Total")} style={{ textAlign: "right", fontWeight: 900 }}>{fmtQar(serviceAudit.standaloneTotal)}</td>
                             </tr>
                           )}
                         </tbody>
@@ -2262,9 +2391,10 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                     {normalizedInvoices.length === 0 ? (
                       <div className="pim-empty-inline">{t("No invoices found in normalized tables.")}</div>
                     ) : (
-                      <div className="pim-invoices">
-                        {normalizedInvoices.map((inv) => (
-                          <div key={inv.id} className="pim-invoice bi-invoice-card">
+                      <div className="bi-invoices-scroll-wrap">
+                        <div className="pim-invoices">
+                          {normalizedInvoices.map((inv) => (
+                            <div key={inv.id} className="pim-invoice bi-invoice-card">
                             <div className="pim-invoice-head">
                               <div className="pim-invoice-left">
                                 <div className="pim-invoice-number">{t("Invoice")} #{inv.number}</div>
@@ -2329,20 +2459,21 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                                 </ul>
                               )}
                             </div>
-                          </div>
-                        ))}
+                            </div>
+                          ))}
+                        </div>
                       </div>
                     )}
                   </div>
                 </PermissionGate>
 
                 <PermissionGate moduleId="payment" optionId="payment_paymentlog">
-                  <div className="pim-subcard">
-                    <div className="pim-subtitle"><i className="fas fa-history"></i> {t("Payment Activity Log")}</div>
+                  <div className="pim-subcard bi-payment-log-wrap">
+                    <div className="pim-subtitle bi-payment-log-title"><i className="fas fa-history"></i> {t("Payment Activity Log")}</div>
 
                     {Array.isArray(selectedOrder.paymentActivityLog) && selectedOrder.paymentActivityLog.length ? (
-                      <div className="pim-table-wrap">
-                        <table className="pim-table">
+                      <div className="pim-table-wrap bi-payment-log-table-wrap">
+                        <table className="pim-table bi-payment-log-table">
                           <thead>
                             <tr>
                               <th>{t("Serial")}</th>
@@ -2355,11 +2486,11 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                           <tbody>
                             {[...selectedOrder.paymentActivityLog].reverse().map((p: PaymentLogUi, idx: number) => (
                               <tr key={idx}>
-                                <td>{p.serial}</td>
-                                <td>{p.amount}</td>
-                                <td>{p.paymentMethod}</td>
-                                <td>{displayUser(p.cashierName)}</td>
-                                <td>{p.timestamp}</td>
+                                <td data-label={t("Serial")}><span className="bi-pill bi-pill-neutral">#{p.serial}</span></td>
+                                <td data-label={t("Amount")}><strong className="bi-payment-log-amount">{p.amount}</strong></td>
+                                <td data-label={t("Method")}><span className="bi-pill bi-pill-method">{p.paymentMethod}</span></td>
+                                <td data-label={t("Cashier")}><span className="bi-payment-log-cashier"><i className="fas fa-user-circle"></i>{displayUser(p.cashierName)}</span></td>
+                                <td data-label={t("Timestamp")}><span className="bi-payment-log-time">{p.timestamp}</span></td>
                               </tr>
                             ))}
                           </tbody>
@@ -2583,16 +2714,23 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
   // ===================== LIST SCREEN =====================
   return (
-    <div className="pim-root">
-      <div className="pim-container">
-        <header className="pim-header crm-unified-header">
-          <div className="pim-header-left">
-            <h1><i className="fas fa-file-invoice-dollar"></i> {t("Payment & Invoice Management")}</h1>
-          </div>
-        </header>
+    <div
+      className="vehicle-page customer-page customer-dashboard-shell theme-elegant-glass pim-page"
+      id="mainScreen"
+      style={{ background: "linear-gradient(145deg, #f8fafe 0%, #eef3ff 100%)", minHeight: "100vh" }}
+    >
+      <main className="main-content customer-dashboard-main" style={{ padding: "16px 8px" }}>
+        <div className="pim-root">
+          <div className="pim-container">
 
-        <section className="pim-search-section">
-          <div className="pim-search-container">
+        <header className="pim-header crm-unified-header">
+          <div className="pim-header-icon-chip">
+            <i className="fas fa-file-invoice-dollar"></i>
+          </div>
+          <div className="pim-header-title">
+            <h1>{t("Payment & Invoice Management")}</h1>
+          </div>
+          <div className="pim-header-search">
             <i className="fas fa-search pim-search-icon"></i>
             <input
               type="text"
@@ -2602,10 +2740,10 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
-          <div className="pim-search-stats">
+          <div className="pim-header-stats">
             {t("Showing unpaid/partially paid and cancelled-with-refundable-balance •")} {filteredOrders.length} {t("shown of")} {allOrders.length} {t("total")}
           </div>
-        </section>
+        </header>
 
         <section className="pim-results-section">
           <div className="pim-section-header">
@@ -2652,15 +2790,15 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                   <tbody>
                     {paginatedData.map((order) => (
                       <tr key={order.id}>
-                        <td className="pim-date-column">{order.createDate}</td>
-                        <td className="pim-strong">{order.id}</td>
-                        <td>{order.orderType}</td>
-                        <td>{order.customerName}</td>
-                        <td>{order.mobile}</td>
-                        <td>{order.vehiclePlate}</td>
-                        <td><span className={`pim-badge ${workStatusClass(order.workStatus)}`}>{t(order.workStatus)}</span></td>
-                        <td><span className={`pim-badge ${payStatusClass(order.paymentStatus)}`}>{t(order.paymentStatus)}</span></td>
-                        <td>
+                        <td data-label={t("Create Date")} className="pim-date-column">{order.createDate}</td>
+                        <td data-label={t("Job Card ID")} className="pim-strong">{order.id}</td>
+                        <td data-label={t("Order Type")}>{order.orderType}</td>
+                        <td data-label={t("Customer Name")}>{order.customerName}</td>
+                        <td data-label={t("Mobile")}>{order.mobile}</td>
+                        <td data-label={t("Vehicle Plate")}>{order.vehiclePlate}</td>
+                        <td data-label={t("Work Status")}><span className={`pim-badge ${workStatusClass(order.workStatus)}`}>{t(order.workStatus)}</span></td>
+                        <td data-label={t("Payment Status")}><span className={`pim-badge ${payStatusClass(order.paymentStatus)}`}>{t(order.paymentStatus)}</span></td>
+                        <td data-label={t("Actions")}>
                           <PermissionGate moduleId="payment" optionId="payment_actions">
                             <div className="action-dropdown-container">
                               <button
@@ -2815,7 +2953,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
           </>,
           document.body
         )}
-      </div>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }

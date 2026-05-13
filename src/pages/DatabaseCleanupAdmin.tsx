@@ -29,7 +29,6 @@ const MODELS_TO_CLEAN = [
   "Vehicle",
   "Customer",
   "Employee",
-  "CallTracking",
   "ServiceCatalog",
   "ServiceCategory",
   "ServiceBrandSpecification",

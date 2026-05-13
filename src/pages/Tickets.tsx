@@ -7,6 +7,7 @@ import { getCurrentUser } from "aws-amplify/auth";
 import { resolveActorUsername } from "../utils/actorIdentity";
 import PermissionGate from "./PermissionGate";
 import { useLanguage } from "../i18n/LanguageContext";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 
 import { getDataClient } from "../lib/amplifyClient";
 const client = getDataClient();
@@ -15,6 +16,7 @@ type TicketRow = Schema["Ticket"]["type"];
 
 export default function Tickets({ permissions }: PageProps) {
   const { t } = useLanguage();
+  const { withLoading } = useGlobalLoading();
   if (!permissions.canRead) {
     return <div style={{ padding: 24 }}>{t("You don’t have access to this page.")}</div>;
   }
@@ -158,7 +160,7 @@ export default function Tickets({ permissions }: PageProps) {
               <option key={s} value={s}>{s}</option>
             ))}
           </SelectField>
-          <Button variation="primary" onClick={create}>
+          <Button variation="primary" onClick={() => void withLoading(create(), t("Creating ticket..."))}>
             {t("Create ticket")}
           </Button>
         </div>
@@ -175,7 +177,7 @@ export default function Tickets({ permissions }: PageProps) {
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <h3 style={{ margin: 0 }}>{t("Tickets")}</h3>
           <PermissionGate moduleId="tickets" optionId="tickets_refresh">
-            <Button onClick={load} isLoading={loading}>{t("Refresh")}</Button>
+            <Button onClick={() => void withLoading(load(), t("Loading tickets..."))} isLoading={loading}>{t("Refresh")}</Button>
           </PermissionGate>
         </div>
 
@@ -193,7 +195,7 @@ export default function Tickets({ permissions }: PageProps) {
 
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
                     <PermissionGate moduleId="tickets" optionId="tickets_edit">
-                      <Button variation="primary" onClick={saveEdit} isDisabled={!permissions.canUpdate}>{t("Save")}</Button>
+                      <Button variation="primary" onClick={() => void withLoading(saveEdit(), t("Saving ticket..."))} isDisabled={!permissions.canUpdate}>{t("Save")}</Button>
                     </PermissionGate>
                     <Button onClick={cancelEdit}>{t("Cancel")}</Button>
                   </div>
@@ -213,7 +215,7 @@ export default function Tickets({ permissions }: PageProps) {
                     )}
                     {permissions.canDelete && (
                       <PermissionGate moduleId="tickets" optionId="tickets_delete">
-                        <Button variation="destructive" onClick={() => remove(ticket.id)}>
+                        <Button variation="destructive" onClick={() => void withLoading(remove(ticket.id), t("Deleting ticket..."))}>
                           {t("Delete")}
                         </Button>
                       </PermissionGate>

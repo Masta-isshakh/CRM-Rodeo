@@ -1,5 +1,6 @@
 // src/pages/serviceexecution/ServiceExecutionModule.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 import { createPortal, flushSync } from "react-dom";
 import "./ServiceExecutionModule.css";
 import "./JobOrderHistory.css";
@@ -309,6 +310,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   const client = useMemo(() => getDataClient(), []);
   const { isAdminGroup, canOption } = usePermissions();
   const { t } = useLanguage();
+  const { withLoading } = useGlobalLoading();
 
   // live list from backend
   const [jobs, setJobs] = useState<any[]>([]);
@@ -764,6 +766,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
     setLoading(true);
     try {
+      await withLoading((async () => {
       const detailed = await getJobOrderByOrderNumber(orderKey);
       if (!detailed?._backendId) throw new Error(t("Order not found in backend."));
 
@@ -948,6 +951,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
       detailsCacheRef.current.set(orderKey, merged);
       flushSync(() => { setCurrentDetailsJob(merged); setDetailsEditMode(false); setShowDetails(true); });
+      })(), t("Loading service details..."));
     } catch (e) {
       setSuccessMessage(`${t("Load failed:")} ${errMsg(e)}`);
       setShowSuccessPopup(true);
@@ -1070,22 +1074,21 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     schedulePersistJob(updated);
   };
 
-  // ✅ Add service: persist to JobOrder + create ServiceApprovalRequest
+  // Add service/package directly to JobOrder (no approval flow)
   const handleAddService = async (serviceName: string, price: number): Promise<boolean> => {
     if (!currentDetailsJob) return false;
-    await flushScheduledPersist();
 
     const newService = {
       id: `SVC-${currentDetailsJob.id}-${Date.now()}`,
       order: (currentDetailsJob.services?.length ?? 0) + 1,
       name: serviceName,
       price,
-      status: "Pending Approval",
+      status: "Pending",
       assignedTo: resolveActorEmail(currentUser) || currentUser?.name || null,
       technicians: [],
       startTime: null,
       endTime: null,
-      notes: "Requested from Service Execution module",
+      notes: "Added from Service Execution module",
     };
 
     const updated = {
@@ -1095,26 +1098,10 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
     setCurrentDetailsJob(updated);
 
-    // persist in JobOrder
-    await persistJob(updated);
+    // Persist in the background so add feels instant.
+    schedulePersistJob(updated);
 
-    // create approval request row in backend
-    try {
-      await (client.models as any).ServiceApprovalRequest.create({
-        jobOrderId: String(updated._backendId),
-        orderNumber: String(updated.id),
-        serviceId: String(newService.id),
-        serviceName: String(serviceName),
-        price: Number(price || 0),
-        requestedBy: resolveActorName(currentUser),
-        requestedAt: new Date().toISOString(),
-        status: "PENDING",
-      });
-    } catch {
-      // if schema not deployed yet, you’ll see it in console; UI still works
-    }
-
-    setSuccessMessage(`${t("Approval request created for")} "${serviceName}".`);
+    setSuccessMessage(`${t("Added successfully")}: "${serviceName}".`);
     setShowSuccessPopup(true);
     return true;
   };
@@ -1188,8 +1175,15 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
         <div className="service-details-screen jo-details-v3">
           <div className="service-details-header">
             <div className="service-details-title-container">
+              <div className="service-kicker">
+                <i className="fas fa-stream" style={{ marginRight: 6 }}></i>
+                {t("History Details")}
+              </div>
               <h2>
-                <i className="fas fa-clipboard-list"></i> {t("Job Order Details")} - {currentDetailsJob.id}
+                <span className="service-title-icon" aria-hidden="true">
+                  <i className="fas fa-clipboard-list"></i>
+                </span>
+                {t("Job Order Details")} - <span className="service-order-id">{currentDetailsJob.id}</span>
               </h2>
             </div>
             <button className="service-btn-close-details" onClick={closeDetails}>
@@ -1280,9 +1274,29 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
       <div className="app-container">
         <header className="app-header crm-unified-header">
           <div className="header-left">
+            <div className="service-kicker">
+              <i className="fas fa-clipboard-check"></i> {t("Records")}
+            </div>
             <h1>
-              <i className="fas fa-clipboard-check"></i> {t("Services & Work Management")}
+              <span className="service-title-icon" aria-hidden="true">
+                <i className="fas fa-clipboard-check"></i>
+              </span>
+              {t("Services & Work Management")}
             </h1>
+            <p className="service-header-sub">{t("Track assignments, execution progress, and service operations in one place.")}</p>
+          </div>
+
+          <div className="header-search-group search-section">
+            <div className="search-container">
+              <i className="fas fa-search search-icon"></i>
+              <input
+                type="text"
+                className="smart-search-input"
+                placeholder={t("Search by Job ID, Customer, Plate...")}
+                value={currentSearch}
+                onChange={(e) => setCurrentSearch(e.target.value)}
+              />
+            </div>
           </div>
         </header>
 
@@ -1301,19 +1315,6 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
             </div>
           )}
         </div>
-
-        <section className="search-section">
-          <div className="search-container">
-            <i className="fas fa-search search-icon"></i>
-            <input
-              type="text"
-              className="smart-search-input"
-              placeholder={t("Search by Job ID, Customer, Plate...")}
-              value={currentSearch}
-              onChange={(e) => setCurrentSearch(e.target.value)}
-            />
-          </div>
-        </section>
 
         <section className="results-section">
           <div className="section-header">

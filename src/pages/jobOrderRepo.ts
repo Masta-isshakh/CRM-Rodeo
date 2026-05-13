@@ -2051,3 +2051,159 @@ export async function createExitPermitForOrderNumber(input: {
   await upsertJobOrder(order);
   return { permitId, orderNumber: String(order.id) };
 }
+
+/* ── Dashboard statistics ─────────────────────────────────────── */
+
+export interface DashboardStats {
+  totalJobs: number;
+  completedJobs: number;
+  inProgressJobs: number;
+  newRequestJobs: number;
+  cancelledJobs: number;
+  partiallyPaidJobs: number;
+  upcomingDeliveries: number;
+  totalRevenue: number;
+  statusBreakdown: Array<{ name: string; value: number; pct: string; color: string }>;
+  jobsByDay: Array<{ date: string; thisWeek: number; lastWeek: number }>;
+  serviceCategoryBreakdown: Array<{ name: string; count: number }>;
+}
+
+const STATUS_COLORS: Record<string, string> = {
+  Completed: "#05CD99",
+  "In Progress": "#4318FF",
+  "New Request": "#39BFFF",
+  "Partially Paid": "#FFB547",
+  Cancelled: "#EE5D50",
+  Ready: "#7551FF",
+  Other: "#A3AED0",
+};
+
+export async function getDashboardStats(): Promise<DashboardStats> {
+  const client = getDataClient();
+
+  // Fetch raw job orders
+  const [jobRes, paymentRes] = await Promise.all([
+    client.models.JobOrder.list({ limit: 2000 }),
+    client.models.JobOrderPayment.list({ limit: 5000 }).catch(() => ({ data: [] as any[] })),
+  ]);
+  const rawJobs: any[] = jobRes.data ?? [];
+  const allPayments: any[] = (paymentRes as any).data ?? [];
+
+  // Build authoritative amountPaid per job
+  const paidByJobId: Record<string, number> = {};
+  for (const p of allPayments) {
+    const jid = String(p?.jobOrderId ?? "").trim();
+    if (!jid) continue;
+    const amt = toNum(p?.amount ?? 0);
+    const status = String(p?.paymentStatus ?? "").toUpperCase();
+    if (status === "COMPLETED" || status === "APPROVED" || status === "") {
+      paidByJobId[jid] = (paidByJobId[jid] ?? 0) + amt;
+    }
+  }
+
+  // Aggregate
+  const statusCounts: Record<string, number> = {};
+  let totalRevenue = 0;
+  let upcomingDeliveries = 0;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const next7 = new Date(today.getTime() + 7 * 86_400_000);
+
+  // Jobs by day: last 14 days
+  const dayCountMap: Record<string, number> = {};
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(today.getTime() - i * 86_400_000);
+    const key = d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    dayCountMap[key] = 0;
+  }
+
+  for (const job of rawJobs) {
+    const parsed = safeJsonParse<any>(job.dataJson) ?? {};
+    const workStatus = deriveUiWorkStatus(job, parsed);
+
+    statusCounts[workStatus] = (statusCounts[workStatus] ?? 0) + 1;
+
+    // Revenue: use billing.netAmount, fall back to billing.totalAmount
+    const netAmt = resolveBillingNumber("netAmount", parsed, job);
+    const totalAmt = resolveBillingNumber("totalAmount", parsed, job);
+    const authPaid = paidByJobId[job.id] ?? resolveBillingNumber("amountPaid", parsed, job);
+    // Best estimate: authoritative collected amount
+    const revenueContrib = authPaid > 0 ? authPaid : (netAmt > 0 ? netAmt : totalAmt);
+    totalRevenue += revenueContrib;
+
+    // Upcoming deliveries: expectedDeliveryDate within next 7 days, not cancelled/completed
+    const ws = workStatus.toLowerCase();
+    if (ws !== "cancelled" && ws !== "completed") {
+      const rawDate =
+        parsed?.deliveryTracking?.expectedDeliveryDate ??
+        parsed?.expectedDeliveryDate ??
+        job?.expectedDeliveryDate;
+      if (rawDate) {
+        const d = new Date(String(rawDate));
+        if (!Number.isNaN(d.getTime()) && d >= today && d <= next7) {
+          upcomingDeliveries++;
+        }
+      }
+    }
+
+    // Jobs by day (created)
+    const createdAt = job.createdAt ? new Date(String(job.createdAt)) : null;
+    if (createdAt) {
+      const key = createdAt.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+      if (key in dayCountMap) {
+        dayCountMap[key] = (dayCountMap[key] ?? 0) + 1;
+      }
+    }
+  }
+
+  const totalJobs = rawJobs.length;
+
+  // Build status breakdown for donut chart
+  const statusEntries = Object.entries(statusCounts).sort((a, b) => b[1] - a[1]);
+  const statusBreakdown = statusEntries.map(([name, value]) => ({
+    name,
+    value,
+    pct: totalJobs > 0 ? `${Math.round((value / totalJobs) * 100)}%` : "0%",
+    color: STATUS_COLORS[name] ?? STATUS_COLORS["Other"],
+  }));
+
+  // Jobs by day arrays (thisWeek = last 7, lastWeek = 7-14 ago)
+  const dateKeys = Object.keys(dayCountMap).reverse(); // oldest first
+  const thisWeekKeys = dateKeys.slice(7, 14);
+  const lastWeekKeys = dateKeys.slice(0, 7);
+  const jobsByDay = thisWeekKeys.map((date, i) => ({
+    date,
+    thisWeek: dayCountMap[date] ?? 0,
+    lastWeek: dayCountMap[lastWeekKeys[i]] ?? 0,
+  }));
+
+  // Service category breakdown (from services in dataJson)
+  const catCounts: Record<string, number> = {};
+  for (const job of rawJobs) {
+    const parsed = safeJsonParse<any>(job.dataJson) ?? {};
+    const services: any[] = Array.isArray(parsed?.services) ? parsed.services : [];
+    for (const svc of services) {
+      const cat =
+        String(svc?.serviceCategory ?? svc?.category ?? svc?.type ?? "").trim() || "General";
+      catCounts[cat] = (catCounts[cat] ?? 0) + 1;
+    }
+  }
+  const serviceCategoryBreakdown = Object.entries(catCounts)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 6)
+    .map(([name, count]) => ({ name, count }));
+
+  return {
+    totalJobs,
+    completedJobs: statusCounts["Completed"] ?? 0,
+    inProgressJobs: statusCounts["In Progress"] ?? 0,
+    newRequestJobs: statusCounts["New Request"] ?? 0,
+    cancelledJobs: statusCounts["Cancelled"] ?? 0,
+    partiallyPaidJobs: statusCounts["Partially Paid"] ?? 0,
+    upcomingDeliveries,
+    totalRevenue: Math.round(totalRevenue),
+    statusBreakdown,
+    jobsByDay,
+    serviceCategoryBreakdown,
+  };
+}
