@@ -2468,7 +2468,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
   }, [modelOptions]);
 
   const handleSaveNewVehicle = async () => {
-    if (!(factory && model && year && license && carType && color)) return;
+    if (!(factory && model && year && license && carType && color && vinNumber.trim())) return;
 
     const created = await createVehicleForCustomer({
       customerId: customerData.id,
@@ -2605,12 +2605,13 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
             {/* NEW ROW: VIN + Vehicle Type */}
             <div className="form-row grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="form-group">
-                <label>{t("VIN Number")}</label>
+                <label>{t("VIN Number")} *</label>
                 <input
                   value={vinNumber}
                   onChange={(e) => setVinNumber(e.target.value.toUpperCase())}
                   placeholder="e.g., JTDBR32E720054321"
                   maxLength={30}
+                  required
                 />
               </div>
               <div className="form-group">
@@ -2642,7 +2643,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
             <button
               className="btn btn-success bg-[#4318FF] text-white rounded-xl px-6 py-3 font-bold hover:bg-[#3A14DF] transition-all shadow-[0_8px_22px_rgba(67,24,255,0.25)]"
               onClick={() => void handleSaveNewVehicle()}
-              disabled={!(factory && model && year && license && carType && color)}
+              disabled={!(factory && model && year && license && carType && color && vinNumber.trim())}
             >
               <i className="fas fa-save"></i> {t("Save Vehicle")}
             </button>

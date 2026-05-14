@@ -2748,6 +2748,158 @@ export default function VehicleManagement({
         </section>
       </main>
 
+      {/* Edit Modal */}
+      <Modal
+        isOpen={showEditModal}
+        title={t("Edit Vehicle")}
+        icon="fas fa-car"
+        onClose={() => {
+          setShowEditModal(false);
+          resetForm();
+          setSelectedVehicleId(null);
+        }}
+        onSave={() => void withLoading(handleUpdateVehicle(), t("Saving vehicle changes..."))}
+        isEdit
+        saving={saving}
+        saveLabel={t("Save Changes")}
+      >
+        <div className="modal-form">
+          <div className="verify-row">
+            <FormField
+              label={t("Customer ID")}
+              id="editCustomerId"
+              placeholder={t("Enter Customer ID")}
+              value={form.customerId}
+              onChange={(e) => { setForm((p) => ({ ...p, customerId: e.target.value })); setVerifyAlert(null); }}
+              error={errors.customerId}
+              required
+            />
+            <PermissionGate moduleId="vehicles" optionId="vehicles_verifycustomer" fallback={null}>
+              {canVerifyCustomer && (
+                <button className="btn-verify" type="button" onClick={() => verifyCustomer(form.customerId)}>
+                  <i className="fas fa-check-circle"></i> {t("Verify")}
+                </button>
+              )}
+            </PermissionGate>
+          </div>
+
+          {verifyAlert && (
+            <div className={`verify-inline-alert verify-inline-alert--${verifyAlert.type}`}>
+              <div className="verify-inline-alert__icon">
+                <i className={verifyAlert.type === "success" ? "fas fa-check-circle" : verifyAlert.type === "warning" ? "fas fa-exclamation-triangle" : "fas fa-times-circle"}></i>
+              </div>
+              <div className="verify-inline-alert__body">
+                <strong>{verifyAlert.title}</strong>
+                <span>{verifyAlert.message}</span>
+              </div>
+              <button className="verify-inline-alert__close" onClick={() => setVerifyAlert(null)} type="button">×</button>
+            </div>
+          )}
+
+          {verifiedCustomer && (
+            <div className="verified-banner">
+              <i className="fas fa-check-circle"></i> {t("Verified:")} {verifiedCustomer.name} {verifiedCustomer.lastname}
+            </div>
+          )}
+
+          <div className="form-grid-2">
+            <FormField
+              label={t("Vehicle ID")}
+              id="editVehicleId"
+              value={form.vehicleId}
+              onChange={(e) => setForm((p) => ({ ...p, vehicleId: e.target.value }))}
+              disabled
+              hint={t("Vehicle ID is not editable.")}
+            />
+            <FormField
+              label={t("Plate Number")}
+              id="editPlate"
+              placeholder={t("e.g. 123456")}
+              value={form.plateNumber}
+              onChange={(e) => setForm((p) => ({ ...p, plateNumber: e.target.value }))}
+              error={errors.plateNumber}
+              required
+            />
+            <FormField
+              label={t("Make")}
+              id="editMake"
+              type="select"
+              value={form.make}
+              onChange={(e) => setForm((p) => ({ ...p, make: e.target.value }))}
+              error={errors.make}
+              required
+              options={manufacturerOptions}
+            />
+            <FormField
+              label={t("Model")}
+              id="editModel"
+              type="select"
+              value={form.model}
+              onChange={(e) => setForm((p) => ({ ...p, model: e.target.value }))}
+              error={errors.model}
+              required
+              options={modelOptions}
+              disabled={!form.make.trim()}
+            />
+            <FormField
+              label={t("Year")}
+              id="editYear"
+              placeholder={t("e.g. 2024")}
+              value={form.year}
+              onChange={(e) => setForm((p) => ({ ...p, year: e.target.value }))}
+              error={errors.year}
+              required
+            />
+            <FormField
+              label={t("Vehicle Type")}
+              id="editType"
+              type="select"
+              value={form.vehicleType}
+              onChange={(e) => setForm((p) => ({ ...p, vehicleType: e.target.value }))}
+              error={errors.vehicleType}
+              required
+              options={[
+                { value: "", label: t("Select type") },
+                { value: "Sedan", label: t("Sedan") },
+                { value: "SUV", label: t("SUV") },
+                { value: "Truck", label: t("Truck") },
+                { value: "Coupe", label: t("Coupe") },
+                { value: "Hatchback", label: t("Hatchback") },
+                { value: "Van", label: t("Van") },
+                { value: "Motorbike", label: t("Motorbike") },
+                { value: "Other", label: t("Other") },
+              ]}
+            />
+            <FormField
+              label={t("Color")}
+              id="editColor"
+              type="select"
+              value={form.color}
+              onChange={(e) => setForm((p) => ({ ...p, color: e.target.value }))}
+              error={errors.color}
+              required
+              options={colorOptions}
+            />
+            <FormField
+              label={t("VIN")}
+              id="editVin"
+              placeholder={t("Optional")}
+              value={form.vin}
+              onChange={(e) => setForm((p) => ({ ...p, vin: e.target.value }))}
+              required={false}
+            />
+          </div>
+
+          <FormField
+            label={t("Notes")}
+            id="editNotes"
+            placeholder={t("Optional")}
+            value={form.notes}
+            onChange={(e) => setForm((p) => ({ ...p, notes: e.target.value }))}
+          />
+        </div>
+      </Modal>
+
       {/* Add Modal */}
       <Modal
         isOpen={showAddModal}

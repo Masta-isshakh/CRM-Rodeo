@@ -26,6 +26,8 @@ const SESSION_CACHE_KEY = "crm.sessionOk";
 const SESSION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
 const SESSION_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
 const SESSION_EXPIRES_AT_KEY = "crm.sessionExpiresAt";
+const BLOCKED_BANNER_VISIBLE_MS = 5000;
+const BLOCKED_BANNER_FADE_MS = 420;
 
 type FailedLoginTracker = Record<string, { count: number; lockedUntil: number }>;
 
@@ -275,6 +277,7 @@ const authComponents = {
 
 export default function App() {
   const [blockedMessage, setBlockedMessage] = useState("");
+  const [isBlockedBannerLeaving, setIsBlockedBannerLeaving] = useState(false);
   const path = window.location.pathname;
 
   useEffect(() => {
@@ -303,6 +306,7 @@ export default function App() {
   const setBlocked = (message: string) => {
     const next = String(message ?? "").trim();
     setBlockedMessage(next);
+    setIsBlockedBannerLeaving(false);
     try {
       if (next) window.localStorage.setItem(ACCOUNT_BLOCK_MESSAGE_KEY, next);
       else window.localStorage.removeItem(ACCOUNT_BLOCK_MESSAGE_KEY);
@@ -310,6 +314,27 @@ export default function App() {
       // ignore
     }
   };
+
+  useEffect(() => {
+    if (!blockedMessage) {
+      setIsBlockedBannerLeaving(false);
+      return;
+    }
+
+    const fadeDelay = Math.max(0, BLOCKED_BANNER_VISIBLE_MS - BLOCKED_BANNER_FADE_MS);
+    const fadeId = window.setTimeout(() => {
+      setIsBlockedBannerLeaving(true);
+    }, fadeDelay);
+
+    const clearId = window.setTimeout(() => {
+      setBlocked("");
+    }, BLOCKED_BANNER_VISIBLE_MS);
+
+    return () => {
+      window.clearTimeout(fadeId);
+      window.clearTimeout(clearId);
+    };
+  }, [blockedMessage]);
 
   const authServices = {
     async handleSignIn(input: any) {
@@ -390,9 +415,12 @@ export default function App() {
     <AppErrorBoundary>
       <GlobalLoadingProvider>
         {blockedMessage && (
-          <div className="crm-auth-block-banner" role="alert">
+          <div
+            className={`crm-auth-block-banner ${isBlockedBannerLeaving ? "is-leaving" : ""}`}
+            role="status"
+            aria-live="polite"
+          >
             <span>{blockedMessage}</span>
-            <button type="button" onClick={() => setBlocked("")}>{tr("Dismiss")}</button>
           </div>
         )}
         <ThemeProvider theme={crmAuthTheme as any}>

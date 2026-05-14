@@ -203,7 +203,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   const prefetchedPagesRef = useRef<Set<Page>>(new Set());
 
   const { loading, email, employeeName, isAdminGroup, can, canOption, isModuleEnabled, refresh } = usePermissions();
-  const { t } = useLanguage();
+  const { t, language, toggleLanguage } = useLanguage();
   const currentYear = new Date().getFullYear();
   const canAny = (key: string) => ((can as any)(key) ?? EMPTY) as CrudPerm;
 
@@ -813,6 +813,9 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
           </nav>
 
           <div className="drawer-footer">
+            <button className="lang-toggle" type="button" onClick={toggleLanguage}>
+              {language === "ar" ? t("EN") : t("AR")}
+            </button>
             <button className="danger" onClick={signOut}>
               <i className="fas fa-power-off" aria-hidden="true" /> {t("Sign out")}
             </button>
