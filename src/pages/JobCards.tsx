@@ -1,5 +1,5 @@
-﻿// src/pages/JobOrderManagement.tsx
-// âœ… Full updated file - paste as-is
+﻿// src/pages/JobCards.tsx
+// Full updated file - paste as-is
 
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
@@ -69,7 +69,7 @@ async function resolveMaybeStorageUrl(urlOrPath: string): Promise<string> {
   const v = String(urlOrPath || "").trim();
   if (!v) return "";
 
-  // âœ… Your storage resource uses "job-orders/*"
+  // Your storage resource uses "job-orders/*"
   if (v.startsWith("job-orders/")) {
     const out = await getUrl({ path: v });
     return out.url.toString();
@@ -105,7 +105,7 @@ function joFirstPreferredActor(...vals: any[]) {
 function toUsernameDisplay(v: any, identityMap?: Record<string, string>) {
   return resolveActorDisplay(v, {
     identityToUsernameMap: identityMap,
-    fallback: "â€”",
+    fallback: "-",
   });
 }
 
@@ -115,7 +115,7 @@ function joIsPlaceholderName(s: string) {
     !t ||
     t === "-" ||
     t === "--" ||
-    t === "â€”" ||
+    t === "-" ||
     t === "null" ||
     t === "undefined" ||
     t === "system user" ||
@@ -449,7 +449,7 @@ function ServiceSpecificationModal({ product, onClose, onConfirm }: any) {
       <div className="sc2-modal" onClick={(e) => e.stopPropagation()}>
         <div className="sc2-modal-header">
           <h3><i className="fas fa-palette"></i> {t("Service Specification")}</h3>
-          <button onClick={onClose}>âœ•</button>
+          <button onClick={onClose}>x</button>
         </div>
         <div className="sc2-modal-body">
           <div className="sc2-grid-1">
@@ -544,7 +544,7 @@ function ServiceSpecificationModal({ product, onClose, onConfirm }: any) {
   );
 }
 
-/** âœ… Best creator name for the order (handles different payload shapes) */
+/** Best creator name for the order (handles different payload shapes) */
 function resolveCreatedBy(order: any, identityMap?: Record<string, string>) {
   const summary = order?.jobOrderSummary ?? {};
   const roadmap = Array.isArray(order?.roadmap) ? order.roadmap : [];
@@ -580,19 +580,19 @@ function resolveCreatedBy(order: any, identityMap?: Record<string, string>) {
       order?.customerDetails?.createdBy,
       order?.vehicleDetails?.createdBy
     );
-    return alt && !joIsPlaceholderName(alt) ? toUsernameDisplay(alt, identityMap) : toUsernameDisplay(primary || "â€”", identityMap);
+    return alt && !joIsPlaceholderName(alt) ? toUsernameDisplay(alt, identityMap) : toUsernameDisplay(primary || "-", identityMap);
   }
 
-  return toUsernameDisplay(primary || "â€”", identityMap);
+  return toUsernameDisplay(primary || "-", identityMap);
 }
 
-/** âœ… Roadmap actor should represent who performed the step (NOT assignment) */
+/** Roadmap actor should represent who performed the step (NOT assignment) */
 function resolveRoadmapActor(step: any, order: any, identityMap?: Record<string, string>) {
   const stepName = joStr(step?.step).toLowerCase();
   const isNewRequestStep = stepName === "new request" || stepName === "newrequest";
 
   const actor = joFirstPreferredActor(
-    // âœ… action performer fields first
+    // action performer fields first
     step?.actionByName,
     step?.actionBy,
     step?.performedBy,
@@ -602,11 +602,11 @@ function resolveRoadmapActor(step: any, order: any, identityMap?: Record<string,
     step?.createdByName,
     step?.createdBy,
 
-    // âœ… only then allow technician fields (some steps may use it as performer)
+    // only then allow technician fields (some steps may use it as performer)
     step?.technicianName,
     step?.technician,
 
-    // âœ… New Request fallback to createdBy
+    // New Request fallback to createdBy
     isNewRequestStep ? resolveCreatedBy(order, identityMap) : ""
   );
 
@@ -634,7 +634,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
   const [inspectionModalOpen, setInspectionModalOpen] = useState(false);
   const [currentInspectionItem, setCurrentInspectionItem] = useState<any>(null);
 
-  // âœ… Success popup state
+  // Success popup state
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [submittedOrderId, setSubmittedOrderId] = useState("");
   const [lastAction, setLastAction] = useState<"create" | "cancel" | "addService">("create");
@@ -642,7 +642,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
   const [addServiceSuccessData, setAddServiceSuccessData] = useState({ orderId: "", invoiceId: "" });
   const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
 
-  // âœ… Error popup state
+  // Error popup state
   const [errorOpen, setErrorOpen] = useState(false);
   const [errorTitle, setErrorTitle] = useState("Operation failed");
   const [errorMessage, setErrorMessage] = useState<React.ReactNode>(null);
@@ -767,7 +767,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
 
   const formatAmount = (value: any) => `QAR ${Number(value || 0).toLocaleString()}`;
 
-  // âœ… Add service submit with ErrorPopup + SuccessPopup
+  // Add service submit with ErrorPopup + SuccessPopup
   const handleAddServiceSubmit = async ({ selectedServices, discountPercent }: any) => {
     if (!currentAddServiceOrder || !selectedServices || selectedServices.length === 0) {
       setScreenState("details");
@@ -884,7 +884,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
     }
   };
 
-  // âœ… Cancel: uses ErrorPopup + refresh
+  // Cancel: uses ErrorPopup + refresh
   const handleCancelOrder = async () => {
     if (!cancelOrderId) return;
 
@@ -1212,7 +1212,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         />
       )}
 
-      {/* âœ… Error Popup */}
+      {/* Error Popup */}
       <ErrorPopup
         isVisible={errorOpen}
         onClose={() => setErrorOpen(false)}
@@ -1466,12 +1466,12 @@ function MainScreen({
         <section style={{ display: "flex", alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", gap: 8, padding: "8px 4px", marginBottom: 6 }}>
           <div style={{ fontSize: 10, color: "#8C9ABF", fontWeight: 600 }}>
             {loading ? (
-              t("Loading job ordersâ€¦")
+              t("Loading job orders...")
             ) : totalCount === 0 ? (
               t("No job orders found")
             ) : (
               <>
-                {t("Showing")} {Math.min((currentPage - 1) * pageSize + 1, totalCount)}â€“
+                {t("Showing")} {Math.min((currentPage - 1) * pageSize + 1, totalCount)}-
                 {Math.min(currentPage * pageSize, totalCount)} {t("of")} <strong style={{ color: "#102A68", fontSize: "0.88rem", fontWeight: 700 }}>{totalCount}</strong> {t("job orders")}
                 {searchQuery && <span style={{ color: "#5D54FF" }}> {`(${t("Filtered by:")}: "${searchQuery}")`}</span>}
               </>
@@ -1530,7 +1530,7 @@ function MainScreen({
       </main>
 
       <footer className="app-footer">
-        <p>{t("Service Management System Â© 2023 | Job Order Management Module")}</p>
+        <p>{t("Service Management System (c) 2023 | Job Order Management Module")}</p>
       </footer>
 
       {typeof document !== "undefined" &&
@@ -1595,7 +1595,7 @@ function DetailsScreen({ order, onClose, onAddService, currentUser: _currentUser
 
   return (
     <div style={{ background: "linear-gradient(145deg, #f8fafe 0%, #eef3ff 100%)", minHeight: "100vh" }}>
-      {/* â”€â”€ Page Header â”€â”€ */}
+      {/* -- Page Header -- */}
       <div style={{ position: "relative", background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)", borderBottom: "1px solid #DDE7F6", padding: "0 0 0", marginBottom: 0, boxShadow: "0 4px 18px rgba(51,84,160,0.07)" }}>
         <div aria-hidden="true" style={{ position: "absolute", left: 0, right: 0, top: 0, height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)", zIndex: 2 }} />
         <div style={{ maxWidth: 1560, margin: "0 auto", padding: "16px 8px" }}>
@@ -1635,7 +1635,7 @@ function DetailsScreen({ order, onClose, onAddService, currentUser: _currentUser
         </div>
       </div>
 
-      {/* â”€â”€ Content â”€â”€ */}
+      {/* -- Content -- */}
       <div style={{ maxWidth: 1560, margin: "0 auto", padding: "16px 8px 40px" }}>
         {/* One-column stack: each card on its own row */}
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -2308,24 +2308,24 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
                     <>
                       <div className="verified-row">
                         <span className="verified-label">{t("Referred Name")}:</span>
-                        <span className="verified-value">{verifiedCustomer.referralPersonName || "â€”"}</span>
+                        <span className="verified-value">{verifiedCustomer.referralPersonName || "-"}</span>
                       </div>
                       <div className="verified-row">
                         <span className="verified-label">{t("Referred Mobile")}:</span>
-                        <span className="verified-value">{verifiedCustomer.referralPersonMobile || "â€”"}</span>
+                        <span className="verified-value">{verifiedCustomer.referralPersonMobile || "-"}</span>
                       </div>
                     </>
                   )}
                   {String(verifiedCustomer.heardFrom ?? "") === "social_media" && (
                     <div className="verified-row">
                       <span className="verified-label">{t("Platform")}:</span>
-                      <span className="verified-value">{verifiedCustomer.socialPlatform || "â€”"}</span>
+                      <span className="verified-value">{verifiedCustomer.socialPlatform || "-"}</span>
                     </div>
                   )}
                   {String(verifiedCustomer.heardFrom ?? "") === "other" && (
                     <div className="verified-row">
                       <span className="verified-label">{t("Other Note")}:</span>
-                      <span className="verified-value">{verifiedCustomer.heardFromOtherNote || "â€”"}</span>
+                      <span className="verified-value">{verifiedCustomer.heardFromOtherNote || "-"}</span>
                     </div>
                   )}
                   <div className="verified-row">
@@ -2451,7 +2451,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
   const [license, setLicense] = useState("");
   const [carType, setCarType] = useState("SUV");
   const [color, setColor] = useState("");
-  const [vinNumber, setVinNumber] = useState(""); // âœ… NEW manual VIN
+  const [vinNumber, setVinNumber] = useState(""); // NEW manual VIN
   const manufacturerOptions = QATAR_MANUFACTURERS;
   const modelOptions = useMemo(() => getModelsByManufacturer(factory), [factory]);
   const colorOptions = VEHICLE_COLORS;
@@ -2601,7 +2601,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
               </div>
             </div>
 
-            {/* âœ… NEW ROW: VIN + Vehicle Type */}
+            {/* NEW ROW: VIN + Vehicle Type */}
             <div className="form-row grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="form-group">
                 <label>{t("VIN Number")}</label>
@@ -2834,7 +2834,7 @@ function StepThreeServices({
       setPendingSpecificationProduct(catalogProduct);
       return;
     }
-    // No spec flow â€” add directly as complimentary (price 0)
+    // No spec flow - add directly as complimentary (price 0)
     setSelectedServices(
       dedupeSelectedServices([
         ...selectedServices,
@@ -2942,7 +2942,7 @@ function StepThreeServices({
 
       <div className="form-card-content jo-services-premium-content">
 
-        {/* â”€â”€ COMPLETED SERVICES MODE (service order + completed history) â”€â”€ */}
+        {/* -- COMPLETED SERVICES MODE (service order + completed history) -- */}
         {useCompletedPool ? (
           <>
             <div className="jo-completed-svc-banner">
@@ -3106,7 +3106,7 @@ function StepThreeServices({
             </div>
           </>
         ) : (
-          /* â”€â”€ CATALOG MODE (new order or no completed services) â”€â”€ */
+          /* -- CATALOG MODE (new order or no completed services) -- */
           <>
             <p>{t("Select services for")} {vehicleType}:</p>
 
@@ -3698,7 +3698,7 @@ function StepFourConfirm({
       vehicleData?.vehicleDetails?.id ??
       vehicleData?.vehicleId ??
       ""
-    ).trim() || "â€”";
+    ).trim() || "-";
   const plate = vehicleData?.plateNumber || vehicleData?.license || "N/A";
   const vin = vehicleData?.vin || "Not provided";
 
@@ -3719,7 +3719,7 @@ function StepFourConfirm({
               <div>
                 <div className="jo-confirm-strip-title">{orderType === "service" ? t("Service Order") : t("New Job Order")}</div>
                 <div className="jo-confirm-strip-subtitle">
-                  {[vehicleData?.make, vehicleData?.model].filter(Boolean).join(" ")} {plate ? `â€¢ ${plate}` : ""}
+                  {[vehicleData?.make, vehicleData?.model].filter(Boolean).join(" ")} {plate ? `* ${plate}` : ""}
                 </div>
               </div>
             </div>
@@ -4285,7 +4285,7 @@ function JobOrderDocumentsCard({ order, className = "" }: any) {
   );
 }
 // ============================================
-// âœ… NEW: QUALITY CHECK CARD
+// NEW: QUALITY CHECK CARD
 // ============================================
 function QualityCheckCard({ order, className = "" }: any) {
   const { t } = useLanguage();
@@ -4372,7 +4372,7 @@ function QualityCheckCard({ order, className = "" }: any) {
 }
 
 // ============================================
-// âœ… NEW: DELIVERY TRACKING CARD
+// NEW: DELIVERY TRACKING CARD
 // ============================================
 function DeliveryTrackingCard({ order, className = "" }: any) {
   const { t } = useLanguage();
@@ -4480,7 +4480,7 @@ function RoadmapCard({ order, actorMap, className = "" }: any) {
   };
   
 
-  // âœ… FIX: better actor resolution to avoid wrong field
+  // FIX: better actor resolution to avoid wrong field
 
   const getStatusLabel = (step: any) => step?.stepStatus || step?.status || "Pending";
 
@@ -4669,3 +4669,5 @@ function normalizePaymentStatusLabel(status: any) {
 }
 
 export default JobOrderManagement;
+
+
