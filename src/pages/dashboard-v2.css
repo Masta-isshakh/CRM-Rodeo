@@ -608,6 +608,7 @@
   box-shadow: var(--db-shadow);
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .crm-db__chart-card-header {
@@ -750,6 +751,12 @@
 .crm-db__line-legend-dash--dashed {
   background: transparent;
   border-top: 2px dashed #39BFFF;
+}
+
+.crm-db__line-chart-wrap {
+  flex: 1;
+  min-width: 0;
+  min-height: 220px;
 }
 
 /* Service categories */
@@ -1009,6 +1016,15 @@
   .crm-db__donut-body {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .crm-db__line-legend {
+    flex-wrap: wrap;
+    gap: 8px 12px;
+  }
+
+  .crm-db__line-chart-wrap {
+    min-height: 200px;
   }
 
   .crm-db__footer {

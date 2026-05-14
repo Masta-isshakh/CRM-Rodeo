@@ -3,7 +3,6 @@ import {
   PieChart,
   Pie,
   Cell,
-  ResponsiveContainer,
   LineChart,
   Line,
   XAxis,
@@ -208,6 +207,8 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(true);
+  const [chartsReady, setChartsReady] = useState(false);
+  const [viewportWidth, setViewportWidth] = useState(() => (typeof window === "undefined" ? 1280 : window.innerWidth));
 
   useEffect(() => {
     let cancelled = false;
@@ -215,6 +216,17 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
       .then((s) => { if (!cancelled) { setStats(s); setLoading(false); } })
       .catch(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
+  }, []);
+
+  useEffect(() => {
+    const frame = window.requestAnimationFrame(() => setChartsReady(true));
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => setViewportWidth(window.innerWidth);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   const totalJobs      = stats?.totalJobs ?? 0;
@@ -248,6 +260,11 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
   const showDashboardRevenue = canOption("dashboard", "dashboard_revenue", true);
   const showDashboardActivity = canOption("dashboard", "dashboard_activity", true);
   const showDashboardCalendar = canOption("dashboard", "dashboard_calendar", true);
+  const lineChartWidth = viewportWidth <= 760
+    ? Math.max(260, viewportWidth - 56)
+    : viewportWidth <= 1400
+      ? Math.max(420, viewportWidth - 160)
+      : 720;
 
   if (!permissions.canRead) {
     return <div style={{ padding: 24, color: "#2B3674" }}>You don't have access to this page.</div>;
@@ -410,8 +427,8 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
               </div>
               <div className="crm-db__donut-body">
                 <div className="crm-db__donut-chart-wrap" style={{ width: 160, height: 160 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
+                  {chartsReady ? (
+                    <PieChart width={160} height={160}>
                       <Pie
                         data={jobStatusData}
                         cx="50%" cy="50%"
@@ -423,7 +440,7 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
                         {jobStatusData.map((e) => <Cell key={e.name} fill={e.color} />)}
                       </Pie>
                     </PieChart>
-                  </ResponsiveContainer>
+                  ) : null}
                   <div className="crm-db__donut-center">
                     <span className="crm-db__donut-center-value">{loading ? "—" : totalJobs.toLocaleString()}</span>
                     <span className="crm-db__donut-center-label">Total Jobs</span>
@@ -458,9 +475,9 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
                   Last Week
                 </div>
               </div>
-              <div style={{ flex: 1, minHeight: 180 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={weeklyData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+              <div className="crm-db__line-chart-wrap">
+                {chartsReady ? (
+                  <LineChart width={lineChartWidth} height={220} data={weeklyData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f3fa" vertical={false} />
                     <XAxis dataKey="date" tick={{ fill: "#A3AED0", fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis domain={[0, 280]} ticks={[0, 70, 140, 210, 280]} tick={{ fill: "#A3AED0", fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -470,7 +487,7 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
                     <Line type="monotone" dataKey="lastWeek" stroke="#39BFFF" strokeWidth={2} strokeDasharray="6 4"
                       dot={{ r: 4, fill: "#39BFFF", strokeWidth: 2, stroke: "#fff" }} activeDot={{ r: 5 }} />
                   </LineChart>
-                </ResponsiveContainer>
+                ) : null}
               </div>
             </div>
 

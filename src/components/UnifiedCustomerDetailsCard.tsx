@@ -1,7 +1,9 @@
 // UnifiedCustomerDetailsCard.tsx
 // Reusable unified customer details card — follows Customer.tsx design language exactly.
 
+import { useEffect, useMemo, useState } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
+import { getDataClient } from "../lib/amplifyClient";
 
 function joStr(v: any) { return String(v ?? "").trim(); }
 function joFirst(...vals: any[]): string {
@@ -28,14 +30,88 @@ interface Props {
 
 export function UnifiedCustomerDetailsCard({ order, className = "" }: Props) {
   const { t } = useLanguage();
+  const client = useMemo(() => getDataClient(), []);
 
   const cd = order?.customerDetails ?? {};
+  const [customerBackendData, setCustomerBackendData] = useState<any | null>(null);
+
+  const customerIdForLookup = joStr(order?.customerId ?? cd?.customerId);
+  const phoneForLookup = joStr(order?.mobile ?? order?.phone ?? cd?.mobile ?? cd?.phone);
+  const emailForLookup = joStr(order?.email ?? order?.customerEmail ?? cd?.email);
+  const nameForLookup = joStr(order?.customerName ?? cd?.fullName ?? cd?.name);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolveCustomer = async () => {
+      if (customerIdForLookup && customerIdForLookup !== "—") {
+        const byId = await client.models.Customer.get({ id: customerIdForLookup } as any).catch(() => null as any);
+        const row = byId?.data ?? null;
+        if (row && typeof row === "object") return row;
+      }
+
+      if (phoneForLookup && phoneForLookup !== "—") {
+        const byPhone = await client.models.Customer.list({
+          filter: { phone: { eq: phoneForLookup } } as any,
+          limit: 1,
+        } as any).catch(() => null as any);
+        const row = byPhone?.data?.[0] ?? null;
+        if (row && typeof row === "object") return row;
+      }
+
+      if (emailForLookup && emailForLookup !== "—") {
+        const byEmail = await client.models.Customer.list({
+          filter: { email: { eq: emailForLookup } } as any,
+          limit: 1,
+        } as any).catch(() => null as any);
+        const row = byEmail?.data?.[0] ?? null;
+        if (row && typeof row === "object") return row;
+      }
+
+      if (nameForLookup && nameForLookup !== "—") {
+        const byName = await client.models.Customer.list({
+          filter: { name: { contains: nameForLookup.split(" ")[0] } } as any,
+          limit: 1,
+        } as any).catch(() => null as any);
+        const row = byName?.data?.[0] ?? null;
+        if (row && typeof row === "object") return row;
+      }
+
+      return null;
+    };
+
+    void resolveCustomer()
+      .then((row) => {
+        if (!cancelled) setCustomerBackendData(row);
+      })
+      .catch(() => {
+        if (!cancelled) setCustomerBackendData(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [client, customerIdForLookup, phoneForLookup, emailForLookup, nameForLookup]);
+
+  const cbd = customerBackendData ?? {};
   const vd = order?.vehicleDetails ?? {};
   const heardFromValue = joFirst(
     cd?.heardFrom,
+    cd?.heardFromEntry,
+    cd?.heard_from,
+    cd?.heardfrom,
     cd?.source,
     cd?.leadSource,
+    cbd?.heardFrom,
+    cbd?.heardFromEntry,
+    cbd?.heard_from,
+    cbd?.heardfrom,
+    cbd?.leadSource,
+    cbd?.source,
     order?.heardFrom,
+    order?.heardFromEntry,
+    order?.heard_from,
+    order?.heardfrom,
     order?.source,
     order?.leadSource,
     "—"
@@ -43,15 +119,39 @@ export function UnifiedCustomerDetailsCard({ order, className = "" }: Props) {
   const heardFromKey = joStr(heardFromValue).toLowerCase();
   const heardFromDisplay = heardFromLabel(heardFromValue);
   const customerName = joFirst(order?.customerName, cd?.fullName, cd?.name, "—");
-  const customerId = joFirst(cd?.customerId, order?.customerId, "—");
-  const phone = joFirst(order?.mobile, order?.phone, cd?.mobile, cd?.phone, "—");
-  const email = joFirst(order?.email, cd?.email, order?.customerEmail, "—");
-  const address = joFirst(cd?.address, order?.address, "—");
+  const customerId = joFirst(cd?.customerId, cbd?.id, order?.customerId, "—");
+  const phone = joFirst(order?.mobile, order?.phone, cd?.mobile, cd?.phone, cbd?.phone, "—");
+  const email = joFirst(order?.email, cd?.email, order?.customerEmail, cbd?.email, "—");
+  const address = joFirst(cd?.address, order?.address, cbd?.notes, "—");
   const heardFrom = heardFromDisplay;
-  const referralName = joFirst(cd?.referralPersonName, cd?.referralName, order?.referralPersonName, order?.referralName, "—");
-  const referralMobile = joFirst(cd?.referralPersonMobile, cd?.referralMobile, order?.referralPersonMobile, order?.referralMobile, "—");
-  const socialPlatform = joFirst(cd?.socialPlatform, cd?.platform, order?.socialPlatform, order?.platform, "—");
-  const heardFromOtherNote = joFirst(cd?.heardFromOtherNote, cd?.otherSourceNote, order?.heardFromOtherNote, order?.otherSourceNote, "—");
+  const referralName = joFirst(
+    cd?.referralPersonName,
+    cd?.referralName,
+    cbd?.referralPersonName,
+    cbd?.referralName,
+    order?.referralPersonName,
+    order?.referralName,
+    "—"
+  );
+  const referralMobile = joFirst(
+    cd?.referralPersonMobile,
+    cd?.referralMobile,
+    cbd?.referralPersonMobile,
+    cbd?.referralMobile,
+    order?.referralPersonMobile,
+    order?.referralMobile,
+    "—"
+  );
+  const socialPlatform = joFirst(cd?.socialPlatform, cd?.platform, cbd?.socialPlatform, cbd?.platform, order?.socialPlatform, order?.platform, "—");
+  const heardFromOtherNote = joFirst(
+    cd?.heardFromOtherNote,
+    cd?.otherSourceNote,
+    cbd?.heardFromOtherNote,
+    cbd?.otherSourceNote,
+    order?.heardFromOtherNote,
+    order?.otherSourceNote,
+    "—"
+  );
   const customerSince = joFirst(cd?.customerSince, order?.createdAt, "—");
   const registeredVehiclesCount = joNum(
     cd?.registeredVehiclesCount ??
