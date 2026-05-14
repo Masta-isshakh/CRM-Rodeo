@@ -969,6 +969,21 @@
   flex-shrink: 0;
 }
 
+/* Mobile smoothness and paint containment */
+@media (max-width: 900px) {
+  .crm-db__stats-row,
+  .crm-db__charts-row,
+  .crm-db__bottom-row {
+    gap: 10px;
+  }
+
+  .crm-db__stat-card,
+  .crm-db__chart-card,
+  .crm-db__bottom-card {
+    contain: layout paint;
+  }
+}
+
 /* ============================================================
    RESPONSIVE
    ============================================================ */

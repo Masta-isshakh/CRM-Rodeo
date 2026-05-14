@@ -4,6 +4,8 @@
 import { useLanguage } from "../i18n/LanguageContext";
 import { getUrl } from "aws-amplify/storage";
 import PermissionGate from "../pages/PermissionGate";
+import { usePermissions } from "../lib/userPermissions";
+import { filterVisibleDocuments } from "../utils/documentVisibility";
 
 function joStr(v: any) { return String(v ?? "").trim(); }
 function joFirst(...vals: any[]): string {
@@ -49,7 +51,8 @@ interface Props {
 
 export function UnifiedDocumentsCard({ order, className = "" }: Props) {
   const { t } = useLanguage();
-  const docs: any[] = Array.isArray(order?.documents) ? order.documents : [];
+  const { canOption } = usePermissions();
+  const docs: any[] = filterVisibleDocuments(Array.isArray(order?.documents) ? order.documents : [], canOption);
 
   const handleDownload = async (raw: string) => {
     const url = await resolveMaybeStorageUrl(raw);

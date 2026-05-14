@@ -729,3 +729,60 @@ button:focus-visible,
     line-height: 1 !important;
   }
 }
+
+/* Global mobile full-width enforcement across all app pages */
+@media (max-width: 768px) {
+  .layout-root,
+  .layout-main,
+  .content,
+  .content > * {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .layout-main :is(
+    [class*="page"],
+    [class*="module"],
+    [class*="screen"],
+    [class*="wrapper"],
+    [class*="container"],
+    [class*="content"],
+    main,
+    section,
+    article
+  ) {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    box-sizing: border-box !important;
+  }
+
+  .layout-main :is(
+    [class*="card"],
+    [class*="panel"],
+    [class*="box"],
+    [class*="tile"],
+    [class*="section"],
+    [class*="details"],
+    [class*="summary"],
+    [class*="table-wrap"]
+  ) {
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  .layout-main :is(table, [class*="table"]) {
+    max-width: 100% !important;
+  }
+
+  html,
+  body,
+  #root {
+    overflow-x: hidden !important;
+  }
+}

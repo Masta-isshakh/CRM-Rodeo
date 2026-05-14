@@ -42,6 +42,7 @@ import "./dashboard-v2.css";
 import type { PageProps } from "../lib/PageProps";
 import logoImg from "../assets/logo.jpeg";
 import { getDashboardStats, type DashboardStats } from "./jobOrderRepo";
+import { usePermissions } from "../lib/userPermissions";
 
 type DashboardProps = PageProps & {
   email?: string;
@@ -202,6 +203,7 @@ function QarCurrencyMark() {
    MAIN EXPORT
    ================================================================ */
 export default function Dashboard({ permissions, employeeName, currentPage, onNavigate, onSignOut }: DashboardProps) {
+  const { canOption } = usePermissions();
   const activeNav = useMemo<DashboardNavPage>(() => currentPage ?? "jobcards", [currentPage]);
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -241,6 +243,12 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
     onNavigate?.(key);
   };
 
+  const showDashboardKpis = canOption("dashboard", "dashboard_kpis", true);
+  const showDashboardQuickNav = canOption("dashboard", "dashboard_quicknav", true);
+  const showDashboardRevenue = canOption("dashboard", "dashboard_revenue", true);
+  const showDashboardActivity = canOption("dashboard", "dashboard_activity", true);
+  const showDashboardCalendar = canOption("dashboard", "dashboard_calendar", true);
+
   if (!permissions.canRead) {
     return <div style={{ padding: 24, color: "#2B3674" }}>You don't have access to this page.</div>;
   }
@@ -259,41 +267,47 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
           </div>
         </div>
 
-        <div className="crm-db__banner">
-          <div className="crm-db__banner-icon"><FiCalendar /></div>
-          <div className="crm-db__banner-text">
-            <strong>Today at a glance</strong>
-            <p>Track performance, incidents, and delivery flow in one place.</p>
+        {showDashboardQuickNav && (
+          <div className="crm-db__banner">
+            <div className="crm-db__banner-icon"><FiCalendar /></div>
+            <div className="crm-db__banner-text">
+              <strong>Today at a glance</strong>
+              <p>Track performance, incidents, and delivery flow in one place.</p>
+            </div>
           </div>
-        </div>
+        )}
 
-        <div className="crm-db__nav-section">
-          <div className="crm-db__nav-label">Overview</div>
-          {NAV_OVERVIEW.map(({ key, label, Icon }) => (
-            <button
-              key={key}
-              className={`crm-db__nav-item${activeNav === key ? " crm-db__nav-item--active" : ""}`}
-              onClick={() => handleNavClick(key)}
-            >
-              <span className="crm-db__nav-icon"><Icon /></span>
-              {label}
-            </button>
-          ))}
-        </div>
+        {showDashboardQuickNav && (
+          <>
+            <div className="crm-db__nav-section">
+              <div className="crm-db__nav-label">Overview</div>
+              {NAV_OVERVIEW.map(({ key, label, Icon }) => (
+                <button
+                  key={key}
+                  className={`crm-db__nav-item${activeNav === key ? " crm-db__nav-item--active" : ""}`}
+                  onClick={() => handleNavClick(key)}
+                >
+                  <span className="crm-db__nav-icon"><Icon /></span>
+                  {label}
+                </button>
+              ))}
+            </div>
 
-        <div className="crm-db__nav-section">
-          <div className="crm-db__nav-label">Operations</div>
-          {NAV_OPERATIONS.map(({ key, label, Icon }) => (
-            <button
-              key={key}
-              className={`crm-db__nav-item${activeNav === key ? " crm-db__nav-item--active" : ""}`}
-              onClick={() => handleNavClick(key)}
-            >
-              <span className="crm-db__nav-icon"><Icon /></span>
-              {label}
-            </button>
-          ))}
-        </div>
+            <div className="crm-db__nav-section">
+              <div className="crm-db__nav-label">Operations</div>
+              {NAV_OPERATIONS.map(({ key, label, Icon }) => (
+                <button
+                  key={key}
+                  className={`crm-db__nav-item${activeNav === key ? " crm-db__nav-item--active" : ""}`}
+                  onClick={() => handleNavClick(key)}
+                >
+                  <span className="crm-db__nav-icon"><Icon /></span>
+                  {label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
 
         <div className="crm-db__signout">
           <button className="crm-db__signout-btn" onClick={onSignOut}>
@@ -326,9 +340,9 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
         <div className="crm-db__body">
 
           {/* Top Stats Row */}
-          <div className="crm-db__stats-row">
+          {(showDashboardKpis || showDashboardRevenue) && <div className="crm-db__stats-row">
             {/* Total Jobs */}
-            <div className="crm-db__stat-card">
+            {showDashboardKpis && <div className="crm-db__stat-card">
               <div className="crm-db__stat-top">
                 <span className="crm-db__stat-title">Total Jobs</span>
                 <div className="crm-db__stat-icon crm-db__stat-icon--blue"><HiMiniClipboardDocumentList /></div>
@@ -339,10 +353,10 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
                 &nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>all time</span>
               </div>
               <Sparkline points={SPARK_BLUE} color="#4318FF" className="crm-db__sparkline" />
-            </div>
+            </div>}
 
             {/* Completed Jobs */}
-            <div className="crm-db__stat-card">
+            {showDashboardKpis && <div className="crm-db__stat-card">
               <div className="crm-db__stat-top">
                 <span className="crm-db__stat-title">Completed Jobs</span>
                 <div className="crm-db__stat-icon crm-db__stat-icon--teal"><HiMiniCheckCircle /></div>
@@ -353,10 +367,10 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
                 &nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>all time</span>
               </div>
               <Sparkline points={SPARK_TEAL} color="#05CD99" className="crm-db__sparkline" />
-            </div>
+            </div>}
 
             {/* Revenue */}
-            <div className="crm-db__stat-card">
+            {showDashboardRevenue && <div className="crm-db__stat-card">
               <div className="crm-db__stat-top">
                 <span className="crm-db__stat-title">Revenue (QAR)</span>
                 <div className="crm-db__stat-icon crm-db__stat-icon--purple"><QarCurrencyMark /></div>
@@ -367,10 +381,10 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
                 &nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>collected</span>
               </div>
               <Sparkline points={SPARK_PURPLE} color="#7551FF" className="crm-db__sparkline" />
-            </div>
+            </div>}
 
             {/* Customer Satisfaction */}
-            <div className="crm-db__stat-card">
+            {showDashboardKpis && <div className="crm-db__stat-card">
               <div className="crm-db__stat-top">
                 <span className="crm-db__stat-title">Customer Satisfaction</span>
                 <div className="crm-db__stat-icon crm-db__stat-icon--blue2"><HiMiniStar /></div>
@@ -383,11 +397,11 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
                 6.2%&nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>vs last 7 days</span>
               </div>
               <Stars rating={4.5} />
-            </div>
-          </div>
+            </div>}
+          </div>}
 
           {/* Charts Row */}
-          <div className="crm-db__charts-row">
+          {showDashboardActivity && <div className="crm-db__charts-row">
             {/* Donut */}
             <div className="crm-db__chart-card">
               <div className="crm-db__chart-card-header">
@@ -481,12 +495,12 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
                 ))}
               </div>
             </div>
-          </div>
+          </div>}
 
           {/* Bottom Stats Row */}
-          <div className="crm-db__bottom-row">
+          {(showDashboardKpis || showDashboardCalendar) && <div className="crm-db__bottom-row">
             {/* New Requests */}
-            <div className="crm-db__bottom-card">
+            {showDashboardKpis && <div className="crm-db__bottom-card">
               <div className="crm-db__bottom-card-top">
                 <span className="crm-db__bottom-card-title">New Requests</span>
                 <div className="crm-db__bottom-icon crm-db__bottom-icon--blue"><HiMiniChatBubbleLeftRight /></div>
@@ -495,10 +509,10 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
               <div className="crm-db__bottom-change"><span>↑ 14.6%</span></div>
               <div className="crm-db__bottom-sub">vs last 7 days</div>
               <Sparkline points={SPARK_BLUE} color="#4318FF" className="crm-db__bottom-sparkline" />
-            </div>
+            </div>}
 
             {/* In Progress */}
-            <div className="crm-db__bottom-card">
+            {showDashboardKpis && <div className="crm-db__bottom-card">
               <div className="crm-db__bottom-card-top">
                 <span className="crm-db__bottom-card-title">In Progress</span>
                 <div className="crm-db__bottom-icon crm-db__bottom-icon--teal"><HiMiniWrench /></div>
@@ -507,10 +521,10 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
               <div className="crm-db__bottom-change"><span>↑ 10.1%</span></div>
               <div className="crm-db__bottom-sub">vs last 7 days</div>
               <Sparkline points={SPARK_TEAL} color="#05CD99" className="crm-db__bottom-sparkline" />
-            </div>
+            </div>}
 
             {/* Upcoming Deliveries */}
-            <div className="crm-db__bottom-card">
+            {showDashboardCalendar && <div className="crm-db__bottom-card">
               <div className="crm-db__bottom-card-top">
                 <span className="crm-db__bottom-card-title">Upcoming Deliveries</span>
                 <div className="crm-db__bottom-icon crm-db__bottom-icon--purple"><HiMiniCalendar /></div>
@@ -519,10 +533,10 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
               <div className="crm-db__bottom-change"><span>↑ 8.3%</span></div>
               <div className="crm-db__bottom-sub">vs last 7 days</div>
               <Sparkline points={SPARK_PURPLE} color="#7551FF" className="crm-db__bottom-sparkline" />
-            </div>
+            </div>}
 
             {/* Avg Turnaround */}
-            <div className="crm-db__bottom-card">
+            {showDashboardKpis && <div className="crm-db__bottom-card">
               <div className="crm-db__bottom-card-top">
                 <span className="crm-db__bottom-card-title">Avg. Turnaround Time</span>
                 <div className="crm-db__bottom-icon crm-db__bottom-icon--cyan"><HiMiniClock /></div>
@@ -533,8 +547,8 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
               <div className="crm-db__bottom-change crm-db__bottom-change--down"><span>↓ 12.4%</span></div>
               <div className="crm-db__bottom-sub">vs last 7 days</div>
               <Sparkline points={SPARK_CYAN} color="#39BFFF" className="crm-db__bottom-sparkline" />
-            </div>
-          </div>
+            </div>}
+          </div>}
 
           {/* Footer */}
           <footer className="crm-db__footer">

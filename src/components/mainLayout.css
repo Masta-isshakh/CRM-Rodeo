@@ -3832,3 +3832,50 @@ body.lang-ar .layout-root.desktop-sidebar .layout-main {
   margin-left: 0 !important;
   margin-right: 0 !important;
 }
+
+/* ============================================================
+   Mobile Drawer Reliability Patch (May 2026)
+   Keeps signout visible and makes sidebar scrolling smooth.
+   ============================================================ */
+@media (max-width: 1099px) {
+  .layout-root.mobile-sidebar .drawer {
+    display: flex !important;
+    flex-direction: column !important;
+    height: calc(var(--vh) - 56px) !important;
+    max-height: calc(var(--vh) - 56px) !important;
+    overflow: hidden !important;
+    border-right: 1px solid #d8e4f5 !important;
+    box-shadow: 0 16px 34px rgba(19, 43, 90, 0.22) !important;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%) !important;
+  }
+
+  .layout-root.mobile-sidebar .drawer-head {
+    flex-shrink: 0 !important;
+  }
+
+  .layout-root.mobile-sidebar .drawer-nav {
+    flex: 1 1 auto !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain !important;
+    -webkit-overflow-scrolling: touch !important;
+    padding-bottom: 10px !important;
+  }
+
+  .layout-root.mobile-sidebar .drawer-footer {
+    flex-shrink: 0 !important;
+    position: sticky !important;
+    bottom: 0 !important;
+    z-index: 2 !important;
+    background: linear-gradient(180deg, rgba(248, 251, 255, 0.92) 0%, #ffffff 44%) !important;
+    border-top: 1px solid #d9e6f8 !important;
+    padding: 10px 12px calc(12px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .layout-root.mobile-sidebar .drawer-footer button,
+  .layout-root.mobile-sidebar .drawer-footer .danger {
+    min-height: 42px !important;
+    font-size: 13px !important;
+    border-radius: 12px !important;
+  }
+}

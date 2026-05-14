@@ -154,4 +154,9 @@
   .vehicles-page h3 {
     font-size: 1.1rem;
   }
+
+  .vehicles-table-wrap {
+    overscroll-behavior-x: contain;
+    padding-bottom: 2px;
+  }
 }

@@ -78,6 +78,8 @@ type Props = {
   onAddService: (serviceName: string, price: number) => Promise<unknown>;
   onFinishWork: () => void;
   allServicesCompleted: boolean;
+  canFinishWork?: boolean;
+  isFinishingWork?: boolean;
   editMode: boolean;
   setEditMode: (v: boolean) => void;
   availableTechs?: string[];
@@ -577,6 +579,8 @@ export default function ServiceSummaryCard({
   onAddService,
   onFinishWork,
   allServicesCompleted,
+  canFinishWork = true,
+  isFinishingWork = false,
   editMode,
   setEditMode,
   availableTechs = [],
@@ -586,6 +590,8 @@ export default function ServiceSummaryCard({
   isAdmin = false,
   vehicleType,
 }: Props) {
+    const finishWorkDisabled = !allServicesCompleted || !canFinishWork || isFinishingWork;
+
   const [localServices, setLocalServices] = useState<Service[]>([]);
   const [hasChanges, setHasChanges] = useState(false);
   const [showSavedToast, setShowSavedToast] = useState(false);
@@ -796,8 +802,8 @@ export default function ServiceSummaryCard({
           </PermissionGate>
 
           <PermissionGate moduleId="serviceexec" optionId="serviceexec_finish">
-            <button className="btn-finish-work" onClick={onFinishWork} disabled={!allServicesCompleted}>
-              <FaCheckDouble /> Finish Work
+            <button className="btn-finish-work" onClick={onFinishWork} disabled={finishWorkDisabled}>
+              <FaCheckDouble /> {isFinishingWork ? "Finishing..." : "Finish Work"}
             </button>
           </PermissionGate>
 

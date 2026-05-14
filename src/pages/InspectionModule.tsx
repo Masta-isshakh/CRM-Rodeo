@@ -238,6 +238,10 @@ function InspectionModule({ currentUser }: any) {
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
   const [photoUrlCache, setPhotoUrlCache] = useState<Record<string, string>>({});
   const [reportHtml, setReportHtml] = useState<string | null>(null);
+  const visibleInspectionDocuments = useMemo(
+    () => filterVisibleDocuments(Array.isArray(activeOrder?.documents) ? activeOrder.documents : [], canOption),
+    [activeOrder?.documents, canOption]
+  );
 
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
@@ -1172,12 +1176,12 @@ function InspectionModule({ currentUser }: any) {
                       <div style={{ marginTop: 8, fontSize: 12, opacity: 0.85 }}>
                         {t("Generated:")} {
                           String(
-                            Array.isArray(activeOrder?.documents)
+                            Array.isArray(visibleInspectionDocuments)
                               ? (
-                                  activeOrder.documents.find(
+                                  visibleInspectionDocuments.find(
                                     (d: any) => String(d?.type ?? "").trim().toLowerCase() === "inspection report"
                                   )?.addedAt ??
-                                  activeOrder.documents.find(
+                                  visibleInspectionDocuments.find(
                                     (d: any) => String(d?.type ?? "").trim().toLowerCase() === "inspection report"
                                   )?.createdAt ??
                                   "—"
@@ -1234,9 +1238,9 @@ function InspectionModule({ currentUser }: any) {
                 <div className="pim-card pim-detail-card pim-card-full">
                   <h3><i className="fas fa-folder-open"></i> {t("Documents")}</h3>
 
-                  {filterVisibleDocuments(Array.isArray(activeOrder?.documents) ? activeOrder.documents : [], canOption).length > 0 ? (
+                  {visibleInspectionDocuments.length > 0 ? (
                     <div className="pim-docs">
-                      {filterVisibleDocuments(Array.isArray(activeOrder?.documents) ? activeOrder.documents : [], canOption).map((doc: any, idx: number) => (
+                      {visibleInspectionDocuments.map((doc: any, idx: number) => (
                         <div key={doc.id || idx} className="pim-doc">
                           <div className="pim-doc-left">
                             <div className="pim-doc-name">{doc.name || `${t("Document")} ${idx + 1}`}</div>

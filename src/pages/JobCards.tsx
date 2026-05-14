@@ -59,6 +59,7 @@ import { UnifiedDocumentsCard } from "../components/UnifiedDocumentsCard";
 import { UnifiedQualityChecklistCard } from "../components/UnifiedQualityChecklistCard";
 import { UnifiedDeliveryTimeTrackingCard } from "../components/UnifiedDeliveryTimeTrackingCard";
 import { UnifiedJobOrderRoadmapCard } from "../components/UnifiedJobOrderRoadmapCard";
+import { filterVisibleDocuments } from "../utils/documentVisibility";
 
 function errMsg(e: unknown) {
   const anyE = e as any;
@@ -4208,7 +4209,8 @@ type DocUi = {
 
 function JobOrderDocumentsCard({ order, className = "" }: any) {
   const { t } = useLanguage();
-  const docs: DocUi[] = Array.isArray(order?.documents) ? order.documents : [];
+  const { canOption } = usePermissions();
+  const docs: DocUi[] = filterVisibleDocuments(Array.isArray(order?.documents) ? order.documents : [], canOption);
 
   const docGeneratedAt = (doc: DocUi) =>
     String(

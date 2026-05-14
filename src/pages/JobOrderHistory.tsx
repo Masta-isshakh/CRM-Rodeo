@@ -25,6 +25,7 @@ import UnifiedBillingInvoicesSection from "../components/UnifiedBillingInvoicesS
 import { getJobOrderByOrderNumber } from "./jobOrderRepo";
 import { getUrl } from "aws-amplify/storage";
 import { useLanguage } from "../i18n/LanguageContext";
+import { filterVisibleDocuments } from "../utils/documentVisibility";
 
 // -------------------- helpers --------------------
 function safeJsonParse<T>(raw: any, fallback: T): T {
@@ -1526,8 +1527,9 @@ function JobHistoryDetails({
   actorMap: Record<string, string>;
 }) {
   const { t } = useLanguage();
+  const { canOption } = usePermissions();
   const roadmap: RoadmapStepUi[] = Array.isArray(order?.roadmap) ? order.roadmap : [];
-  const docs: DocUi[] = Array.isArray(order?.documents) ? order.documents : [];
+  const docs: DocUi[] = filterVisibleDocuments(Array.isArray(order?.documents) ? order.documents : [], canOption);
   const services: any[] = Array.isArray(order?.services) ? order.services : [];
   const servicesCompleted = services.filter((service: any) => String(service?.status ?? "").trim().toLowerCase() === "completed").length;
   const servicesProgressPercent = services.length ? Math.round((servicesCompleted / services.length) * 100) : 0;

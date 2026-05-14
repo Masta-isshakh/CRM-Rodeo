@@ -526,6 +526,23 @@ function VehiclesTable(props: {
   const { t } = useLanguage();
   const { data, searchQuery, loading, onView, onEdit, onDelete, canView, canUpdate, canDelete, completedServicesByPlate } = props;
 
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const t = event.target as HTMLElement;
+      const isDropdownButton = t.closest(".btn-action-dropdown");
+      const isDropdownMenu = t.closest(".action-dropdown-menu");
+      if (!isDropdownButton && !isDropdownMenu) setActiveDropdown(null);
+    };
+
+    if (activeDropdown) {
+      document.addEventListener("pointerdown", handleClickOutside, true);
+      return () => document.removeEventListener("pointerdown", handleClickOutside, true);
+    }
+  }, [activeDropdown]);
+
   if (loading) {
     return (
       <div
@@ -578,8 +595,6 @@ function VehiclesTable(props: {
     );
   }
 
-  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
   const tableTitleStyle: CSSProperties = {
     color: "#111827",
     fontSize: 10.8,
@@ -638,20 +653,6 @@ function VehiclesTable(props: {
     textAlign: "right",
     paddingRight: 12,
   };
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const t = event.target as HTMLElement;
-      const isDropdownButton = t.closest(".btn-action-dropdown");
-      const isDropdownMenu = t.closest(".action-dropdown-menu");
-      if (!isDropdownButton && !isDropdownMenu) setActiveDropdown(null);
-    };
-
-    if (activeDropdown) {
-      document.addEventListener("pointerdown", handleClickOutside, true);
-      return () => document.removeEventListener("pointerdown", handleClickOutside, true);
-    }
-  }, [activeDropdown]);
 
   if (data.length === 0) {
     return (
@@ -796,7 +797,9 @@ function VehiclesTable(props: {
                 className="dropdown-item view"
                 type="button"
                 onClick={() => {
-                  onView(activeDropdown);
+                  const selectedVehicleId = String(activeDropdown ?? "").trim();
+                  if (!selectedVehicleId) return;
+                  onView(selectedVehicleId);
                   setActiveDropdown(null);
                 }}
                 style={{
@@ -827,7 +830,9 @@ function VehiclesTable(props: {
                   className="dropdown-item edit"
                   type="button"
                   onClick={() => {
-                    onEdit(activeDropdown);
+                    const selectedVehicleId = String(activeDropdown ?? "").trim();
+                    if (!selectedVehicleId) return;
+                    onEdit(selectedVehicleId);
                     setActiveDropdown(null);
                   }}
                   style={{
@@ -857,7 +862,9 @@ function VehiclesTable(props: {
                 className="dropdown-item delete"
                 type="button"
                 onClick={() => {
-                  onDelete(activeDropdown);
+                  const selectedVehicleId = String(activeDropdown ?? "").trim();
+                  if (!selectedVehicleId) return;
+                  onDelete(selectedVehicleId);
                   setActiveDropdown(null);
                 }}
                 style={{

@@ -39,6 +39,7 @@ import {
   normalizePaymentStatusLabel as normalizePaymentStatusLabelShared,
 } from "../utils/paymentStatus";
 import { useLanguage } from "../i18n/LanguageContext";
+import { filterVisibleDocuments } from "../utils/documentVisibility";
 
 // -------------------- helpers --------------------
 function safeJsonParse<T>(raw: any, fallback: T): T {
@@ -480,6 +481,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
   const [showDetails, setShowDetails] = useState(false);
   const [currentDetailsJob, setCurrentDetailsJob] = useState<any | null>(null);
+  const [isFinishingWork, setIsFinishingWork] = useState(false);
 
   // ✅ THIS is what enables Edit/Add service to work
   const [detailsEditMode, setDetailsEditMode] = useState(false);
@@ -973,10 +975,6 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     setDetailsEditMode(false);
   };
 
-  const persistJob = async (job: any, successText?: string) => {
-    return persistJobWithOptions(job, { successText });
-  };
-
   const persistJobWithOptions = async (
     job: any,
     options?: {
@@ -1111,35 +1109,50 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     return s.every((x: any) => x.status === "Postponed" || x.status === "Cancelled" || x.status === "Completed");
   }, [currentDetailsJob]);
 
+  const canFinishWork = useMemo(() => {
+    if (!currentDetailsJob) return false;
+    return isServiceExecutionWorkStatus(currentDetailsJob.workStatus || currentDetailsJob.workStatusLabel);
+  }, [currentDetailsJob]);
+
   const handleFinishWork = async () => {
-    if (!currentDetailsJob) return;
-    await flushScheduledPersist();
+    if (!currentDetailsJob || !allServicesCompleted || !canFinishWork || isFinishingWork) return;
 
-    const updated = { ...currentDetailsJob };
-    const now = new Date().toLocaleString();
-    const actorEmail = resolveActorName(currentUser);
+    setIsFinishingWork(true);
+    try {
+      await flushScheduledPersist();
 
-    const roadmap = Array.isArray(updated.roadmap) ? [...updated.roadmap] : [];
-    const inprogressStep = roadmap.find((s: any) => isServiceOperationStep(s.step));
-    if (inprogressStep) {
-      inprogressStep.stepStatus = "Completed";
-      inprogressStep.endTimestamp = now;
-      inprogressStep.actionBy = actorEmail;
+      const updated = { ...currentDetailsJob };
+      const now = new Date().toLocaleString();
+      const actorEmail = resolveActorName(currentUser);
+
+      const roadmap = Array.isArray(updated.roadmap) ? [...updated.roadmap] : [];
+      const inprogressStep = roadmap.find((s: any) => isServiceOperationStep(s.step));
+      if (inprogressStep) {
+        inprogressStep.stepStatus = "Completed";
+        inprogressStep.endTimestamp = now;
+        inprogressStep.actionBy = actorEmail;
+      }
+      const qcStep = roadmap.find((s: any) => s.step === "Quality Check");
+      if (qcStep) {
+        qcStep.stepStatus = "Active";
+        qcStep.startTimestamp = qcStep.startTimestamp || now;
+        qcStep.actionBy = actorEmail;
+      }
+
+      updated.roadmap = roadmap;
+      updated.workStatus = "Quality Check";
+      updated.workStatusLabel = "Quality Check";
+      updated.updatedBy = actorEmail;
+
+      // Optimistic UI transition to keep finish action snappy.
+      setCurrentDetailsJob(updated);
+      await persistJobWithOptions(updated, {
+        successText: t("Work finished! Status changed to Quality Check."),
+        refetchDetails: false,
+      });
+    } finally {
+      setIsFinishingWork(false);
     }
-    const qcStep = roadmap.find((s: any) => s.step === "Quality Check");
-    if (qcStep) {
-      qcStep.stepStatus = "Active";
-      qcStep.startTimestamp = qcStep.startTimestamp || now;
-      qcStep.actionBy = actorEmail;
-    }
-
-    updated.roadmap = roadmap;
-    updated.workStatus = "Quality Check";
-    updated.workStatusLabel = "Quality Check";
-    updated.updatedBy = actorEmail;
-
-    setCurrentDetailsJob(updated);
-    await persistJob(updated, t("Work finished! Status changed to Quality Check."));
   };
 
   const handleShowCancelConfirmation = (orderId: string) => {
@@ -1227,6 +1240,8 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                   onAddService={handleAddService}
                   onFinishWork={handleFinishWork}
                   allServicesCompleted={allServicesCompleted}
+                  canFinishWork={canFinishWork}
+                  isFinishingWork={isFinishingWork}
                   editMode={detailsEditMode}
                   setEditMode={setDetailsEditMode}
                   availableTechs={technicianNames}
@@ -1557,7 +1572,8 @@ function CustomerNotesCard({ order }: any) {
 
 function DocumentsCard({ order, resolveUrl }: any) {
   const { t } = useLanguage();
-  const documents = Array.isArray(order.documents) ? order.documents : [];
+  const { canOption } = usePermissions();
+  const documents = filterVisibleDocuments(Array.isArray(order.documents) ? order.documents : [], canOption);
   if (documents.length === 0) return null;
 
   return (
