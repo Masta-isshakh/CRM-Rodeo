@@ -5,6 +5,8 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   build: {
+    // Improve compatibility with older mobile browsers.
+    target: 'es2019',
     // Keep warning aligned with current project target.
     chunkSizeWarningLimit: 900,
     rolldownOptions: {

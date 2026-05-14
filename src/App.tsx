@@ -344,7 +344,11 @@ export default function App() {
 
         if (emailKey) {
           delete tracker[emailKey];
-          window.localStorage.setItem(FAILED_LOGIN_TRACKER_KEY, JSON.stringify(tracker));
+          try {
+            window.localStorage.setItem(FAILED_LOGIN_TRACKER_KEY, JSON.stringify(tracker));
+          } catch {
+            // ignore storage write failures on restricted mobile browsers
+          }
         }
         return res;
       } catch (error) {
@@ -356,7 +360,11 @@ export default function App() {
               : 0;
 
           tracker[emailKey] = { count: nextCount, lockedUntil };
-          window.localStorage.setItem(FAILED_LOGIN_TRACKER_KEY, JSON.stringify(tracker));
+          try {
+            window.localStorage.setItem(FAILED_LOGIN_TRACKER_KEY, JSON.stringify(tracker));
+          } catch {
+            // ignore storage write failures on restricted mobile browsers
+          }
 
           if (lockedUntil) {
             setBlocked(
