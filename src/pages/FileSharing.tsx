@@ -10,6 +10,7 @@ import { useLanguage } from "../i18n/LanguageContext";
 import { usePermissions } from "../lib/userPermissions";
 import PermissionGate from "./PermissionGate";
 import "./FileSharing.css";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 
 type ShareScope = "PRIVATE" | "DEPARTMENT" | "SELECTED_USERS" | "SELECTED_DEPARTMENTS" | "ORGANIZATION";
 type DriveView = "home" | "my" | "shared" | "dept" | "org" | "starred" | "recent" | "trash" | "admin";
@@ -493,6 +494,7 @@ function editorKindFromRow(row: any): keyof typeof EDITOR_KIND_TO_TYPE | "" {
 export default function FileSharing({ permissions }: PageProps) {
   const { t } = useLanguage();
   const { canOption, departmentKey, isAdminGroup } = usePermissions();
+  const { withLoading } = useGlobalLoading();
   const client = useMemo(() => getDataClient(), []);
 
   const [loading, setLoading] = useState(false);
@@ -614,7 +616,10 @@ export default function FileSharing({ permissions }: PageProps) {
       const email = normalizeEmail(auth?.signInDetails?.loginId ?? auth?.username ?? "");
       setSelfEmail(email);
 
-      const userRes = await (client.models as any).UserProfile.list({ limit: 2000 });
+      const userRes = (await withLoading(
+        (client.models as any).UserProfile.list({ limit: 2000 }),
+        "Loading drive data..."
+      )) as any;
       const users = ((userRes?.data ?? []) as any[])
         .map((u) => ({
           email: normalizeEmail(u?.email),
@@ -1042,15 +1047,31 @@ export default function FileSharing({ permissions }: PageProps) {
           const itemId = String(row?.itemId ?? payload?.itemId ?? "").trim();
           const item = rows.find((r) => String(r?.id ?? "") === itemId);
           if (!item) throw new Error(t("Cannot execute delete. The target file no longer exists."));
-          await (client.models as any).FileShareItem.update({
-            id: itemId,
-            isDeleted: true,
-            deletedAt: new Date().toISOString(),
-            deletedBy: selfEmail,
-            updatedAt: new Date().toISOString(),
-            updatedBy: selfEmail,
-          });
-          await logActivity(itemId, "SOFT_DELETE", `${selfEmail} executed approved delete for ${item?.displayName ?? itemId}`);
+          const isFolderTarget = Boolean(payload?.isFolder) || isFolder(item);
+          const targetFolderPath = normalizeFolderPath(String(payload?.targetFolderPath ?? getFolderTargetPath(item)));
+          const targets = isFolderTarget
+            ? rows.filter((candidate) => {
+                if (isDeleted(candidate)) return false;
+                const candidateId = String(candidate?.id ?? "");
+                if (candidateId === itemId) return true;
+                const candidateFolder = normalizeFolderPath(folderOf(candidate));
+                return candidateFolder === targetFolderPath || candidateFolder.startsWith(`${targetFolderPath}/`);
+              })
+            : [item];
+
+          await Promise.all(
+            targets.map((targetRow) =>
+              (client.models as any).FileShareItem.update({
+                id: String(targetRow?.id ?? ""),
+                isDeleted: true,
+                deletedAt: new Date().toISOString(),
+                deletedBy: selfEmail,
+                updatedAt: new Date().toISOString(),
+                updatedBy: selfEmail,
+              })
+            )
+          );
+          await logActivity(itemId, "SOFT_DELETE", `${selfEmail} executed approved delete for ${item?.displayName ?? itemId}${isFolderTarget ? ` (${targets.length} items)` : ""}`);
           await loadData();
           return;
         }
@@ -2253,6 +2274,8 @@ export default function FileSharing({ permissions }: PageProps) {
           folderPath: deptFolder,
           itemId: String(row?.id ?? ""),
           itemName: String(row?.displayName ?? ""),
+          isFolder: isFolder(row),
+          targetFolderPath: isFolder(row) ? normalizeFolderPath(getFolderTargetPath(row)) : "",
         },
         String(row?.id ?? "")
       );
@@ -2260,20 +2283,43 @@ export default function FileSharing({ permissions }: PageProps) {
     }
 
     try {
+      const folderTargetPath = isFolder(row) ? normalizeFolderPath(getFolderTargetPath(row)) : "";
+      const deleteTargets = isFolder(row)
+        ? rows.filter((candidate) => {
+            if (isDeleted(candidate)) return false;
+            const candidateId = String(candidate?.id ?? "");
+            if (candidateId === String(row?.id ?? "")) return true;
+            const candidateFolder = normalizeFolderPath(folderOf(candidate));
+            return candidateFolder === folderTargetPath || candidateFolder.startsWith(`${folderTargetPath}/`);
+          })
+        : [row];
+
       if (!doHardDelete) {
-        await (client.models as any).FileShareItem.update({
-          id: row.id,
-          isDeleted: true,
-          deletedAt: new Date().toISOString(),
-          deletedBy: selfEmail,
-          updatedAt: new Date().toISOString(),
-          updatedBy: selfEmail,
-        });
-        await logActivity(row.id, "SOFT_DELETE", `${selfEmail} moved ${row?.displayName} to trash`);
+        await Promise.all(
+          deleteTargets.map((targetRow) =>
+            (client.models as any).FileShareItem.update({
+              id: String(targetRow?.id ?? ""),
+              isDeleted: true,
+              deletedAt: new Date().toISOString(),
+              deletedBy: selfEmail,
+              updatedAt: new Date().toISOString(),
+              updatedBy: selfEmail,
+            })
+          )
+        );
+        await logActivity(row.id, "SOFT_DELETE", `${selfEmail} moved ${row?.displayName} to trash${isFolder(row) ? ` (${deleteTargets.length} items)` : ""}`);
       } else {
-        if (!isFolder(row) && row?.storagePath) await remove({ path: String(row.storagePath) });
-        await (client.models as any).FileShareItem.delete({ id: String(row.id) });
-        await logActivity(row.id, "DELETE", `${selfEmail} permanently deleted ${row?.displayName}`);
+        for (const targetRow of deleteTargets) {
+          if (!isFolder(targetRow) && targetRow?.storagePath) {
+            try {
+              await remove({ path: String(targetRow.storagePath) });
+            } catch {
+              // keep deleting DB metadata even if storage object is missing
+            }
+          }
+          await (client.models as any).FileShareItem.delete({ id: String(targetRow.id) });
+        }
+        await logActivity(row.id, "DELETE", `${selfEmail} permanently deleted ${row?.displayName}${isFolder(row) ? ` (${deleteTargets.length} items)` : ""}`);
       }
       await loadData();
     } catch (error: any) {
@@ -2682,20 +2728,49 @@ export default function FileSharing({ permissions }: PageProps) {
     if (!deletable.length) return setStatus(t("You do not have permission to delete selected items."));
 
     try {
+      const processed = new Set<string>();
       for (const row of deletable) {
+        const rowId = String(row?.id ?? "");
+        if (!rowId || processed.has(rowId)) continue;
+
         const doHardDelete = (canHardDelete || isAdminGroup) && (canManageAll || isAdminGroup) && !canSoftDelete;
+        const folderTargetPath = isFolder(row) ? normalizeFolderPath(getFolderTargetPath(row)) : "";
+        const deleteTargets = isFolder(row)
+          ? rows.filter((candidate) => {
+              if (isDeleted(candidate)) return false;
+              const candidateId = String(candidate?.id ?? "");
+              if (candidateId === rowId) return true;
+              const candidateFolder = normalizeFolderPath(folderOf(candidate));
+              return candidateFolder === folderTargetPath || candidateFolder.startsWith(`${folderTargetPath}/`);
+            })
+          : [row];
+
+        deleteTargets.forEach((targetRow) => processed.add(String(targetRow?.id ?? "")));
+
         if (!doHardDelete) {
-          await (client.models as any).FileShareItem.update({
-            id: row.id,
-            isDeleted: true,
-            deletedAt: new Date().toISOString(),
-            deletedBy: selfEmail,
-            updatedAt: new Date().toISOString(),
-            updatedBy: selfEmail,
-          });
+          await Promise.all(
+            deleteTargets.map((targetRow) =>
+              (client.models as any).FileShareItem.update({
+                id: String(targetRow?.id ?? ""),
+                isDeleted: true,
+                deletedAt: new Date().toISOString(),
+                deletedBy: selfEmail,
+                updatedAt: new Date().toISOString(),
+                updatedBy: selfEmail,
+              })
+            )
+          );
         } else {
-          if (!isFolder(row) && row?.storagePath) await remove({ path: String(row.storagePath) });
-          await (client.models as any).FileShareItem.delete({ id: String(row.id) });
+          for (const targetRow of deleteTargets) {
+            if (!isFolder(targetRow) && targetRow?.storagePath) {
+              try {
+                await remove({ path: String(targetRow.storagePath) });
+              } catch {
+                // keep deleting DB metadata even if storage object is missing
+              }
+            }
+            await (client.models as any).FileShareItem.delete({ id: String(targetRow.id) });
+          }
         }
       }
       await logActivity("bulk", "DELETE", `${selfEmail} deleted ${deletable.length} item(s)`);
@@ -3557,7 +3632,7 @@ export default function FileSharing({ permissions }: PageProps) {
                                 {!folder && canViewVersions ? <button type="button" onClick={() => setVersionTargetId((prev) => prev === row.id ? "" : row.id)}>{t("Versions")}</button> : null}
                                 {!folder && canUpload ? <button type="button" onClick={() => void replaceWithNewVersion(row)}>{t("Upload version")}</button> : null}
                                 {view === "trash" ? <button type="button" onClick={() => void restoreRow(row)}>{t("Restore")}</button> : null}
-                                {!isDeleted(row) ? <button type="button" className="danger" onClick={() => void deleteRow(row)}>{t("Move to trash")}</button> : null}
+                                {!isDeleted(row) ? <button type="button" className="danger" onClick={() => void deleteRow(row)}>{folder ? t("Delete folder") : t("Move to trash")}</button> : null}
                               </div>
                             ) : null}
                           </div>

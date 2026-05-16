@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { getDataClient } from "../lib/amplifyClient";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 
 // All models to delete (UserProfile is intentionally excluded to preserve users)
 const MODELS_TO_CLEAN = [
@@ -97,6 +98,7 @@ async function deleteAllFromModel(
 }
 
 export default function DatabaseCleanupAdmin() {
+  const { showLoading, hideLoading } = useGlobalLoading();
   const [confirmText, setConfirmText] = useState("");
   const [running, setRunning] = useState(false);
   const [log, setLog] = useState<string[]>([]);
@@ -109,6 +111,7 @@ export default function DatabaseCleanupAdmin() {
   const handleCleanup = async () => {
     if (confirmText !== CONFIRM_PHRASE) return;
     setRunning(true);
+    showLoading("Cleaning database...");
     setLog([]);
     setResults([]);
     setDone(false);
@@ -126,6 +129,7 @@ export default function DatabaseCleanupAdmin() {
     setResults(allResults);
     setDone(true);
     setRunning(false);
+    hideLoading();
     appendLog("━━━ Cleanup complete ━━━");
   };
 

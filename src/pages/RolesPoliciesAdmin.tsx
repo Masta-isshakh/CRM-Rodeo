@@ -934,7 +934,6 @@ export default function RoleAccessControl() {
     if (!currentRoleId) return;
     setLoading(true);
     setSaveProgress({ active: true, completed: 0, total: 0 });
-    const startedAt = Date.now();
 
     try {
       const [existingToggles, existingNums, existingPolicies] = await Promise.all([
@@ -1241,9 +1240,7 @@ export default function RoleAccessControl() {
       }
 
       window.dispatchEvent(new Event("rbac:refresh"));
-      const elapsedMs = Date.now() - startedAt;
-      const elapsedSec = (elapsedMs / 1000).toFixed(1);
-      showMsg(`${t("Policies saved successfully")} — ${selectedRole?.name ?? currentRoleId} (${elapsedSec}s)`);
+      showMsg(t("Policies saved successfully"));
     } catch (e: any) {
       console.error(e);
       showMsg(`${t("saveFailed")}: ${e?.message ?? "Unknown error"}`);

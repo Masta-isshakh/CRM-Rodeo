@@ -418,6 +418,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
   });
 
   const [selectedCatalogIds, setSelectedCatalogIds] = useState<string[]>([]);
+  const [selectedServiceCategory, setSelectedServiceCategory] = useState("all");
   const [discountAmount, setDiscountAmount] = useState(0);
 
   useEffect(() => {
@@ -494,6 +495,23 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     () => catalog.filter((item) => String(item.type).toLowerCase() !== "package"),
     [catalog]
   );
+
+  const serviceCategories = useMemo(() => {
+    const unique = new Set<string>();
+    for (const item of servicesOnly) {
+      const value = String(item.categoryNameEn || item.categoryCode || item.categoryId || "").trim();
+      if (value) unique.add(value);
+    }
+    return Array.from(unique).sort((a, b) => a.localeCompare(b));
+  }, [servicesOnly]);
+
+  const visibleServices = useMemo(() => {
+    if (selectedServiceCategory === "all") return servicesOnly;
+    return servicesOnly.filter((item) => {
+      const category = String(item.categoryNameEn || item.categoryCode || item.categoryId || "").trim();
+      return category === selectedServiceCategory;
+    });
+  }, [servicesOnly, selectedServiceCategory]);
 
   const packagesOnly = useMemo(
     () => catalog.filter((item) => String(item.type).toLowerCase() === "package"),
@@ -981,8 +999,19 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
                 </div>
 
                 <div className="quotation-subtitle">{t("Services")}</div>
+                <div className="quotation-discount-row" style={{ marginBottom: 10 }}>
+                  <label>
+                    <span>{t("Service Category")}</span>
+                    <select value={selectedServiceCategory} onChange={(e) => setSelectedServiceCategory(e.target.value)}>
+                      <option value="all">{t("All Categories")}</option>
+                      {serviceCategories.map((category) => (
+                        <option key={category} value={category}>{category}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
                 <div className="quotation-catalog-grid">
-                  {servicesOnly.map((item) => {
+                  {visibleServices.map((item) => {
                     const selected = selectedCatalogIds.includes(item.id);
                     const price = resolveServicePriceForVehicleType(item, customer.vehicleType);
                     return (
@@ -994,7 +1023,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
                       >
                         <strong data-no-translate="true">{toBilingualName(item.name, item.nameAr, t("Service"))}</strong>
                         <span>{item.serviceCode}</span>
-                        <span>{formatMoney(price)}</span>
+                        <span>{`${item.categoryNameEn || item.categoryCode || t("Uncategorized")} • ${formatMoney(price)}`}</span>
                       </button>
                     );
                   })}

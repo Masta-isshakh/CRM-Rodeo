@@ -38,6 +38,7 @@ import {
 } from "../utils/paymentStatus";
 import { filterVisibleDocuments } from "../utils/documentVisibility";
 import { useLanguage } from "../i18n/LanguageContext";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 
 function safeLower(v: any) {
   return String(v ?? "").trim().toLowerCase();
@@ -392,6 +393,7 @@ function getServiceSpecificationColor(service: any) {
 const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
   const client = useMemo(() => getDataClient(), []);
   const { t } = useLanguage();
+  const { withLoading } = useGlobalLoading();
 
   const [loading, setLoading] = useState(false);
 
@@ -622,7 +624,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
 
     setLoading(true);
     try {
-      const order = await getJobOrderByOrderNumber(orderId);
+      const order = await withLoading(getJobOrderByOrderNumber(orderId), "Loading order details...");
       if (!order) throw new Error(t("Order not found"));
       order.paymentStatus = derivePaymentStatusFromUiOrder(order);
       detailsCacheRef.current.set(orderId, order);
@@ -1009,7 +1011,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
           </div>
 
           <div className="epm-footer">
-            <p>{t("Service Management System © 2023 | Exit Permit Management Module")}</p>
+            <p></p>
           </div>
         </>
       ) : (

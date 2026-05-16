@@ -4,6 +4,7 @@ import type { Schema } from "../../amplify/data/resource";
 import { getDataClient } from "../lib/amplifyClient";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./CampaignAudienceAdmin.css";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 
 type CampaignLead = Schema["CampaignAudienceLead"]["type"];
 type CampaignImportBatch = Schema["CampaignAudienceImportBatch"]["type"];
@@ -534,11 +535,10 @@ function collectDetectedColumns(
 export default function CampaignAudienceAdmin() {
   const client = getDataClient();
   const { t } = useLanguage();
+  const { withLoading } = useGlobalLoading();
 
   const [batches, setBatches] = useState<CampaignImportBatch[]>([]);
   const [leads, setLeads] = useState<CampaignLead[]>([]);
-  const [loadingData, setLoadingData] = useState(true);
-  const [dataError, setDataError] = useState("");
 
   const [selectedFileName, setSelectedFileName] = useState("");
   const [sheets, setSheets] = useState<Record<string, SheetData>>({});
@@ -547,6 +547,8 @@ export default function CampaignAudienceAdmin() {
   const [isReadingWorkbook, setIsReadingWorkbook] = useState(false);
   const [replaceExisting, setReplaceExisting] = useState(true);
   const [importing, setImporting] = useState(false);
+  const [loadingData, setLoadingData] = useState(false);
+  const [dataError, setDataError] = useState("");
   const [importProgress, setImportProgress] = useState("");
   const [importSummary, setImportSummary] = useState<ImportSummary | null>(null);
   const [previewPage, setPreviewPage] = useState(1);
@@ -714,10 +716,13 @@ export default function CampaignAudienceAdmin() {
     setLoadingData(true);
     setDataError("");
     try {
-      const [allBatches, allLeads] = await Promise.all([
-        listAllRecords((client.models as any).CampaignAudienceImportBatch),
-        listAllRecords((client.models as any).CampaignAudienceLead),
-      ]);
+      const [allBatches, allLeads] = await withLoading(
+        Promise.all([
+          listAllRecords((client.models as any).CampaignAudienceImportBatch),
+          listAllRecords((client.models as any).CampaignAudienceLead),
+        ]),
+        "Loading campaign audience data..."
+      );
 
       setBatches(
         [...allBatches].sort(
@@ -739,7 +744,7 @@ export default function CampaignAudienceAdmin() {
     } finally {
       setLoadingData(false);
     }
-  }, [client.models]);
+  }, [client.models, withLoading]);
 
   useEffect(() => {
     void loadExistingData();

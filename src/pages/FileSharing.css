@@ -1244,6 +1244,35 @@
 }
 
 @media (max-width: 768px) {
+	.filesharing-section-head {
+		gap: 10px !important;
+	}
+
+	.filesharing-section-head > div {
+		width: 100%;
+	}
+
+	.filesharing-section-head .drive-inline-actions {
+		width: 100%;
+		justify-content: flex-start;
+	}
+
+	.drive-inline-actions {
+		flex-wrap: wrap;
+	}
+
+	.drive-inline-actions button,
+	.drive-inline-actions input,
+	.drive-inline-actions select {
+		min-height: 40px;
+	}
+
+	.drive-sidebar > button,
+	.drive-folder-tree > button {
+		min-height: 42px;
+		justify-content: flex-start;
+	}
+
 	.drive-overview-grid,
 	.drive-admin-summary-grid,
 	.drive-quick-access-grid,
@@ -1282,6 +1311,13 @@
 	.filesharing-item-actions {
 		justify-content: flex-start;
 		flex-wrap: wrap;
+		gap: 6px;
+	}
+
+	.filesharing-item-actions > button,
+	.filesharing-item-actions .drive-mini-action {
+		min-height: 40px;
+		padding: 8px 10px;
 	}
 
 	.filesharing-modal,

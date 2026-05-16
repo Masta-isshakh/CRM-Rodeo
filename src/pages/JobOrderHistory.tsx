@@ -26,6 +26,7 @@ import { getJobOrderByOrderNumber } from "./jobOrderRepo";
 import { getUrl } from "aws-amplify/storage";
 import { useLanguage } from "../i18n/LanguageContext";
 import { filterVisibleDocuments } from "../utils/documentVisibility";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 
 // -------------------- helpers --------------------
 function safeJsonParse<T>(raw: any, fallback: T): T {
@@ -693,6 +694,7 @@ export default function JobOrderHistory({
   const client = useMemo(() => getDataClient(), []);
   const { t } = useLanguage();
   const { isAdminGroup } = usePermissions();
+  const { withLoading } = useGlobalLoading();
 
   const [loading, setLoading] = useState(false);
 
@@ -984,7 +986,7 @@ export default function JobOrderHistory({
     });
 
     try {
-      const detailed = await getJobOrderByOrderNumber(orderKey);
+      const detailed = await withLoading(getJobOrderByOrderNumber(orderKey), "Loading order details...");
       if (!detailed?._backendId) throw new Error("Order not found in backend.");
 
       // Get latest JobOrder row for normalized fields/enums

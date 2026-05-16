@@ -2901,7 +2901,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         </section>
 
         <footer className="pim-footer">
-          <p>{t("Service Management System © 2023 | Payment & Invoice Management Module")}</p>
+          <p></p>
         </footer>
 
         <div className={`cancel-modal-overlay ${showCancelConfirmation && cancelOrderId ? "active" : ""}`}>

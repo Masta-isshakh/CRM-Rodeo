@@ -6,6 +6,7 @@ import { matchesSearchQuery } from "../lib/searchUtils";
 import { useLanguage } from "../i18n/LanguageContext";
 import { logActivity } from "../utils/activityLogger";
 import "./PushNotifications.css";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 
 type SmsType = "Transactional" | "Promotional";
 
@@ -160,6 +161,7 @@ function csvEscape(value: unknown) {
 
 export default function PushNotifications({ permissions }: PageProps) {
   const { t } = useLanguage();
+  const { withLoading } = useGlobalLoading();
   const client = useMemo(() => getDataClient(), []);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
@@ -189,14 +191,14 @@ export default function PushNotifications({ permissions }: PageProps) {
       const auth = await getCurrentUser();
       setSelfEmail(String(auth?.signInDetails?.loginId ?? auth?.username ?? "").trim().toLowerCase());
 
-      const [custRes, empRes, profileRes, logRes, eventRes, deliveryRes] = await Promise.all([
+      const [custRes, empRes, profileRes, logRes, eventRes, deliveryRes] = await withLoading(Promise.all([
         (client.models as any).Customer.list({ limit: 5000 }),
         (client.models as any).Employee.list({ limit: 5000 }),
         (client.models as any).UserProfile.list({ limit: 5000 }),
         (client.models as any).SmsLog.list({ limit: 200 }),
         (client.models as any).SmsDeliveryEvent.list({ limit: 2000 }),
         (client.models as any).SmsDeliveryStatus.list({ limit: 5000 }),
-      ]);
+      ]), "Loading notifications data...");
 
       const customerContacts: PhoneContact[] = ((custRes?.data ?? []) as any[])
         .filter((c: any) => !!c?.phone)

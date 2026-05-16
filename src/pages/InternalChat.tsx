@@ -5,6 +5,7 @@ import { getDataClient } from "../lib/amplifyClient";
 import { matchesSearchQuery } from "../lib/searchUtils";
 import { useLanguage } from "../i18n/LanguageContext";
 import "./InternalChat.css";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 type ChatUser = { email: string; fullName: string };
@@ -142,6 +143,7 @@ function DoubleTick({ seen }: { seen: boolean }) {
 // ─── Main Component ─────────────────────────────────────────────────────────────
 export default function InternalChat({ permissions }: PageProps) {
   const { t } = useLanguage();
+  const { withLoading } = useGlobalLoading();
   const client = useMemo(() => getDataClient(), []);
   const ChatModel = useMemo(() => (client.models as any).InternalChatMessage as any, [client]);
   const UserModel = useMemo(() => (client.models as any).UserProfile as any, [client]);
@@ -194,8 +196,8 @@ export default function InternalChat({ permissions }: PageProps) {
         markGlobalSeen(email);
 
         if (UserModel) {
-          const res = await UserModel.list({ limit: 1000 });
-          const rows = (res?.data ?? []) as Array<Record<string, any>>;
+          const res = await withLoading(UserModel.list({ limit: 1000 }), "Loading users...");
+          const rows = ((res as any)?.data ?? []) as Array<Record<string, any>>;
           const directory = rows
             .map((r) => ({
               email: normalizeEmail(String(r?.email ?? "")),

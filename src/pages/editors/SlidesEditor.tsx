@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { getDataClient } from "../../lib/amplifyClient";
 import "./editor-styles.css";
+import { useGlobalLoading } from "../../utils/GlobalLoadingContext";
 
 interface Slide {
   id: string;
@@ -14,6 +15,7 @@ interface SlidesEditorProps {
 }
 
 export default function SlidesEditor({ fileId, fileName }: SlidesEditorProps) {
+  const { showLoading, hideLoading } = useGlobalLoading();
   const [presentation, setPresentation] = useState<Slide[]>([
     { id: "1", title: "Slide Title", content: "Click to add subtitle" },
   ]);
@@ -34,6 +36,7 @@ export default function SlidesEditor({ fileId, fileName }: SlidesEditorProps) {
     }
 
     const loadPresentation = async () => {
+      showLoading("Loading presentation...");
       try {
         const response = await (client.models as any).FileShareItem.get({ id: fileId });
         if (response?.data) {
@@ -52,6 +55,7 @@ export default function SlidesEditor({ fileId, fileName }: SlidesEditorProps) {
         console.error("Failed to load presentation:", error);
       } finally {
         setIsLoading(false);
+        hideLoading();
       }
     };
 

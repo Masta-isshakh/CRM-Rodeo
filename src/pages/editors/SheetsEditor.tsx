@@ -3,6 +3,7 @@ import { uploadData } from "aws-amplify/storage";
 import * as XLSX from "xlsx";
 import { getDataClient } from "../../lib/amplifyClient";
 import "./editor-styles.css";
+import { useGlobalLoading } from "../../utils/GlobalLoadingContext";
 
 interface SheetsEditorProps {
   fileId?: string;
@@ -10,6 +11,7 @@ interface SheetsEditorProps {
 }
 
 export default function SheetsEditor({ fileId, fileName }: SheetsEditorProps) {
+  const { showLoading, hideLoading } = useGlobalLoading();
   const [data, setData] = useState<Record<string, string>>({}); // Format: "row,col" => "value"
   const [title, setTitle] = useState(fileName || "Untitled Spreadsheet");
   const [isSaving, setIsSaving] = useState(false);
@@ -49,6 +51,7 @@ export default function SheetsEditor({ fileId, fileName }: SheetsEditorProps) {
     }
 
     const loadSpreadsheet = async () => {
+      showLoading("Loading spreadsheet...");
       try {
         const response = await (client.models as any).FileShareItem.get({ id: fileId });
         if (response?.data) {
@@ -68,6 +71,7 @@ export default function SheetsEditor({ fileId, fileName }: SheetsEditorProps) {
         console.error("Failed to load spreadsheet:", error);
       } finally {
         setIsLoading(false);
+        hideLoading();
       }
     };
 

@@ -5,6 +5,7 @@ import type { Schema } from "../../amplify/data/resource";
 import "./activity.css";
 import type { PageProps } from "../lib/PageProps";
 import PermissionGate from "./PermissionGate";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 
 const client = generateClient<Schema>();
 type LogRow = Schema["ActivityLog"]["type"];
@@ -16,6 +17,7 @@ function safeDate(val: unknown): string {
 }
 
 export default function ActivityLog({ permissions }: PageProps) {
+  const { withLoading } = useGlobalLoading();
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -28,7 +30,7 @@ export default function ActivityLog({ permissions }: PageProps) {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await client.models.ActivityLog.list({ limit: 50 });
+      const { data } = await withLoading(client.models.ActivityLog.list({ limit: 50 }), "Loading activity logs...");
       const sorted = [...(data ?? [])].sort(
         (a, b) => new Date(String(b.createdAt)).getTime() - new Date(String(a.createdAt)).getTime()
       );

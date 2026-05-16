@@ -6,6 +6,7 @@ import { logActivity } from "../utils/activityLogger";
 import type { PageProps } from "../lib/PageProps";
 import PermissionGate from "./PermissionGate";
 import { useLanguage } from "../i18n/LanguageContext";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 
 const client = generateClient<Schema>();
 
@@ -24,6 +25,7 @@ type FormErrors = Partial<Record<keyof EmployeeForm, string>>;
 
 export default function Employees({ permissions }: PageProps) {
   const { t } = useLanguage();
+  const { withLoading } = useGlobalLoading();
 
   const [employees, setEmployees] = useState<EmployeeRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -50,7 +52,7 @@ export default function Employees({ permissions }: PageProps) {
   const fetchEmployees = async () => {
     setLoading(true);
     try {
-      const { data } = await client.models.Employee.list({ limit: 2000 });
+      const { data } = await withLoading(client.models.Employee.list({ limit: 2000 }), "Loading employees...");
       setEmployees(data ?? []);
     } finally {
       setLoading(false);

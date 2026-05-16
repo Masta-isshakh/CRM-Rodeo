@@ -34,6 +34,7 @@ import { listServiceCatalog, resolveServicePriceForVehicleType, type ServiceCata
 import { resolveActorUsername, resolveOrderCreatedBy } from "../utils/actorIdentity";
 import { usePermissions } from "../lib/userPermissions";
 import { useLanguage } from "../i18n/LanguageContext";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 import { filterVisibleDocuments } from "../utils/documentVisibility";
 import {
   computeCumulativeDiscountAllowance,
@@ -189,6 +190,7 @@ function deriveDetailData(order: AnyObj, row: AnyObj) {
 function InspectionModule({ currentUser }: any) {
   const { t } = useLanguage();
   const { canOption, getOptionNumber } = usePermissions();
+  const { withLoading } = useGlobalLoading();
   const [inspectionConfig, setInspectionConfig] = useState<any[]>(inspectionListConfig);
   const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
   const centralDiscountPercent = useMemo(
@@ -277,20 +279,20 @@ function InspectionModule({ currentUser }: any) {
   useEffect(() => {
     (async () => {
       try {
-        const cfg = await loadInspectionConfig(inspectionListConfig);
+        const cfg = await withLoading(loadInspectionConfig(inspectionListConfig), "Loading inspection config...");
         setInspectionConfig(cfg);
       } catch (e) {
         console.error(e);
         setInspectionConfig(inspectionListConfig);
       }
     })();
-  }, []);
+  }, [withLoading]);
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const catalog = await listServiceCatalog();
+        const catalog = await withLoading(listServiceCatalog(), "Loading service catalog...");
         if (!cancelled) setServiceCatalog(catalog);
       } catch {
         if (!cancelled) setServiceCatalog([]);
@@ -300,16 +302,15 @@ function InspectionModule({ currentUser }: any) {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [withLoading]);
 
   const refreshOrders = async () => {
-    setLoading(true);
     try {
-      const list = await listJobOrdersForMain();
+      const list = await withLoading(listJobOrdersForMain(), "Loading inspections...");
       setRows(filterInspectionRows(list));
       setCurrentPage(1);
-    } finally {
-      setLoading(false);
+    } catch (e) {
+      console.error("Error loading inspections:", e);
     }
   };
 

@@ -392,7 +392,8 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     const isOperationsUser = (user: any) => {
       const deptKey = String(user?.departmentKey ?? user?.attributes?.departmentKey ?? user?.attributes?.["custom:departmentKey"] ?? "").trim().toLowerCase();
       const deptName = String(user?.departmentName ?? user?.attributes?.departmentName ?? user?.attributes?.department ?? user?.attributes?.["custom:departmentName"] ?? "").trim().toLowerCase();
-      return deptKey === "operations" || deptName === "operations";
+      const opsRegex = /(^|[^a-z])operations?([^a-z]|$)/i;
+      return opsRegex.test(deptKey) || opsRegex.test(deptName);
     };
 
     const operationsLabelSet = new Set<string>();
@@ -1514,7 +1515,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
         </section>
 
         <div className="service-footer">
-          <p>{t("Service Management System © 2023 | Service Execution Module")}</p>
+          <p></p>
         </div>
       </div>
 

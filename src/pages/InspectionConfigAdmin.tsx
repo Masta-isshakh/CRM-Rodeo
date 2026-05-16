@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 import SuccessPopup from "./SuccessPopup";
 import PermissionGate from "./PermissionGate";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 
 import * as inspectionConfigModule from "./inspectionConfig";
 const fallbackConfig: any[] =
@@ -24,6 +25,7 @@ function errMsg(e: unknown) {
 
 export default function InspectionConfigAdmin({ currentUser }: any) {
   const actor = useMemo(() => currentUser?.name || currentUser?.email || "admin", [currentUser]);
+  const { withLoading } = useGlobalLoading();
 
   const [loading, setLoading] = useState(false);
   const [recordMeta, setRecordMeta] = useState<any | null>(null);
@@ -37,7 +39,7 @@ export default function InspectionConfigAdmin({ currentUser }: any) {
   const load = async () => {
     setLoading(true);
     try {
-      const cfg = await loadInspectionConfig(fallbackConfig);
+      const cfg = await withLoading(loadInspectionConfig(fallbackConfig), "Loading inspection config...");
       setText(JSON.stringify(cfg, null, 2));
       setParseError(null);
 

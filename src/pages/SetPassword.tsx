@@ -5,6 +5,7 @@ import {
   resetPassword,
   confirmResetPassword,
 } from "aws-amplify/auth";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 
 function getParam(name: string) {
   const u = new URL(window.location.href);
@@ -12,6 +13,7 @@ function getParam(name: string) {
 }
 
 export default function SetPasswordPage() {
+  const { showLoading, hideLoading } = useGlobalLoading();
   const emailFromLink = useMemo(() => getParam("email"), []);
   const usernameFromLink = useMemo(() => getParam("username"), []);
   const modeFromLink = useMemo(() => (getParam("mode") || "").toLowerCase(), []);
@@ -98,6 +100,7 @@ export default function SetPasswordPage() {
 
   const onSubmit = async () => {
     setLoading(true);
+    showLoading("Setting password...");
     setStatus("");
     try {
       if (mode === "FIRST_TIME") await doFirstTime();
@@ -107,6 +110,7 @@ export default function SetPasswordPage() {
       setStatus(e?.message || "Failed.");
     } finally {
       setLoading(false);
+      hideLoading();
     }
   };
 

@@ -9,6 +9,7 @@ import { getDataClient } from "../lib/amplifyClient";
 import { matchesSearchQuery } from "../lib/searchUtils";
 import { usePermissions } from "../lib/userPermissions";
 import ConfirmationPopup from "./ConfirmationPopup";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type InvCategory    = Schema["InventoryCategory"]["type"];
@@ -78,6 +79,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
 
   const client = getDataClient();
   const { canOption, isAdminGroup } = usePermissions();
+  const { withLoading } = useGlobalLoading();
 
   // ── RBAC shortcuts
   const canCreate = isAdminGroup || permissions.canCreate;
@@ -167,16 +169,20 @@ export default function InventoryManagement({ permissions }: PageProps) {
   // LOAD FUNCTIONS
   // ────────────────────────────────────────────────────────────────────────────
   const loadCategories = async () => {
+    setLoading(true);
     if (categoriesCacheRef.current.length > 0) {
       setCategories(categoriesCacheRef.current);
       setAllSubcategories(allSubcategoriesCacheRef.current);
     }
-    setLoading(true);
     try {
-      const [catRes, subRes] = await Promise.all([
-        client.models.InventoryCategory.list({ limit: 1000 }),
-        client.models.InventorySubcategory.list({ limit: 5000 }),
-      ]);
+      const result = await withLoading(
+        Promise.all([
+          client.models.InventoryCategory.list({ limit: 1000 }),
+          client.models.InventorySubcategory.list({ limit: 5000 }),
+        ]),
+        "Loading inventory categories..."
+      );
+      const [catRes, subRes] = result;
       const cats = (catRes.data ?? [])
         .filter((c) => c.isActive !== false)
         .sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
@@ -192,14 +198,17 @@ export default function InventoryManagement({ permissions }: PageProps) {
   };
 
   const loadSubcategories = async (categoryId: string) => {
+    setLoading(true);
     const cached = subcategoriesCacheRef.current.get(categoryId);
     if (cached) setSubcategories(cached);
-    setLoading(true);
     try {
-      const res = await client.models.InventorySubcategory.list({
-        filter: { categoryId: { eq: categoryId }, isActive: { ne: false } },
-        limit: 1000,
-      });
+      const res = await withLoading(
+        client.models.InventorySubcategory.list({
+          filter: { categoryId: { eq: categoryId }, isActive: { ne: false } },
+          limit: 1000,
+        }),
+        "Loading subcategories..."
+      );
       const subs = (res.data ?? []).sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
       subcategoriesCacheRef.current.set(categoryId, subs);
       setSubcategories(subs);
@@ -211,23 +220,27 @@ export default function InventoryManagement({ permissions }: PageProps) {
   };
 
   const loadProducts = async (subcategoryId: string) => {
+    setLoading(true);
     const cached = productsCacheRef.current.get(subcategoryId);
     if (cached) {
       setProducts(cached.products);
       setTransactions(cached.transactions);
     }
-    setLoading(true);
     try {
-      const [prodRes, txRes] = await Promise.all([
-        client.models.InventoryProduct.list({
-          filter: { subcategoryId: { eq: subcategoryId } },
-          limit: 1000,
-        }),
-        client.models.InventoryTransaction.list({
-          filter: { subcategoryId: { eq: subcategoryId } },
-          limit: 200,
-        }),
-      ]);
+      const result = await withLoading(
+        Promise.all([
+          client.models.InventoryProduct.list({
+            filter: { subcategoryId: { eq: subcategoryId } },
+            limit: 1000,
+          }),
+          client.models.InventoryTransaction.list({
+            filter: { subcategoryId: { eq: subcategoryId } },
+            limit: 200,
+          }),
+        ]),
+        "Loading products..."
+      );
+      const [prodRes, txRes] = result;
       const prods = (prodRes.data ?? []).sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
       setProducts(prods);
       const txs = (txRes.data ?? []).sort(
@@ -1291,13 +1304,13 @@ export default function InventoryManagement({ permissions }: PageProps) {
                         const fieldDefs2 = currentFieldDefs();
                         return (
                           <tr key={prod.id}>
-                            <td style={{ fontWeight: 600 }}>{prod.name}</td>
-                            <td className="mono">
+                            <td data-label={t("Product Name")} style={{ fontWeight: 600 }}>{prod.name}</td>
+                            <td data-label={t("Serial / Barcode")} className="mono">
                               {prod.serialNumber && <div>{t("S/N:")} {prod.serialNumber}</div>}
                               {prod.barcode && <div>{t("QR:")} {prod.barcode}</div>}
                               {!prod.serialNumber && !prod.barcode && <span style={{ color: "#9ba8b9" }}>—</span>}
                             </td>
-                            <td>
+                            <td data-label={t("Available")}>
                               <span className={`inv-stock-badge ${stockClass(available)}`}>
                                 {available <= 0 && <i className="fas fa-circle-exclamation" />}
                                 {available > 0 && available <= 5 && <i className="fas fa-triangle-exclamation" />}
@@ -1305,17 +1318,17 @@ export default function InventoryManagement({ permissions }: PageProps) {
                                 {" "}{available} {available !== 1 ? t("units") : t("unit")}
                               </span>
                             </td>
-                            <td style={{ color: "#6d7d90" }}>{prod.quantity ?? 0}</td>
+                            <td data-label={t("Total Added")} style={{ color: "#6d7d90" }}>{prod.quantity ?? 0}</td>
                             {fieldDefs2.map((f) => (
-                              <td key={f.key}>
+                              <td data-label={f.label} key={f.key}>
                                 {customFields[f.key] !== undefined ? String(customFields[f.key]) : <span style={{ color: "#9ba8b9" }}>—</span>}
                               </td>
                             ))}
-                            <td style={{ color: "#6d7d90", maxWidth: 160, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                            <td data-label={t("Notes")} style={{ color: "#6d7d90", maxWidth: 160, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
                               {prod.notes || <span style={{ color: "#c9d2de" }}>—</span>}
                             </td>
                             {canDelete && (
-                              <td>
+                              <td data-label={t("Actions")}>
                                 <button
                                   type="button"
                                   className="inv-btn-icon danger"
@@ -1353,8 +1366,8 @@ export default function InventoryManagement({ permissions }: PageProps) {
                       <tbody>
                         {transactions.map((tx) => (
                           <tr key={tx.id}>
-                            <td style={{ fontWeight: 600 }}>{tx.productName || "—"}</td>
-                            <td>
+                            <td data-label={t("Product")} style={{ fontWeight: 600 }}>{tx.productName || "—"}</td>
+                            <td data-label={t("Type")}>
                               <span className={`inv-tx-badge ${tx.transactionType === "ADD" ? "add" : "checkout"}`}>
                                 {tx.transactionType === "ADD" ? (
                                   <><i className="fas fa-plus" /> {t("Add Stock")}</>
@@ -1363,10 +1376,10 @@ export default function InventoryManagement({ permissions }: PageProps) {
                                 )}
                               </span>
                             </td>
-                            <td>{tx.quantity}</td>
-                            <td style={{ color: "#6d7d90" }}>{tx.createdBy || tx.checkedOutBy || "—"}</td>
-                            <td style={{ color: "#6d7d90", whiteSpace: "nowrap" }}>{fmtDate(tx.createdAt)}</td>
-                            <td style={{ color: "#6d7d90" }}>{tx.notesText || "—"}</td>
+                            <td data-label={t("Quantity")}>{tx.quantity}</td>
+                            <td data-label={t("By")} style={{ color: "#6d7d90" }}>{tx.createdBy || tx.checkedOutBy || "—"}</td>
+                            <td data-label={t("Date")} style={{ color: "#6d7d90", whiteSpace: "nowrap" }}>{fmtDate(tx.createdAt)}</td>
+                            <td data-label={t("Notes")} style={{ color: "#6d7d90" }}>{tx.notesText || "—"}</td>
                           </tr>
                         ))}
                       </tbody>
@@ -1580,15 +1593,15 @@ export default function InventoryManagement({ permissions }: PageProps) {
                   <tbody>
                     {recentTx.map((tx) => (
                       <tr key={tx.id}>
-                        <td style={{ fontWeight: 600 }}>{tx.productName || "—"}</td>
-                        <td>
+                        <td data-label={t("Product")} style={{ fontWeight: 600 }}>{tx.productName || "—"}</td>
+                        <td data-label={t("Type")}>
                           <span className={`inv-tx-badge ${tx.transactionType === "ADD" ? "add" : "checkout"}`}>
                             {tx.transactionType === "ADD" ? t("Add Stock") : t("Checkout")}
                           </span>
                         </td>
-                        <td>{tx.quantity}</td>
-                        <td style={{ color: "#6d7d90" }}>{tx.checkedOutBy || tx.createdBy || "—"}</td>
-                        <td style={{ color: "#6d7d90", whiteSpace: "nowrap" }}>{fmtDate(tx.createdAt)}</td>
+                        <td data-label={t("Qty")}>{tx.quantity}</td>
+                        <td data-label={t("Checked Out By")} style={{ color: "#6d7d90" }}>{tx.checkedOutBy || tx.createdBy || "—"}</td>
+                        <td data-label={t("Date")} style={{ color: "#6d7d90", whiteSpace: "nowrap" }}>{fmtDate(tx.createdAt)}</td>
                       </tr>
                     ))}
                   </tbody>

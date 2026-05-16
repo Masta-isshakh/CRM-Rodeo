@@ -42,6 +42,7 @@ import type { PageProps } from "../lib/PageProps";
 import logoImg from "../assets/logo.jpeg";
 import { getDashboardStats, type DashboardStats } from "./jobOrderRepo";
 import { usePermissions } from "../lib/userPermissions";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 
 type DashboardProps = PageProps & {
   email?: string;
@@ -203,6 +204,7 @@ function QarCurrencyMark() {
    ================================================================ */
 export default function Dashboard({ permissions, employeeName, currentPage, onNavigate, onSignOut }: DashboardProps) {
   const { canOption } = usePermissions();
+  const { withLoading } = useGlobalLoading();
   const activeNav = useMemo<DashboardNavPage>(() => currentPage ?? "jobcards", [currentPage]);
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -212,11 +214,11 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
 
   useEffect(() => {
     let cancelled = false;
-    getDashboardStats()
-      .then((s) => { if (!cancelled) { setStats(s); setLoading(false); } })
-      .catch(() => { if (!cancelled) setLoading(false); });
+    withLoading(getDashboardStats(), "Loading dashboard...").then((s) => {
+      if (!cancelled) { setStats(s); setLoading(false); }
+    }).catch(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, []);
+  }, [withLoading]);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => setChartsReady(true));

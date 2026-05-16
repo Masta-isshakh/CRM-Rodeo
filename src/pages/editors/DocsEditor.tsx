@@ -3,6 +3,7 @@ import { uploadData } from "aws-amplify/storage";
 import { Document, Packer, Paragraph } from "docx";
 import { getDataClient } from "../../lib/amplifyClient";
 import "./editor-styles.css";
+import { useGlobalLoading } from "../../utils/GlobalLoadingContext";
 
 interface DocsEditorProps {
   fileId?: string;
@@ -10,6 +11,7 @@ interface DocsEditorProps {
 }
 
 export default function DocsEditor({ fileId, fileName }: DocsEditorProps) {
+  const { showLoading, hideLoading } = useGlobalLoading();
   const [content, setContent] = useState("");
   const [title, setTitle] = useState(fileName || "Untitled Document");
   const [isSaving, setIsSaving] = useState(false);
@@ -34,6 +36,7 @@ export default function DocsEditor({ fileId, fileName }: DocsEditorProps) {
     }
 
     const loadDocument = async () => {
+      showLoading("Loading document...");
       try {
         const response = await (client.models as any).FileShareItem.get({ id: fileId });
         if (response?.data) {
@@ -48,6 +51,7 @@ export default function DocsEditor({ fileId, fileName }: DocsEditorProps) {
         console.error("Failed to load document:", error);
       } finally {
         setIsLoading(false);
+        hideLoading();
       }
     };
 

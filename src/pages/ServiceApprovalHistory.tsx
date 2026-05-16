@@ -7,6 +7,7 @@ import { matchesSearchQuery } from "../lib/searchUtils";
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { resolveActorDisplay } from "../utils/actorIdentity";
 import { useLanguage } from "../i18n/LanguageContext";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 import {
   derivePaymentStatusFromFinancials,
   pickBillingFirstValue,
@@ -100,6 +101,7 @@ const ServiceApprovalHistory: React.FC = () => {
   const [decisionFilter, setDecisionFilter] = useState<"" | "approved" | "declined" | "pending">("");
   const [dateRangeFilter, setDateRangeFilter] = useState<"" | "today" | "week" | "month">("");
 
+  const { withLoading } = useGlobalLoading();
   const [rows, setRows] = useState<HistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [userLabelMap, setUserLabelMap] = useState<Record<string, string>>({});
@@ -112,7 +114,7 @@ const ServiceApprovalHistory: React.FC = () => {
 
     (async () => {
       try {
-        const directory = await getUserDirectory(client);
+        const directory = await withLoading(getUserDirectory(client), "Loading users...");
         if (cancelled) return;
 
         setUserLabelMap(directory.identityToUsernameMap ?? {});

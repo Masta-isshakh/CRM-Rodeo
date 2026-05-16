@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef } from "react";
 import { getDataClient } from "../../lib/amplifyClient";
 import "./editor-styles.css";
+import { useGlobalLoading } from "../../utils/GlobalLoadingContext";
 
 interface FormField {
   id: string;
@@ -16,6 +17,7 @@ interface FormsEditorProps {
 }
 
 export default function FormsEditor({ fileId, fileName }: FormsEditorProps) {
+  const { showLoading, hideLoading } = useGlobalLoading();
   const [fields, setFields] = useState<FormField[]>([]);
   const [title, setTitle] = useState(fileName || "Untitled Form");
   const [description, setDescription] = useState("");
@@ -33,6 +35,7 @@ export default function FormsEditor({ fileId, fileName }: FormsEditorProps) {
     }
 
     const loadForm = async () => {
+      showLoading("Loading form...");
       try {
         const response = await (client.models as any).FileShareItem.get({ id: fileId });
         if (response?.data) {
@@ -53,6 +56,7 @@ export default function FormsEditor({ fileId, fileName }: FormsEditorProps) {
         console.error("Failed to load form:", error);
       } finally {
         setIsLoading(false);
+        hideLoading();
       }
     };
 

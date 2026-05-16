@@ -13,6 +13,7 @@ import "./JobOrderHistory.css";
 
 import { getDataClient } from "../lib/amplifyClient";
 import { cancelJobOrderByOrderNumber, getJobOrderByOrderNumber, upsertJobOrder } from "./jobOrderRepo";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
 import { UnifiedJobOrderSummaryCard } from "../components/UnifiedJobOrderSummaryCard";
 import UnifiedBillingInvoicesSection from "../components/UnifiedBillingInvoicesSection";
@@ -146,6 +147,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   const client = useMemo(() => getDataClient(), []);
   const { t } = useLanguage();
   const { canOption } = usePermissions();
+  const { withLoading } = useGlobalLoading();
 
   const [loading, setLoading] = useState(false);
 
@@ -346,7 +348,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
 
     setLoading(true);
     try {
-      const detailed = await getJobOrderByOrderNumber(job.id);
+      const detailed = await withLoading(getJobOrderByOrderNumber(job.id), "Loading order details...");
       if (!detailed?._backendId) throw new Error(t("Order not found in backend."));
 
       // refresh the actual row too (for labels if needed)
@@ -863,7 +865,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
             </section>
 
             <div className="quality-footer">
-              <p>{t("Service Management System © 2023 | Quality Check Module")}</p>
+              <p></p>
             </div>
           </main>
         </div>

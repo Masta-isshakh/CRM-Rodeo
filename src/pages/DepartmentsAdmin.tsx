@@ -9,6 +9,7 @@ import { usePermissions } from "../lib/userPermissions";
 import PermissionGate from "./PermissionGate";
 import ConfirmationPopup from "./ConfirmationPopup";
 import { useLanguage } from "../i18n/LanguageContext";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 
 type Dept = { key: string; name: string };
 
@@ -49,8 +50,7 @@ function parseAWSJSON<T>(raw: unknown): T | null {
 }
 
 export default function DepartmentsAdmin({ permissions }: PageProps) {
-  const { t } = useLanguage();
-  if (!permissions.canRead) {
+  const { t } = useLanguage();  const { withLoading } = useGlobalLoading();  if (!permissions.canRead) {
     return <div style={{ padding: 24 }}>{t("You don’t have access to this page.")}</div>;
   }
 
@@ -86,11 +86,11 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
     setLoading(true);
     setStatus(t("Loading..."));
     try {
-      const [deptRes, rolesRes, linksRes] = await Promise.all([
+      const [deptRes, rolesRes, linksRes] = await withLoading(Promise.all([
         client.queries.adminListDepartments().catch(() => null),
         client.models.AppRole.list({ limit: 1000 }),
         client.models.DepartmentRoleLink.list({ limit: 5000 }),
-      ]);
+      ]), "Loading departments...");
 
       const anyErrors = (deptRes as any)?.errors;
       if (deptRes && Array.isArray(anyErrors) && anyErrors.length) {
