@@ -1232,8 +1232,8 @@ export default function Users(_: PageProps) {
                 </svg>
               </span>
               <div className="ums-topbar-text">
-                <div className="ums-topbar-kicker">{t("usersList")}</div>
-                <h1>{t("userManagementSystem")}</h1>
+                <div className="ums-topbar-kicker">{t("Users List")}</div>
+                <h1>{t("User Management System")}</h1>
                 <p>{t("viewAndManageUserAccountSettings")}</p>
               </div>
             </div>
@@ -1260,7 +1260,7 @@ export default function Users(_: PageProps) {
                 </div>
               </div>
 
-              <div className="ums-topbar-metrics" aria-label={t("usersList")}>
+              <div className="ums-topbar-metrics" aria-label={t("Users List")}>
                 <span className="ums-topbar-metric">{t("users")}: {users.length}</span>
                 <span className="ums-topbar-metric">{t("Active")}: {activeUsersCount}</span>
                 <span className="ums-topbar-metric">{t("Inactive")}: {inactiveUsersCount}</span>
@@ -1291,7 +1291,7 @@ export default function Users(_: PageProps) {
                   </div>
                 </div>
               </div>
-              <button className="ums-back-btn" onClick={() => setDetailsOpen(false)} aria-label={t("backToUsersList")}>
+              <button className="ums-back-btn" onClick={() => setDetailsOpen(false)} aria-label={t("Back to Users List")}>
                 {t("backToUsers")}
               </button>
             </div>
@@ -1598,7 +1598,7 @@ export default function Users(_: PageProps) {
           <div className="ums-table-header">
             <div className="ums-table-title">
               <span className="ums-list-icon" aria-hidden>≡</span>
-              <h2>{t("usersList")}</h2>
+              <h2>{t("Users List")}</h2>
             </div>
 
             <div className="ums-table-actions">
@@ -1621,14 +1621,14 @@ export default function Users(_: PageProps) {
                   disabled={!canInviteUsers}
                 >
                   <span className="ums-add-icon" aria-hidden>+</span>
-                  {t("addNewUser")}
+                  {t("Add New User")}
                 </button>
               </PermissionGate>
             </div>
           </div>
 
           {status && <div className="ums-status">{status}</div>}
-          {!canViewUsersList && <div className="ums-status">{t("usersListDisabledForRole")}</div>}
+          {!canViewUsersList && <div className="ums-status">{t("Users list is disabled for your role.")}</div>}
 
           <div className="ums-table-scroll">
             <table className="ums-table">
@@ -1728,7 +1728,7 @@ export default function Users(_: PageProps) {
           <div className="ums-modal-overlay" role="dialog" aria-modal="true">
             <div className="ums-modal">
               <div className="ums-modal-head">
-                <h3>{t("addNewUser")}</h3>
+                <h3>{t("Add New User")}</h3>
                 <button className="ums-modal-close" onClick={() => setInviteOpen(false)} aria-label={t("Close")}>
                   ✕
                 </button>

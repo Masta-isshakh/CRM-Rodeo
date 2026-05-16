@@ -39,6 +39,80 @@
     padding: 12px 8px;
   }
 
+  .customer-table-card-shell {
+    overflow: hidden !important;
+  }
+
+  .customer-table-card-shell .customers-table,
+  .customer-table-card-shell .customer-dashboard-table,
+  .customer-table-card-shell .customers-table thead,
+  .customer-table-card-shell .customer-dashboard-table thead {
+    width: 100% !important;
+  }
+
+  .customer-table-card-shell .customers-table thead,
+  .customer-table-card-shell .customer-dashboard-table thead {
+    display: none;
+  }
+
+  .customer-table-card-shell .customers-table tbody,
+  .customer-table-card-shell .customer-dashboard-table tbody,
+  .customer-table-card-shell .customers-table tr,
+  .customer-table-card-shell .customer-dashboard-table tr,
+  .customer-table-card-shell .customers-table td,
+  .customer-table-card-shell .customer-dashboard-table td {
+    display: block;
+    width: 100% !important;
+  }
+
+  .customer-table-card-shell .customers-table tbody tr,
+  .customer-table-card-shell .customer-dashboard-table tbody tr {
+    border: 1px solid #dbe6f6;
+    border-radius: 12px;
+    margin: 0 0 10px;
+    padding: 6px 10px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    box-shadow: 0 6px 14px rgba(51, 84, 160, 0.08);
+  }
+
+  .customer-table-card-shell .customers-table td,
+  .customer-table-card-shell .customer-dashboard-table td {
+    border: 0 !important;
+    border-bottom: 1px dashed #e4ecfb !important;
+    padding: 8px 0 !important;
+    text-align: left !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .customer-table-card-shell .customers-table td:last-child,
+  .customer-table-card-shell .customer-dashboard-table td:last-child {
+    border-bottom: 0 !important;
+    padding-bottom: 2px !important;
+  }
+
+  .customer-table-card-shell .customers-table td::before,
+  .customer-table-card-shell .customer-dashboard-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    color: #7c8fb5;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .customer-table-card-shell .action-dropdown-container {
+    justify-content: flex-start !important;
+  }
+
+  .customer-table-card-shell .btn-action-dropdown {
+    width: 100%;
+    min-width: 0;
+  }
+
   /* Stack the stat/KPI cards vertically */
   .customer-stats-row,
   .customers-stats-row {

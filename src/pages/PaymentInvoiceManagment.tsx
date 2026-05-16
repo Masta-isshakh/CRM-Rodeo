@@ -2309,7 +2309,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
               <div className="pim-card pim-detail-card pim-card-full bi-unified-card">
                 <div className="pim-card-head-row">
                   <h3><i className="fas fa-receipt"></i> {t("Billing & Invoices")}</h3>
-                  <div className="pim-actions">
+                  <div className="pim-actions" style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
                     <PermissionGate moduleId="payment" optionId="payment_pay">
                       <button className="pim-btn pim-btn-primary" type="button" onClick={openPaymentPopup} disabled={loading || !selectedOrder}>
                         <i className="fas fa-credit-card"></i> {t("Payment")}

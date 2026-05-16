@@ -389,15 +389,33 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   );
 
   const technicianNames = useMemo(() => {
+    const isOperationsUser = (user: any) => {
+      const deptKey = String(user?.departmentKey ?? user?.attributes?.departmentKey ?? user?.attributes?.["custom:departmentKey"] ?? "").trim().toLowerCase();
+      const deptName = String(user?.departmentName ?? user?.attributes?.departmentName ?? user?.attributes?.department ?? user?.attributes?.["custom:departmentName"] ?? "").trim().toLowerCase();
+      return deptKey === "operations" || deptName === "operations";
+    };
+
+    const operationsLabelSet = new Set<string>();
+    for (const user of activeSystemUsers) {
+      if (!isOperationsUser(user)) continue;
+      const preferredLabel =
+        String(user?.name ?? "").trim() ||
+        String(user?.fullName ?? "").trim() ||
+        String(user?.displayName ?? "").trim() ||
+        pickEmailLike(user?.email, user?.attributes?.email, user?.username);
+      if (preferredLabel) operationsLabelSet.add(preferredLabel);
+    }
+
     const byKey = new Map<string, string>();
     for (const opt of assigneeOptions) {
       const label = String(opt?.label ?? "").trim();
+      if (!operationsLabelSet.has(label)) continue;
       const key = normalizeIdentity(label);
       if (!key || byKey.has(key)) continue;
       byKey.set(key, label);
     }
     return Array.from(byKey.values());
-  }, [assigneeOptions]);
+  }, [assigneeOptions, activeSystemUsers]);
 
   const assigneeLabelByValue = useMemo(() => {
     const map = new Map<string, string>();
@@ -482,6 +500,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   const [showDetails, setShowDetails] = useState(false);
   const [currentDetailsJob, setCurrentDetailsJob] = useState<any | null>(null);
   const [isFinishingWork, setIsFinishingWork] = useState(false);
+  const [isAddingService, setIsAddingService] = useState(false);
 
   // ✅ THIS is what enables Edit/Add service to work
   const [detailsEditMode, setDetailsEditMode] = useState(false);
@@ -1074,7 +1093,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
   // Add service/package directly to JobOrder (no approval flow)
   const handleAddService = async (serviceName: string, price: number): Promise<boolean> => {
-    if (!currentDetailsJob) return false;
+    if (!currentDetailsJob || isAddingService) return false;
 
     const newService = {
       id: `SVC-${currentDetailsJob.id}-${Date.now()}`,
@@ -1096,12 +1115,24 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
     setCurrentDetailsJob(updated);
 
-    // Persist in the background so add feels instant.
-    schedulePersistJob(updated);
+    try {
+      setIsAddingService(true);
 
-    setSuccessMessage(`${t("Added successfully")}: "${serviceName}".`);
-    setShowSuccessPopup(true);
-    return true;
+      // Persist immediately so Add Service stays disabled until backend save finishes.
+      await withLoading(
+        persistJobWithOptions(updated, {
+          refetchDetails: false,
+          showErrorPopup: true,
+        }),
+        t("Saving services...")
+      );
+
+      setSuccessMessage(`${t("Added successfully")}: "${serviceName}".`);
+      setShowSuccessPopup(true);
+      return true;
+    } finally {
+      setIsAddingService(false);
+    }
   };
 
   const allServicesCompleted = useMemo(() => {
@@ -1247,6 +1278,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                   availableTechs={technicianNames}
                   availableAssignees={assigneeOptions}
                   isAdmin={canAssignService}
+                  isAddingService={isAddingService}
                 />
               </PermissionGate>
 

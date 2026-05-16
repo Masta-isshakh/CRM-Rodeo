@@ -1243,7 +1243,7 @@ export default function RoleAccessControl() {
       window.dispatchEvent(new Event("rbac:refresh"));
       const elapsedMs = Date.now() - startedAt;
       const elapsedSec = (elapsedMs / 1000).toFixed(1);
-      showMsg(`${t("savedRolePermissions")}: ${selectedRole?.name ?? currentRoleId} (${elapsedSec}s)`);
+      showMsg(`${t("Policies saved successfully")} — ${selectedRole?.name ?? currentRoleId} (${elapsedSec}s)`);
     } catch (e: any) {
       console.error(e);
       showMsg(`${t("saveFailed")}: ${e?.message ?? "Unknown error"}`);
@@ -1342,11 +1342,8 @@ export default function RoleAccessControl() {
                 disabled={loading}
               >
                 <span className="rac-add-icon" aria-hidden>+</span>
-                {t("createNewRole")}
+                {t("Create New Role")}
               </button>
-            </div>
-
-            <div className="rac-hero-body">
               <div className="rac-hero-grid">
                 <div className="rac-hero-field">
                   <label className="rac-label" htmlFor="rac-role-select">{t("selectRoleToModify")}</label>
@@ -1547,7 +1544,7 @@ export default function RoleAccessControl() {
         <div className="rac-modal-overlay" onClick={() => setShowCreateRole(false)}>
           <div className="rac-modal" onClick={(e) => e.stopPropagation()}>
             <div className="rac-modal-head">
-              <h3><i className="fas fa-user-plus" style={{ marginRight: 8 }} />{t("createNewRole")}</h3>
+              <h3><i className="fas fa-user-plus" style={{ marginRight: 8 }} />{t("Create New Role")}</h3>
               <button type="button" className="rac-modal-close" onClick={() => setShowCreateRole(false)} aria-label="Close">
                 <i className="fas fa-times" />
               </button>

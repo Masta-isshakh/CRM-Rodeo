@@ -1,6 +1,6 @@
 // src/pages/JobOrderHistory.tsx
-import { flushSync } from "react-dom";
-import  { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal, flushSync } from "react-dom";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./JobOrderHistory.css";
 
 import PermissionGate from "./PermissionGate";
@@ -721,6 +721,43 @@ export default function JobOrderHistory({
 
   const canDeleteHistory = isAdminGroup;
 
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0 });
+  const activeDropdownRef = useRef<string | null>(null);
+  const dropdownRowRef = useRef<any>(null);
+
+  const toggleDropdown = useCallback((rowId: string, anchor: HTMLElement) => {
+    if (activeDropdownRef.current === rowId) {
+      activeDropdownRef.current = null;
+      setActiveDropdown(null);
+      return;
+    }
+    const rect = anchor.getBoundingClientRect();
+    const menuH = 120, menuW = 210;
+    const spaceBelow = window.innerHeight - rect.bottom;
+    const top = spaceBelow < menuH ? rect.top - menuH - 6 : rect.bottom + 6;
+    const left = Math.max(8, Math.min(rect.right - menuW, window.innerWidth - menuW - 8));
+    flushSync(() => {
+      activeDropdownRef.current = rowId;
+      dropdownRowRef.current = null;
+      setDropdownPos({ top, left });
+      setActiveDropdown(rowId);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!activeDropdown) return;
+    const handler = (e: PointerEvent) => {
+      const t = e.target as Element;
+      if (!t.closest(".jh-action-dropdown-btn") && !t.closest(".jh-action-dropdown-menu")) {
+        activeDropdownRef.current = null;
+        setActiveDropdown(null);
+      }
+    };
+    document.addEventListener("pointerdown", handler, true);
+    return () => document.removeEventListener("pointerdown", handler, true);
+  }, [activeDropdown]);
+
   useEffect(() => {
     let cancelled = false;
 
@@ -850,7 +887,10 @@ export default function JobOrderHistory({
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
   const startIndex = (currentPage - 1) * pageSize;
-  const pageRows = filtered.slice(startIndex, startIndex + pageSize);
+  const pageRows = useMemo(
+    () => filtered.slice(startIndex, startIndex + pageSize),
+    [filtered, startIndex, pageSize]
+  );
 
   // -------------------- EXPORT --------------------
   const handleExport = () => {
@@ -1361,43 +1401,28 @@ export default function JobOrderHistory({
                   <tbody>
                     {pageRows.map((r) => (
                       <tr key={r._backendId}>
-                        <td className="jh-muted">{r.createDate || "—"}</td>
-                        <td className="jh-strong">{r.orderNumber}</td>
-                        <td>
+                        <td className="jh-muted" data-label={t("Create Date")}>{r.createDate || "—"}</td>
+                        <td className="jh-strong" data-label={t("Job Card ID")}>{r.orderNumber}</td>
+                        <td data-label={t("Order Type")}>
                           <span className={orderTypeClass(r.orderType)}>{r.orderType}</span>
                         </td>
-                        <td>{r.customerName || "—"}</td>
-                        <td>{r.mobile || "—"}</td>
-                        <td>{r.vehiclePlate || "—"}</td>
-                        <td>
+                        <td data-label={t("Customer")}>{r.customerName || "—"}</td>
+                        <td data-label={t("Mobile")}>{r.mobile || "—"}</td>
+                        <td data-label={t("Plate")}>{r.vehiclePlate || "—"}</td>
+                        <td data-label={t("Work Status")}>
                           <span className={workStatusClass(r.workStatus)}>{r.workStatus}</span>
                         </td>
-                        <td>
+                        <td data-label={t("Payment Status")}>
                           <span className={paymentStatusClass(r.paymentStatus)}>{r.paymentStatus}</span>
                         </td>
-                        <td className="jh-actions-cell">
-                          <div className="jh-row-actions" style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                            <PermissionGate moduleId="jobhistory" optionId="jobhistory_view">
-                              <button
-                                className="jh-btn jh-btn-primary"
-                                type="button"
-                                onClick={() => void openDetails(r.orderNumber, r)}
-                              >
-                                <i className="fas fa-eye" /> {t("View Details")}
-                              </button>
-                            </PermissionGate>
-
-                            {canDeleteHistory && (
-                              <button
-                                className="jh-btn jh-btn-danger"
-                                type="button"
-                                onClick={() => void handleDeleteHistory(r)}
-                                disabled={loading}
-                              >
-                                <i className="fas fa-trash" /> {t("Delete History")}
-                              </button>
-                            )}
-                          </div>
+                        <td className="jh-actions-cell" data-label={t("Actions")}>
+                          <button
+                            className="jh-btn jh-btn-secondary jh-action-dropdown-btn"
+                            type="button"
+                            onClick={(e) => { dropdownRowRef.current = r; toggleDropdown(r._backendId, e.currentTarget); }}
+                          >
+                            {t("Actions")} <i className="fas fa-chevron-down" style={{ marginLeft: 4, fontSize: 10 }} />
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -1454,9 +1479,62 @@ export default function JobOrderHistory({
         </section>
       </main>
 
-      <footer className="jh-footer">
-        <p>{t("Service Management System © 2023 | Job Order History Module")}</p>
-      </footer>
+
+
+        {/* Actions dropdown portal */}
+        {typeof document !== "undefined" && createPortal(
+          <div
+            className="jh-action-dropdown-menu"
+            style={activeDropdown ? {
+              position: "fixed",
+              top: `${dropdownPos.top}px`,
+              left: `${dropdownPos.left}px`,
+              zIndex: 10050,
+              minWidth: 210,
+              background: "#FFFFFF",
+              border: "1px solid #DDE7F6",
+              borderRadius: 10,
+              boxShadow: "0 18px 32px rgba(28,45,94,0.18)",
+              padding: 6,
+            } : { position: "fixed", top: "-9999px", left: "-9999px", visibility: "hidden" }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <PermissionGate moduleId="jobhistory" optionId="jobhistory_view">
+              <button
+                type="button"
+                style={{ width: "100%", border: "none", background: "transparent", color: "#2A3B66", fontSize: "0.84rem", fontWeight: 600, padding: "9px 10px", borderRadius: 8, display: "flex", alignItems: "center", gap: 8, cursor: "pointer", textAlign: "left" }}
+                onClick={() => {
+                  const r = dropdownRowRef.current;
+                  if (r) void openDetails(r.orderNumber, r);
+                  activeDropdownRef.current = null;
+                  setActiveDropdown(null);
+                }}
+              >
+                <i className="fas fa-eye" /> {t("View Details")}
+              </button>
+            </PermissionGate>
+            {canDeleteHistory && (
+              <>
+                <div style={{ height: 1, background: "#E6ECF8", margin: "4px 6px" }} />
+                <button
+                  type="button"
+                  style={{ width: "100%", border: "none", background: "transparent", color: "#D14343", fontSize: "0.84rem", fontWeight: 700, padding: "9px 10px", borderRadius: 8, display: "flex", alignItems: "center", gap: 8, cursor: "pointer", textAlign: "left" }}
+                  disabled={loading}
+                  onClick={() => {
+                    const r = dropdownRowRef.current;
+                    if (r) void handleDeleteHistory(r);
+                    activeDropdownRef.current = null;
+                    setActiveDropdown(null);
+                  }}
+                >
+                  <i className="fas fa-trash" /> {t("Delete History")}
+                </button>
+              </>
+            )}
+          </div>,
+          document.body
+        )}
 
       {/* Export Modal */}
       {showExportModal && (

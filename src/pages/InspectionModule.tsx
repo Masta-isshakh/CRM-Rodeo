@@ -331,7 +331,10 @@ function InspectionModule({ currentUser }: any) {
   }, [rows, searchQuery]);
 
   const totalPages = Math.ceil(filteredRows.length / pageSize) || 1;
-  const paginated = filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const paginated = useMemo(
+    () => filteredRows.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [filteredRows, currentPage, pageSize]
+  );
 
   useEffect(() => {
     const handleClickOutside = (event: any) => {
@@ -1125,9 +1128,7 @@ function InspectionModule({ currentUser }: any) {
               )}
           </main>
 
-          <footer className="app-footer">
-            <p>{t("Service Management System © 2023 | Inspection Module")}</p>
-          </footer>
+
         </div>
       )}
 

@@ -677,25 +677,25 @@ function CustomersTable(props: {
 
             return (
               <tr key={c.id} style={rowStyle}>
-                <td style={cellStyle}>
+                <td style={cellStyle} data-label={t("Customer Name")}>
                   <div className="customer-cell-primary" style={primaryInfoStyle} dangerouslySetInnerHTML={{ __html: highlight(fullName || "—", searchQuery) }} />
                 </td>
-                <td style={cellStyle}>
+                <td style={cellStyle} data-label={t("Contact Info")}>
                   <div className="customer-cell-primary" style={primaryInfoStyle} dangerouslySetInnerHTML={{ __html: highlight(c.phone ?? "—", searchQuery) }} />
                 </td>
-                <td style={cellStyle}>
+                <td style={cellStyle} data-label={t("Vehicle Make/Model")}>
                   <div className="customer-cell-primary" style={primaryInfoStyle} dangerouslySetInnerHTML={{ __html: highlight(c.company ?? "—", searchQuery) }} />
                 </td>
-                <td style={cellStyle}>
+                <td style={cellStyle} data-label={t("Recent Service")}>
                   <span className="count-badge">
                     {ct.tickets} {t("service records")}
                   </span>
                 </td>
-                <td style={cellStyle}>
+                <td style={cellStyle} data-label={t("Total Spent")}>
                   <span className="customer-cell-primary" style={primaryInfoStyle}>{t("Not available")}</span>
                 </td>
 
-                <td style={{ ...cellStyle, textAlign: "right", paddingRight: 12 }}>
+                <td style={{ ...cellStyle, textAlign: "right", paddingRight: 12 }} data-label={t("Actions")}>
                   {showAnyRowAction ? (
                     <div className="action-dropdown-container" style={{ width: "100%", display: "flex", justifyContent: "flex-end", paddingRight: 0 }}>
                       <button
@@ -1889,7 +1889,10 @@ export default function Customers({ permissions }: PageProps) {
   );
 
   const totalPages = Math.ceil(searchResults.length / pageSize) || 1;
-  const paginatedData = searchResults.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+  const paginatedData = useMemo(
+    () => searchResults.slice((currentPage - 1) * pageSize, currentPage * pageSize),
+    [searchResults, currentPage, pageSize]
+  );
 
   const resetForm = () => {
     setFormData({

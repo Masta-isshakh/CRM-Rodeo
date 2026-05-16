@@ -80,6 +80,7 @@ type Props = {
   allServicesCompleted: boolean;
   canFinishWork?: boolean;
   isFinishingWork?: boolean;
+  isAddingService?: boolean;
   editMode: boolean;
   setEditMode: (v: boolean) => void;
   availableTechs?: string[];
@@ -581,6 +582,7 @@ export default function ServiceSummaryCard({
   allServicesCompleted,
   canFinishWork = true,
   isFinishingWork = false,
+  isAddingService = false,
   editMode,
   setEditMode,
   availableTechs = [],
@@ -787,20 +789,6 @@ export default function ServiceSummaryCard({
         </span>
 
         <span style={{ display: "flex", gap: "10px" }}>
-          <PermissionGate moduleId="serviceexec" optionId="serviceexec_edit">
-            <button className={`btn-edit-save ${editMode ? "edit-mode" : ""}`} onClick={toggleEditMode}>
-              {editMode ? (
-                <>
-                  <FaSave /> Save
-                </>
-              ) : (
-                <>
-                  <FaEdit /> Edit
-                </>
-              )}
-            </button>
-          </PermissionGate>
-
           <PermissionGate moduleId="serviceexec" optionId="serviceexec_finish">
             <button className="btn-finish-work" onClick={onFinishWork} disabled={finishWorkDisabled}>
               <FaCheckDouble /> {isFinishingWork ? "Finishing..." : "Finish Work"}
@@ -808,7 +796,7 @@ export default function ServiceSummaryCard({
           </PermissionGate>
 
           <PermissionGate moduleId="serviceexec" optionId="serviceexec_addservice">
-            <button className="btn-add-service" onClick={openAddModal}>
+            <button className="btn-add-service" onClick={openAddModal} disabled={isAddingService}>
               <FaPlusCircle /> Add service
             </button>
           </PermissionGate>
@@ -883,6 +871,22 @@ export default function ServiceSummaryCard({
           </div>
         )}
       </CardErrorBoundary>
+
+      <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
+        <PermissionGate moduleId="serviceexec" optionId="serviceexec_edit">
+          <button className={`btn-edit-save ${editMode ? "edit-mode" : ""}`} onClick={toggleEditMode}>
+            {editMode ? (
+              <>
+                <FaSave /> Save
+              </>
+            ) : (
+              <>
+                <FaEdit /> Edit
+              </>
+            )}
+          </button>
+        </PermissionGate>
+      </div>
 
       {showSavedToast && (
         <div className="sem-saved-toast" role="status" aria-live="polite">

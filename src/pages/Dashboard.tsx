@@ -567,17 +567,7 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
             </div>}
           </div>}
 
-          {/* Footer */}
-          <footer className="crm-db__footer">
-            <span className="crm-db__footer-copy">
-              Service Management System © 2026 | Rodeo Drive CRM Console
-            </span>
-            <div className="crm-db__footer-lang">
-              <FiGlobe />
-              EN English (United States)
-              <FiChevronDown size={13} />
-            </div>
-          </footer>
+
 
         </div>{/* end body */}
       </main>

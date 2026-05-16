@@ -58,6 +58,7 @@ import { UnifiedBillingInvoicesCard } from "../components/UnifiedBillingInvoices
 import { UnifiedDocumentsCard } from "../components/UnifiedDocumentsCard";
 import { UnifiedQualityChecklistCard } from "../components/UnifiedQualityChecklistCard";
 import { UnifiedDeliveryTimeTrackingCard } from "../components/UnifiedDeliveryTimeTrackingCard";
+import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 import { UnifiedJobOrderRoadmapCard } from "../components/UnifiedJobOrderRoadmapCard";
 import { filterVisibleDocuments } from "../utils/documentVisibility";
 
@@ -621,6 +622,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
   const client = useMemo(() => getDataClient(), []);
   const { canOption, getOptionNumber } = usePermissions();
   const { t } = useLanguage();
+  const { showLoading, hideLoading } = useGlobalLoading();
   const [screenState, setScreenState] = useState<"main" | "details" | "newJob" | "addService">("main");
   const [currentDetailsOrder, setCurrentDetailsOrder] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -851,6 +853,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
     };
 
     try {
+      showLoading(t("Saving services..."));
       setLoadingOrders(true);
 
       const { backendId } = await upsertJobOrder(updatedOrder);
@@ -882,6 +885,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
       setScreenState("details");
     } finally {
       setLoadingOrders(false);
+      hideLoading();
     }
   };
 
@@ -1092,6 +1096,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
           maxDiscountPercent={centralDiscountPercent}
           onClose={() => setScreenState("details")}
           onSubmit={handleAddServiceSubmit}
+          isSubmitting={loadingOrders}
         />
       )}
 
@@ -1530,9 +1535,7 @@ function MainScreen({
         </section>
       </main>
 
-      <footer className="app-footer">
-        <p>{t("Service Management System (c) 2023 | Job Order Management Module")}</p>
-      </footer>
+
 
       {typeof document !== "undefined" &&
         createPortal(
@@ -3343,7 +3346,7 @@ function StepThreeServices({
 // ============================================
 // ADD SERVICE SCREEN
 // ============================================
-function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClose, onSubmit }: any) {
+function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClose, onSubmit, isSubmitting = false }: any) {
   const { t } = useLanguage();
   const [selectedServices, setSelectedServices] = useState<any[]>([]);
   const [discountPercent, setDiscountPercent] = useState(0);
@@ -3602,9 +3605,9 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
               <button
                 className="btn btn-primary"
                 onClick={() => onSubmit({ selectedServices, discountPercent: effectiveDiscountPercent })}
-                disabled={selectedServices.length === 0 || products.length === 0}
+                disabled={isSubmitting || selectedServices.length === 0 || products.length === 0}
               >
-                {t("Add Services")}
+                {isSubmitting ? t("Saving...") : t("Add Services")}
               </button>
             </div>
 

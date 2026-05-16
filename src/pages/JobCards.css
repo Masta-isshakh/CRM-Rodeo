@@ -1526,8 +1526,7 @@ mark.search-highlight {
   .customer-table-card-shell,
   .jc-job-table-shell {
     position: relative;
-    overflow-x: auto;
-    overflow-y: hidden;
+    overflow: hidden;
     -webkit-overflow-scrolling: touch;
     padding: 8px;
   }
@@ -1536,37 +1535,79 @@ mark.search-highlight {
   .customer-table-card-shell .customer-dashboard-table,
   .jc-job-table-shell .job-order-table,
   .jc-job-table-shell .jc-job-table {
-    width: max-content;
-    min-width: 1240px;
-    table-layout: auto;
+    width: 100%;
+    min-width: 0;
+    table-layout: fixed;
   }
 
-  .customer-table-card-shell .customers-table th,
-  .customer-table-card-shell .customers-table td,
-  .customer-table-card-shell .customer-dashboard-table th,
-  .customer-table-card-shell .customer-dashboard-table td,
-  .jc-job-table-shell .jc-job-table th,
+  .jc-job-table-shell .jc-job-table thead,
+  .jc-job-table-shell .job-order-table thead {
+    display: none;
+  }
+
+  .jc-job-table-shell .jc-job-table tbody,
+  .jc-job-table-shell .job-order-table tbody,
+  .jc-job-table-shell .jc-job-table tr,
+  .jc-job-table-shell .job-order-table tr,
   .jc-job-table-shell .jc-job-table td,
-  .jc-job-table-shell .job-order-table th,
   .jc-job-table-shell .job-order-table td {
-    white-space: nowrap !important;
-    word-break: normal !important;
-    overflow-wrap: normal !important;
-    padding: 6px 8px;
+    display: block;
+    width: 100%;
   }
 
-  .jc-job-table th:nth-child(1), .jc-job-table td:nth-child(1) { min-width: 126px; }
-  .jc-job-table th:nth-child(2), .jc-job-table td:nth-child(2) { min-width: 146px; }
-  .jc-job-table th:nth-child(3), .jc-job-table td:nth-child(3) { min-width: 116px; }
-  .jc-job-table th:nth-child(4), .jc-job-table td:nth-child(4) { min-width: 170px; }
-  .jc-job-table th:nth-child(5), .jc-job-table td:nth-child(5) { min-width: 120px; }
-  .jc-job-table th:nth-child(6), .jc-job-table td:nth-child(6) { min-width: 130px; }
-  .jc-job-table th:nth-child(7), .jc-job-table td:nth-child(7) { min-width: 136px; }
-  .jc-job-table th:nth-child(8), .jc-job-table td:nth-child(8) { min-width: 136px; }
-  .jc-job-table th:nth-child(9), .jc-job-table td:nth-child(9) { min-width: 156px; }
+  .jc-job-table-shell .jc-job-table tbody tr,
+  .jc-job-table-shell .job-order-table tbody tr {
+    border: 1px solid #e1e9fa;
+    border-radius: 12px;
+    margin: 0 0 10px;
+    padding: 6px 10px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    box-shadow: 0 6px 16px rgba(51, 84, 160, 0.08);
+  }
+
+  .jc-job-table-shell .jc-job-table td,
+  .jc-job-table-shell .job-order-table td {
+    border: 0;
+    border-bottom: 1px dashed #e6ecfb;
+    padding: 8px 0;
+    text-align: left !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+    font-size: 0.82rem;
+    line-height: 1.35;
+  }
+
+  .jc-job-table-shell .jc-job-table td:last-child,
+  .jc-job-table-shell .job-order-table td:last-child {
+    border-bottom: 0;
+    padding-bottom: 2px;
+  }
+
+  .jc-job-table-shell .jc-job-table td::before,
+  .jc-job-table-shell .job-order-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    color: #7c8fb5;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
 
   .jc-job-table th,
   .jc-job-table td { font-size: 0.78rem; padding: 5px 8px; }
+
+  .jc-job-table-shell .action-dropdown-container {
+    justify-content: flex-start;
+  }
+
+  .jc-job-table-shell .btn-action-dropdown {
+    width: 100%;
+    min-width: 0;
+  }
+
   .customer-details-grid,
   .jo-dashboard-grid { grid-template-columns: 1fr; }
   .customer-details-card--wide,

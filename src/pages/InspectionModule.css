@@ -1249,6 +1249,73 @@
 }
 
 @media (max-width: 768px) {
+	.inspection-module .table-wrapper {
+		overflow: hidden;
+	}
+
+	.inspection-module .job-order-table {
+		width: 100%;
+		min-width: 0;
+		table-layout: fixed;
+	}
+
+	.inspection-module .job-order-table thead {
+		display: none;
+	}
+
+	.inspection-module .job-order-table tbody,
+	.inspection-module .job-order-table tr,
+	.inspection-module .job-order-table td {
+		display: block;
+		width: 100%;
+	}
+
+	.inspection-module .job-order-table tbody tr {
+		border: 1px solid #dbe6f6;
+		border-radius: 12px;
+		margin: 0 0 10px;
+		padding: 6px 10px;
+		background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+		box-shadow: 0 6px 14px rgba(51, 84, 160, 0.08);
+	}
+
+	.inspection-module .job-order-table td {
+		border: 0;
+		border-bottom: 1px dashed #e4ecfb;
+		padding: 8px 0;
+		text-align: left !important;
+		white-space: normal !important;
+		word-break: break-word !important;
+		overflow-wrap: anywhere !important;
+		font-size: 0.82rem;
+		line-height: 1.35;
+	}
+
+	.inspection-module .job-order-table td:last-child {
+		border-bottom: 0;
+		padding-bottom: 2px;
+	}
+
+	.inspection-module .job-order-table td::before {
+		content: attr(data-label);
+		display: block;
+		margin-bottom: 4px;
+		color: #7c8fb5;
+		font-size: 0.68rem;
+		font-weight: 800;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+
+	.inspection-module .action-dropdown-container {
+		justify-content: flex-start;
+	}
+
+	.inspection-module .btn-action-dropdown {
+		width: 100%;
+		min-width: 0;
+	}
+
 	.inspection-module .main-content.customer-dashboard-main {
 		padding: 12px 8px;
 	}
@@ -1392,7 +1459,6 @@
 		margin-left: 44px;
 	}
 
-	.inspection-module .job-order-table th,
 	.inspection-module .job-order-table td {
 		padding: 6px 8px;
 		font-size: 10.5px;
