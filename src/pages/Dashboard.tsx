@@ -10,7 +10,7 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import { FiChevronDown, FiGlobe, FiLogOut, FiCalendar } from "react-icons/fi";
+import { FiChevronDown, FiLogOut, FiCalendar } from "react-icons/fi";
 import { MdTune } from "react-icons/md";
 import {
   HiOutlineViewGrid,
