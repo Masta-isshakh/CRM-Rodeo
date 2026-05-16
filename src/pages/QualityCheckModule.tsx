@@ -147,7 +147,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   const client = useMemo(() => getDataClient(), []);
   const { t } = useLanguage();
   const { canOption } = usePermissions();
-  const { withLoading } = useGlobalLoading();
+  const { withLoading, showLoading, hideLoading } = useGlobalLoading();
 
   const [loading, setLoading] = useState(false);
 
@@ -204,6 +204,8 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
 
   /* -------------------- live list from backend -------------------- */
   useEffect(() => {
+    let firstEmission = true;
+    showLoading("Loading quality check jobs...");
     const sub = (client.models.JobOrder as any)
       .observeQuery({ limit: 500 })
       .subscribe(({ items }: any) => {
@@ -248,10 +250,17 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
         mapped.sort((a, b) => String(b.createDate).localeCompare(String(a.createDate)));
 
         setAllOrders(mapped);
+        if (firstEmission) {
+          firstEmission = false;
+          hideLoading();
+        }
       });
 
-    return () => sub.unsubscribe();
-  }, [client]);
+    return () => {
+      if (firstEmission) hideLoading();
+      sub.unsubscribe();
+    };
+  }, [client, hideLoading, showLoading]);
 
   /* -------------------- search -------------------- */
   useEffect(() => {

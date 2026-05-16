@@ -1819,7 +1819,7 @@ export default function Customers({ permissions }: PageProps) {
     countsRequestRef.current = requestId;
     setLoading(true);
     try {
-      const cRes = await client.models.Customer.list({ limit: 500 });
+      const cRes = await withLoading(client.models.Customer.list({ limit: 500 }), t("Loading customers..."));
 
       const cData = (cRes.data ?? []).slice().sort((a, b) => {
         const an = `${a.name ?? ""} ${a.lastname ?? ""}`.trim().toLowerCase();
@@ -1854,7 +1854,7 @@ export default function Customers({ permissions }: PageProps) {
     } finally {
       if (countsRequestRef.current === requestId) setLoading(false);
     }
-  }, [canCustomersList, computeCounts, showAlert]);
+  }, [canCustomersList, computeCounts, showAlert, t, withLoading]);
 
   useEffect(() => {
     void load();

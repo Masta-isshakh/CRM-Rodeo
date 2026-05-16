@@ -475,7 +475,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   const client = useMemo(() => getDataClient(), []);
   const { t } = useLanguage();
   const { canOption, getOptionNumber } = usePermissions();
-  const { withLoading } = useGlobalLoading();
+  const { withLoading, showLoading, hideLoading } = useGlobalLoading();
   const [userLabelMap, setUserLabelMap] = useState<Record<string, string>>({});
 
   // ✅ numeric limit (percent)
@@ -634,6 +634,8 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
   // -------------------- live JobOrder list --------------------
   useEffect(() => {
+    let firstEmission = true;
+    showLoading("Loading payment invoices...");
     const sub = (client.models.JobOrder as any)
       .observeQuery({ limit: 500 })
       .subscribe(({ items }: any) => {
@@ -689,10 +691,17 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         });
 
         setAllOrders(mapped);
+        if (firstEmission) {
+          firstEmission = false;
+          hideLoading();
+        }
       });
 
-    return () => sub.unsubscribe();
-  }, [client]);
+    return () => {
+      if (firstEmission) hideLoading();
+      sub.unsubscribe();
+    };
+  }, [client, hideLoading, showLoading]);
 
   // -------------------- filter rules --------------------
   const filteredOrders = useMemo(() => {

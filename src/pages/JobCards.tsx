@@ -622,7 +622,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
   const client = useMemo(() => getDataClient(), []);
   const { canOption, getOptionNumber } = usePermissions();
   const { t } = useLanguage();
-  const { showLoading, hideLoading } = useGlobalLoading();
+  const { showLoading, hideLoading, withLoading } = useGlobalLoading();
   const [screenState, setScreenState] = useState<"main" | "details" | "newJob" | "addService">("main");
   const [currentDetailsOrder, setCurrentDetailsOrder] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -719,7 +719,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
   async function refreshMainOrders() {
     setLoadingOrders(true);
     try {
-      const orders = await listJobOrdersForMain();
+      const orders = await withLoading(listJobOrdersForMain(), t("Loading job cards..."));
       setDemoOrders(orders);
     } finally {
       setLoadingOrders(false);

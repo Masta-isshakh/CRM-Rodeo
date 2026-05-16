@@ -393,7 +393,7 @@ function getServiceSpecificationColor(service: any) {
 const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
   const client = useMemo(() => getDataClient(), []);
   const { t } = useLanguage();
-  const { withLoading } = useGlobalLoading();
+  const { withLoading, showLoading, hideLoading } = useGlobalLoading();
 
   const [loading, setLoading] = useState(false);
 
@@ -452,6 +452,8 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
 
   // ✅ Live list from backend (JobOrder) => filtered to eligible only
   useEffect(() => {
+    let firstEmission = true;
+    showLoading("Loading exit permit jobs...");
     const sub = (client.models.JobOrder as any)
       .observeQuery({ limit: 500 })
       .subscribe(({ items }: any) => {
@@ -502,10 +504,18 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
 
         mapped.sort((a: any, b: any) => String(b.createDate).localeCompare(String(a.createDate)));
         setAllOrders(mapped);
+
+        if (firstEmission) {
+          firstEmission = false;
+          hideLoading();
+        }
       });
 
-    return () => sub.unsubscribe();
-  }, [client]);
+    return () => {
+      if (firstEmission) hideLoading();
+      sub.unsubscribe();
+    };
+  }, [client, hideLoading, showLoading]);
 
   // Click outside handler for dropdown
   useEffect(() => {

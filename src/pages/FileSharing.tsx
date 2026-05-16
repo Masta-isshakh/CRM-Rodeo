@@ -3763,7 +3763,7 @@ export default function FileSharing({ permissions }: PageProps) {
                   <label><input type="checkbox" checked={quotaBlocked} onChange={(e) => setQuotaBlocked(e.target.checked)} /> {t("Block uploads")}</label>
                   <input value={quotaNotes} onChange={(e) => setQuotaNotes(e.target.value)} placeholder={t("Admin notes")} />
                 </div>
-                <div className="drive-inline-actions">
+                <div className="drive-inline-actions drive-admin-primary-actions">
                   <button type="button" onClick={() => void saveQuota(quotaEditorTarget)} disabled={!(canManageQuota || isAdminGroup)}>{t("Save quota policy")}</button>
                   <button type="button" onClick={() => setShowAdvancedAdmin((prev) => !prev)}>{showAdvancedAdmin ? t("Hide advanced") : t("Show advanced")}</button>
                 </div>
@@ -3835,7 +3835,7 @@ export default function FileSharing({ permissions }: PageProps) {
                   <label><input type="checkbox" checked={driveRequireApprovalForDelete} onChange={(e) => setDriveRequireApprovalForDelete(e.target.checked)} /> {t("Require manager approval for deletes")}</label>
                   <label><input type="checkbox" checked={driveRequireApprovalForFolderCreate} onChange={(e) => setDriveRequireApprovalForFolderCreate(e.target.checked)} /> {t("Require manager approval for folder creation")}</label>
                 </div>
-                <div className="drive-inline-actions">
+                <div className="drive-inline-actions drive-admin-primary-actions">
                   <button type="button" onClick={() => void saveDepartmentDrive()} disabled={!driveDepartmentKey}>{t("Save department drive")}</button>
                 </div>
                 <div className="drive-card-title drive-top-gap">{t("Admin capabilities")}</div>

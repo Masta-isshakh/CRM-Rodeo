@@ -694,7 +694,7 @@ export default function JobOrderHistory({
   const client = useMemo(() => getDataClient(), []);
   const { t } = useLanguage();
   const { isAdminGroup } = usePermissions();
-  const { withLoading } = useGlobalLoading();
+  const { withLoading, showLoading, hideLoading } = useGlobalLoading();
 
   const [loading, setLoading] = useState(false);
 
@@ -788,6 +788,8 @@ export default function JobOrderHistory({
 
   // -------------------- LIVE HISTORY LIST --------------------
   useEffect(() => {
+    let firstEmission = true;
+    showLoading("Loading job history...");
     const sub = (client.models.JobOrder as any)
       .observeQuery({
         limit: 500,
@@ -850,10 +852,17 @@ export default function JobOrderHistory({
         mapped.sort((a, b) => String(b.createdAtIso).localeCompare(String(a.createdAtIso)));
 
         setRows(mapped);
+        if (firstEmission) {
+          firstEmission = false;
+          hideLoading();
+        }
       });
 
-    return () => sub.unsubscribe();
-  }, [client]);
+    return () => {
+      if (firstEmission) hideLoading();
+      sub.unsubscribe();
+    };
+  }, [client, hideLoading, showLoading]);
 
   // -------------------- NAVIGATION IN (optional) --------------------
   useEffect(() => {

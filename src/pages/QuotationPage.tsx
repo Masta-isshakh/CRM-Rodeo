@@ -427,7 +427,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
       setLoadingCatalog(true);
       setStatus("");
       try {
-        const rows = await listServiceCatalog();
+        const rows = await withLoading(listServiceCatalog(), t("Loading quotation services..."));
         if (!mounted) return;
         setCatalog(rows.filter((item) => item.isActive !== false));
       } catch (e: any) {
@@ -441,7 +441,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     return () => {
       mounted = false;
     };
-  }, [t]);
+  }, [t, withLoading]);
 
   const maxDiscountPercent = useMemo(
     () => resolveCentralDiscountPercent(canOption, getOptionNumber),

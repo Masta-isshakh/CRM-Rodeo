@@ -149,13 +149,18 @@ const overlayCSS = `
 .glb-spinner-ring {
   width: 100%;
   height: 100%;
+  display: block;
   border-radius: 50%;
   border: 4px solid rgba(47, 125, 225, 0.18);
   border-top-color: #2f7de1;
-  animation: glbSpin 0.75s linear infinite;
+  border-right-color: #1f66c2;
+  transform-origin: 50% 50%;
+  will-change: transform;
+  animation: glbSpin 0.75s linear infinite !important;
 }
 
 @keyframes glbSpin {
+  from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
 }
 

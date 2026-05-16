@@ -1072,7 +1072,7 @@ export default function VehicleManagement({
   const loadVehicles = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await client.models.Vehicle.list({ limit: 500 });
+      const res = await withLoading(client.models.Vehicle.list({ limit: 500 }), t("Loading vehicles..."));
       const nextVehicles = (res.data ?? []) as VehicleRow[];
       const byBusinessId = new Map<string, VehicleRow>();
       for (const row of nextVehicles) {
@@ -1089,7 +1089,7 @@ export default function VehicleManagement({
     } finally {
       setLoading(false);
     }
-  }, [showAlert, t]);
+  }, [showAlert, t, withLoading]);
 
   const loadCompletedServicesByPlate = useCallback(async () => {
     try {

@@ -311,7 +311,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   const client = useMemo(() => getDataClient(), []);
   const { isAdminGroup, canOption } = usePermissions();
   const { t } = useLanguage();
-  const { withLoading } = useGlobalLoading();
+  const { withLoading, showLoading, hideLoading } = useGlobalLoading();
 
   // live list from backend
   const [jobs, setJobs] = useState<any[]>([]);
@@ -641,6 +641,8 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
   // Live backend list
   useEffect(() => {
+    let firstEmission = true;
+    showLoading("Loading service execution jobs...");
     const sub = (client.models.JobOrder as any)
       .observeQuery({
         limit: 500,
@@ -677,10 +679,17 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
           };
         });
         setJobs(mapped);
+        if (firstEmission) {
+          firstEmission = false;
+          hideLoading();
+        }
       });
 
-    return () => sub.unsubscribe();
-  }, [client]);
+    return () => {
+      if (firstEmission) hideLoading();
+      sub.unsubscribe();
+    };
+  }, [client, hideLoading, showLoading]);
 
   // tab/search resets
   useEffect(() => setCurrentPage(1), [currentTab, currentSearch, pageSize]);
