@@ -475,18 +475,21 @@ export default function InternalChat({ permissions }: PageProps) {
     setSending(true);
     setStatusMsg("");
     try {
-      await ChatModel.create({
-        messageOwner: selfOwner || selfEmail,
-        conversationKey,
-        channelType: activeConversation?.channelType ?? "GLOBAL",
-        senderEmail: selfEmail,
-        senderName: selfName,
-        recipientEmail: activeConversation?.recipientEmail,
-        body: draft.trim(),
-        createdAt: new Date().toISOString(),
-      });
+      await withLoading(
+        ChatModel.create({
+          messageOwner: selfOwner || selfEmail,
+          conversationKey,
+          channelType: activeConversation?.channelType ?? "GLOBAL",
+          senderEmail: selfEmail,
+          senderName: selfName,
+          recipientEmail: activeConversation?.recipientEmail,
+          body: draft.trim(),
+          createdAt: new Date().toISOString(),
+        }),
+        t("Sending message...")
+      );
       setDraft("");
-      await loadMessages(conversationKey);
+      await withLoading(loadMessages(conversationKey), t("Refreshing conversation..."));
     } catch (err: any) {
       setStatusMsg(err?.message || t("Message could not be sent."));
     } finally {

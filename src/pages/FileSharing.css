@@ -1213,6 +1213,61 @@
 	z-index: 120;
 }
 
+.drive-view-overlay-backdrop {
+	position: fixed;
+	inset: 0;
+	z-index: 85;
+	background: rgba(7, 17, 48, 0.5);
+	backdrop-filter: blur(5px);
+	-webkit-backdrop-filter: blur(5px);
+}
+
+.drive-main.drive-main-overlay-open {
+	position: fixed;
+	inset: 14px;
+	z-index: 90;
+	border-radius: 14px;
+	border: 1px solid #d8e4fb;
+	background: linear-gradient(180deg, #fbfcff 0%, #ffffff 100%);
+	box-shadow: 0 28px 56px rgba(8, 21, 58, 0.35);
+	overflow: auto;
+	padding: 12px;
+	padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+}
+
+.drive-overlay-titlebar {
+	position: sticky;
+	top: 0;
+	z-index: 2;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+	margin: -2px -2px 10px;
+	padding: 10px;
+	border-radius: 10px;
+	border: 1px solid #dce7f9;
+	background: linear-gradient(90deg, #eef4ff 0%, #e8f7ff 100%);
+}
+
+.drive-overlay-title {
+	font-size: 0.92rem;
+	font-weight: 800;
+	letter-spacing: 0.03em;
+	text-transform: uppercase;
+	color: #102a68;
+}
+
+.drive-overlay-close {
+	border: 1px solid #cfdcf5;
+	background: #ffffff;
+	color: #4b5e95;
+	font-size: 0.82rem;
+	font-weight: 800;
+	padding: 6px 10px;
+	border-radius: 8px;
+}
+
 @media (max-width: 1250px) {
 	.drive-overview-grid,
 	.drive-admin-summary-grid {
@@ -1263,6 +1318,22 @@
 }
 
 @media (max-width: 768px) {
+	.drive-main.drive-main-overlay-open {
+		inset: 6px;
+		border-radius: 12px;
+		padding: 10px;
+		padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+	}
+
+	.drive-overlay-titlebar {
+		padding: 8px;
+		margin-bottom: 8px;
+	}
+
+	.drive-overlay-title {
+		font-size: 0.84rem;
+	}
+
 	.filesharing-section-head {
 		gap: 10px !important;
 	}
@@ -1512,6 +1583,29 @@
 }
 
 @media (max-width: 320px) {
+	.drive-main.drive-main-overlay-open {
+		inset: 4px;
+		border-radius: 10px;
+		padding: 8px;
+		padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+	}
+
+	.drive-overlay-titlebar {
+		padding: 7px;
+		gap: 6px;
+	}
+
+	.drive-overlay-title {
+		font-size: 0.78rem;
+		letter-spacing: 0.02em;
+	}
+
+	.drive-overlay-close {
+		font-size: 0.76rem;
+		padding: 6px 8px;
+		min-height: 34px;
+	}
+
 	.drive-admin-layout {
 		gap: 6px;
 		padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));

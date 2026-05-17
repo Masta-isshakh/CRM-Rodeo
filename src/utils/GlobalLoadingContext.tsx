@@ -69,6 +69,7 @@ export function GlobalLoadingProvider({ children }: { children: ReactNode }) {
     <GlobalLoadingContext.Provider
       value={{ showLoading, hideLoading, withLoading, isLoading: state.active }}
     >
+      <style>{overlayCSS}</style>
       {children}
       {state.active && <GlobalLoadingOverlay message={state.message} />}
     </GlobalLoadingContext.Provider>
@@ -85,19 +86,16 @@ export function useGlobalLoading(): GlobalLoadingContextValue {
 }
 
 /* ─── Overlay UI ─────────────────────────────────────────────────────────── */
-function GlobalLoadingOverlay({ message }: { message: string }) {
+export function GlobalLoadingOverlay({ message }: { message: string }) {
   return (
-    <>
-      <style>{overlayCSS}</style>
-      <div className="glb-loading-backdrop" role="status" aria-live="polite">
-        <div className="glb-loading-card">
-          <div className="glb-spinner" aria-hidden="true">
-            <div className="glb-spinner-ring" />
-          </div>
-          {message && <p className="glb-loading-msg">{message}</p>}
+    <div className="glb-loading-backdrop" role="status" aria-live="polite">
+      <div className="glb-loading-card">
+        <div className="glb-spinner" aria-hidden="true">
+          <div className="glb-spinner-ring" />
         </div>
+        {message && <p className="glb-loading-msg">{message}</p>}
       </div>
-    </>
+    </div>
   );
 }
 

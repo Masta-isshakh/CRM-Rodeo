@@ -504,6 +504,7 @@ export default function FileSharing({ permissions }: PageProps) {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("");
   const [view, setView] = useState<DriveView>("home");
+  const [activePopupView, setActivePopupView] = useState<DriveView | null>(null);
   const [layout, setLayout] = useState<LayoutMode>("grid");
   const [sortBy, setSortBy] = useState<SortBy>("custom");
   const [currentFolder, setCurrentFolder] = useState("");
@@ -588,6 +589,41 @@ export default function FileSharing({ permissions }: PageProps) {
   const canRestoreVersions = canOption("filesharing", "filesharing_version_restore", false);
   const canViewAnalytics = canManageAll || canOption("filesharing", "filesharing_view_analytics", false);
   const canCrossDepartment = canManageAll || canOption("filesharing", "filesharing_cross_department", false);
+  const isDrivePopupOpen = activePopupView !== null;
+
+  const closeDrivePopup = useCallback(() => {
+    setActivePopupView(null);
+    setView("home");
+    setCurrentFolder("");
+    setContextMenu(null);
+    setRowMenuId("");
+  }, []);
+
+  const openDrivePopup = useCallback((nextView: DriveView, nextFolder = "") => {
+    setView(nextView);
+    setCurrentFolder(nextFolder);
+    setActivePopupView(nextView);
+    setContextMenu(null);
+    setRowMenuId("");
+    setIsNewMenuOpen(false);
+  }, []);
+
+  useEffect(() => {
+    if (!isDrivePopupOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeDrivePopup();
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", onKeyDown);
+    };
+  }, [closeDrivePopup, isDrivePopupOpen]);
 
   const logActivity = useCallback(
     async (entityId: string, action: string, message: string) => {
@@ -2585,11 +2621,9 @@ export default function FileSharing({ permissions }: PageProps) {
   const openRow = async (row: any) => {
     if (isFolder(row)) {
       if (isDepartmentDriveRoot(row)) {
-        setView("dept");
-        setCurrentFolder(departmentDrivePath(String(row?.ownerDepartmentKey ?? "").trim()));
+        openDrivePopup("dept", departmentDrivePath(String(row?.ownerDepartmentKey ?? "").trim()));
       } else {
-        setView("my");
-        setCurrentFolder(getFolderTargetPath(row));
+        openDrivePopup("my", getFolderTargetPath(row));
       }
       return;
     }
@@ -3034,7 +3068,7 @@ export default function FileSharing({ permissions }: PageProps) {
             </div>
             <div className="drive-share-modal-footer">
               <button type="button" onClick={closeShareModal}>{t("Cancel")}</button>
-              <button type="button" className="filesharing-primary" onClick={() => void saveSharePermissions()}>{t("Save")}</button>
+              <button type="button" className="filesharing-primary" onClick={() => void withLoading(saveSharePermissions(), t("Saving sharing permissions..."))}>{t("Save")}</button>
             </div>
           </div>
         </div>
@@ -3114,7 +3148,7 @@ export default function FileSharing({ permissions }: PageProps) {
                   <button
                     type="button"
                     style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid #DDE7F6", background: "#F7F9FF", color: "#5D54FF", fontSize: "0.88rem", fontWeight: 700, cursor: "pointer" }}
-                    onClick={() => setView("admin")}
+                    onClick={() => openDrivePopup("admin")}
                   >
                     <i className="fas fa-shield-halved" /> {t("Admin console")}
                   </button>
@@ -3160,6 +3194,7 @@ export default function FileSharing({ permissions }: PageProps) {
         </section>
 
       <section className="drive-shell">
+        {isDrivePopupOpen ? <div className="drive-view-overlay-backdrop" onClick={closeDrivePopup} /> : null}
         <aside className="drive-sidebar">
           <section className="drive-storage-card">
             <div className="drive-storage-card-top">
@@ -3192,15 +3227,15 @@ export default function FileSharing({ permissions }: PageProps) {
             ) : null}
           </div>
 
-          <button type="button" className={view === "home" ? "active" : ""} onClick={() => { setView("home"); setCurrentFolder(""); }}>{t("Home")}</button>
-          <button type="button" className={view === "my" ? "active" : ""} onClick={() => { setView("my"); setCurrentFolder(""); }}>{t("My Drive")}</button>
-          <button type="button" className={view === "shared" ? "active" : ""} onClick={() => { setView("shared"); setCurrentFolder(""); }}>{t("Shared with me")}</button>
-          <button type="button" className={view === "recent" ? "active" : ""} onClick={() => { setView("recent"); setCurrentFolder(""); }}>{t("Recent")}</button>
-          <button type="button" className={view === "starred" ? "active" : ""} onClick={() => { setView("starred"); setCurrentFolder(""); }}>{t("Starred")}</button>
-          <button type="button" className={view === "dept" ? "active" : ""} onClick={() => { setView("dept"); setCurrentFolder(""); }}>{t("Department")}</button>
-          <button type="button" className={view === "org" ? "active" : ""} onClick={() => { setView("org"); setCurrentFolder(""); }}>{t("Organization")}</button>
-          <button type="button" className={view === "trash" ? "active" : ""} onClick={() => { setView("trash"); setCurrentFolder(""); }}>{t("Trash")}</button>
-          {canAdminPanel ? <button type="button" className={view === "admin" ? "active" : ""} onClick={() => setView("admin")}>{t("Drive Admin")}</button> : null}
+          <button type="button" className={view === "home" ? "active" : ""} onClick={closeDrivePopup}>{t("Home")}</button>
+          <button type="button" className={view === "my" ? "active" : ""} onClick={() => openDrivePopup("my")}>{t("My Drive")}</button>
+          <button type="button" className={view === "shared" ? "active" : ""} onClick={() => openDrivePopup("shared")}>{t("Shared with me")}</button>
+          <button type="button" className={view === "recent" ? "active" : ""} onClick={() => openDrivePopup("recent")}>{t("Recent")}</button>
+          <button type="button" className={view === "starred" ? "active" : ""} onClick={() => openDrivePopup("starred")}>{t("Starred")}</button>
+          <button type="button" className={view === "dept" ? "active" : ""} onClick={() => openDrivePopup("dept")}>{t("Department")}</button>
+          <button type="button" className={view === "org" ? "active" : ""} onClick={() => openDrivePopup("org")}>{t("Organization")}</button>
+          <button type="button" className={view === "trash" ? "active" : ""} onClick={() => openDrivePopup("trash")}>{t("Trash")}</button>
+          {canAdminPanel ? <button type="button" className={view === "admin" ? "active" : ""} onClick={() => openDrivePopup("admin")}>{t("Drive Admin")}</button> : null}
 
           {view !== "admin" ? (
             <div className="drive-folder-tree">
@@ -3213,8 +3248,7 @@ export default function FileSharing({ permissions }: PageProps) {
                     type="button"
                     className={currentFolder === targetPath ? "active" : dragTargetPath === targetPath ? "drag-target" : ""}
                     onClick={() => {
-                      setView("dept");
-                      setCurrentFolder(targetPath);
+                      openDrivePopup("dept", targetPath);
                     }}
                     onDragOver={(event) => handleFolderDragOver(event, targetPath)}
                     onDragLeave={() => setDragTargetPath("")}
@@ -3252,7 +3286,7 @@ export default function FileSharing({ permissions }: PageProps) {
           ) : null}
         </aside>
 
-        <main className="drive-main">
+        <main className={`drive-main${isDrivePopupOpen ? " drive-main-overlay-open" : ""}`}>
           <input
             ref={uploadInputRef}
             id="fs-file-input"
@@ -3265,6 +3299,13 @@ export default function FileSharing({ permissions }: PageProps) {
               e.target.value = "";
             }}
           />
+
+          {isDrivePopupOpen ? (
+            <section className="drive-overlay-titlebar">
+              <div className="drive-overlay-title">{view === "admin" ? t("Drive Admin") : t("Drive Workspace")}</div>
+              <button type="button" className="drive-overlay-close" onClick={closeDrivePopup}>{t("Close")}</button>
+            </section>
+          ) : null}
 
           {view !== "admin" ? (
             <>
@@ -3323,10 +3364,10 @@ export default function FileSharing({ permissions }: PageProps) {
                 <section className="drive-card drive-bulk-bar">
                   <strong>{selectedIds.length} {t("selected")}</strong>
                   <div className="drive-inline-actions">
-                    {canMove ? <button type="button" onClick={() => void bulkMove()}>{t("Move")}</button> : null}
-                    {canCreateShareLink ? <button type="button" onClick={() => void bulkShare()}>{t("Share")}</button> : null}
-                    {canStar ? <button type="button" onClick={() => void bulkStar()}>{t("Star")}</button> : null}
-                    <button type="button" className="danger" onClick={() => void bulkDelete()}>{t("Delete")}</button>
+                    {canMove ? <button type="button" onClick={() => void withLoading(bulkMove(), t("Moving selected items..."))}>{t("Move")}</button> : null}
+                    {canCreateShareLink ? <button type="button" onClick={() => void withLoading(bulkShare(), t("Sharing selected items..."))}>{t("Share")}</button> : null}
+                    {canStar ? <button type="button" onClick={() => void withLoading(bulkStar(), t("Updating stars..."))}>{t("Star")}</button> : null}
+                    <button type="button" className="danger" onClick={() => void withLoading(bulkDelete(), t("Deleting selected items..."))}>{t("Delete")}</button>
                     <button type="button" onClick={() => setSelectedIds([])}>{t("Clear")}</button>
                   </div>
                 </section>
@@ -3473,7 +3514,7 @@ export default function FileSharing({ permissions }: PageProps) {
                             <span>{space.filesCount} {t("files")}</span>
                             <span>{formatBytes(space.totalBytes)}</span>
                           </div>
-                          <button type="button" onClick={() => { setView("dept"); setCurrentFolder(departmentDrivePath(space.key)); }}>{t("Open workspace")}</button>
+                          <button type="button" onClick={() => openDrivePopup("dept", departmentDrivePath(space.key))}>{t("Open workspace")}</button>
                         </div>
                       )) : <div className="filesharing-empty">{t("No department spaces available yet")}</div>}
                     </div>
@@ -3921,13 +3962,13 @@ export default function FileSharing({ permissions }: PageProps) {
                         <div className="drive-approval-actions">
                           {String(row?.requestStatus ?? "").toUpperCase() === "PENDING" && canResolve ? (
                             <>
-                              <button type="button" onClick={() => void handleApprovalDecision(row, "APPROVED", true)}>{t("Approve & Execute")}</button>
-                              <button type="button" onClick={() => void handleApprovalDecision(row, "APPROVED")}>{t("Approve")}</button>
-                              <button type="button" onClick={() => void handleApprovalDecision(row, "REJECTED")}>{t("Reject")}</button>
+                              <button type="button" onClick={() => void withLoading(handleApprovalDecision(row, "APPROVED", true), t("Approving and executing request..."))}>{t("Approve & Execute")}</button>
+                              <button type="button" onClick={() => void withLoading(handleApprovalDecision(row, "APPROVED"), t("Approving request..."))}>{t("Approve")}</button>
+                              <button type="button" onClick={() => void withLoading(handleApprovalDecision(row, "REJECTED"), t("Rejecting request..."))}>{t("Reject")}</button>
                             </>
                           ) : null}
                           {String(row?.requestStatus ?? "").toUpperCase() === "PENDING" && !canResolve && isRequester ? (
-                            <button type="button" onClick={() => void handleApprovalDecision(row, "CANCELLED")}>{t("Cancel")}</button>
+                            <button type="button" onClick={() => void withLoading(handleApprovalDecision(row, "CANCELLED"), t("Cancelling request..."))}>{t("Cancel")}</button>
                           ) : null}
                         </div>
                       </div>

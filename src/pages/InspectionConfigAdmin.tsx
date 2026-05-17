@@ -118,7 +118,7 @@ export default function InspectionConfigAdmin({ currentUser }: any) {
             <button className="btn btn-primary" onClick={validate} disabled={loading}>
               <i className="fas fa-check"></i> Validate JSON
             </button>
-            <button className="btn btn-success" onClick={() => void save()} disabled={loading}>
+            <button className="btn btn-success" onClick={() => void withLoading(save(), "Saving inspection config...")} disabled={loading}>
               <i className="fas fa-save"></i> {loading ? "Saving..." : "Save to Backend"}
             </button>
           </div>

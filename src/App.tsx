@@ -6,7 +6,7 @@ import SetPasswordPage from "./pages/SetPassword";
 import { getDataClient } from "./lib/amplifyClient";
 import appLogo from "./assets/logo.jpeg";
 import { LANGUAGE_STORAGE_KEY, translateTextValue, type LanguageCode } from "./i18n/translations";
-import { GlobalLoadingProvider } from "./utils/GlobalLoadingContext";
+import { GlobalLoadingOverlay, GlobalLoadingProvider, useGlobalLoading } from "./utils/GlobalLoadingContext";
 import "./App.css";
 
 const MainLayout = lazy(() => import("./components/MainLayout"));
@@ -278,6 +278,7 @@ const authComponents = {
 export default function App() {
   const [blockedMessage, setBlockedMessage] = useState("");
   const [isBlockedBannerLeaving, setIsBlockedBannerLeaving] = useState(false);
+  const [authSubmitting, setAuthSubmitting] = useState(false);
   const path = window.location.pathname;
 
   useEffect(() => {
@@ -338,6 +339,7 @@ export default function App() {
 
   const authServices = {
     async handleSignIn(input: any) {
+      setAuthSubmitting(true);
       const rawUsername = String(input?.username ?? input?.email ?? "").trim().toLowerCase();
       const emailKey = rawUsername;
 
@@ -398,6 +400,8 @@ export default function App() {
           }
         }
         throw error;
+      } finally {
+        setAuthSubmitting(false);
       }
     },
   };
@@ -406,7 +410,9 @@ export default function App() {
   if (path.startsWith("/set-password")) {
     return (
       <AppErrorBoundary>
-        <SetPasswordPage />
+        <GlobalLoadingProvider>
+          <SetPasswordPage />
+        </GlobalLoadingProvider>
       </AppErrorBoundary>
     );
   }
@@ -423,6 +429,7 @@ export default function App() {
             <span>{blockedMessage}</span>
           </div>
         )}
+        {authSubmitting ? <GlobalLoadingOverlay message={tr("Signing you in...")} /> : null}
         <ThemeProvider theme={crmAuthTheme as any}>
           <Authenticator 
             hideSignUp 
@@ -440,6 +447,7 @@ export default function App() {
 
 function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
   const client = useMemo(() => getDataClient(), []);
+  const { showLoading, hideLoading } = useGlobalLoading();
   const { signOut } = useAuthenticator((context) => [context.user]);
     const [sessionChecked, setSessionChecked] = useState(() => {
       try {
@@ -552,6 +560,7 @@ function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
 
   useEffect(() => {
     let cancelled = false;
+    showLoading(tr("Loading workspace..."));
     const debugEnabled =
       import.meta.env.DEV ||
       import.meta.env.VITE_DEBUG_SESSION_CHECK === "true" ||
@@ -612,6 +621,7 @@ function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
       } finally {
         debugLog("Session verification completed");
         if (!cancelled) setSessionChecked(true);
+        hideLoading();
       }
             try {
               window.sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify({ at: Date.now() }));
@@ -622,8 +632,9 @@ function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
 
     return () => {
       cancelled = true;
+      hideLoading();
     };
-  }, [client, onBlocked, signOut]);
+  }, [client, hideLoading, onBlocked, showLoading, signOut]);
 
   if (!sessionChecked) {
     return (
