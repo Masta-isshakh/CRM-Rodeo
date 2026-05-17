@@ -157,6 +157,14 @@
   gap: 6px;
 }
 
+.quotation-bottom-actions {
+  margin-top: 14px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+}
+
 .quotation-card {
   position: relative;
   background: linear-gradient(180deg, #fbfcff 0%, #ffffff 100%);
@@ -179,15 +187,15 @@
 
 .quotation-card h3 {
   margin: 0;
-  padding: 12px 16px 11px;
+  padding: 10px 14px 9px;
   display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 10px;
   width: 100%;
   border-bottom: 2px solid #dde6f4;
   background: linear-gradient(180deg, #fefeff 0%, #fdfeff 100%);
   color: #111827;
-  font-size: 11px;
+  font-size: 10.5px;
   font-weight: 800;
   line-height: 1.34;
   letter-spacing: 0.05em;
@@ -195,8 +203,8 @@
 }
 
 .quotation-card h3 i {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   background: linear-gradient(180deg, #ffffff 0%, #eef3ff 100%);
   border: 1px solid #d8e1f7;
@@ -205,7 +213,7 @@
   align-items: center;
   justify-content: center;
   color: #5d54ff;
-  font-size: 13px;
+  font-size: 12px;
   flex-shrink: 0;
 }
 
@@ -301,9 +309,9 @@
 
 .quotation-catalog-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding-bottom: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+  gap: 6px;
+  padding-bottom: 10px;
 }
 
 .quotation-chip {
@@ -311,27 +319,27 @@
   border-radius: 10px;
   background: #f6f9ff;
   color: #0f2a66;
-  padding: 10px 12px;
+  padding: 8px 9px;
   text-align: left;
   cursor: pointer;
   display: grid;
-  gap: 4px;
+  gap: 3px;
   transition: all 0.16s ease;
 }
 
 .quotation-chip strong {
   color: #0f2a66;
-  font-size: 0.9rem;
+  font-size: 0.82rem;
   font-weight: 700;
-  line-height: 1.28;
+  line-height: 1.2;
   letter-spacing: 0.01em;
 }
 
 .quotation-chip span {
   color: #6f7ea8;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 600;
-  line-height: 1.4;
+  line-height: 1.25;
   letter-spacing: 0.01em;
 }
 
@@ -342,7 +350,7 @@
 }
 
 .quotation-summary-list {
-  padding-top: 12px;
+  padding-top: 10px;
   padding-bottom: 8px;
 }
 
@@ -377,7 +385,7 @@
 .quotation-summary-row strong {
   display: block;
   color: #0f2a66;
-  font-size: 0.9rem;
+  font-size: 0.84rem;
   font-weight: 700;
   line-height: 1.28;
   letter-spacing: 0.01em;
@@ -395,7 +403,7 @@
 
 .quotation-summary-row > div:last-child {
   color: #0f2a66;
-  font-size: 0.9rem;
+  font-size: 0.84rem;
   font-weight: 700;
   line-height: 1.28;
   letter-spacing: 0.01em;
@@ -430,7 +438,7 @@
 
 .quotation-totals > div span {
   color: #6f7ea8;
-  font-size: 10.5px;
+  font-size: 10px;
   font-weight: 600;
   letter-spacing: 0.01em;
   line-height: 1.4;
@@ -438,7 +446,7 @@
 
 .quotation-totals > div strong {
   color: #0f2a66;
-  font-size: 0.92rem;
+  font-size: 0.86rem;
   font-weight: 600;
   line-height: 1.34;
   letter-spacing: 0.01em;
@@ -475,10 +483,6 @@
   .quotation-grid {
     grid-template-columns: 1fr;
   }
-
-  .quotation-catalog-grid {
-    grid-template-columns: 1fr;
-  }
 }
 
 @media (max-width: 768px) {
@@ -507,6 +511,10 @@
   .quotation-generate-btn {
     width: 100%;
     justify-content: center;
+  }
+
+  .quotation-bottom-actions {
+    justify-content: stretch;
   }
 
   .quotation-form-grid,
@@ -553,6 +561,6 @@
   }
 
   .quotation-chip {
-    padding: 9px 10px;
+    padding: 8px 9px;
   }
 }

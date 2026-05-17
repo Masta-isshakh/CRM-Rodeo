@@ -536,6 +536,7 @@ export default function CampaignAudienceAdmin() {
   const client = getDataClient();
   const { t } = useLanguage();
   const { withLoading } = useGlobalLoading();
+  const [copyPopup, setCopyPopup] = useState<{ title: string; message: string } | null>(null);
 
   const [batches, setBatches] = useState<CampaignImportBatch[]>([]);
   const [leads, setLeads] = useState<CampaignLead[]>([]);
@@ -1232,12 +1233,18 @@ export default function CampaignAudienceAdmin() {
 
     if (values.length === 0) return;
     if (!navigator.clipboard?.writeText) {
-      window.alert("Clipboard access is not available in this browser.");
+      setCopyPopup({
+        title: t("Copy mobile numbers"),
+        message: t("Clipboard access is not available in this browser."),
+      });
       return;
     }
 
     await navigator.clipboard.writeText(values.join("\n"));
-    window.alert("Filtered values copied to the clipboard.");
+    setCopyPopup({
+      title: t("Copy mobile numbers"),
+      message: t("Filtered values copied to the clipboard."),
+    });
   };
 
   const handleExportCsv = () => {
@@ -1307,6 +1314,29 @@ export default function CampaignAudienceAdmin() {
         <section className="campaign-card">
           <div className="campaign-card-head">
             <div>
+
+            {copyPopup && (
+              <div className="campaign-modal-overlay" role="dialog" aria-modal="true" aria-labelledby="campaign-copy-popup-title">
+                <div className="campaign-modal campaign-copy-popup" onClick={(e) => e.stopPropagation()}>
+                  <div className="campaign-modal-head">
+                    <h3 id="campaign-copy-popup-title">
+                      <i className="fas fa-clipboard-check" aria-hidden="true" /> {copyPopup.title}
+                    </h3>
+                    <button type="button" className="campaign-modal-close" onClick={() => setCopyPopup(null)} aria-label={t("Close")}>
+                      <i className="fas fa-times" aria-hidden="true" />
+                    </button>
+                  </div>
+                  <div className="campaign-modal-body">
+                    <p className="campaign-copy-popup-message">{copyPopup.message}</p>
+                  </div>
+                  <div className="campaign-modal-footer">
+                    <button type="button" className="btn btn-primary" onClick={() => setCopyPopup(null)}>
+                      {t("OK")}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
               <h2>{t("Excel Import")}</h2>
               <p>{t("Preview the workbook and upload all records into the campaign audience database table.")}</p>
             </div>

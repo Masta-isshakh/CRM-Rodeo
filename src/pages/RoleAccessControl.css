@@ -103,6 +103,8 @@
 	gap: 10px;
 	padding: 11px 14px;
 	background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+	white-space: normal;
+	overflow-wrap: anywhere;
 	border-bottom: 1px solid #dde7f6;
 }
 
@@ -547,6 +549,15 @@
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
 	white-space: nowrap;
+}
+
+.rac-label,
+.rac-current-role-label,
+.rac-search::placeholder,
+.rac-details-page-sub,
+.rac-module-meta {
+	word-spacing: 0.1em;
+	letter-spacing: 0.02em;
 }
 
 .rac-expand-icon {
@@ -996,6 +1007,12 @@
 		word-spacing: 0.12em;
 	}
 
+	.rac-label,
+	.rac-current-role-label,
+	.rac-search::placeholder {
+		word-spacing: 0.14em;
+	}
+
 	.rac-details-page-sub,
 	.rac-current-role-label,
 	.rac-module-meta {
@@ -1010,23 +1027,25 @@
 
 	.rac-module-toggle {
 		align-items: center;
+		flex-wrap: wrap;
+		justify-content: flex-end;
 	}
 
 	.rac-switch,
 	.rac-toggle {
-		width: 50px;
-		height: 28px;
+		width: 54px;
+		height: 30px;
 	}
 
 	.rac-switch-slider::before,
 	.rac-slider::before {
-		width: 22px;
-		height: 22px;
+		width: 24px;
+		height: 24px;
 	}
 
 	.rac-switch input:checked + .rac-switch-slider::before,
 	.rac-toggle input:checked + .rac-slider::before {
-		transform: translateX(22px);
+		transform: translateX(24px);
 	}
 
 	.rac-modal-footer .rac-btn {

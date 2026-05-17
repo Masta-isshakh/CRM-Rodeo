@@ -703,6 +703,9 @@ export default function RoleAccessControl() {
     humanizeWords(t("manageOptionLevelPermissions")) || "Manage Option Level Permissions";
   const createRoleLabel = humanizeWords(t("Create New Role")) || "Create New Role";
   const enableDisableLabel = humanizeWords(t("enableDisable")) || "Enable Disable";
+  const selectRoleLabel = humanizeWords(t("selectRoleToModify")) || "Select Role To Modify";
+  const currentlyEditingLabel = humanizeWords(t("currentlyEditing")) || "Currently Editing";
+  const searchPermissionsLabel = humanizeWords(t("searchPermissionsPlaceholder")) || "Search Permissions";
 
   const [roles, setRoles] = useState<any[]>([]);
   const [currentRoleId, setCurrentRoleId] = useState<string>("");
@@ -1356,7 +1359,7 @@ export default function RoleAccessControl() {
               </button>
               <div className="rac-hero-grid">
                 <div className="rac-hero-field">
-                  <label className="rac-label" htmlFor="rac-role-select">{t("selectRoleToModify")}</label>
+                  <label className="rac-label" htmlFor="rac-role-select">{selectRoleLabel}</label>
                   <select
                     id="rac-role-select"
                     className="rac-input rac-select"
@@ -1377,7 +1380,7 @@ export default function RoleAccessControl() {
                     <i className="fas fa-id-badge" />
                   </span>
                   <div className="rac-current-role-copy">
-                    <span className="rac-current-role-label">{t("currentlyEditing")}</span>
+                    <span className="rac-current-role-label">{currentlyEditingLabel}</span>
                     <strong>{selectedRole?.name ?? "—"}</strong>
                   </div>
                 </div>
@@ -1397,7 +1400,7 @@ export default function RoleAccessControl() {
                     <input
                       type="text"
                       className="rac-search"
-                      placeholder={t("searchPermissionsPlaceholder")}
+                      placeholder={searchPermissionsLabel}
                       value={searchTerm}
                       onChange={(event) => setSearchTerm(event.target.value)}
                     />

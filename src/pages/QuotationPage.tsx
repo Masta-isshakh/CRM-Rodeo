@@ -916,16 +916,6 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
           </div>
           <p>{t("Create customer quotations with live service/package pricing and policy-based discount limits.")}</p>
         </div>
-        <PermissionGate moduleId="quotation" optionId="quotation_generatepdf">
-          <button
-            type="button"
-            className="quotation-generate-btn"
-            onClick={() => void withLoading(buildQuotationPdf(), t("Generating PDF…"))}
-            disabled={!requiredReady}
-          >
-            <i className="fas fa-file-pdf" /> {t("Generate Quotation PDF")}
-          </button>
-        </PermissionGate>
       </div>
 
       {status ? <div className="quotation-status">{status}</div> : null}
@@ -1102,6 +1092,19 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
 
       <div className="quotation-footer-note">
         {t("Prepared by")}: {String(currentUser?.email || currentUser?.name || "System")}
+      </div>
+
+      <div className="quotation-bottom-actions">
+        <PermissionGate moduleId="quotation" optionId="quotation_generatepdf">
+          <button
+            type="button"
+            className="quotation-generate-btn"
+            onClick={() => void withLoading(buildQuotationPdf(), t("Generating PDF…"))}
+            disabled={!requiredReady}
+          >
+            <i className="fas fa-file-pdf" /> {t("Generate Quotation PDF")}
+          </button>
+        </PermissionGate>
       </div>
     </div>
   );
