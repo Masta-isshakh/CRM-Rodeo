@@ -508,6 +508,34 @@
   cursor: not-allowed;
 }
 
+.jh-action-dropdown-menu {
+  max-width: min(240px, calc(100vw - 16px));
+}
+
+.jh-action-menu-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: #2a3b66;
+  font-size: 0.84rem;
+  font-weight: 700;
+  padding: 9px 10px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.jh-action-menu-item:hover {
+  background: #f6f9ff;
+}
+
+.jh-action-menu-item.danger {
+  color: #d14343;
+}
+
 .jh-footer {
   margin-top: 12px;
   text-align: center;
@@ -912,6 +940,21 @@
     white-space: normal;
   }
 
+  .jh-controls,
+  .jh-pagesize {
+    width: 100%;
+  }
+
+  .jh-controls {
+    justify-content: flex-start;
+  }
+
+  .jh-controls .jh-btn,
+  .jh-pagesize select {
+    width: 100%;
+    justify-content: center;
+  }
+
   .jh-header-left h1,
   .jh-details-title h2 {
     font-size: 1.15rem;
@@ -1001,6 +1044,15 @@
   .jh-table tbody td.jh-actions-cell .jh-btn {
     width: 100%;
     justify-content: center;
+  }
+
+  .jh-action-dropdown-menu {
+    max-width: calc(100vw - 16px);
+  }
+
+  .jh-action-menu-item {
+    min-height: 42px;
+    font-size: 0.86rem;
   }
 
   .jh-modal {

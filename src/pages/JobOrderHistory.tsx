@@ -728,7 +728,7 @@ export default function JobOrderHistory({
   const activeDropdownRef = useRef<string | null>(null);
   const dropdownRowRef = useRef<any>(null);
 
-  const toggleDropdown = useCallback((rowId: string, anchor: HTMLElement) => {
+  const toggleDropdown = useCallback((rowId: string, anchor: HTMLElement, row?: ListRow) => {
     if (activeDropdownRef.current === rowId) {
       activeDropdownRef.current = null;
       setActiveDropdown(null);
@@ -741,7 +741,7 @@ export default function JobOrderHistory({
     const left = Math.max(8, Math.min(rect.right - menuW, window.innerWidth - menuW - 8));
     flushSync(() => {
       activeDropdownRef.current = rowId;
-      dropdownRowRef.current = null;
+      if (row) dropdownRowRef.current = row;
       setDropdownPos({ top, left });
       setActiveDropdown(rowId);
     });
@@ -1430,7 +1430,7 @@ export default function JobOrderHistory({
                           <button
                             className="jh-btn jh-btn-secondary jh-action-dropdown-btn"
                             type="button"
-                            onClick={(e) => { dropdownRowRef.current = r; toggleDropdown(r._backendId, e.currentTarget); }}
+                            onClick={(e) => { toggleDropdown(r._backendId, e.currentTarget, r); }}
                           >
                             {t("Actions")} <i className="fas fa-chevron-down" style={{ marginLeft: 4, fontSize: 10 }} />
                           </button>
@@ -1514,11 +1514,12 @@ export default function JobOrderHistory({
             <PermissionGate moduleId="jobhistory" optionId="jobhistory_view">
               <button
                 type="button"
-                style={{ width: "100%", border: "none", background: "transparent", color: "#2A3B66", fontSize: "0.84rem", fontWeight: 600, padding: "9px 10px", borderRadius: 8, display: "flex", alignItems: "center", gap: 8, cursor: "pointer", textAlign: "left" }}
+                className="jh-action-menu-item"
                 onClick={() => {
-                  const r = dropdownRowRef.current;
+                  const r = dropdownRowRef.current ?? rows.find((item) => String(item._backendId) === String(activeDropdownRef.current ?? ""));
                   if (r) void openDetails(r.orderNumber, r);
                   activeDropdownRef.current = null;
+                  dropdownRowRef.current = null;
                   setActiveDropdown(null);
                 }}
               >
@@ -1530,12 +1531,13 @@ export default function JobOrderHistory({
                 <div style={{ height: 1, background: "#E6ECF8", margin: "4px 6px" }} />
                 <button
                   type="button"
-                  style={{ width: "100%", border: "none", background: "transparent", color: "#D14343", fontSize: "0.84rem", fontWeight: 700, padding: "9px 10px", borderRadius: 8, display: "flex", alignItems: "center", gap: 8, cursor: "pointer", textAlign: "left" }}
+                  className="jh-action-menu-item danger"
                   disabled={loading}
                   onClick={() => {
-                    const r = dropdownRowRef.current;
+                    const r = dropdownRowRef.current ?? rows.find((item) => String(item._backendId) === String(activeDropdownRef.current ?? ""));
                     if (r) void handleDeleteHistory(r);
                     activeDropdownRef.current = null;
+                    dropdownRowRef.current = null;
                     setActiveDropdown(null);
                   }}
                 >
