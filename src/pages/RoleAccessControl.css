@@ -481,6 +481,7 @@
 	display: flex;
 	align-items: center;
 	gap: 10px;
+	width: 100%;
 }
 
 .rac-section-icon {
@@ -507,6 +508,8 @@
 	font-weight: 800;
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
+	white-space: normal;
+	overflow-wrap: anywhere;
 }
 
 .rac-module-meta {
@@ -536,12 +539,13 @@
 }
 
 .rac-module-toggle {
-	display: inline-flex;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto auto;
 	align-items: center;
-	gap: 10px;
+	column-gap: 10px;
 	flex-shrink: 0;
 	min-width: 0;
-	flex-wrap: nowrap;
+	width: 100%;
 }
 
 .rac-toggle-label {
@@ -550,9 +554,10 @@
 	font-weight: 800;
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
-	white-space: nowrap;
+	white-space: normal;
 	min-width: 0;
 	line-height: 1.2;
+	overflow-wrap: anywhere;
 }
 
 .rac-label,
@@ -927,6 +932,25 @@
 		align-items: flex-start;
 	}
 
+	.rac-details-page-title-wrap,
+	.rac-details-head-main,
+	.rac-details-head-text,
+	.rac-hero-grid,
+	.rac-module-title,
+	.rac-module-title-copy {
+		width: 100%;
+	}
+
+	.rac-details-page-head h3,
+	.rac-details-page-sub,
+	.rac-module-title-copy h4,
+	.rac-module-meta,
+	.rac-toggle-label {
+		display: block;
+		visibility: visible;
+		opacity: 1;
+	}
+
 	.rac-details-page-head {
 		align-items: stretch;
 	}
@@ -966,16 +990,14 @@
 
 	.rac-module-toggle {
 		width: 100%;
-		justify-content: space-between;
-		gap: 12px;
-		flex-wrap: nowrap;
+		grid-template-columns: minmax(0, 1fr) auto auto;
+		column-gap: 12px;
 	}
 
 	.rac-toggle-label {
-		display: inline-flex;
-		flex: 1 1 auto;
+		display: block;
 		min-width: 0;
-		max-width: calc(100% - 62px);
+		max-width: none;
 		white-space: normal;
 		overflow-wrap: anywhere;
 		word-spacing: 0.1em;
@@ -1037,9 +1059,18 @@
 
 	.rac-module-toggle {
 		align-items: center;
-		flex-wrap: wrap;
-		justify-content: flex-end;
-		row-gap: 8px;
+		grid-template-columns: minmax(0, 1fr) auto auto;
+		column-gap: 10px;
+		row-gap: 0;
+	}
+
+	.rac-module-title-copy h4 {
+		font-size: 11.5px;
+	}
+
+	.rac-module-meta,
+	.rac-toggle-label {
+		font-size: 10.8px;
 	}
 
 	.rac-switch,
@@ -1102,5 +1133,154 @@
 
 	.rac-children {
 		padding-left: 8px;
+	}
+}
+
+@media (max-width: 430px) {
+	.rac-details-page-head,
+	.rac-hero-body,
+	.rac-table-header,
+	.rac-showing,
+	.rac-modules-body,
+	.rac-actions,
+	.rac-modal-head,
+	.rac-modal-body,
+	.rac-modal-footer {
+		padding-left: 8px;
+		padding-right: 8px;
+	}
+
+	.rac-module-header {
+		padding: 10px 11px;
+	}
+
+	.rac-module-title {
+		gap: 8px;
+	}
+
+	.rac-module-title-copy h4 {
+		font-size: 11px;
+		line-height: 1.18;
+	}
+
+	.rac-module-meta {
+		font-size: 10px;
+	}
+
+	.rac-module-toggle {
+		column-gap: 8px;
+	}
+
+	.rac-toggle-label {
+		font-size: 10px;
+		letter-spacing: 0.025em;
+	}
+
+	.rac-switch,
+	.rac-toggle {
+		width: 50px;
+		height: 28px;
+	}
+
+	.rac-switch-slider::before,
+	.rac-slider::before {
+		width: 22px;
+		height: 22px;
+	}
+
+	.rac-switch input:checked + .rac-switch-slider::before,
+	.rac-toggle input:checked + .rac-slider::before {
+		transform: translateX(22px);
+	}
+}
+
+@media (max-width: 375px) {
+	.rac-module-header {
+		padding: 9px 10px;
+	}
+
+	.rac-module-title {
+		gap: 7px;
+	}
+
+	.rac-module-title-copy h4 {
+		font-size: 10.5px;
+	}
+
+	.rac-module-toggle {
+		column-gap: 7px;
+	}
+
+	.rac-toggle-label {
+		font-size: 9.8px;
+		letter-spacing: 0.02em;
+	}
+
+	.rac-switch,
+	.rac-toggle {
+		width: 48px;
+		height: 26px;
+	}
+
+	.rac-switch-slider::before,
+	.rac-slider::before {
+		width: 20px;
+		height: 20px;
+	}
+
+	.rac-switch input:checked + .rac-switch-slider::before,
+	.rac-toggle input:checked + .rac-slider::before {
+		transform: translateX(22px);
+	}
+
+	.rac-actions .rac-btn {
+		padding-left: 10px;
+		padding-right: 10px;
+	}
+}
+
+@media (max-width: 320px) {
+	.rac-module-header {
+		padding: 8px 9px;
+	}
+
+	.rac-module-title {
+		gap: 6px;
+	}
+
+	.rac-module-title-copy h4 {
+		font-size: 10px;
+		letter-spacing: 0.04em;
+	}
+
+	.rac-module-toggle {
+		column-gap: 6px;
+	}
+
+	.rac-toggle-label {
+		font-size: 9.2px;
+		letter-spacing: 0.015em;
+	}
+
+	.rac-switch,
+	.rac-toggle {
+		width: 46px;
+		height: 24px;
+	}
+
+	.rac-switch-slider::before,
+	.rac-slider::before {
+		width: 18px;
+		height: 18px;
+		top: 3px;
+	}
+
+	.rac-switch input:checked + .rac-switch-slider::before,
+	.rac-toggle input:checked + .rac-slider::before {
+		transform: translateX(22px);
+	}
+
+	.rac-actions .rac-btn {
+		font-size: 11px;
 	}
 }
