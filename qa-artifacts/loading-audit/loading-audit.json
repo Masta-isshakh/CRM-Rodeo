@@ -1,0 +1,3073 @@
+{
+  "generatedAt": "2026-05-17T11:20:35.399Z",
+  "workspace": "CRM-Rodeo",
+  "totalEntries": 511,
+  "entries": [
+    {
+      "page": "src/pages/ActivityLogs.tsx",
+      "action": "() => void fetchLogs()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ActivityLogs.tsx:54"
+    },
+    {
+      "page": "src/pages/ActivityLogs.tsx",
+      "action": "() => void fetchLogs()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ActivityLogs.tsx:62"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setPreviewViewMode(\"table\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1367"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setPreviewViewMode(\"cards\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1374"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setPreviewPage(1)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1439"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setPreviewPage((current) => Math.max(1, current - 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1448"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setPreviewPage((current) => Math.min(previewTotalPages, current + 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1458"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setPreviewPage(previewTotalPages)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1467"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "jumpToPreviewPage",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1489"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "handleImport",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1498"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "handleCopyMobiles",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1534"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "handleExportCsv",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1537"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setResultsViewMode(\"table\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1547"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setResultsViewMode(\"cards\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1554"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setPage((current) => Math.max(1, current - 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1757"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setPage((current) => Math.min(totalPages, current + 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1761"
+    },
+    {
+      "page": "src/pages/ConfirmationPopup.tsx",
+      "action": "() => canClose && onCancel()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ConfirmationPopup.tsx:105"
+    },
+    {
+      "page": "src/pages/ConfirmationPopup.tsx",
+      "action": "onCancel",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ConfirmationPopup.tsx:115"
+    },
+    {
+      "page": "src/pages/ConfirmationPopup.tsx",
+      "action": "() => !loading && !disableConfirm && onConfirm()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ConfirmationPopup.tsx:121"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:135"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:140"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "onConfirm",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:143"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:259"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "onSave",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:304"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:330"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:772"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:1334"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "onToggleTheme",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:1374"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "() => onEdit(customer.id)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:1411"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "(e) => e.preventDefault()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:2308"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "toggleTheme",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/Customer.tsx:2498"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "() => void load()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:2531"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "openAddModal",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/Customer.tsx:2540"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "() => setCurrentPage((prev) => Math.max(prev - 1, 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:2609"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "() => setCurrentPage(pageNum)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:2631"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "() => setCurrentPage((prev) => Math.min(prev + 1, totalPages))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:2641"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "(e) => e.preventDefault()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:2662"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "(e) => e.preventDefault()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:2827"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "() => setDeleteCustomerId(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:2982"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:2983"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "() => void withLoading(handleConfirmDelete(), t(\"Deleting customer...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/Customer.tsx:3001"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "() => setDeleteCustomerId(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:3004"
+    },
+    {
+      "page": "src/pages/DailyReport.tsx",
+      "action": "() => setFlavor(option.key)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/DailyReport.tsx:631"
+    },
+    {
+      "page": "src/pages/DailyReport.tsx",
+      "action": "exportSnapshotPdf",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/DailyReport.tsx:641"
+    },
+    {
+      "page": "src/pages/DailyReport.tsx",
+      "action": "(e) => openRawInspectorWithKey(order.id, key, e.ctrlKey || e.metaKey)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/DailyReport.tsx:744"
+    },
+    {
+      "page": "src/pages/DailyReport.tsx",
+      "action": "(e) => openRawInspectorWithKey(order.id, key, e.ctrlKey || e.metaKey)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/DailyReport.tsx:761"
+    },
+    {
+      "page": "src/pages/DailyReport.tsx",
+      "action": "(e) => openRawInspectorWithKey(order.id, key, e.ctrlKey || e.metaKey)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/DailyReport.tsx:778"
+    },
+    {
+      "page": "src/pages/Dashboard.tsx",
+      "action": "() => handleNavClick(key)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/Dashboard.tsx:307"
+    },
+    {
+      "page": "src/pages/Dashboard.tsx",
+      "action": "() => handleNavClick(key)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/Dashboard.tsx:321"
+    },
+    {
+      "page": "src/pages/Dashboard.tsx",
+      "action": "onSignOut",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Dashboard.tsx:332"
+    },
+    {
+      "page": "src/pages/DatabaseCleanupAdmin.tsx",
+      "action": "handleCleanup",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/DatabaseCleanupAdmin.tsx:211"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "load",
+      "loader-status": "covered",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:398"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "() => setShowCreateRow((prev) => !prev)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:402"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "createDept",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:421"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "() => openRoleModal(d)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:467"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "() => void onClickEditDepartment(d)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:477"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "() => openDeletePopup(d)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:487"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "() => openEditRoleModal(d, role)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:519"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "() => void removeRole(d.key, String(role.id))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:528"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "() => void createRoleForDepartment(roleModalDept, modalRoleName, modalRoleDescription)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:597"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "() => void updateRoleForDepartment(editRoleId, editRoleName, editRoleDescription)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:657"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "closeEditDeptModal",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:676"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "closeEditDeptModal",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:697"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "() => void submitEditDepartment()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:704"
+    },
+    {
+      "page": "src/pages/editors/DocsEditor.tsx",
+      "action": "handleGoBack",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/editors/DocsEditor.tsx:134"
+    },
+    {
+      "page": "src/pages/editors/FormsEditor.tsx",
+      "action": "handleGoBack",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/editors/FormsEditor.tsx:153"
+    },
+    {
+      "page": "src/pages/editors/FormsEditor.tsx",
+      "action": "() => handleDeleteField(field.id)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/editors/FormsEditor.tsx:228"
+    },
+    {
+      "page": "src/pages/editors/FormsEditor.tsx",
+      "action": "() => handleAddField(\"text\")",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/editors/FormsEditor.tsx:282"
+    },
+    {
+      "page": "src/pages/editors/FormsEditor.tsx",
+      "action": "() => handleAddField(\"email\")",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/editors/FormsEditor.tsx:285"
+    },
+    {
+      "page": "src/pages/editors/FormsEditor.tsx",
+      "action": "() => handleAddField(\"textarea\")",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/editors/FormsEditor.tsx:288"
+    },
+    {
+      "page": "src/pages/editors/FormsEditor.tsx",
+      "action": "() => handleAddField(\"checkbox\")",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/editors/FormsEditor.tsx:291"
+    },
+    {
+      "page": "src/pages/editors/FormsEditor.tsx",
+      "action": "() => handleAddField(\"radio\")",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/editors/FormsEditor.tsx:294"
+    },
+    {
+      "page": "src/pages/editors/FormsEditor.tsx",
+      "action": "() => handleAddField(\"dropdown\")",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/editors/FormsEditor.tsx:297"
+    },
+    {
+      "page": "src/pages/editors/SheetsEditor.tsx",
+      "action": "handleGoBack",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/editors/SheetsEditor.tsx:171"
+    },
+    {
+      "page": "src/pages/editors/SheetsEditor.tsx",
+      "action": "() => handleCellClick(row, col)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/editors/SheetsEditor.tsx:240"
+    },
+    {
+      "page": "src/pages/editors/SlidesEditor.tsx",
+      "action": "handleGoBack",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/editors/SlidesEditor.tsx:164"
+    },
+    {
+      "page": "src/pages/editors/SlidesEditor.tsx",
+      "action": "handleAddSlide",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/editors/SlidesEditor.tsx:188"
+    },
+    {
+      "page": "src/pages/editors/SlidesEditor.tsx",
+      "action": "() => setCurrentSlideIndex(index)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/editors/SlidesEditor.tsx:197"
+    },
+    {
+      "page": "src/pages/editors/SlidesEditor.tsx",
+      "action": "() => setCurrentSlideIndex(Math.max(0, currentSlideIndex - 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/editors/SlidesEditor.tsx:254"
+    },
+    {
+      "page": "src/pages/editors/SlidesEditor.tsx",
+      "action": "() => setCurrentSlideIndex(Math.min(presentation.length - 1, currentSlideIndex + 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/editors/SlidesEditor.tsx:261"
+    },
+    {
+      "page": "src/pages/Employees.tsx",
+      "action": "() => void fetchEmployees()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Employees.tsx:233"
+    },
+    {
+      "page": "src/pages/Employees.tsx",
+      "action": "() => handleEdit(e)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/Employees.tsx:303"
+    },
+    {
+      "page": "src/pages/Employees.tsx",
+      "action": "() => setDeleteTarget(e)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Employees.tsx:313"
+    },
+    {
+      "page": "src/pages/Employees.tsx",
+      "action": "handleSubmit",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/Employees.tsx:396"
+    },
+    {
+      "page": "src/pages/Employees.tsx",
+      "action": "handleSubmit",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/Employees.tsx:403"
+    },
+    {
+      "page": "src/pages/Employees.tsx",
+      "action": "() => setDeleteTarget(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Employees.tsx:429"
+    },
+    {
+      "page": "src/pages/Employees.tsx",
+      "action": "() => void handleDelete()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Employees.tsx:432"
+    },
+    {
+      "page": "src/pages/ErrorPopup.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ErrorPopup.tsx:115"
+    },
+    {
+      "page": "src/pages/ErrorPopup.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ErrorPopup.tsx:144"
+    },
+    {
+      "page": "src/pages/ErrorPopup.tsx",
+      "action": "onRetry",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ErrorPopup.tsx:148"
+    },
+    {
+      "page": "src/pages/ErrorPopup.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ErrorPopup.tsx:152"
+    },
+    {
+      "page": "src/pages/ExitPermitManagement.tsx",
+      "action": "() => setCurrentPage(Math.max(1, currentPage - 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ExitPermitManagement.tsx:981"
+    },
+    {
+      "page": "src/pages/ExitPermitManagement.tsx",
+      "action": "() => setCurrentPage(pageNum)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ExitPermitManagement.tsx:1001"
+    },
+    {
+      "page": "src/pages/ExitPermitManagement.tsx",
+      "action": "() => setCurrentPage(Math.min(totalPages, currentPage + 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ExitPermitManagement.tsx:1011"
+    },
+    {
+      "page": "src/pages/ExitPermitManagement.tsx",
+      "action": "closeDetailsView",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ExitPermitManagement.tsx:1042"
+    },
+    {
+      "page": "src/pages/ExitPermitManagement.tsx",
+      "action": "handleCreateExitPermit",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ExitPermitManagement.tsx:1122"
+    },
+    {
+      "page": "src/pages/ExitPermitManagement.tsx",
+      "action": "closeExitPermitModal",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ExitPermitManagement.tsx:1162"
+    },
+    {
+      "page": "src/pages/ExitPermitManagement.tsx",
+      "action": "() => void handleCancelOrder()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ExitPermitManagement.tsx:1275"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setOpenOfficeModal(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:2935"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:2936"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setOpenOfficeModal(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:2937"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setOpenOfficeModal(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:2980"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setPreview(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:2988"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:2989"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setPreview(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:2992"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "closeShareModal",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3002"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "(event) => event.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3003"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "closeShareModal",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3006"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "addShareUserPermission",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3018"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setSharePermissions((prev) => prev.filter((item) => item.email !== entry.email))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3037"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "closeShareModal",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3070"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void withLoading(saveSharePermissions(), t(\"Saving sharing permissions...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/FileSharing.tsx:3071"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void loadData()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3121"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "openUploadPicker",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3131"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "openNewFolderComposer",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3141"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => openDrivePopup(\"admin\")",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3151"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setLayout((v) => (v === \"list\" ? \"grid\" : \"list\"))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3179"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "closeDrivePopup",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3197"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setIsNewMenuOpen((prev) => !prev)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3213"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "openNewFolderComposer",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3218"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "openUploadPicker",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3219"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "openFolderPicker",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3220"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void createTemplateAndOpenEditor(\"doc\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3222"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void createTemplateAndOpenEditor(\"sheet\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3223"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void createTemplateAndOpenEditor(\"slides\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3224"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void createTemplateAndOpenEditor(\"form\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3225"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "closeDrivePopup",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3230"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => openDrivePopup(\"my\")",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3231"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => openDrivePopup(\"shared\")",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3232"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => openDrivePopup(\"recent\")",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3233"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => openDrivePopup(\"starred\")",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3234"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => openDrivePopup(\"dept\")",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3235"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => openDrivePopup(\"org\")",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3236"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => openDrivePopup(\"trash\")",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3237"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => openDrivePopup(\"admin\")",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3238"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setCurrentFolder(\"\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3265"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setCurrentFolder(f)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3277"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "closeDrivePopup",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3306"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setCurrentFolder(node.path)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3353"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void withLoading(bulkMove(), t(\"Moving selected items...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/FileSharing.tsx:3367"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void withLoading(bulkShare(), t(\"Sharing selected items...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/FileSharing.tsx:3368"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void withLoading(bulkStar(), t(\"Updating stars...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/FileSharing.tsx:3369"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void withLoading(bulkDelete(), t(\"Deleting selected items...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/FileSharing.tsx:3370"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setSelectedIds([])",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3371"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "openUploadPicker",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3381"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void createFolder()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3406"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "resetComposer",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3407"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "openUploadPicker",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3448"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "openFolderPicker",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3449"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void uploadFile()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3450"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "resetComposer",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3451"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void openRow(row)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3464"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void openRow(row)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3480"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void openRow(row)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3494"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => openDrivePopup(\"dept\", departmentDrivePath(space.key))",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3517"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "(event) => handleRowPointerSelect(event, String(row?.id ?? \"\"))",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3556"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void openRow(row)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3589"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "(event) => { event.stopPropagation(); void toggleStar(row);",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3639"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "(event) => { event.stopPropagation(); void openRow(row);",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3640"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "(event) => event.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3665"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void downloadFile(row)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3666"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => beginRename(row)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3667"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => openShareModal(row)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3668"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void moveRow(row)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3669"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setStatus(`${t(\"Folder information\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3670"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setStatus(t(\"Ask Gemini integration will be enabled for this workspace.\"))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3671"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setLinkTargetId((prev) => prev === row.id ? \"\" : row.id)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3672"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setVersionTargetId((prev) => prev === row.id ? \"\" : row.id)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3673"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void replaceWithNewVersion(row)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3674"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void restoreRow(row)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3675"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void deleteRow(row)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3676"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void createSharedLink(row)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3688"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void revokeSharedLink(link)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3715"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void restoreVersion(row, v)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3732"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void saveQuota(quotaEditorTarget)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3808"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setShowAdvancedAdmin((prev) => !prev)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3809"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setDriveManagers((prev) => prev.filter((v) => v !== email))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3865"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void saveDepartmentDrive()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3880"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void withLoading(handleApprovalDecision(row, \"APPROVED\", true), t(\"Approving and executing request...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/FileSharing.tsx:3965"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void withLoading(handleApprovalDecision(row, \"APPROVED\"), t(\"Approving request...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/FileSharing.tsx:3966"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void withLoading(handleApprovalDecision(row, \"REJECTED\"), t(\"Rejecting request...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/FileSharing.tsx:3967"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void withLoading(handleApprovalDecision(row, \"CANCELLED\"), t(\"Cancelling request...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/FileSharing.tsx:3971"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setQuotaEditorTarget(target)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3991"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setQuotaEditorTarget(user.email)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:4007"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:4039"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => { setContextMenu(null); void openRow(row);",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:4046"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => { setContextMenu(null); void downloadFile(row);",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:4047"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => beginRename(row)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:4048"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => { setContextMenu(null); openShareModal(row);",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:4049"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => { setContextMenu(null); void moveRow(row);",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:4050"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => { setContextMenu(null); setStatus(`${t(\"Folder information\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:4051"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => { setContextMenu(null); setStatus(t(\"Ask Gemini integration will be enabled for this workspace.\"));",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:4052"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => { setContextMenu(null); void createSharedLink(row);",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:4053"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => { setContextMenu(null); void toggleStar(row);",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:4054"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => { setContextMenu(null); void deleteRow(row);",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:4055"
+    },
+    {
+      "page": "src/pages/InspectionConfigAdmin.tsx",
+      "action": "() => void load()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InspectionConfigAdmin.tsx:115"
+    },
+    {
+      "page": "src/pages/InspectionConfigAdmin.tsx",
+      "action": "validate",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InspectionConfigAdmin.tsx:118"
+    },
+    {
+      "page": "src/pages/InspectionConfigAdmin.tsx",
+      "action": "() => void withLoading(save(), \"Saving inspection config...\")",
+      "loader-status": "covered",
+      "line-reference": "src/pages/InspectionConfigAdmin.tsx:121"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => void refreshOrders()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InspectionModule.tsx:996"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "(e) => handleOpenDropdown(e.currentTarget as HTMLElement, job.id)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InspectionModule.tsx:1082"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => setCurrentPage((p) => Math.max(1, p - 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InspectionModule.tsx:1105"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => setCurrentPage(pageNum)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InspectionModule.tsx:1119"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => setCurrentPage((p) => Math.min(totalPages, p + 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InspectionModule.tsx:1125"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "handleAddServiceSubmit",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InspectionModule.tsx:1142"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "closeDetailView",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InspectionModule.tsx:1155"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "downloadReport",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InspectionModule.tsx:1174"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "handleAddService",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InspectionModule.tsx:1213"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => void startInspection(sectionKey)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InspectionModule.tsx:1323"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => saveAndPause(sectionKey)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InspectionModule.tsx:1330"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => resumeInspection(sectionKey)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InspectionModule.tsx:1337"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => completeSection(sectionKey)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InspectionModule.tsx:1345"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => markNotRequired(sectionKey)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InspectionModule.tsx:1353"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => setExpandedGroups((p) => ({ ...p, [groupKey]: !p[groupKey]",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InspectionModule.tsx:1377"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => selectAllGroupItems(sectionKey, group.items)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InspectionModule.tsx:1383"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => document.getElementById(`${sectionKey",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InspectionModule.tsx:1431"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "finishInspection",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InspectionModule.tsx:1468"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => setShowInspectionConfirmation(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InspectionModule.tsx:1492"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => inspectionConfirmData.onConfirm && inspectionConfirmData.onConfirm()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InspectionModule.tsx:1495"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => { setShowCancelConfirmation(false); setCancelOrderId(null);",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InspectionModule.tsx:1517"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => void handleCancelOrder()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InspectionModule.tsx:1520"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InspectionModule.tsx:1643"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => setInFilterType(\"all\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InspectionModule.tsx:1681"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => setInFilterType(\"service\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InspectionModule.tsx:1682"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => setInFilterType(\"package\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InspectionModule.tsx:1683"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => handleToggleService(product)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InspectionModule.tsx:1699"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InspectionModule.tsx:1751"
+    },
+    {
+      "page": "src/pages/InspectionModule.tsx",
+      "action": "() => onSubmit({ selectedServices, discountPercent: effectiveDiscountPercent",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InspectionModule.tsx:1752"
+    },
+    {
+      "page": "src/pages/InternalChat.tsx",
+      "action": "() => goToConversation(conv.key)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InternalChat.tsx:586"
+    },
+    {
+      "page": "src/pages/InternalChat.tsx",
+      "action": "() => setMobileShowChat(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InternalChat.tsx:626"
+    },
+    {
+      "page": "src/pages/InternalChat.tsx",
+      "action": "() => loadMessages(conversationKey)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InternalChat.tsx:659"
+    },
+    {
+      "page": "src/pages/InternalChat.tsx",
+      "action": "onSubmit",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InternalChat.tsx:777"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "loadCategories",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:913"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => setActiveTab(\"products\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:924"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => setActiveTab(\"store\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:932"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => setStatus(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:946"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "openAddCategory",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:969"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "loadCategories",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:972"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => goToSubcategories(cat)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:997"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1017"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => openEditCategory(cat)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1025"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => setDeleteTarget({ type: \"category\", item: cat, label: cat.name ?? \"\"",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1035"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "goToCategories",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1056"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "goToCategories",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1073"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "openAddSubcategory",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1077"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => openAddProdModal({ category: selectedCategory, subcategory: subcategories[0] ?? null",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1085"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => goToProducts(sub)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1114"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1135"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => quickAddProductToSubcategory(sub)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1152"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1158"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => openFieldsModal(sub)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1165"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => openEditSubcategory(sub)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1174"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => setDeleteTarget({ type: \"subcategory\", item: sub, label: sub.name ?? \"\"",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1184"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "goToCategories",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1205"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => goToSubcategories(selectedCategory)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1215"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => goToSubcategories(selectedCategory)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1235"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => openAddProdModal({ category: selectedCategory, subcategory: selectedSubcategory",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1243"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => loadProducts(selectedSubcategory.id)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1251"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => setSearchQuery(\"\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1268"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => setDeleteTarget({ type: \"product\", item: prod, label: prod.name ?? \"\"",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1336"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "resetStore",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1407"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => selectStoreCategory(cat)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1446"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => selectStoreSubcategory(sub)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1483"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "resetStore",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1495"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => checkoutProduct(prod)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1558"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => { setStoreStep(\"subcategory\"); setStoreSubcategory(null);",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1570"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => !saving && setShowCatModal(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1621"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1622"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => !saving && setShowCatModal(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1625"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => setShowCatModal(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1649"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "saveCategory",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1652"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => !saving && setShowSubModal(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1662"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1663"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => !saving && setShowSubModal(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1666"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => setShowSubModal(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1696"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "saveSubcategory",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1699"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => !saving && setShowFieldsModal(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1709"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1710"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => !saving && setShowFieldsModal(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1713"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => removeFieldDef(idx)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1761"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "addFieldDef",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1769"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => setShowFieldsModal(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1774"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "saveFieldDefs",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1777"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => !saving && setShowAddProdModal(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1787"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1788"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => !saving && setShowAddProdModal(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1794"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => setAddMode(\"quantity\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:1824"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "handleScanSubmit",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1959"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => removeScannedItem(idx)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:1988"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "() => setShowAddProdModal(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/InventoryManagement.tsx:2002"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "addProductByQuantity",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:2009"
+    },
+    {
+      "page": "src/pages/InventoryManagement.tsx",
+      "action": "processScannedItems",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/InventoryManagement.tsx:2020"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:450"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:451"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:454"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:526"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "handleAddServiceSubmit",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/JobCards.tsx:1098"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "handleCancelOrder",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/JobCards.tsx:1259"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => void onRefresh()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:1454"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onNewJob",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:1459"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => onPageChange(Math.max(1, currentPage - 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:1508"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => onPageChange(pageNum)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:1523"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => onPageChange(Math.min(totalPages, currentPage + 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:1529"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:1546"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:1609"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => window.print()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:1631"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:1883"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "handleSubmit",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/JobCards.tsx:1913"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => setCustomerType(\"new\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:2111"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => setCustomerType(\"existing\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:2114"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => void handleSave()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:2202"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => void handleVerifySearch()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:2234"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => void handleSelectCustomer(customer)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:2258"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => void handleConfirmDuplicate()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:2422"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "handleCancelDuplicate",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/JobCards.tsx:2425"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onCancel",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:2435"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onNext",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:2438"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => handleSelectExistingVehicle(vehicle)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/JobCards.tsx:2546"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => setShowNewVehicleForm(true)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:2553"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => setShowNewVehicleForm(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:2562"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => void handleSaveNewVehicle()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:2648"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => setVehicleData(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:2688"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onBack",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:2696"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onNext",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:2699"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => selectCompletedOrderAndApply(entry.orderId)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/JobCards.tsx:2968"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => handleToggleCompletedService(svc)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/JobCards.tsx:3009"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => setFilterType(\"all\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3072"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => setFilterType(\"service\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3073"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => setFilterType(\"package\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3074"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => handleToggleService(product)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/JobCards.tsx:3092"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => setFilterType(\"all\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3142"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => setFilterType(\"service\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3143"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => setFilterType(\"package\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3144"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => handleToggleService(product)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/JobCards.tsx:3160"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onBack",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3310"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onNext",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3313"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3427"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3435"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => setAsFilterType(\"all\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3486"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => setAsFilterType(\"service\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3487"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => setAsFilterType(\"package\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3488"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => handleToggleService(product)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/JobCards.tsx:3501"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3602"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => onSubmit({ selectedServices, discountPercent: effectiveDiscountPercent",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3607"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3637"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3638"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3643"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onBack",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3732"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onBack",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3960"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onSubmit",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:3963"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onAddService",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:4078"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => onSelectOrderType(\"new\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:4592"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "() => onSelectOrderType(\"service\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:4596"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onBack",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:4604"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onBack",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:4631"
+    },
+    {
+      "page": "src/pages/JobCards.tsx",
+      "action": "onNext",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobCards.tsx:4634"
+    },
+    {
+      "page": "src/pages/JobOrderHistory.tsx",
+      "action": "() => setShowExportModal(true)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobOrderHistory.tsx:1379"
+    },
+    {
+      "page": "src/pages/JobOrderHistory.tsx",
+      "action": "(e) => { dropdownRowRef.current = r; toggleDropdown(r._backendId, e.currentTarget);",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobOrderHistory.tsx:1433"
+    },
+    {
+      "page": "src/pages/JobOrderHistory.tsx",
+      "action": "() => setCurrentPage((p) => Math.max(1, p - 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobOrderHistory.tsx:1448"
+    },
+    {
+      "page": "src/pages/JobOrderHistory.tsx",
+      "action": "() => setCurrentPage(pageNum)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobOrderHistory.tsx:1469"
+    },
+    {
+      "page": "src/pages/JobOrderHistory.tsx",
+      "action": "() => setCurrentPage((p) => Math.min(totalPages, p + 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobOrderHistory.tsx:1480"
+    },
+    {
+      "page": "src/pages/JobOrderHistory.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobOrderHistory.tsx:1512"
+    },
+    {
+      "page": "src/pages/JobOrderHistory.tsx",
+      "action": "() => setShowExportModal(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobOrderHistory.tsx:1558"
+    },
+    {
+      "page": "src/pages/JobOrderHistory.tsx",
+      "action": "() => setShowExportModal(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobOrderHistory.tsx:1590"
+    },
+    {
+      "page": "src/pages/JobOrderHistory.tsx",
+      "action": "handleExport",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/JobOrderHistory.tsx:1593"
+    },
+    {
+      "page": "src/pages/JobOrderHistory.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/JobOrderHistory.tsx:1648"
+    },
+    {
+      "page": "src/pages/PaymentInvoiceManagment.tsx",
+      "action": "closeDetailsView",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/PaymentInvoiceManagment.tsx:2268"
+    },
+    {
+      "page": "src/pages/PaymentInvoiceManagment.tsx",
+      "action": "openPaymentPopup",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/PaymentInvoiceManagment.tsx:2323"
+    },
+    {
+      "page": "src/pages/PaymentInvoiceManagment.tsx",
+      "action": "openRefundPopup",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/PaymentInvoiceManagment.tsx:2330"
+    },
+    {
+      "page": "src/pages/PaymentInvoiceManagment.tsx",
+      "action": "generateBill",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/PaymentInvoiceManagment.tsx:2337"
+    },
+    {
+      "page": "src/pages/PaymentInvoiceManagment.tsx",
+      "action": "closePaymentPopup",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/PaymentInvoiceManagment.tsx:2586"
+    },
+    {
+      "page": "src/pages/PaymentInvoiceManagment.tsx",
+      "action": "closePaymentPopup",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/PaymentInvoiceManagment.tsx:2659"
+    },
+    {
+      "page": "src/pages/PaymentInvoiceManagment.tsx",
+      "action": "handleSavePayment",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/PaymentInvoiceManagment.tsx:2660"
+    },
+    {
+      "page": "src/pages/PaymentInvoiceManagment.tsx",
+      "action": "closeRefundPopup",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/PaymentInvoiceManagment.tsx:2673"
+    },
+    {
+      "page": "src/pages/PaymentInvoiceManagment.tsx",
+      "action": "closeRefundPopup",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/PaymentInvoiceManagment.tsx:2709"
+    },
+    {
+      "page": "src/pages/PaymentInvoiceManagment.tsx",
+      "action": "handleSaveRefund",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/PaymentInvoiceManagment.tsx:2710"
+    },
+    {
+      "page": "src/pages/PaymentInvoiceManagment.tsx",
+      "action": "(e) => toggleActionDropdown(order.id, e.currentTarget as HTMLElement)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/PaymentInvoiceManagment.tsx:2816"
+    },
+    {
+      "page": "src/pages/PaymentInvoiceManagment.tsx",
+      "action": "() => setCurrentPage((p) => Math.max(1, p - 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/PaymentInvoiceManagment.tsx:2876"
+    },
+    {
+      "page": "src/pages/PaymentInvoiceManagment.tsx",
+      "action": "() => setCurrentPage(pageNum)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/PaymentInvoiceManagment.tsx:2894"
+    },
+    {
+      "page": "src/pages/PaymentInvoiceManagment.tsx",
+      "action": "() => setCurrentPage((p) => Math.min(totalPages, p + 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/PaymentInvoiceManagment.tsx:2903"
+    },
+    {
+      "page": "src/pages/PaymentInvoiceManagment.tsx",
+      "action": "() => { setShowCancelConfirmation(false); setCancelOrderId(null);",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/PaymentInvoiceManagment.tsx:2932"
+    },
+    {
+      "page": "src/pages/PaymentInvoiceManagment.tsx",
+      "action": "() => void handleCancelOrder()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/PaymentInvoiceManagment.tsx:2937"
+    },
+    {
+      "page": "src/pages/PushNotifications.tsx",
+      "action": "() => void loadData()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/PushNotifications.tsx:718"
+    },
+    {
+      "page": "src/pages/PushNotifications.tsx",
+      "action": "toggleAll",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/PushNotifications.tsx:758"
+    },
+    {
+      "page": "src/pages/PushNotifications.tsx",
+      "action": "() => togglePhone(c.phone)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/PushNotifications.tsx:802"
+    },
+    {
+      "page": "src/pages/PushNotifications.tsx",
+      "action": "() => void sendMessages()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/PushNotifications.tsx:823"
+    },
+    {
+      "page": "src/pages/PushNotifications.tsx",
+      "action": "exportSendHistoryCsv",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/PushNotifications.tsx:868"
+    },
+    {
+      "page": "src/pages/PushNotifications.tsx",
+      "action": "() => void retryFailedRecipients(log)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/PushNotifications.tsx:897"
+    },
+    {
+      "page": "src/pages/PushNotifications.tsx",
+      "action": "() => setConfirmDialog(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/PushNotifications.tsx:928"
+    },
+    {
+      "page": "src/pages/PushNotifications.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/PushNotifications.tsx:929"
+    },
+    {
+      "page": "src/pages/PushNotifications.tsx",
+      "action": "() => setConfirmDialog(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/PushNotifications.tsx:932"
+    },
+    {
+      "page": "src/pages/PushNotifications.tsx",
+      "action": "() => setConfirmDialog(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/PushNotifications.tsx:947"
+    },
+    {
+      "page": "src/pages/PushNotifications.tsx",
+      "action": "() => void confirmSendAction()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/PushNotifications.tsx:948"
+    },
+    {
+      "page": "src/pages/QualityCheckModule.tsx",
+      "action": "(e) => handleOpenDropdown(e.currentTarget as HTMLElement, job.id)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/QualityCheckModule.tsx:811"
+    },
+    {
+      "page": "src/pages/QualityCheckModule.tsx",
+      "action": "() => setCurrentPage((prev) => Math.max(1, prev - 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/QualityCheckModule.tsx:834"
+    },
+    {
+      "page": "src/pages/QualityCheckModule.tsx",
+      "action": "() => setCurrentPage(pageNum)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/QualityCheckModule.tsx:855"
+    },
+    {
+      "page": "src/pages/QualityCheckModule.tsx",
+      "action": "() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/QualityCheckModule.tsx:866"
+    },
+    {
+      "page": "src/pages/QualityCheckModule.tsx",
+      "action": "() => void handleCancelOrder()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/QualityCheckModule.tsx:957"
+    },
+    {
+      "page": "src/pages/QualityCheckModule.tsx",
+      "action": "() => closeDetailView()",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/QualityCheckModule.tsx:992"
+    },
+    {
+      "page": "src/pages/QualityCheckModule.tsx",
+      "action": "handleFinishQC",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/QualityCheckModule.tsx:1125"
+    },
+    {
+      "page": "src/pages/QuotationPage.tsx",
+      "action": "() => void withLoading(buildQuotationPdf(), t(\"Generating PDF…\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/QuotationPage.tsx:923"
+    },
+    {
+      "page": "src/pages/QuotationPage.tsx",
+      "action": "() => toggleCatalogSelection(item.id)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/QuotationPage.tsx:991"
+    },
+    {
+      "page": "src/pages/QuotationPage.tsx",
+      "action": "() => toggleCatalogSelection(item.id)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/QuotationPage.tsx:1022"
+    },
+    {
+      "page": "src/pages/RolesPoliciesAdmin.tsx",
+      "action": "() => setShowCreateRole(true)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/RolesPoliciesAdmin.tsx:1338"
+    },
+    {
+      "page": "src/pages/RolesPoliciesAdmin.tsx",
+      "action": "() => setActiveCategory(tab.id)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/RolesPoliciesAdmin.tsx:1421"
+    },
+    {
+      "page": "src/pages/RolesPoliciesAdmin.tsx",
+      "action": "() => handleToggleModule(module.id)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/RolesPoliciesAdmin.tsx:1449"
+    },
+    {
+      "page": "src/pages/RolesPoliciesAdmin.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/RolesPoliciesAdmin.tsx:1470"
+    },
+    {
+      "page": "src/pages/RolesPoliciesAdmin.tsx",
+      "action": "() => void withLoading(handleReset(), t(\"Resetting changes...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/RolesPoliciesAdmin.tsx:1509"
+    },
+    {
+      "page": "src/pages/RolesPoliciesAdmin.tsx",
+      "action": "() => void withLoading(handleSave(), t(\"Saving role policies...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/RolesPoliciesAdmin.tsx:1514"
+    },
+    {
+      "page": "src/pages/RolesPoliciesAdmin.tsx",
+      "action": "() => setShowCreateRole(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/RolesPoliciesAdmin.tsx:1541"
+    },
+    {
+      "page": "src/pages/RolesPoliciesAdmin.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/RolesPoliciesAdmin.tsx:1542"
+    },
+    {
+      "page": "src/pages/RolesPoliciesAdmin.tsx",
+      "action": "() => setShowCreateRole(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/RolesPoliciesAdmin.tsx:1545"
+    },
+    {
+      "page": "src/pages/RolesPoliciesAdmin.tsx",
+      "action": "() => setShowCreateRole(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/RolesPoliciesAdmin.tsx:1570"
+    },
+    {
+      "page": "src/pages/RolesPoliciesAdmin.tsx",
+      "action": "() => void withLoading(createRole(), t(\"Creating role...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/RolesPoliciesAdmin.tsx:1573"
+    },
+    {
+      "page": "src/pages/ServiceApprovalHistory.tsx",
+      "action": "backToDashboard",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceApprovalHistory.tsx:307"
+    },
+    {
+      "page": "src/pages/ServiceApprovalHistory.tsx",
+      "action": "clearHistoryFilters",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceApprovalHistory.tsx:505"
+    },
+    {
+      "page": "src/pages/ServiceApprovalHistory.tsx",
+      "action": "() => viewHistoryDetails(h.id)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceApprovalHistory.tsx:565"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => void withLoading(loadData(), t(\"Loading service catalog...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:847"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => switchTab(\"services\")",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:854"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => switchTab(\"packages\")",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:857"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => switchTab(\"specifications\")",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:860"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => openCategoryModal()",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:875"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => openServiceModal()",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:880"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => openCategoryModal(row.category)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:907"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => setPendingDelete({ type: \"category\", item: row.category",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceCreation.tsx:910"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => openServiceModal(service)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:933"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => openServiceModal(service)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:936"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => setPendingDelete({ type: \"catalog\", item: service",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceCreation.tsx:941"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => openPackageModal()",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:980"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => openPackageModal(pkg)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:1004"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => setPendingDelete({ type: \"catalog\", item: pkg",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceCreation.tsx:1007"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => openSpecificationModal()",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:1039"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => openSpecificationModal(specification)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:1062"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => setPendingDelete({ type: \"specification\", item: specification",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceCreation.tsx:1067"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "closeModal",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:1103"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceCreation.tsx:1104"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "closeModal",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:1109"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "closeModal",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:1138"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "closeModal",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:1228"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "closeModal",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:1302"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => void withLoading(saveCategory(), t(\"Saving category...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:1479"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => void withLoading(saveService(), t(\"Saving service...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:1480"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => void withLoading(savePackage(), t(\"Saving package...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:1481"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => void withLoading(saveSpecifications(), t(\"Saving specification brands...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:1484"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "closeModal",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:1485"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "closeModal",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:1488"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => setPendingDelete(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceCreation.tsx:1516"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceCreation.tsx:1517"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => setPendingDelete(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceCreation.tsx:1520"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => setPendingDelete(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceCreation.tsx:1529"
+    },
+    {
+      "page": "src/pages/ServiceCreation.tsx",
+      "action": "() => void withLoading(confirmDelete(), t(\"Deleting item...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/ServiceCreation.tsx:1530"
+    },
+    {
+      "page": "src/pages/ServiceExecutionModule.tsx",
+      "action": "closeDetails",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceExecutionModule.tsx:1243"
+    },
+    {
+      "page": "src/pages/ServiceExecutionModule.tsx",
+      "action": "() => setCurrentTab(\"assigned\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceExecutionModule.tsx:1361"
+    },
+    {
+      "page": "src/pages/ServiceExecutionModule.tsx",
+      "action": "() => setCurrentTab(\"unassigned\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceExecutionModule.tsx:1365"
+    },
+    {
+      "page": "src/pages/ServiceExecutionModule.tsx",
+      "action": "() => setCurrentTab(\"team\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceExecutionModule.tsx:1370"
+    },
+    {
+      "page": "src/pages/ServiceExecutionModule.tsx",
+      "action": "(e) => toggleActionDropdown(job.id, e.currentTarget as HTMLElement)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceExecutionModule.tsx:1440"
+    },
+    {
+      "page": "src/pages/ServiceExecutionModule.tsx",
+      "action": "() => setCurrentPage((p) => Math.max(1, p - 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceExecutionModule.tsx:1491"
+    },
+    {
+      "page": "src/pages/ServiceExecutionModule.tsx",
+      "action": "() => setCurrentPage(pageNum)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceExecutionModule.tsx:1509"
+    },
+    {
+      "page": "src/pages/ServiceExecutionModule.tsx",
+      "action": "() => setCurrentPage((p) => Math.min(totalPages, p + 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceExecutionModule.tsx:1517"
+    },
+    {
+      "page": "src/pages/ServiceExecutionModule.tsx",
+      "action": "() => void handleCancelOrder()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceExecutionModule.tsx:1560"
+    },
+    {
+      "page": "src/pages/ServiceSummaryCard.tsx",
+      "action": "() => setTechDropdownOpen((v) => !v)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceSummaryCard.tsx:494"
+    },
+    {
+      "page": "src/pages/ServiceSummaryCard.tsx",
+      "action": "onFinishWork",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceSummaryCard.tsx:793"
+    },
+    {
+      "page": "src/pages/ServiceSummaryCard.tsx",
+      "action": "openAddModal",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceSummaryCard.tsx:799"
+    },
+    {
+      "page": "src/pages/ServiceSummaryCard.tsx",
+      "action": "toggleEditMode",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceSummaryCard.tsx:877"
+    },
+    {
+      "page": "src/pages/ServiceSummaryCard.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceSummaryCard.tsx:905"
+    },
+    {
+      "page": "src/pages/ServiceSummaryCard.tsx",
+      "action": "() => !addBusy && setAddOpen(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceSummaryCard.tsx:908"
+    },
+    {
+      "page": "src/pages/ServiceSummaryCard.tsx",
+      "action": "() => !addBusy && setAddOpen(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ServiceSummaryCard.tsx:1008"
+    },
+    {
+      "page": "src/pages/ServiceSummaryCard.tsx",
+      "action": "submitAdd",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ServiceSummaryCard.tsx:1011"
+    },
+    {
+      "page": "src/pages/SetPassword.tsx",
+      "action": "() => setMode(\"FIRST_TIME\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/SetPassword.tsx:124"
+    },
+    {
+      "page": "src/pages/SetPassword.tsx",
+      "action": "() => setMode(\"RESET\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/SetPassword.tsx:138"
+    },
+    {
+      "page": "src/pages/SetPassword.tsx",
+      "action": "onSubmit",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/SetPassword.tsx:257"
+    },
+    {
+      "page": "src/pages/SuccessPopup.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/SuccessPopup.tsx:115"
+    },
+    {
+      "page": "src/pages/SuccessPopup.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/SuccessPopup.tsx:126"
+    },
+    {
+      "page": "src/pages/Tickets.tsx",
+      "action": "() => void withLoading(create(), t(\"Creating ticket...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/Tickets.tsx:163"
+    },
+    {
+      "page": "src/pages/Tickets.tsx",
+      "action": "() => void withLoading(load(), t(\"Loading tickets...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/Tickets.tsx:180"
+    },
+    {
+      "page": "src/pages/Tickets.tsx",
+      "action": "() => void withLoading(saveEdit(), t(\"Saving ticket...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/Tickets.tsx:198"
+    },
+    {
+      "page": "src/pages/Tickets.tsx",
+      "action": "cancelEdit",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/Tickets.tsx:200"
+    },
+    {
+      "page": "src/pages/Tickets.tsx",
+      "action": "() => startEdit(ticket)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/Tickets.tsx:213"
+    },
+    {
+      "page": "src/pages/Tickets.tsx",
+      "action": "() => void withLoading(remove(ticket.id), t(\"Deleting ticket...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/Tickets.tsx:218"
+    },
+    {
+      "page": "src/pages/UserAdmin.tsx",
+      "action": "() => setDetailsOpen(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/UserAdmin.tsx:1294"
+    },
+    {
+      "page": "src/pages/UserAdmin.tsx",
+      "action": "() => setDetailsEditing((v) => !v)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/UserAdmin.tsx:1308"
+    },
+    {
+      "page": "src/pages/UserAdmin.tsx",
+      "action": "() => void withLoading(sendResetPassword(detailsUser), t(\"Sending reset password...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/UserAdmin.tsx:1511"
+    },
+    {
+      "page": "src/pages/UserAdmin.tsx",
+      "action": "() => setDetailsOpen(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/UserAdmin.tsx:1525"
+    },
+    {
+      "page": "src/pages/UserAdmin.tsx",
+      "action": "() => void withLoading(saveUserChanges(), t(\"Saving user changes...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/UserAdmin.tsx:1529"
+    },
+    {
+      "page": "src/pages/UserAdmin.tsx",
+      "action": "() => setInviteOpen(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/UserAdmin.tsx:1732"
+    },
+    {
+      "page": "src/pages/UserAdmin.tsx",
+      "action": "() => setInviteOpen(false)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/UserAdmin.tsx:1870"
+    },
+    {
+      "page": "src/pages/UserAdmin.tsx",
+      "action": "copyInviteLink",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/UserAdmin.tsx:1871"
+    },
+    {
+      "page": "src/pages/UserAdmin.tsx",
+      "action": "invite",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/UserAdmin.tsx:1875"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Vehicule.tsx:149"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Vehicule.tsx:154"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "onConfirm",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Vehicule.tsx:157"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Vehicule.tsx:273"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "onSave",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Vehicule.tsx:314"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Vehicule.tsx:339"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Vehicule.tsx:793"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "toggleTheme",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/Vehicule.tsx:2033"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "() => openEditModal(selectedVehicle.id)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/Vehicule.tsx:2072"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "() => verifyCustomer(form.customerId)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/Vehicule.tsx:2344"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "() => setVerifyAlert(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Vehicule.tsx:2360"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "toggleTheme",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/Vehicule.tsx:2561"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "openAddModal",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/Vehicule.tsx:2613"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "() => setCurrentPage((p) => Math.max(p - 1, 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Vehicule.tsx:2700"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "() => setCurrentPage(pageNum)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Vehicule.tsx:2720"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "() => setCurrentPage((p) => Math.min(p + 1, totalPages))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Vehicule.tsx:2739"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "() => verifyCustomer(form.customerId)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/Vehicule.tsx:2779"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "() => setVerifyAlert(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Vehicule.tsx:2795"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "() => verifyCustomer(form.customerId)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/Vehicule.tsx:2930"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "() => setVerifyAlert(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Vehicule.tsx:2946"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "() => setDeleteVehicle(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Vehicule.tsx:3065"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Vehicule.tsx:3066"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "() => void withLoading(confirmDeleteVehicle(), t(\"Deleting vehicle...\"))",
+      "loader-status": "covered",
+      "line-reference": "src/pages/Vehicule.tsx:3084"
+    },
+    {
+      "page": "src/pages/Vehicule.tsx",
+      "action": "() => setDeleteVehicle(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Vehicule.tsx:3087"
+    }
+  ]
+}

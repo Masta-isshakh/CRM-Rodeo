@@ -1,0 +1,189 @@
+{
+  "counts": {
+    "covered": 29,
+    "needs-review": 297,
+    "not-covered": 185
+  },
+  "top-30-issues": [
+    {
+      "page": "src/pages/ActivityLogs.tsx",
+      "action": "() => void fetchLogs()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ActivityLogs.tsx:54"
+    },
+    {
+      "page": "src/pages/ActivityLogs.tsx",
+      "action": "() => void fetchLogs()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ActivityLogs.tsx:62"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setPreviewViewMode(\"table\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1367"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setPreviewViewMode(\"cards\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1374"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setPreviewPage(1)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1439"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setPreviewPage((current) => Math.max(1, current - 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1448"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setPreviewPage((current) => Math.min(previewTotalPages, current + 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1458"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setPreviewPage(previewTotalPages)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1467"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "jumpToPreviewPage",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1489"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "handleImport",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1498"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "handleCopyMobiles",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1534"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "handleExportCsv",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1537"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setResultsViewMode(\"table\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1547"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setResultsViewMode(\"cards\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1554"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setPage((current) => Math.max(1, current - 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1757"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "() => setPage((current) => Math.min(totalPages, current + 1))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1761"
+    },
+    {
+      "page": "src/pages/ConfirmationPopup.tsx",
+      "action": "() => canClose && onCancel()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ConfirmationPopup.tsx:105"
+    },
+    {
+      "page": "src/pages/ConfirmationPopup.tsx",
+      "action": "onCancel",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ConfirmationPopup.tsx:115"
+    },
+    {
+      "page": "src/pages/ConfirmationPopup.tsx",
+      "action": "() => !loading && !disableConfirm && onConfirm()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ConfirmationPopup.tsx:121"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:135"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:140"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "onConfirm",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:143"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:259"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "onSave",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:304"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:330"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "(e) => e.stopPropagation()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:772"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "onClose",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:1334"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "onToggleTheme",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:1374"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "() => onEdit(customer.id)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:1411"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "(e) => e.preventDefault()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:2308"
+    }
+  ]
+}

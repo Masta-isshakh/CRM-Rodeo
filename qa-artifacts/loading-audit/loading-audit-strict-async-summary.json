@@ -1,0 +1,312 @@
+{
+  "generatedAt": "2026-05-17T11:55:18.977Z",
+  "sourceReport": "qa-artifacts/loading-audit/loading-audit.json",
+  "totalEntries": 168,
+  "counts": {
+    "needs-review": 100,
+    "not-covered": 39,
+    "covered": 29
+  },
+  "top-50-issues": [
+    {
+      "page": "src/pages/ActivityLogs.tsx",
+      "action": "() => void fetchLogs()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ActivityLogs.tsx:54"
+    },
+    {
+      "page": "src/pages/ActivityLogs.tsx",
+      "action": "() => void fetchLogs()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ActivityLogs.tsx:62"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "handleImport",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1498"
+    },
+    {
+      "page": "src/pages/CampaignAudienceAdmin.tsx",
+      "action": "handleExportCsv",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/CampaignAudienceAdmin.tsx:1537"
+    },
+    {
+      "page": "src/pages/ConfirmationPopup.tsx",
+      "action": "() => !loading && !disableConfirm && onConfirm()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ConfirmationPopup.tsx:121"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "onConfirm",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:143"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "onSave",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:304"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "() => void load()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:2531"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "() => setDeleteCustomerId(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:2982"
+    },
+    {
+      "page": "src/pages/Customer.tsx",
+      "action": "() => setDeleteCustomerId(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Customer.tsx:3004"
+    },
+    {
+      "page": "src/pages/DailyReport.tsx",
+      "action": "exportSnapshotPdf",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/DailyReport.tsx:641"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "() => setShowCreateRow((prev) => !prev)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:402"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "createDept",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:421"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "() => void onClickEditDepartment(d)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:477"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "() => openDeletePopup(d)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:487"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "() => void removeRole(d.key, String(role.id))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:528"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "() => void createRoleForDepartment(roleModalDept, modalRoleName, modalRoleDescription)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:597"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "() => void updateRoleForDepartment(editRoleId, editRoleName, editRoleDescription)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:657"
+    },
+    {
+      "page": "src/pages/DepartmentsAdmin.tsx",
+      "action": "() => void submitEditDepartment()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/DepartmentsAdmin.tsx:704"
+    },
+    {
+      "page": "src/pages/editors/FormsEditor.tsx",
+      "action": "() => handleDeleteField(field.id)",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/editors/FormsEditor.tsx:228"
+    },
+    {
+      "page": "src/pages/Employees.tsx",
+      "action": "() => void fetchEmployees()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Employees.tsx:233"
+    },
+    {
+      "page": "src/pages/Employees.tsx",
+      "action": "() => setDeleteTarget(e)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Employees.tsx:313"
+    },
+    {
+      "page": "src/pages/Employees.tsx",
+      "action": "handleSubmit",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/Employees.tsx:396"
+    },
+    {
+      "page": "src/pages/Employees.tsx",
+      "action": "handleSubmit",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/Employees.tsx:403"
+    },
+    {
+      "page": "src/pages/Employees.tsx",
+      "action": "() => setDeleteTarget(null)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Employees.tsx:429"
+    },
+    {
+      "page": "src/pages/Employees.tsx",
+      "action": "() => void handleDelete()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/Employees.tsx:432"
+    },
+    {
+      "page": "src/pages/ExitPermitManagement.tsx",
+      "action": "handleCreateExitPermit",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/ExitPermitManagement.tsx:1122"
+    },
+    {
+      "page": "src/pages/ExitPermitManagement.tsx",
+      "action": "() => void handleCancelOrder()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/ExitPermitManagement.tsx:1275"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "closeShareModal",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3002"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "closeShareModal",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3006"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "addShareUserPermission",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3018"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => setSharePermissions((prev) => prev.filter((item) => item.email !== entry.email))",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3037"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "closeShareModal",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3070"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void loadData()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3121"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "openUploadPicker",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3131"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "openUploadPicker",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3219"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void createTemplateAndOpenEditor(\"doc\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3222"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void createTemplateAndOpenEditor(\"sheet\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3223"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void createTemplateAndOpenEditor(\"slides\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3224"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void createTemplateAndOpenEditor(\"form\")",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3225"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => openDrivePopup(\"shared\")",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3232"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "openUploadPicker",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3381"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void createFolder()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3406"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "openUploadPicker",
+      "loader-status": "not-covered",
+      "line-reference": "src/pages/FileSharing.tsx:3448"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void uploadFile()",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3450"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void openRow(row)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3464"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void openRow(row)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3480"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void openRow(row)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3494"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "() => void openRow(row)",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3589"
+    },
+    {
+      "page": "src/pages/FileSharing.tsx",
+      "action": "(event) => { event.stopPropagation(); void toggleStar(row);",
+      "loader-status": "needs-review",
+      "line-reference": "src/pages/FileSharing.tsx:3639"
+    }
+  ]
+}
