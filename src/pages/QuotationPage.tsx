@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 import { jsPDF } from "jspdf";
-import QRCode from "qrcode";
 import "./QuotationPage.css";
 import PermissionGate from "./PermissionGate";
 import { useLanguage } from "../i18n/LanguageContext";
@@ -562,21 +561,6 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
       logoDataUrl = "";
     }
 
-    let qrDataUrl = "";
-    try {
-      qrDataUrl = await QRCode.toDataURL(
-        [
-          `Quotation: ${quoteNumber}`,
-          `Customer: ${safeText(customer.fullName) || "-"}`,
-          `Mobile: ${safeText(customer.mobile) || "-"}`,
-          `Net: ${netAmount.toFixed(2)} QAR`,
-        ].join(" | "),
-        { errorCorrectionLevel: "M", margin: 1, width: 180 },
-      );
-    } catch {
-      qrDataUrl = "";
-    }
-
     doc.setDrawColor(40, 40, 40);
     doc.setLineWidth(0.3);
 
@@ -768,8 +752,26 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
       doc.setTextColor(17, 24, 39);
     });
 
+    const customerNote = safeText(customer.notes).trim();
+    if (customerNote) {
+      const noteTop = totalsTop + totalsRowH * totals.length + 3;
+      const noteW = contentW - 2;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text("Customer Note", marginX + 1, noteTop);
+      drawArabicLine(doc, "ملاحظة العميل", pageW - marginX - 1, noteTop - 3.1, 24, 10, "bold");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.2);
+      const noteLines = doc.splitTextToSize(customerNote, noteW - 4) as string[];
+      const noteBoxH = Math.max(9, noteLines.length * 4.4 + 4);
+      doc.setDrawColor(220, 231, 246);
+      doc.setFillColor(248, 251, 255);
+      doc.roundedRect(marginX + 0.5, noteTop + 2, noteW, noteBoxH, 2.5, 2.5, "FD");
+      doc.text(noteLines, marginX + 3, noteTop + 6);
+    }
+
     // Remarks and terms
-    const remarksTop = totalsTop + totalsRowH * totals.length + 3;
+    const remarksTop = totalsTop + totalsRowH * totals.length + (customerNote ? 18 : 3);
     const remarksLeftX = marginX + 1;
     const remarksLeftW = 118;
     const remarksRightX = pageW - marginX - 1;
@@ -827,65 +829,16 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
       remarksArabicLineGap
     );
 
-    // Footer with QR and contact
+    // Footer with website and email only
     doc.line(marginX, footerTop, pageW - marginX, footerTop);
-    if (qrDataUrl) {
-      doc.addImage(qrDataUrl, "PNG", marginX + 1.5, footerTop + 2.2, 20, 20);
-      doc.setFont("helvetica", "bold");
-      doc.setFillColor(0, 0, 0);
-      doc.setTextColor(255, 255, 255);
-      doc.rect(marginX + 1.5, footerTop + 22.5, 20, 5.5, "F");
-      doc.setFontSize(7.5);
-      doc.text("SCAN ME", marginX + 11.5, footerTop + 26.2, { align: "center" });
-      doc.setTextColor(17, 24, 39);
-    }
-
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.8);
-    doc.text("Address", marginX + 55, footerTop + 6);
-    doc.text("Contact", marginX + 106, footerTop + 6);
-    doc.text("WEB", marginX + 141, footerTop + 6);
+    doc.setFontSize(8.8);
+    doc.text("Website", marginX + 16, footerTop + 10.2, { align: "right" });
+    doc.text("Email", marginX + 16, footerTop + 16.2, { align: "right" });
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(7.2);
-    doc.text("Shop No SYS 062, Block 21, Barwa", marginX + 55, footerTop + 10.2);
-    doc.text("Commercial Avenue, Industrial Area", marginX + 55, footerTop + 14.2);
-    doc.text("Rd. Doha", marginX + 55, footerTop + 18.2);
-    doc.text("+974 4431 1871", marginX + 106, footerTop + 10.2);
-    doc.text("+974 3320 2409", marginX + 106, footerTop + 14.2);
-    doc.text("support@rod.qa", marginX + 106, footerTop + 18.2);
-    doc.text("www.rod.qa", marginX + 141, footerTop + 10.2);
-    doc.text("@rodeo.drive.qa", marginX + 141, footerTop + 14.2);
-
-    doc.setFillColor(239, 239, 239);
-    const footerSummaryX = pageW - marginX - 62;
-    const footerSummaryW = 62;
-    const footerSummaryY = footerTop + 18.4;
-    const footerSummaryRowH = 5.8;
-    const footerSummaryRows: Array<{ label: string; value: string }> = [
-      { label: "TOTAL SERVICES", value: `${formatMoney(subtotal)} QAR` },
-      { label: "TOTAL DISCOUNT", value: `${formatMoney(safeDiscount)} QAR` },
-      { label: "NET TOTAL", value: `${formatMoney(netAmount)} QAR` },
-    ];
-
-    doc.rect(footerSummaryX, footerSummaryY, footerSummaryW, footerSummaryRowH * footerSummaryRows.length, "F");
-    doc.setDrawColor(210, 210, 210);
-    doc.setLineWidth(0.2);
-    for (let i = 1; i < footerSummaryRows.length; i += 1) {
-      doc.line(
-        footerSummaryX,
-        footerSummaryY + i * footerSummaryRowH,
-        footerSummaryX + footerSummaryW,
-        footerSummaryY + i * footerSummaryRowH
-      );
-    }
-
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(7.6);
-    footerSummaryRows.forEach((row, idx) => {
-      const y = footerSummaryY + idx * footerSummaryRowH + 4;
-      doc.text(row.label, footerSummaryX + 2, y);
-      doc.text(row.value, footerSummaryX + footerSummaryW - 2, y, { align: "right" });
-    });
+    doc.setFontSize(8.8);
+    doc.text("RodeoDrive.QA", marginX + 18, footerTop + 10.2);
+    doc.text("info@rodeodrive.qa", marginX + 18, footerTop + 16.2);
 
     const pdfBlob = doc.output("blob") as Blob;
     const pdfUrl = URL.createObjectURL(pdfBlob);

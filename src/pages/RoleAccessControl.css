@@ -540,6 +540,8 @@
 	align-items: center;
 	gap: 10px;
 	flex-shrink: 0;
+	min-width: 0;
+	flex-wrap: nowrap;
 }
 
 .rac-toggle-label {
@@ -549,6 +551,8 @@
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
 	white-space: nowrap;
+	min-width: 0;
+	line-height: 1.2;
 }
 
 .rac-label,
@@ -964,13 +968,19 @@
 		width: 100%;
 		justify-content: space-between;
 		gap: 12px;
+		flex-wrap: nowrap;
 	}
 
 	.rac-toggle-label {
 		display: inline-flex;
+		flex: 1 1 auto;
+		min-width: 0;
+		max-width: calc(100% - 62px);
 		white-space: normal;
-		word-spacing: 0.08em;
+		overflow-wrap: anywhere;
+		word-spacing: 0.1em;
 		letter-spacing: 0.03em;
+		text-align: left;
 	}
 }
 
@@ -1029,6 +1039,7 @@
 		align-items: center;
 		flex-wrap: wrap;
 		justify-content: flex-end;
+		row-gap: 8px;
 	}
 
 	.rac-switch,
@@ -1068,6 +1079,17 @@
 	.rac-modal {
 		width: calc(100vw - 16px);
 		max-height: calc(100dvh - 16px);
+	}
+
+	.rac-actions {
+		gap: 10px;
+	}
+
+	.rac-actions .rac-btn {
+		white-space: normal;
+		line-height: 1.25;
+		word-spacing: 0.12em;
+		letter-spacing: 0.02em;
 	}
 
 	.rac-option,

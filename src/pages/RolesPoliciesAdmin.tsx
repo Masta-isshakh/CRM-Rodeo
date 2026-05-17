@@ -706,6 +706,8 @@ export default function RoleAccessControl() {
   const selectRoleLabel = humanizeWords(t("selectRoleToModify")) || "Select Role To Modify";
   const currentlyEditingLabel = humanizeWords(t("currentlyEditing")) || "Currently Editing";
   const searchPermissionsLabel = humanizeWords(t("searchPermissionsPlaceholder")) || "Search Permissions";
+  const resetBackendLabel = humanizeWords(t("resetDeleteBackendRows")) || "Reset Delete Backend Rows";
+  const saveBackendLabel = humanizeWords(t("saveToBackend")) || "Save To Backend";
 
   const [roles, setRoles] = useState<any[]>([]);
   const [currentRoleId, setCurrentRoleId] = useState<string>("");
@@ -1523,14 +1525,14 @@ export default function RoleAccessControl() {
           <div className="rac-card rac-actions-card">
             <section className="rac-actions">
               <button type="button" className="rac-btn rac-btn-ghost" onClick={() => void withLoading(handleReset(), t("Resetting changes..."))} disabled={loading}>
-                <i className="fas fa-undo" /> {t("resetDeleteBackendRows")}
+                <i className="fas fa-undo" /> {resetBackendLabel}
               </button>
 
               <div className="rac-save-wrap">
                 <button type="button" className="rac-btn rac-btn-primary" onClick={() => void withLoading(handleSave(), t("Saving role policies..."))} disabled={loading}>
                   <i className="fas fa-save" /> {loading
                     ? `${t("savingChanges")}... (${saveProgress.completed}/${saveProgress.total || "?"})`
-                    : t("saveToBackend")}
+                    : saveBackendLabel}
                 </button>
 
                 {loading && saveProgress.active && saveProgress.total > 0 && (
