@@ -652,7 +652,7 @@
   }
 
   .dep-hero-title {
-    font-size: 16px;
+    font-size: 16.5px;
     line-height: 1.2;
   }
 
@@ -666,11 +666,11 @@
   }
 
   .dep-panel-head h2 {
-    font-size: 16px;
+    font-size: 17px;
   }
 
   .dep-card-title h3 {
-    font-size: 15px;
+    font-size: 16px;
   }
 
   .dep-card-title span {
@@ -679,18 +679,18 @@
   }
 
   .dep-card-body {
-    padding: 12px 10px;
+    padding: 12px 11px;
   }
 
   .dep-btn {
     min-height: 34px !important;
     height: 34px !important;
-    padding: 0 12px !important;
+    padding: 0 13px !important;
     font-size: 12px !important;
   }
 
   .dep-modal-head h3 {
-    font-size: 18px;
+    font-size: 17.5px;
   }
 
   .dep-modal-body {
@@ -700,7 +700,7 @@
 
 @media (max-width: 375px) {
   .dep-main {
-    padding: 8px 5px;
+    padding: 8px 6px;
   }
 
   .dep-hero {
@@ -712,12 +712,12 @@
   }
 
   .dep-hero-title {
-    font-size: 15px;
+    font-size: 15.5px;
     letter-spacing: -0.02em;
   }
 
   .dep-hero-subtitle {
-    font-size: 10px;
+    font-size: 10.25px;
     gap: 6px;
   }
 
@@ -731,12 +731,12 @@
   }
 
   .dep-card-head {
-    padding: 10px;
+    padding: 10px 11px;
   }
 
   .dep-card-desc,
   .dep-role-desc {
-    font-size: 11px;
+    font-size: 11.25px;
   }
 
   .dep-modal-subtitle {
@@ -747,7 +747,7 @@
 
 @media (max-width: 320px) {
   .dep-main {
-    padding: 6px 4px;
+    padding: 6px 5px;
   }
 
   .dep-hero-inner {
@@ -756,11 +756,11 @@
   }
 
   .dep-hero-title {
-    font-size: 14px;
+    font-size: 14.5px;
   }
 
   .dep-hero-subtitle {
-    font-size: 9.5px;
+    font-size: 9.75px;
     line-height: 1.3;
   }
 
@@ -769,11 +769,11 @@
   }
 
   .dep-panel-head h2 {
-    font-size: 14px;
+    font-size: 15px;
   }
 
   .dep-card-title h3 {
-    font-size: 14px;
+    font-size: 14.5px;
   }
 
   .dep-btn {
