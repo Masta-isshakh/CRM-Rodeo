@@ -385,27 +385,49 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
   };
 
   return (
-    <div className="dep-page">
-      <div className="dep-page-title">
-        <h1><i className="fas fa-sitemap"></i> {t("Department & Role Management")}</h1>
-        <p>{t("Create departments, add roles, and manage your organizational structure with full-width department and role cards.")}</p>
-      </div>
+    <div
+      className="vehicle-page customer-page customer-dashboard-shell dep-page theme-executive-minimal"
+      style={{ background: "linear-gradient(145deg, #f8fafe 0%, #eef3ff 100%)", minHeight: "100vh" }}
+    >
+      <main className="main-content customer-dashboard-main dep-main">
+        <section className="dep-hero">
+          <div aria-hidden="true" className="dep-hero-accent" />
+          <div aria-hidden="true" className="dep-hero-shape" />
+          <div aria-hidden="true" className="dep-hero-dots" />
+          <div className="dep-hero-inner">
+            <div className="dep-hero-row">
+              <div className="dep-hero-brand">
+                <div className="dep-hero-icon">
+                  <i className="fas fa-sitemap" />
+                </div>
+                <h1 className="dep-hero-title">{t("Department & Role Management")}</h1>
+              </div>
 
-      <section className="dep-panel">
+              <div className="dep-hero-actions">
+                <Button onClick={load} isLoading={loading} className="dep-btn dep-btn-muted">{t("Refresh")}</Button>
+                <PermissionGate moduleId="departments" optionId="departments_create">
+                  <Button
+                    className="dep-btn dep-btn-primary"
+                    onClick={() => setShowCreateRow((prev) => !prev)}
+                    isDisabled={!permissions.canCreate || loading}
+                  >
+                    <i className="fas fa-plus"></i> {t("Add New Department")}
+                  </Button>
+                </PermissionGate>
+              </div>
+            </div>
+
+            <p className="dep-hero-subtitle">
+              <span aria-hidden="true" className="dep-hero-subtitle-accent" />
+              <span className="dep-hero-subtitle-text">{t("Create departments, add roles, and manage your organizational structure with full-width department and role cards.")}</span>
+            </p>
+          </div>
+        </section>
+
+        <section className="dep-panel">
         <div className="dep-panel-head">
           <h2><i className="fas fa-list"></i> {t("Departments & Roles")}</h2>
-          <div className="dep-head-actions">
-            <Button onClick={load} isLoading={loading} className="dep-btn dep-btn-muted">{t("Refresh")}</Button>
-            <PermissionGate moduleId="departments" optionId="departments_create">
-              <Button
-                className="dep-btn dep-btn-primary"
-                onClick={() => setShowCreateRow((prev) => !prev)}
-                isDisabled={!permissions.canCreate || loading}
-              >
-                <i className="fas fa-plus"></i> {t("Add New Department")}
-              </Button>
-            </PermissionGate>
-          </div>
+          <div className="dep-head-actions" />
         </div>
 
         {showCreateRow && (
@@ -733,6 +755,8 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
         }}
         footerNote={t("This action cannot be undone.")}
       />
+
+      </main>
     </div>
   );
 }

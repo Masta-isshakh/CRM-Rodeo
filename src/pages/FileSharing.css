@@ -1235,6 +1235,53 @@
 	padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
 }
 
+.drive-main.drive-main-overlay-open .drive-admin-layout,
+.drive-main.drive-main-overlay-open .drive-admin-grid,
+.drive-main.drive-main-overlay-open .drive-trend-list,
+.drive-main.drive-main-overlay-open .drive-usage-list,
+.drive-main.drive-main-overlay-open .drive-alert-list {
+	min-width: 0;
+}
+
+.drive-main.drive-main-overlay-open .drive-admin-grid > div,
+.drive-main.drive-main-overlay-open .drive-trend-row > div,
+.drive-main.drive-main-overlay-open .drive-usage-row > div,
+.drive-main.drive-main-overlay-open .drive-link-row > div,
+.drive-main.drive-main-overlay-open .drive-version-row > div,
+.drive-main.drive-main-overlay-open .drive-approval-row > div {
+	min-width: 0;
+}
+
+.drive-main.drive-main-overlay-open .drive-admin-grid .drive-inline-actions,
+.drive-main.drive-main-overlay-open .drive-admin-grid .drive-approval-actions,
+.drive-main.drive-main-overlay-open .drive-admin-grid .drive-share-permission-flags {
+	flex-wrap: wrap;
+}
+
+.drive-main.drive-main-overlay-open .drive-admin-grid .drive-inline-actions label,
+.drive-main.drive-main-overlay-open .drive-admin-grid .drive-share-permission-flags label {
+	width: 100%;
+	min-width: 0;
+}
+
+.drive-main.drive-main-overlay-open .drive-trend-row,
+.drive-main.drive-main-overlay-open .drive-usage-row,
+.drive-main.drive-main-overlay-open .drive-link-row,
+.drive-main.drive-main-overlay-open .drive-version-row,
+.drive-main.drive-main-overlay-open .drive-approval-row {
+	align-items: flex-start;
+	flex-wrap: wrap;
+}
+
+.drive-main.drive-main-overlay-open .drive-trend-row strong,
+.drive-main.drive-main-overlay-open .drive-trend-row span,
+.drive-main.drive-main-overlay-open .drive-link-row span,
+.drive-main.drive-main-overlay-open .drive-version-row span,
+.drive-main.drive-main-overlay-open .drive-approval-reason {
+	overflow-wrap: anywhere;
+	word-break: break-word;
+}
+
 .drive-overlay-titlebar {
 	position: sticky;
 	top: 0;
@@ -1284,6 +1331,23 @@
 		gap: 10px;
 	}
 
+	.drive-main.drive-main-overlay-open {
+		inset: 8px;
+		padding: 10px;
+		padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+	}
+
+	.drive-main.drive-main-overlay-open .drive-admin-summary-grid {
+		grid-template-columns: 1fr;
+	}
+
+	.drive-main.drive-main-overlay-open .drive-admin-grid .drive-inline-actions input,
+	.drive-main.drive-main-overlay-open .drive-admin-grid .drive-inline-actions select,
+	.drive-main.drive-main-overlay-open .drive-admin-grid .drive-inline-actions button,
+	.drive-main.drive-main-overlay-open .drive-admin-grid .drive-approval-actions button {
+		width: 100%;
+	}
+
 	.drive-admin-grid {
 		grid-template-columns: 1fr;
 	}
@@ -1319,8 +1383,10 @@
 
 @media (max-width: 768px) {
 	.drive-main.drive-main-overlay-open {
-		inset: 6px;
-		border-radius: 12px;
+		inset: 0;
+		border-radius: 0;
+		border-left: 0;
+		border-right: 0;
 		padding: 10px;
 		padding-bottom: calc(12px + env(safe-area-inset-bottom, 0px));
 	}
@@ -1332,6 +1398,16 @@
 
 	.drive-overlay-title {
 		font-size: 0.84rem;
+	}
+
+	.drive-main.drive-main-overlay-open .drive-trend-row,
+	.drive-main.drive-main-overlay-open .drive-usage-row,
+	.drive-main.drive-main-overlay-open .drive-link-row,
+	.drive-main.drive-main-overlay-open .drive-version-row,
+	.drive-main.drive-main-overlay-open .drive-approval-row {
+		display: grid;
+		grid-template-columns: 1fr;
+		gap: 6px;
 	}
 
 	.filesharing-section-head {
@@ -1584,8 +1660,8 @@
 
 @media (max-width: 320px) {
 	.drive-main.drive-main-overlay-open {
-		inset: 4px;
-		border-radius: 10px;
+		inset: 0;
+		border-radius: 0;
 		padding: 8px;
 		padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
 	}
