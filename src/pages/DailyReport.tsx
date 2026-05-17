@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { FiDownload } from "react-icons/fi";
-import { jsPDF } from "jspdf";
+import * as XLSX from "xlsx";
 import type { PageProps } from "../lib/PageProps";
 import { useLanguage } from "../i18n/LanguageContext";
 import { getDataClient } from "../lib/amplifyClient";
@@ -486,20 +486,7 @@ export default function DailyReport({ permissions }: PageProps) {
     [snapshotRows]
   );
 
-  const exportSnapshotPdf = () => {
-    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 12;
-    const contentWidth = pageWidth - margin * 2;
-
-    const flavorTheme: Record<ReportFlavor, { accent: [number, number, number]; soft: [number, number, number] }> = {
-      executive: { accent: [29, 78, 216], soft: [239, 246, 255] },
-      technical: { accent: [6, 95, 70], soft: [236, 253, 245] },
-      luxury: { accent: [146, 64, 14], soft: [255, 247, 237] },
-    };
-    const theme = flavorTheme[flavor] ?? flavorTheme.technical;
-
+  const exportSnapshotExcel = () => {
     const generatedAtQatar = new Date().toLocaleString("en-QA", {
       timeZone: "Asia/Qatar",
       year: "numeric",
@@ -510,83 +497,54 @@ export default function DailyReport({ permissions }: PageProps) {
       hour12: false,
     });
 
-    let y = margin;
-
-    doc.setFillColor(theme.accent[0], theme.accent[1], theme.accent[2]);
-    doc.roundedRect(margin, y, contentWidth, 22, 2.2, 2.2, "F");
-    doc.setTextColor(255, 255, 255);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(15);
-    doc.text(t("Daily Sales Snapshot"), margin + 4, y + 8.5);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9.5);
-    doc.text(`${t("Period")}: ${dateFrom} ${t("to")} ${dateTo}`, margin + 4, y + 14.2);
-    doc.text(`${t("Generated (Qatar)")}: ${generatedAtQatar}`, margin + 4, y + 19.2);
-
-    y += 28;
-
-    const metricsLine = [
-      `${t("Rows")}: ${snapshotRows.length}`,
-      `${t("Total")}: ${formatMoney(snapshotTotal)}`,
-      `${t("Jobs Completed")}: ${metrics.jobsCompleted}`,
-      `${t("Revenue")}: ${formatMoney(metrics.totalRevenue)}`,
+    const summaryRows = [
+      { Metric: t("Period From"), Value: dateFrom },
+      { Metric: t("Period To"), Value: dateTo },
+      { Metric: t("Generated (Qatar)"), Value: generatedAtQatar },
+      { Metric: t("Rows"), Value: snapshotRows.length },
+      { Metric: t("Total"), Value: snapshotTotal },
+      { Metric: t("Jobs Completed"), Value: metrics.jobsCompleted },
+      { Metric: t("Revenue"), Value: metrics.totalRevenue },
     ];
 
-    doc.setFillColor(theme.soft[0], theme.soft[1], theme.soft[2]);
-    doc.roundedRect(margin, y, contentWidth, 12, 2, 2, "F");
-    doc.setTextColor(20, 23, 28);
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(9.5);
-    doc.text(metricsLine.join("   |   "), margin + 4, y + 7.8);
-    y += 16;
+    const detailRows = snapshotRows.map((row) => ({
+      [t("Branch")]: row.branch,
+      [t("Vehicle Model")]: row.vehicleModel,
+      [t("Advisor")]: row.advisor,
+      [t("Customer")]: row.customer,
+      [t("Phone")]: row.phone,
+      [t("Brand")]: row.brand,
+      [t("Color")]: row.color,
+      [t("Job Card ID")]: row.jobCardId,
+      [t("Service")]: row.serviceDescription,
+      [t("Amount")]: Math.max(0, toNum(row.amount)),
+      [t("Invoice")]: row.invoiceNo,
+      [t("Date")]: row.dateTime,
+    }));
 
-    const ensurePageSpace = (needed: number) => {
-      if (y + needed <= pageHeight - margin) return;
-      doc.addPage();
-      y = margin;
-    };
+    const workbook = XLSX.utils.book_new();
+    const summarySheet = XLSX.utils.json_to_sheet(summaryRows);
+    const detailSheet = XLSX.utils.json_to_sheet(detailRows);
 
-    snapshotRows.forEach((row, index) => {
-      const serviceLines = doc.splitTextToSize(`${t("Service")}: ${row.serviceDescription || "-"}`, contentWidth - 10);
-      const blockHeight = Math.max(24, 15 + serviceLines.length * 4.5);
-      ensurePageSpace(blockHeight + 3);
+    summarySheet["!cols"] = [{ wch: 26 }, { wch: 30 }];
+    detailSheet["!cols"] = [
+      { wch: 18 },
+      { wch: 20 },
+      { wch: 20 },
+      { wch: 24 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 14 },
+      { wch: 20 },
+      { wch: 42 },
+      { wch: 14 },
+      { wch: 18 },
+      { wch: 24 },
+    ];
 
-      doc.setDrawColor(220, 228, 243);
-      doc.setFillColor(255, 255, 255);
-      doc.roundedRect(margin, y, contentWidth, blockHeight, 1.8, 1.8, "FD");
-
-      doc.setTextColor(theme.accent[0], theme.accent[1], theme.accent[2]);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10.5);
-      doc.text(`#${index + 1}  ${row.jobCardId || "-"}`, margin + 4, y + 6.2);
-
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(44, 52, 67);
-      doc.setFontSize(9.2);
-      doc.text(`${t("Customer")}: ${row.customer || "-"}   |   ${t("Phone")}: ${row.phone || "-"}`, margin + 4, y + 11.2);
-      doc.text(`${t("Branch")}: ${row.branch || "-"}   |   ${t("Advisor")}: ${row.advisor || "-"}`, margin + 4, y + 15.7);
-      doc.text(`${t("Vehicle")}: ${row.brand || "-"} ${row.vehicleModel || "-"} ${row.color ? `(${row.color})` : ""}`, margin + 4, y + 20.2);
-      doc.text(`${t("Invoice")}: ${row.invoiceNo || "-"}   |   ${t("Date")}: ${row.dateTime || "-"}`, margin + 4, y + 24.7);
-      doc.text(serviceLines, margin + 4, y + 29.2);
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(15, 23, 42);
-      doc.text(formatMoney(Math.max(0, toNum(row.amount))), pageWidth - margin - 4, y + 6.2, { align: "right" });
-
-      y += blockHeight + 3;
-    });
-
-    const pages = doc.getNumberOfPages();
-    for (let p = 1; p <= pages; p += 1) {
-      doc.setPage(p);
-      doc.setTextColor(107, 114, 128);
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(8.4);
-      doc.text(`Rodeo Drive CRM • ${t("Daily Snapshot")} • ${p}/${pages}`, pageWidth - margin, pageHeight - 6, { align: "right" });
-    }
-
-    doc.save(`daily-report-snapshot-${dateFrom}-to-${dateTo}.pdf`);
+    XLSX.utils.book_append_sheet(workbook, summarySheet, "Summary");
+    XLSX.utils.book_append_sheet(workbook, detailSheet, "Snapshot");
+    XLSX.writeFile(workbook, `daily-report-snapshot-${dateFrom}-to-${dateTo}.xlsx`);
   };
 
   if (!permissions?.canRead) {
@@ -638,7 +596,7 @@ export default function DailyReport({ permissions }: PageProps) {
           <button
             type="button"
             className="dr2-export-btn"
-            onClick={exportSnapshotPdf}
+            onClick={exportSnapshotExcel}
           >
             <FiDownload /> {t("Export Snapshot")}
           </button>

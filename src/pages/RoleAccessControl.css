@@ -99,6 +99,7 @@
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+	flex-wrap: wrap;
 	gap: 10px;
 	padding: 11px 14px;
 	background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
@@ -108,6 +109,10 @@
 .rac-details-page-title-wrap,
 .rac-details-head-text {
 	min-width: 0;
+}
+
+.rac-details-page-title-wrap {
+	flex: 1 1 320px;
 }
 
 .rac-details-head-main {
@@ -140,7 +145,9 @@
 	font-size: 20px;
 	font-weight: 700;
 	line-height: 1.15;
-	letter-spacing: -0.03em;
+	letter-spacing: 0.01em;
+	word-spacing: 0.12em;
+	white-space: normal;
 }
 
 .rac-details-page-sub-row {
@@ -164,6 +171,7 @@
 	font-weight: 600;
 	line-height: 1.4;
 	letter-spacing: 0.01em;
+	word-spacing: 0.08em;
 }
 
 .rac-add-btn,
@@ -183,6 +191,11 @@
 	cursor: pointer;
 	box-shadow: 0 12px 24px rgba(78, 64, 248, 0.32), 0 4px 8px rgba(78, 64, 248, 0.16);
 	transition: all 200ms ease;
+}
+
+.rac-add-btn {
+	white-space: nowrap;
+	flex-shrink: 0;
 }
 
 .rac-add-btn:disabled,
@@ -220,6 +233,7 @@
 	grid-template-columns: minmax(220px, 1.1fr) minmax(220px, 1fr) minmax(280px, 1.3fr) auto;
 	gap: 10px 12px;
 	align-items: end;
+	width: 100%;
 }
 
 .rac-hero-field,
@@ -532,6 +546,7 @@
 	font-weight: 800;
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
+	white-space: nowrap;
 }
 
 .rac-expand-icon {
@@ -627,6 +642,54 @@
 	width: 42px;
 	height: 24px;
 	display: inline-block;
+}
+
+.rac-toggle {
+	position: relative;
+	width: 42px;
+	height: 24px;
+	display: inline-block;
+	flex-shrink: 0;
+}
+
+.rac-toggle input {
+	opacity: 0;
+	width: 0;
+	height: 0;
+}
+
+.rac-slider {
+	position: absolute;
+	inset: 0;
+	border-radius: 999px;
+	background: #c6d1ea;
+	transition: background 120ms ease;
+	cursor: pointer;
+}
+
+.rac-slider::before {
+	content: "";
+	position: absolute;
+	left: 3px;
+	top: 3px;
+	width: 18px;
+	height: 18px;
+	border-radius: 999px;
+	background: #ffffff;
+	transition: transform 120ms ease;
+}
+
+.rac-toggle input:checked + .rac-slider {
+	background: #1eba78;
+}
+
+.rac-toggle input:checked + .rac-slider::before {
+	transform: translateX(18px);
+}
+
+.rac-toggle input:disabled + .rac-slider {
+	opacity: 0.55;
+	cursor: not-allowed;
 }
 
 .rac-switch input {
@@ -849,6 +912,14 @@
 		align-items: flex-start;
 	}
 
+	.rac-details-page-head {
+		align-items: stretch;
+	}
+
+	.rac-add-btn {
+		align-self: flex-start;
+	}
+
 	.rac-table-actions,
 	.rac-tabs,
 	.rac-save-wrap {
@@ -873,12 +944,22 @@
 	}
 
 	.rac-switch,
+	.rac-toggle,
 	.rac-percent-field {
 		justify-self: start;
 	}
 
+	.rac-module-toggle {
+		width: 100%;
+		justify-content: space-between;
+		gap: 12px;
+	}
+
 	.rac-toggle-label {
-		display: none;
+		display: inline-flex;
+		white-space: normal;
+		word-spacing: 0.08em;
+		letter-spacing: 0.03em;
 	}
 }
 
@@ -910,6 +991,11 @@
 		font-size: 18px;
 	}
 
+	.rac-details-page-head h3,
+	.rac-details-page-sub {
+		word-spacing: 0.12em;
+	}
+
 	.rac-details-page-sub,
 	.rac-current-role-label,
 	.rac-module-meta {
@@ -920,6 +1006,27 @@
 	.rac-btn,
 	.rac-add-btn {
 		width: 100%;
+	}
+
+	.rac-module-toggle {
+		align-items: center;
+	}
+
+	.rac-switch,
+	.rac-toggle {
+		width: 50px;
+		height: 28px;
+	}
+
+	.rac-switch-slider::before,
+	.rac-slider::before {
+		width: 22px;
+		height: 22px;
+	}
+
+	.rac-switch input:checked + .rac-switch-slider::before,
+	.rac-toggle input:checked + .rac-slider::before {
+		transform: translateX(22px);
 	}
 
 	.rac-modal-footer .rac-btn {

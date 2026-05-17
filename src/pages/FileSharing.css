@@ -308,6 +308,13 @@
 
 .drive-inline-menu {
 	right: 0;
+	z-index: 140;
+}
+
+.drive-row-menu-wrap {
+	position: relative;
+	display: inline-flex;
+	align-items: center;
 }
 
 .drive-inline-menu.open-up {
@@ -1315,6 +1322,28 @@
 	border-radius: 8px;
 }
 
+.drive-overlay-actions {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	flex-wrap: wrap;
+	justify-content: flex-end;
+}
+
+.drive-overlay-action-btn {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 6px 10px;
+	min-height: 34px;
+	border-radius: 8px;
+	border: 1px solid var(--fs-border);
+	background: #f7f9ff;
+	color: var(--fs-brand);
+	font-size: 0.82rem;
+	font-weight: 800;
+}
+
 @media (max-width: 1250px) {
 	.drive-overview-grid,
 	.drive-admin-summary-grid {
@@ -1394,6 +1423,16 @@
 	.drive-overlay-titlebar {
 		padding: 8px;
 		margin-bottom: 8px;
+	}
+
+	.drive-overlay-actions {
+		width: 100%;
+		justify-content: flex-start;
+	}
+
+	.drive-overlay-action-btn,
+	.drive-overlay-close {
+		min-height: 38px;
 	}
 
 	.drive-overlay-title {
@@ -1677,6 +1716,12 @@
 	}
 
 	.drive-overlay-close {
+		font-size: 0.76rem;
+		padding: 6px 8px;
+		min-height: 34px;
+	}
+
+	.drive-overlay-action-btn {
 		font-size: 0.76rem;
 		padding: 6px 8px;
 		min-height: 34px;

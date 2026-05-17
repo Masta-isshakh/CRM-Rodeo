@@ -691,6 +691,19 @@ export default function RoleAccessControl() {
   const client = useMemo(() => getDataClient(), []);
   const [loading, setLoading] = useState(false);
 
+  const humanizeWords = (value: string) =>
+    String(value ?? "")
+      .replace(/([a-z])([A-Z])/g, "$1 $2")
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+
+  const roleAccessControlLabel = humanizeWords(t("roleAccessControl")) || "Role Access Control";
+  const optionPermissionsLabel =
+    humanizeWords(t("manageOptionLevelPermissions")) || "Manage Option Level Permissions";
+  const createRoleLabel = humanizeWords(t("Create New Role")) || "Create New Role";
+  const enableDisableLabel = humanizeWords(t("enableDisable")) || "Enable Disable";
+
   const [roles, setRoles] = useState<any[]>([]);
   const [currentRoleId, setCurrentRoleId] = useState<string>("");
 
@@ -1323,10 +1336,10 @@ export default function RoleAccessControl() {
                     <i className="fas fa-user-shield" />
                   </span>
                   <div className="rac-details-head-text">
-                    <h3>{t("roleAccessControl")}</h3>
+                    <h3>{roleAccessControlLabel}</h3>
                     <div className="rac-details-page-sub-row">
                       <span className="rac-details-sub-rail" aria-hidden />
-                      <div className="rac-details-page-sub">{t("manageOptionLevelPermissions")}</div>
+                      <div className="rac-details-page-sub">{optionPermissionsLabel}</div>
                     </div>
                   </div>
                 </div>
@@ -1339,7 +1352,7 @@ export default function RoleAccessControl() {
                 disabled={loading}
               >
                 <span className="rac-add-icon" aria-hidden>+</span>
-                {t("Create New Role")}
+                {createRoleLabel}
               </button>
               <div className="rac-hero-grid">
                 <div className="rac-hero-field">
@@ -1468,8 +1481,8 @@ export default function RoleAccessControl() {
                         </div>
 
                         <div className="rac-module-toggle" onClick={(e) => e.stopPropagation()}>
-                          <span className="rac-toggle-label">{t("enableDisable")}</span>
-                          <label className="rac-switch" aria-label={t("enableDisable")}>
+                          <span className="rac-toggle-label">{enableDisableLabel}</span>
+                          <label className="rac-switch" aria-label={enableDisableLabel}>
                             <input
                               type="checkbox"
                               checked={moduleState.enabled}

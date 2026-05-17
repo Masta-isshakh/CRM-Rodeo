@@ -1762,6 +1762,43 @@ export default function FileSharing({ permissions }: PageProps) {
     setIsNewMenuOpen(false);
   };
 
+  const openUploadInFolder = useCallback(
+    (folderPath: string) => {
+      const target = normalizeFolderPath(folderPath);
+      if (!canUpload) {
+        setStatus(t("You do not have permission to upload files."));
+        return;
+      }
+      if (!canWriteIntoPath(target)) {
+        setStatus(t("You do not have write permission in this folder."));
+        return;
+      }
+      setCurrentFolder(target);
+      setComposerMode("upload");
+      setIsNewMenuOpen(false);
+      setPendingFileDialog(true);
+    },
+    [canUpload, canWriteIntoPath, t]
+  );
+
+  const openCreateFolderInFolder = useCallback(
+    (folderPath: string) => {
+      const target = normalizeFolderPath(folderPath);
+      if (!canCreateFolder) {
+        setStatus(t("You do not have permission to create folders."));
+        return;
+      }
+      if (!canWriteIntoPath(target)) {
+        setStatus(t("You do not have write permission in this folder."));
+        return;
+      }
+      setCurrentFolder(target);
+      setComposerMode("folder");
+      setIsNewMenuOpen(false);
+    },
+    [canCreateFolder, canWriteIntoPath, t]
+  );
+
   const createFolder = async () => {
     if (!canCreateFolder) return setStatus(t("You do not have permission to create folders."));
     if (!canWriteIntoPath(currentFolder)) return setStatus(t("You do not have write permission in this folder."));
@@ -2623,7 +2660,11 @@ export default function FileSharing({ permissions }: PageProps) {
       if (isDepartmentDriveRoot(row)) {
         openDrivePopup("dept", departmentDrivePath(String(row?.ownerDepartmentKey ?? "").trim()));
       } else {
-        openDrivePopup("my", getFolderTargetPath(row));
+        const folderPath = getFolderTargetPath(row);
+        const rowOwner = normalizeEmail(row?.ownerEmail);
+        const fallbackView: DriveView = rowOwner === selfEmail ? "my" : "shared";
+        const nextView: DriveView = view === "home" || view === "admin" ? fallbackView : view;
+        openDrivePopup(nextView, folderPath);
       }
       return;
     }
@@ -3303,7 +3344,19 @@ export default function FileSharing({ permissions }: PageProps) {
           {isDrivePopupOpen ? (
             <section className="drive-overlay-titlebar">
               <div className="drive-overlay-title">{view === "admin" ? t("Drive Admin") : t("Drive Workspace")}</div>
-              <button type="button" className="drive-overlay-close" onClick={closeDrivePopup}>{t("Close")}</button>
+              <div className="drive-overlay-actions">
+                {view !== "admin" && canUpload ? (
+                  <button type="button" className="drive-overlay-action-btn" onClick={() => openUploadInFolder(currentFolder)}>
+                    <i className="fas fa-file-arrow-up" /> {t("Upload")}
+                  </button>
+                ) : null}
+                {view !== "admin" && canCreateFolder ? (
+                  <button type="button" className="drive-overlay-action-btn" onClick={() => openCreateFolderInFolder(currentFolder)}>
+                    <i className="fas fa-folder-plus" /> {t("Folder")}
+                  </button>
+                ) : null}
+                <button type="button" className="drive-overlay-close" onClick={closeDrivePopup}>{t("Close")}</button>
+              </div>
             </section>
           ) : null}
 
@@ -3664,6 +3717,9 @@ export default function FileSharing({ permissions }: PageProps) {
                             {rowMenuId === String(row?.id ?? "") ? (
                               <div className={`drive-inline-menu ${rowMenuDirection === "up" ? "open-up" : "open-down"}`} onClick={(event) => event.stopPropagation()}>
                                 {!folder ? <PermissionGate moduleId="filesharing" optionId="filesharing_download"><button type="button" onClick={() => void downloadFile(row)}>{t("Download")}</button></PermissionGate> : <button type="button" onClick={() => setStatus(t("Folder download can be exported from admin tools."))}>{t("Download")}</button>}
+                                {folder ? <button type="button" onClick={() => openDrivePopup(view, getFolderTargetPath(row))}>{t("Open folder")}</button> : null}
+                                {folder && canUpload ? <button type="button" onClick={() => openUploadInFolder(getFolderTargetPath(row))}>{t("Upload in folder")}</button> : null}
+                                {folder && canCreateFolder ? <button type="button" onClick={() => openCreateFolderInFolder(getFolderTargetPath(row))}>{t("Create subfolder")}</button> : null}
                                 {canRenameRow(row) ? <button type="button" onClick={() => beginRename(row)}>{t("Rename")}</button> : null}
                                 {canShare ? <button type="button" onClick={() => openShareModal(row)}>{t("Share")}</button> : null}
                                 {canMove ? <button type="button" onClick={() => void moveRow(row)}>{t("Organize")}</button> : null}
