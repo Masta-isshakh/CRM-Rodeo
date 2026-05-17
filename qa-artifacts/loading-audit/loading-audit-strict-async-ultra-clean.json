@@ -1,0 +1,680 @@
+﻿[
+    {
+        "page":  "src/pages/ActivityLogs.tsx",
+        "action":  "() =\u003e void fetchLogs()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/ActivityLogs.tsx:54"
+    },
+    {
+        "page":  "src/pages/ActivityLogs.tsx",
+        "action":  "() =\u003e void fetchLogs()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/ActivityLogs.tsx:62"
+    },
+    {
+        "page":  "src/pages/CampaignAudienceAdmin.tsx",
+        "action":  "handleImport",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/CampaignAudienceAdmin.tsx:1498"
+    },
+    {
+        "page":  "src/pages/CampaignAudienceAdmin.tsx",
+        "action":  "handleExportCsv",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/CampaignAudienceAdmin.tsx:1537"
+    },
+    {
+        "page":  "src/pages/ConfirmationPopup.tsx",
+        "action":  "() =\u003e !loading \u0026\u0026 !disableConfirm \u0026\u0026 onConfirm()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/ConfirmationPopup.tsx:121"
+    },
+    {
+        "page":  "src/pages/Customer.tsx",
+        "action":  "onConfirm",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/Customer.tsx:143"
+    },
+    {
+        "page":  "src/pages/Customer.tsx",
+        "action":  "onSave",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/Customer.tsx:304"
+    },
+    {
+        "page":  "src/pages/Customer.tsx",
+        "action":  "() =\u003e void load()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/Customer.tsx:2531"
+    },
+    {
+        "page":  "src/pages/Customer.tsx",
+        "action":  "() =\u003e void withLoading(handleConfirmDelete(), t(\"Deleting customer...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/Customer.tsx:3001"
+    },
+    {
+        "page":  "src/pages/DailyReport.tsx",
+        "action":  "exportSnapshotPdf",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/DailyReport.tsx:641"
+    },
+    {
+        "page":  "src/pages/DepartmentsAdmin.tsx",
+        "action":  "load",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/DepartmentsAdmin.tsx:398"
+    },
+    {
+        "page":  "src/pages/DepartmentsAdmin.tsx",
+        "action":  "createDept",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/DepartmentsAdmin.tsx:421"
+    },
+    {
+        "page":  "src/pages/DepartmentsAdmin.tsx",
+        "action":  "() =\u003e void onClickEditDepartment(d)",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/DepartmentsAdmin.tsx:477"
+    },
+    {
+        "page":  "src/pages/DepartmentsAdmin.tsx",
+        "action":  "() =\u003e openDeletePopup(d)",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/DepartmentsAdmin.tsx:487"
+    },
+    {
+        "page":  "src/pages/DepartmentsAdmin.tsx",
+        "action":  "() =\u003e void removeRole(d.key, String(role.id))",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/DepartmentsAdmin.tsx:528"
+    },
+    {
+        "page":  "src/pages/DepartmentsAdmin.tsx",
+        "action":  "() =\u003e void createRoleForDepartment(roleModalDept, modalRoleName, modalRoleDescription)",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/DepartmentsAdmin.tsx:597"
+    },
+    {
+        "page":  "src/pages/DepartmentsAdmin.tsx",
+        "action":  "() =\u003e void updateRoleForDepartment(editRoleId, editRoleName, editRoleDescription)",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/DepartmentsAdmin.tsx:657"
+    },
+    {
+        "page":  "src/pages/DepartmentsAdmin.tsx",
+        "action":  "() =\u003e void submitEditDepartment()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/DepartmentsAdmin.tsx:704"
+    },
+    {
+        "page":  "src/pages/editors/FormsEditor.tsx",
+        "action":  "() =\u003e handleDeleteField(field.id)",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/editors/FormsEditor.tsx:228"
+    },
+    {
+        "page":  "src/pages/Employees.tsx",
+        "action":  "handleSubmit",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/Employees.tsx:396"
+    },
+    {
+        "page":  "src/pages/Employees.tsx",
+        "action":  "handleSubmit",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/Employees.tsx:403"
+    },
+    {
+        "page":  "src/pages/Employees.tsx",
+        "action":  "() =\u003e void handleDelete()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/Employees.tsx:432"
+    },
+    {
+        "page":  "src/pages/Employees.tsx",
+        "action":  "() =\u003e void fetchEmployees()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/Employees.tsx:233"
+    },
+    {
+        "page":  "src/pages/ExitPermitManagement.tsx",
+        "action":  "() =\u003e void handleCancelOrder()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/ExitPermitManagement.tsx:1275"
+    },
+    {
+        "page":  "src/pages/ExitPermitManagement.tsx",
+        "action":  "handleCreateExitPermit",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/ExitPermitManagement.tsx:1122"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "addShareUserPermission",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/FileSharing.tsx:3018"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void withLoading(saveSharePermissions(), t(\"Saving sharing permissions...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/FileSharing.tsx:3071"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void loadData()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/FileSharing.tsx:3121"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void createTemplateAndOpenEditor(\"doc\")",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/FileSharing.tsx:3222"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void createTemplateAndOpenEditor(\"sheet\")",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/FileSharing.tsx:3223"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void createTemplateAndOpenEditor(\"slides\")",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/FileSharing.tsx:3224"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void createTemplateAndOpenEditor(\"form\")",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/FileSharing.tsx:3225"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e openDrivePopup(\"shared\")",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/FileSharing.tsx:3232"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void withLoading(bulkMove(), t(\"Moving selected items...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/FileSharing.tsx:3367"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void withLoading(bulkShare(), t(\"Sharing selected items...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/FileSharing.tsx:3368"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void withLoading(bulkStar(), t(\"Updating stars...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/FileSharing.tsx:3369"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void withLoading(bulkDelete(), t(\"Deleting selected items...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/FileSharing.tsx:3370"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void createFolder()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/FileSharing.tsx:3406"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void uploadFile()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/FileSharing.tsx:3450"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void replaceWithNewVersion(row)",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/FileSharing.tsx:3674"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void restoreRow(row)",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/FileSharing.tsx:3675"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void restoreVersion(row, v)",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/FileSharing.tsx:3732"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void moveRow(row)",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/FileSharing.tsx:3669"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void deleteRow(row)",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/FileSharing.tsx:3676"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void createSharedLink(row)",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/FileSharing.tsx:3688"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void revokeSharedLink(link)",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/FileSharing.tsx:3715"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void saveDepartmentDrive()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/FileSharing.tsx:3880"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void withLoading(handleApprovalDecision(row, \"APPROVED\", true), t(\"Approving and executing request...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/FileSharing.tsx:3965"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void downloadFile(row)",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/FileSharing.tsx:3666"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void saveQuota(quotaEditorTarget)",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/FileSharing.tsx:3808"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void withLoading(handleApprovalDecision(row, \"APPROVED\"), t(\"Approving request...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/FileSharing.tsx:3966"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void withLoading(handleApprovalDecision(row, \"REJECTED\"), t(\"Rejecting request...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/FileSharing.tsx:3967"
+    },
+    {
+        "page":  "src/pages/FileSharing.tsx",
+        "action":  "() =\u003e void withLoading(handleApprovalDecision(row, \"CANCELLED\"), t(\"Cancelling request...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/FileSharing.tsx:3971"
+    },
+    {
+        "page":  "src/pages/InspectionConfigAdmin.tsx",
+        "action":  "() =\u003e void load()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/InspectionConfigAdmin.tsx:115"
+    },
+    {
+        "page":  "src/pages/InspectionConfigAdmin.tsx",
+        "action":  "() =\u003e void withLoading(save(), \"Saving inspection config...\")",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/InspectionConfigAdmin.tsx:121"
+    },
+    {
+        "page":  "src/pages/InspectionModule.tsx",
+        "action":  "() =\u003e void refreshOrders()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/InspectionModule.tsx:996"
+    },
+    {
+        "page":  "src/pages/InspectionModule.tsx",
+        "action":  "handleAddServiceSubmit",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/InspectionModule.tsx:1142"
+    },
+    {
+        "page":  "src/pages/InspectionModule.tsx",
+        "action":  "() =\u003e saveAndPause(sectionKey)",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/InspectionModule.tsx:1330"
+    },
+    {
+        "page":  "src/pages/InspectionModule.tsx",
+        "action":  "() =\u003e inspectionConfirmData.onConfirm \u0026\u0026 inspectionConfirmData.onConfirm()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/InspectionModule.tsx:1495"
+    },
+    {
+        "page":  "src/pages/InspectionModule.tsx",
+        "action":  "() =\u003e void handleCancelOrder()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/InspectionModule.tsx:1520"
+    },
+    {
+        "page":  "src/pages/InspectionModule.tsx",
+        "action":  "downloadReport",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/InspectionModule.tsx:1174"
+    },
+    {
+        "page":  "src/pages/InspectionModule.tsx",
+        "action":  "() =\u003e onSubmit({ selectedServices, discountPercent: effectiveDiscountPercent",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/InspectionModule.tsx:1752"
+    },
+    {
+        "page":  "src/pages/InternalChat.tsx",
+        "action":  "() =\u003e loadMessages(conversationKey)",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/InternalChat.tsx:659"
+    },
+    {
+        "page":  "src/pages/InternalChat.tsx",
+        "action":  "onSubmit",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/InternalChat.tsx:777"
+    },
+    {
+        "page":  "src/pages/InventoryManagement.tsx",
+        "action":  "() =\u003e loadProducts(selectedSubcategory.id)",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/InventoryManagement.tsx:1251"
+    },
+    {
+        "page":  "src/pages/InventoryManagement.tsx",
+        "action":  "saveCategory",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/InventoryManagement.tsx:1652"
+    },
+    {
+        "page":  "src/pages/InventoryManagement.tsx",
+        "action":  "() =\u003e removeFieldDef(idx)",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/InventoryManagement.tsx:1761"
+    },
+    {
+        "page":  "src/pages/InventoryManagement.tsx",
+        "action":  "saveFieldDefs",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/InventoryManagement.tsx:1777"
+    },
+    {
+        "page":  "src/pages/InventoryManagement.tsx",
+        "action":  "handleScanSubmit",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/InventoryManagement.tsx:1959"
+    },
+    {
+        "page":  "src/pages/InventoryManagement.tsx",
+        "action":  "saveSubcategory",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/InventoryManagement.tsx:1699"
+    },
+    {
+        "page":  "src/pages/InventoryManagement.tsx",
+        "action":  "() =\u003e removeScannedItem(idx)",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/InventoryManagement.tsx:1988"
+    },
+    {
+        "page":  "src/pages/JobCards.tsx",
+        "action":  "handleAddServiceSubmit",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/JobCards.tsx:1098"
+    },
+    {
+        "page":  "src/pages/JobCards.tsx",
+        "action":  "() =\u003e void onRefresh()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/JobCards.tsx:1454"
+    },
+    {
+        "page":  "src/pages/JobCards.tsx",
+        "action":  "handleSubmit",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/JobCards.tsx:1913"
+    },
+    {
+        "page":  "src/pages/JobCards.tsx",
+        "action":  "() =\u003e void handleSave()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/JobCards.tsx:2202"
+    },
+    {
+        "page":  "src/pages/JobCards.tsx",
+        "action":  "() =\u003e void handleVerifySearch()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/JobCards.tsx:2234"
+    },
+    {
+        "page":  "src/pages/JobCards.tsx",
+        "action":  "() =\u003e void handleConfirmDuplicate()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/JobCards.tsx:2422"
+    },
+    {
+        "page":  "src/pages/JobCards.tsx",
+        "action":  "() =\u003e void handleSaveNewVehicle()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/JobCards.tsx:2648"
+    },
+    {
+        "page":  "src/pages/JobCards.tsx",
+        "action":  "onSubmit",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/JobCards.tsx:3963"
+    },
+    {
+        "page":  "src/pages/JobCards.tsx",
+        "action":  "() =\u003e void handleSelectCustomer(customer)",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/JobCards.tsx:2258"
+    },
+    {
+        "page":  "src/pages/JobCards.tsx",
+        "action":  "() =\u003e onSubmit({ selectedServices, discountPercent: effectiveDiscountPercent",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/JobCards.tsx:3607"
+    },
+    {
+        "page":  "src/pages/JobOrderHistory.tsx",
+        "action":  "handleExport",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/JobOrderHistory.tsx:1593"
+    },
+    {
+        "page":  "src/pages/PaymentInvoiceManagment.tsx",
+        "action":  "handleSaveRefund",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/PaymentInvoiceManagment.tsx:2710"
+    },
+    {
+        "page":  "src/pages/PaymentInvoiceManagment.tsx",
+        "action":  "handleSavePayment",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/PaymentInvoiceManagment.tsx:2660"
+    },
+    {
+        "page":  "src/pages/PaymentInvoiceManagment.tsx",
+        "action":  "() =\u003e void handleCancelOrder()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/PaymentInvoiceManagment.tsx:2937"
+    },
+    {
+        "page":  "src/pages/PushNotifications.tsx",
+        "action":  "() =\u003e void loadData()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/PushNotifications.tsx:718"
+    },
+    {
+        "page":  "src/pages/PushNotifications.tsx",
+        "action":  "exportSendHistoryCsv",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/PushNotifications.tsx:868"
+    },
+    {
+        "page":  "src/pages/PushNotifications.tsx",
+        "action":  "() =\u003e void retryFailedRecipients(log)",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/PushNotifications.tsx:897"
+    },
+    {
+        "page":  "src/pages/PushNotifications.tsx",
+        "action":  "() =\u003e void confirmSendAction()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/PushNotifications.tsx:948"
+    },
+    {
+        "page":  "src/pages/PushNotifications.tsx",
+        "action":  "() =\u003e void sendMessages()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/PushNotifications.tsx:823"
+    },
+    {
+        "page":  "src/pages/QualityCheckModule.tsx",
+        "action":  "() =\u003e void handleCancelOrder()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/QualityCheckModule.tsx:957"
+    },
+    {
+        "page":  "src/pages/QuotationPage.tsx",
+        "action":  "() =\u003e void withLoading(buildQuotationPdf(), t(\"Generating PDFâ€¦\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/QuotationPage.tsx:923"
+    },
+    {
+        "page":  "src/pages/RolesPoliciesAdmin.tsx",
+        "action":  "() =\u003e void withLoading(handleSave(), t(\"Saving role policies...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/RolesPoliciesAdmin.tsx:1514"
+    },
+    {
+        "page":  "src/pages/RolesPoliciesAdmin.tsx",
+        "action":  "() =\u003e void withLoading(createRole(), t(\"Creating role...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/RolesPoliciesAdmin.tsx:1573"
+    },
+    {
+        "page":  "src/pages/RolesPoliciesAdmin.tsx",
+        "action":  "() =\u003e void withLoading(handleReset(), t(\"Resetting changes...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/RolesPoliciesAdmin.tsx:1509"
+    },
+    {
+        "page":  "src/pages/ServiceCreation.tsx",
+        "action":  "() =\u003e void withLoading(loadData(), t(\"Loading service catalog...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/ServiceCreation.tsx:847"
+    },
+    {
+        "page":  "src/pages/ServiceCreation.tsx",
+        "action":  "() =\u003e void withLoading(saveCategory(), t(\"Saving category...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/ServiceCreation.tsx:1479"
+    },
+    {
+        "page":  "src/pages/ServiceCreation.tsx",
+        "action":  "() =\u003e void withLoading(saveService(), t(\"Saving service...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/ServiceCreation.tsx:1480"
+    },
+    {
+        "page":  "src/pages/ServiceCreation.tsx",
+        "action":  "() =\u003e void withLoading(saveSpecifications(), t(\"Saving specification brands...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/ServiceCreation.tsx:1484"
+    },
+    {
+        "page":  "src/pages/ServiceCreation.tsx",
+        "action":  "() =\u003e void withLoading(confirmDelete(), t(\"Deleting item...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/ServiceCreation.tsx:1530"
+    },
+    {
+        "page":  "src/pages/ServiceCreation.tsx",
+        "action":  "() =\u003e void withLoading(savePackage(), t(\"Saving package...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/ServiceCreation.tsx:1481"
+    },
+    {
+        "page":  "src/pages/ServiceExecutionModule.tsx",
+        "action":  "() =\u003e void handleCancelOrder()",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/ServiceExecutionModule.tsx:1560"
+    },
+    {
+        "page":  "src/pages/ServiceSummaryCard.tsx",
+        "action":  "submitAdd",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/ServiceSummaryCard.tsx:1011"
+    },
+    {
+        "page":  "src/pages/SetPassword.tsx",
+        "action":  "onSubmit",
+        "loader-status":  "not-covered",
+        "line-reference":  "src/pages/SetPassword.tsx:257"
+    },
+    {
+        "page":  "src/pages/Tickets.tsx",
+        "action":  "() =\u003e void withLoading(load(), t(\"Loading tickets...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/Tickets.tsx:180"
+    },
+    {
+        "page":  "src/pages/Tickets.tsx",
+        "action":  "() =\u003e void withLoading(saveEdit(), t(\"Saving ticket...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/Tickets.tsx:198"
+    },
+    {
+        "page":  "src/pages/Tickets.tsx",
+        "action":  "() =\u003e void withLoading(remove(ticket.id), t(\"Deleting ticket...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/Tickets.tsx:218"
+    },
+    {
+        "page":  "src/pages/Tickets.tsx",
+        "action":  "() =\u003e void withLoading(create(), t(\"Creating ticket...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/Tickets.tsx:163"
+    },
+    {
+        "page":  "src/pages/UserAdmin.tsx",
+        "action":  "() =\u003e void withLoading(saveUserChanges(), t(\"Saving user changes...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/UserAdmin.tsx:1529"
+    },
+    {
+        "page":  "src/pages/UserAdmin.tsx",
+        "action":  "() =\u003e void withLoading(sendResetPassword(detailsUser), t(\"Sending reset password...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/UserAdmin.tsx:1511"
+    },
+    {
+        "page":  "src/pages/Vehicule.tsx",
+        "action":  "onSave",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/Vehicule.tsx:314"
+    },
+    {
+        "page":  "src/pages/Vehicule.tsx",
+        "action":  "() =\u003e void withLoading(confirmDeleteVehicle(), t(\"Deleting vehicle...\"))",
+        "loader-status":  "covered",
+        "line-reference":  "src/pages/Vehicule.tsx:3084"
+    },
+    {
+        "page":  "src/pages/Vehicule.tsx",
+        "action":  "onConfirm",
+        "loader-status":  "needs-review",
+        "line-reference":  "src/pages/Vehicule.tsx:157"
+    }
+]
