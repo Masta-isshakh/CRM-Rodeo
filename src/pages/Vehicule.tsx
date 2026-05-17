@@ -105,6 +105,62 @@ function normalizePaymentStatusLabel(value: any): string {
   return out || "—";
 }
 
+function collectTextItems(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => collectTextItems(entry)).filter(Boolean);
+  }
+  if (!value || typeof value !== "object") {
+    const text = String(value ?? "").trim();
+    return text ? [text] : [];
+  }
+
+  const source = value as Record<string, unknown>;
+  const direct = ["name", "serviceName", "title", "label", "description", "productName"]
+    .flatMap((key) => collectTextItems(source[key]))
+    .filter(Boolean);
+  if (direct.length) return direct;
+
+  return Object.values(source)
+    .flatMap((entry) => collectTextItems(entry))
+    .filter(Boolean);
+}
+
+function extractJobOrderServices(order: JobOrderRow): string[] {
+  const payload = String((order as any)?.dataJson ?? "").trim();
+  if (!payload) return [];
+  try {
+    const parsed = JSON.parse(payload);
+    const buckets = [
+      parsed?.services,
+      parsed?.serviceLines,
+      parsed?.selectedServices,
+      parsed?.servicesItems,
+      parsed?.invoiceServices,
+    ];
+
+    const seen = new Set<string>();
+    for (const bucket of buckets) {
+      if (!Array.isArray(bucket)) continue;
+      for (const item of bucket) {
+        for (const label of collectTextItems(item)) {
+          const normalized = String(label ?? "").trim();
+          if (normalized) seen.add(normalized);
+        }
+      }
+    }
+    return Array.from(seen);
+  } catch {
+    return [];
+  }
+}
+
+function summarizeJobOrderServices(order: JobOrderRow): string {
+  const names = extractJobOrderServices(order);
+  if (!names.length) return "—";
+  if (names.length <= 2) return names.join(", ");
+  return `${names.slice(0, 2).join(", ")} +${names.length - 2}`;
+}
+
 // ----------------------
 // Alert Popup Component
 // ----------------------
@@ -944,7 +1000,7 @@ export default function VehicleManagement({
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleRow | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerRow | null>(null);
-  const [completedOrders, setCompletedOrders] = useState<JobOrderRow[]>([]);
+  const [relatedJobOrders, setRelatedJobOrders] = useState<JobOrderRow[]>([]);
   const [selectedCustomerVehiclesCount, setSelectedCustomerVehiclesCount] = useState(0);
   const [selectedCustomerCompletedServicesCount, setSelectedCustomerCompletedServicesCount] = useState(0);
 
@@ -1029,7 +1085,7 @@ export default function VehicleManagement({
   const customerLookupLoadedRef = useRef(false);
   const vehicleByBusinessIdRef = useRef<Map<string, VehicleRow>>(new Map());
   const customerByIdCacheRef = useRef<Map<string, CustomerRow | null>>(new Map());
-  const completedOrdersByPlateRef = useRef<Map<string, JobOrderRow[]>>(new Map());
+  const jobOrdersByPlateRef = useRef<Map<string, JobOrderRow[]>>(new Map());
 
   const showAlert = useCallback((title: string, message: string, type: AlertType = "info", showCancel = false) => {
     return new Promise<boolean>((resolve) => {
@@ -1081,7 +1137,7 @@ export default function VehicleManagement({
       }
       vehicleByBusinessIdRef.current = byBusinessId;
       customerByIdCacheRef.current.clear();
-      completedOrdersByPlateRef.current.clear();
+      jobOrdersByPlateRef.current.clear();
       setVehicles(nextVehicles);
     } catch (e) {
       console.error(e);
@@ -1482,7 +1538,7 @@ export default function VehicleManagement({
         setSelectedVehicleId(null);
         setSelectedVehicle(null);
         setSelectedCustomer(null);
-        setCompletedOrders([]);
+        setRelatedJobOrders([]);
         setViewMode("list");
       }
 
@@ -1521,7 +1577,7 @@ export default function VehicleManagement({
         if (cancelled) return;
         setSelectedVehicle(vehicle);
         setSelectedCustomer(null);
-        setCompletedOrders([]);
+        setRelatedJobOrders([]);
         setSelectedCustomerVehiclesCount(0);
         setSelectedCustomerCompletedServicesCount(0);
         setLoading(false);
@@ -1620,19 +1676,23 @@ export default function VehicleManagement({
         if (plateNumber) {
           void (async () => {
             try {
-              if (completedOrdersByPlateRef.current.has(plateNumber)) {
-                if (!cancelled) setCompletedOrders(completedOrdersByPlateRef.current.get(plateNumber) ?? []);
+              if (jobOrdersByPlateRef.current.has(plateNumber)) {
+                if (!cancelled) setRelatedJobOrders(jobOrdersByPlateRef.current.get(plateNumber) ?? []);
                 return;
               }
               const ordersRes = await client.models.JobOrder.list({
-                limit: 500,
-                filter: { plateNumber: { eq: plateNumber }, status: { eq: "COMPLETED" } },
+                limit: 1000,
+                filter: { plateNumber: { eq: plateNumber } },
               });
-              const rows = ((ordersRes as any)?.data ?? []) as JobOrderRow[];
-              completedOrdersByPlateRef.current.set(plateNumber, rows);
-              if (!cancelled) setCompletedOrders(rows);
+              const rows = (((ordersRes as any)?.data ?? []) as JobOrderRow[]).slice().sort((a: any, b: any) => {
+                const aTime = new Date(String(a?.updatedAt ?? a?.createdAt ?? 0)).getTime();
+                const bTime = new Date(String(b?.updatedAt ?? b?.createdAt ?? 0)).getTime();
+                return bTime - aTime;
+              });
+              jobOrdersByPlateRef.current.set(plateNumber, rows);
+              if (!cancelled) setRelatedJobOrders(rows);
             } catch {
-              if (!cancelled) setCompletedOrders([]);
+              if (!cancelled) setRelatedJobOrders([]);
             }
           })();
         }
@@ -1653,10 +1713,30 @@ export default function VehicleManagement({
     setSelectedVehicleId(null);
     setSelectedVehicle(null);
     setSelectedCustomer(null);
-    setCompletedOrders([]);
+    setRelatedJobOrders([]);
     setSelectedCustomerVehiclesCount(0);
     setSelectedCustomerCompletedServicesCount(0);
   };
+
+  const completedOrders = useMemo(
+    () => relatedJobOrders.filter((row: any) => String(row?.status ?? "") === "COMPLETED"),
+    [relatedJobOrders]
+  );
+
+  const relatedServicesSummary = useMemo(() => {
+    let totalServices = 0;
+    let completedServices = 0;
+    for (const order of relatedJobOrders) {
+      totalServices += Number((order as any)?.totalServiceCount ?? 0);
+      completedServices += Number((order as any)?.completedServiceCount ?? 0);
+    }
+    return {
+      totalOrders: relatedJobOrders.length,
+      completedOrders: completedOrders.length,
+      totalServices,
+      completedServices,
+    };
+  }, [relatedJobOrders, completedOrders]);
 
   type PremiumField = {
     key: string;
@@ -2197,6 +2277,18 @@ export default function VehicleManagement({
                 ]}
               />
 
+              <PremiumDetailsCard
+                title={t("Related Service Summary")}
+                iconClass="fas fa-clipboard-check"
+                forceSingleRow
+                fields={[
+                  { key: "related-orders-total", iconClass: "fas fa-list-ol", label: t("All Job Orders"), value: String(relatedServicesSummary.totalOrders) },
+                  { key: "related-orders-completed", iconClass: "fas fa-check-double", label: t("Completed Job Orders"), value: String(relatedServicesSummary.completedOrders) },
+                  { key: "related-services-total", iconClass: "fas fa-tools", label: t("Total Services"), value: String(relatedServicesSummary.totalServices) },
+                  { key: "related-services-completed", iconClass: "fas fa-check-circle", label: t("Completed Services"), value: String(relatedServicesSummary.completedServices) },
+                ]}
+              />
+
               <div
                 className="pim-detail-card customer-details-card customer-details-card--wide"
                 style={{
@@ -2213,7 +2305,7 @@ export default function VehicleManagement({
                     className="text-lg font-bold text-[#2B3674] mb-0 customer-details-card-title"
                     style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", padding: 0, margin: 0 }}
                   >
-                    <i className="fas fa-tasks" /> {t("Completed Services (from Job Orders)")}
+                    <i className="fas fa-tasks" /> {t("Related Job Orders & Services")}
                   </h3>
                   <button
                     className="btn-new-customer customer-primary-btn"
@@ -2281,17 +2373,21 @@ export default function VehicleManagement({
                       <tr>
                         <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Order #")}</th>
                         <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Status")}</th>
+                        <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Services")}</th>
+                        <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Done")}</th>
                         <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Payment")}</th>
                         <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Total")}</th>
                         <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Updated")}</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {completedOrders.length ? (
-                        completedOrders.map((o) => (
+                      {relatedJobOrders.length ? (
+                        relatedJobOrders.map((o) => (
                           <tr key={o.id}>
                             <td style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.orderNumber ?? o.id}</td>
                             <td style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.status ?? "-"}</td>
+                            <td style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{summarizeJobOrderServices(o)}</td>
+                            <td style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{`${Number((o as any)?.completedServiceCount ?? 0)}/${Number((o as any)?.totalServiceCount ?? 0)}`}</td>
                             <td style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{normalizePaymentStatusLabel(o.paymentStatus)}</td>
                             <td style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{typeof o.totalAmount === "number" ? `QAR ${o.totalAmount.toFixed(2)}` : "-"}</td>
                             <td style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.updatedAt ? new Date(o.updatedAt).toLocaleString() : "-"}</td>
@@ -2299,8 +2395,8 @@ export default function VehicleManagement({
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={5} style={{ textAlign: "center", padding: 30, opacity: 0.8 }}>
-                            {t("No completed job orders found for this vehicle (matched by plate number).")}
+                          <td colSpan={7} style={{ textAlign: "center", padding: 30, opacity: 0.8 }}>
+                            {t("No related job orders found for this vehicle (matched by plate number).")}
                           </td>
                         </tr>
                       )}

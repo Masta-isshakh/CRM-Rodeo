@@ -21,6 +21,7 @@ type ContactRow = Schema["Contact"]["type"];
 type DealRow = Schema["Deal"]["type"];
 type TicketRow = Schema["Ticket"]["type"];
 type VehicleRow = Schema["Vehicle"]["type"];
+type JobOrderRow = Schema["JobOrder"]["type"];
 
 type AlertType = "info" | "success" | "warning" | "error";
 
@@ -873,6 +874,7 @@ function DetailsView(props: {
   customer: CustomerRow;
   customerStats: { vehicles: number; completedServices: number };
   vehicles: VehicleRow[];
+  jobOrders: JobOrderRow[];
   contacts: ContactRow[];
   deals: DealRow[];
   tickets: TicketRow[];
@@ -894,6 +896,7 @@ function DetailsView(props: {
     customer,
     customerStats,
     vehicles,
+    jobOrders,
     contacts,
     deals,
     tickets,
@@ -1143,12 +1146,33 @@ function DetailsView(props: {
       const idx = index + 1;
       const makeModel =
         `${String((vehicle as any).make ?? "").trim()} ${String((vehicle as any).model ?? "").trim()}`.trim() || "—";
+      const vehicleType = String((vehicle as any).vehicleType ?? "").trim() || "—";
+      const vehicleYear = String((vehicle as any).year ?? "").trim() || "—";
+      const vehicleColor = String((vehicle as any).color ?? "").trim() || "—";
       return [
         {
           key: `vehicle-${vehicle.id}-name`,
           iconClass: "fas fa-car-side",
           label: `${t("Vehicle")} ${idx}`,
           value: makeModel,
+        },
+        {
+          key: `vehicle-${vehicle.id}-type`,
+          iconClass: "fas fa-shapes",
+          label: `${t("Type")} ${idx}`,
+          value: vehicleType,
+        },
+        {
+          key: `vehicle-${vehicle.id}-year`,
+          iconClass: "fas fa-calendar",
+          label: `${t("Year")} ${idx}`,
+          value: vehicleYear,
+        },
+        {
+          key: `vehicle-${vehicle.id}-color`,
+          iconClass: "fas fa-palette",
+          label: `${t("Color")} ${idx}`,
+          value: vehicleColor,
         },
         {
           key: `vehicle-${vehicle.id}-plate`,
@@ -1166,19 +1190,83 @@ function DetailsView(props: {
     }),
   ];
 
-  const relatedFields: PremiumField[] = (() => {
-    if (canViewRelatedTickets) {
-      if (loadingRelations) {
-        return [
-          {
-            key: "related-loading-tickets",
-            iconClass: "fas fa-spinner",
-            label: t("Status"),
-            value: t("Loading tickets…"),
-          },
-        ];
+  const extractServiceSummary = useCallback((order: JobOrderRow): string => {
+    const directCount = Number((order as any)?.completedServiceCount ?? 0);
+    const totalCount = Number((order as any)?.totalServiceCount ?? 0);
+    const payload = String((order as any)?.dataJson ?? "").trim();
+    if (!payload) {
+      if (directCount > 0 || totalCount > 0) {
+        return `${directCount || 0}/${totalCount || 0} ${t("completed")}`;
+      }
+      return "—";
+    }
+
+    try {
+      const parsed = JSON.parse(payload);
+      const buckets = [
+        parsed?.services,
+        parsed?.serviceLines,
+        parsed?.selectedServices,
+        parsed?.servicesItems,
+      ];
+      const names = new Set<string>();
+
+      for (const bucket of buckets) {
+        if (!Array.isArray(bucket)) continue;
+        for (const item of bucket) {
+          const label = String(
+            item?.name ?? item?.serviceName ?? item?.title ?? item?.label ?? item?.description ?? ""
+          ).trim();
+          if (label) names.add(label);
+        }
       }
 
+      if (!names.size) {
+        if (directCount > 0 || totalCount > 0) {
+          return `${directCount || 0}/${totalCount || 0} ${t("completed")}`;
+        }
+        return "—";
+      }
+
+      const list = Array.from(names);
+      return list.length > 2 ? `${list.slice(0, 2).join(", ")} +${list.length - 2}` : list.join(", ");
+    } catch {
+      if (directCount > 0 || totalCount > 0) {
+        return `${directCount || 0}/${totalCount || 0} ${t("completed")}`;
+      }
+      return "—";
+    }
+  }, [t]);
+
+  const relatedFields: PremiumField[] = (() => {
+    if (loadingRelations) {
+      return [
+        {
+          key: "related-loading-joborders",
+          iconClass: "fas fa-spinner",
+          label: t("Status"),
+          value: t("Loading job orders…"),
+        },
+      ];
+    }
+
+    if (jobOrders.length) {
+      return jobOrders.slice(0, 10).map((item, index) => {
+        const completedCount = Number((item as any)?.completedServiceCount ?? 0);
+        const totalCount = Number((item as any)?.totalServiceCount ?? 0);
+        const serviceSummary = extractServiceSummary(item);
+        return {
+          key: `joborder-${item.id}`,
+          iconClass: String(item.status ?? "") === "COMPLETED" ? "fas fa-check-circle" : "fas fa-clipboard-list",
+          label: `${t("Order")} ${index + 1}`,
+          value:
+            `${item.orderNumber || item.id} • ${item.status || "—"} • ` +
+            `${t("Services")}: ${serviceSummary} • ${t("Done")}: ${completedCount}/${totalCount}`,
+        };
+      });
+    }
+
+    if (canViewRelatedTickets) {
       if (tickets.length) {
         return tickets.slice(0, 10).map((item, index) => ({
           key: `ticket-${item.id}`,
@@ -1199,17 +1287,6 @@ function DetailsView(props: {
     }
 
     if (canViewRelatedDeals) {
-      if (loadingRelations) {
-        return [
-          {
-            key: "related-loading-deals",
-            iconClass: "fas fa-spinner",
-            label: t("Status"),
-            value: t("Loading deals…"),
-          },
-        ];
-      }
-
       if (deals.length) {
         return deals.slice(0, 10).map((item, index) => ({
           key: `deal-${item.id}`,
@@ -1230,17 +1307,6 @@ function DetailsView(props: {
     }
 
     if (canViewRelatedContacts) {
-      if (loadingRelations) {
-        return [
-          {
-            key: "related-loading-contacts",
-            iconClass: "fas fa-spinner",
-            label: t("Status"),
-            value: t("Loading contacts…"),
-          },
-        ];
-      }
-
       if (contacts.length) {
         return contacts.slice(0, 10).map((item, index) => ({
           key: `contact-${item.id}`,
@@ -1265,7 +1331,7 @@ function DetailsView(props: {
         key: "related-empty-fallback",
         iconClass: "fas fa-folder-open",
         label: t("Recent Activity"),
-        value: t("No recent activity available."),
+        value: t("No job orders or recent activity available."),
       },
     ];
   })();
@@ -1546,7 +1612,7 @@ function DetailsView(props: {
 
           {canViewRelatedCard && (
             <PremiumDetailsCard
-              title={t("Job History / Recent Activity")}
+              title={t("Customer Job Orders & Services")}
               iconClass="fas fa-history"
               fields={relatedFields}
             />
@@ -1715,6 +1781,7 @@ export default function Customers({ permissions }: PageProps) {
 
   const [loadingRelations, setLoadingRelations] = useState(false);
   const [vehicles, setVehicles] = useState<VehicleRow[]>([]);
+  const [jobOrders, setJobOrders] = useState<JobOrderRow[]>([]);
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [deals, setDeals] = useState<DealRow[]>([]);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
@@ -1724,7 +1791,7 @@ export default function Customers({ permissions }: PageProps) {
   });
   const countsRequestRef = useRef(0);
   const relationsCacheRef = useRef<
-    Map<string, { vehicles?: VehicleRow[]; contacts?: ContactRow[]; deals?: DealRow[]; tickets?: TicketRow[] }>
+    Map<string, { vehicles?: VehicleRow[]; jobOrders?: JobOrderRow[]; contacts?: ContactRow[]; deals?: DealRow[]; tickets?: TicketRow[] }>
   >(new Map());
   const customerStatsCacheRef = useRef<Map<string, { vehicles: number; completedServices: number }>>(new Map());
 
@@ -2024,6 +2091,7 @@ export default function Customers({ permissions }: PageProps) {
     if (!shouldLoadRelations) {
       setLoadingRelations(false);
       setVehicles([]);
+      setJobOrders([]);
       setContacts([]);
       setDeals([]);
       setTickets([]);
@@ -2032,12 +2100,14 @@ export default function Customers({ permissions }: PageProps) {
 
     const cacheEntry = relationsCacheRef.current.get(id) ?? {};
     const needsVehicles = !cacheEntry.vehicles;
+    const needsJobOrders = !cacheEntry.jobOrders;
     const needsContacts = canCustomersRelatedContacts && !cacheEntry.contacts;
     const needsDeals = canCustomersRelatedDeals && !cacheEntry.deals;
     const needsTickets = canCustomersRelatedTickets && !cacheEntry.tickets;
 
-    if (!needsVehicles && !needsContacts && !needsDeals && !needsTickets) {
+    if (!needsVehicles && !needsJobOrders && !needsContacts && !needsDeals && !needsTickets) {
       setVehicles(cacheEntry.vehicles ?? []);
+      setJobOrders(cacheEntry.jobOrders ?? []);
       setContacts(cacheEntry.contacts ?? []);
       setDeals(cacheEntry.deals ?? []);
       setTickets(cacheEntry.tickets ?? []);
@@ -2047,6 +2117,7 @@ export default function Customers({ permissions }: PageProps) {
 
     setLoadingRelations(true);
     setVehicles(cacheEntry.vehicles ?? []);
+    setJobOrders(cacheEntry.jobOrders ?? []);
     setContacts(cacheEntry.contacts ?? []);
     setDeals(cacheEntry.deals ?? []);
     setTickets(cacheEntry.tickets ?? []);
@@ -2054,6 +2125,7 @@ export default function Customers({ permissions }: PageProps) {
     try {
       const nextEntry = {
         vehicles: (cacheEntry.vehicles ?? []) as VehicleRow[],
+        jobOrders: (cacheEntry.jobOrders ?? []) as JobOrderRow[],
         contacts: (cacheEntry.contacts ?? []) as ContactRow[],
         deals: (cacheEntry.deals ?? []) as DealRow[],
         tickets: (cacheEntry.tickets ?? []) as TicketRow[],
@@ -2066,6 +2138,20 @@ export default function Customers({ permissions }: PageProps) {
           client.models.Vehicle.list({ filter: { customerId: { eq: id } }, limit: 1000 }).then((vehicleRes: any) => {
             nextEntry.vehicles = (vehicleRes.data ?? []) as VehicleRow[];
             setVehicles(nextEntry.vehicles);
+          })
+        );
+      }
+
+      if (needsJobOrders) {
+        tasks.push(
+          client.models.JobOrder.list({ filter: { customerId: { eq: id } }, limit: 2000 } as any).then((jobOrderRes: any) => {
+            const rows = ((jobOrderRes.data ?? []) as JobOrderRow[]).slice().sort((a: any, b: any) => {
+              const aTime = new Date(String(a?.updatedAt ?? a?.createdAt ?? 0)).getTime();
+              const bTime = new Date(String(b?.updatedAt ?? b?.createdAt ?? 0)).getTime();
+              return bTime - aTime;
+            });
+            nextEntry.jobOrders = rows;
+            setJobOrders(rows);
           })
         );
       }
@@ -2111,6 +2197,7 @@ export default function Customers({ permissions }: PageProps) {
     setViewMode("list");
     setSelectedCustomerId(null);
     setVehicles([]);
+    setJobOrders([]);
     setCustomerStats({ vehicles: 0, completedServices: 0 });
   };
 
@@ -2277,6 +2364,7 @@ export default function Customers({ permissions }: PageProps) {
           customer={selectedCustomer}
           customerStats={customerStats}
           vehicles={vehicles}
+          jobOrders={jobOrders}
           contacts={contacts}
           deals={deals}
           tickets={tickets}
