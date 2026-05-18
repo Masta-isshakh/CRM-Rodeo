@@ -76,6 +76,94 @@ type CountsMap = Record<
   }
 >;
 
+type ServiceActivity = {
+  key: string;
+  orderNumber: string;
+  serviceName: string;
+  status: string;
+  updatedAt: string;
+};
+
+function safeParseJson<T = any>(value: any, fallback: T): T {
+  try {
+    if (value == null || value === "") return fallback;
+    if (typeof value === "object") return value as T;
+    return JSON.parse(String(value)) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function extractOrderServiceNames(order: any): string[] {
+  const parsed = safeParseJson<any>(order?.dataJson, {});
+  const candidates = [
+    parsed?.services,
+    parsed?.selectedServices,
+    parsed?.serviceItems,
+    order?.services,
+  ];
+
+  const names = new Set<string>();
+  for (const bucket of candidates) {
+    if (!Array.isArray(bucket)) continue;
+    for (const item of bucket) {
+      const name = String(
+        item?.serviceName ?? item?.name ?? item?.title ?? item?.serviceTitle ?? item?.nameEn ?? ""
+      ).trim();
+      if (name) names.add(name);
+    }
+  }
+
+  return Array.from(names);
+}
+
+function resolveOrderTotal(order: any): string {
+  const parsed = safeParseJson<any>(order?.dataJson, {});
+  const totalRaw =
+    order?.totalAmount ??
+    parsed?.totalAmount ??
+    parsed?.billing?.totalAmount ??
+    parsed?.billing?.netAmount;
+
+  const num = Number(totalRaw);
+  return Number.isFinite(num) ? `QAR ${num.toFixed(2)}` : "-";
+}
+
+function toServiceActivityRows(orders: JobOrderRow[]): ServiceActivity[] {
+  const out: ServiceActivity[] = [];
+  for (const order of orders) {
+    const names = extractOrderServiceNames(order);
+    const base = {
+      orderNumber: String(order?.orderNumber ?? order?.id ?? "-"),
+      status: String(order?.status ?? "-"),
+      updatedAt: order?.updatedAt ? new Date(order.updatedAt).toLocaleString() : "-",
+    };
+
+    if (!names.length) {
+      out.push({
+        key: `${String(order?.id ?? base.orderNumber)}-none`,
+        orderNumber: base.orderNumber,
+        serviceName: "-",
+        status: base.status,
+        updatedAt: base.updatedAt,
+      });
+      continue;
+    }
+
+    names.forEach((name, idx) => {
+      out.push({
+        key: `${String(order?.id ?? base.orderNumber)}-${idx}-${name}`,
+        orderNumber: base.orderNumber,
+        serviceName: name,
+        status: base.status,
+        updatedAt: base.updatedAt,
+      });
+    });
+  }
+
+  return out;
+}
+
 function replaceAllSafe(str: string, search: string, replacement: string) {
   return str.split(search).join(replacement);
 }
@@ -875,6 +963,7 @@ function DetailsView(props: {
   customerStats: { vehicles: number; completedServices: number };
   vehicles: VehicleRow[];
   jobOrders: JobOrderRow[];
+  completedServiceActivities: ServiceActivity[];
   contacts: ContactRow[];
   deals: DealRow[];
   tickets: TicketRow[];
@@ -897,6 +986,7 @@ function DetailsView(props: {
     customerStats,
     vehicles,
     jobOrders,
+    completedServiceActivities,
     contacts,
     deals,
     tickets,
@@ -1146,33 +1236,12 @@ function DetailsView(props: {
       const idx = index + 1;
       const makeModel =
         `${String((vehicle as any).make ?? "").trim()} ${String((vehicle as any).model ?? "").trim()}`.trim() || "—";
-      const vehicleType = String((vehicle as any).vehicleType ?? "").trim() || "—";
-      const vehicleYear = String((vehicle as any).year ?? "").trim() || "—";
-      const vehicleColor = String((vehicle as any).color ?? "").trim() || "—";
       return [
         {
           key: `vehicle-${vehicle.id}-name`,
           iconClass: "fas fa-car-side",
           label: `${t("Vehicle")} ${idx}`,
           value: makeModel,
-        },
-        {
-          key: `vehicle-${vehicle.id}-type`,
-          iconClass: "fas fa-shapes",
-          label: `${t("Type")} ${idx}`,
-          value: vehicleType,
-        },
-        {
-          key: `vehicle-${vehicle.id}-year`,
-          iconClass: "fas fa-calendar",
-          label: `${t("Year")} ${idx}`,
-          value: vehicleYear,
-        },
-        {
-          key: `vehicle-${vehicle.id}-color`,
-          iconClass: "fas fa-palette",
-          label: `${t("Color")} ${idx}`,
-          value: vehicleColor,
         },
         {
           key: `vehicle-${vehicle.id}-plate`,
@@ -1190,83 +1259,19 @@ function DetailsView(props: {
     }),
   ];
 
-  const extractServiceSummary = useCallback((order: JobOrderRow): string => {
-    const directCount = Number((order as any)?.completedServiceCount ?? 0);
-    const totalCount = Number((order as any)?.totalServiceCount ?? 0);
-    const payload = String((order as any)?.dataJson ?? "").trim();
-    if (!payload) {
-      if (directCount > 0 || totalCount > 0) {
-        return `${directCount || 0}/${totalCount || 0} ${t("completed")}`;
-      }
-      return "—";
-    }
-
-    try {
-      const parsed = JSON.parse(payload);
-      const buckets = [
-        parsed?.services,
-        parsed?.serviceLines,
-        parsed?.selectedServices,
-        parsed?.servicesItems,
-      ];
-      const names = new Set<string>();
-
-      for (const bucket of buckets) {
-        if (!Array.isArray(bucket)) continue;
-        for (const item of bucket) {
-          const label = String(
-            item?.name ?? item?.serviceName ?? item?.title ?? item?.label ?? item?.description ?? ""
-          ).trim();
-          if (label) names.add(label);
-        }
-      }
-
-      if (!names.size) {
-        if (directCount > 0 || totalCount > 0) {
-          return `${directCount || 0}/${totalCount || 0} ${t("completed")}`;
-        }
-        return "—";
-      }
-
-      const list = Array.from(names);
-      return list.length > 2 ? `${list.slice(0, 2).join(", ")} +${list.length - 2}` : list.join(", ");
-    } catch {
-      if (directCount > 0 || totalCount > 0) {
-        return `${directCount || 0}/${totalCount || 0} ${t("completed")}`;
-      }
-      return "—";
-    }
-  }, [t]);
-
   const relatedFields: PremiumField[] = (() => {
-    if (loadingRelations) {
-      return [
-        {
-          key: "related-loading-joborders",
-          iconClass: "fas fa-spinner",
-          label: t("Status"),
-          value: t("Loading job orders…"),
-        },
-      ];
-    }
-
-    if (jobOrders.length) {
-      return jobOrders.slice(0, 10).map((item, index) => {
-        const completedCount = Number((item as any)?.completedServiceCount ?? 0);
-        const totalCount = Number((item as any)?.totalServiceCount ?? 0);
-        const serviceSummary = extractServiceSummary(item);
-        return {
-          key: `joborder-${item.id}`,
-          iconClass: String(item.status ?? "") === "COMPLETED" ? "fas fa-check-circle" : "fas fa-clipboard-list",
-          label: `${t("Order")} ${index + 1}`,
-          value:
-            `${item.orderNumber || item.id} • ${item.status || "—"} • ` +
-            `${t("Services")}: ${serviceSummary} • ${t("Done")}: ${completedCount}/${totalCount}`,
-        };
-      });
-    }
-
     if (canViewRelatedTickets) {
+      if (loadingRelations) {
+        return [
+          {
+            key: "related-loading-tickets",
+            iconClass: "fas fa-spinner",
+            label: t("Status"),
+            value: t("Loading tickets…"),
+          },
+        ];
+      }
+
       if (tickets.length) {
         return tickets.slice(0, 10).map((item, index) => ({
           key: `ticket-${item.id}`,
@@ -1287,6 +1292,17 @@ function DetailsView(props: {
     }
 
     if (canViewRelatedDeals) {
+      if (loadingRelations) {
+        return [
+          {
+            key: "related-loading-deals",
+            iconClass: "fas fa-spinner",
+            label: t("Status"),
+            value: t("Loading deals…"),
+          },
+        ];
+      }
+
       if (deals.length) {
         return deals.slice(0, 10).map((item, index) => ({
           key: `deal-${item.id}`,
@@ -1307,6 +1323,17 @@ function DetailsView(props: {
     }
 
     if (canViewRelatedContacts) {
+      if (loadingRelations) {
+        return [
+          {
+            key: "related-loading-contacts",
+            iconClass: "fas fa-spinner",
+            label: t("Status"),
+            value: t("Loading contacts…"),
+          },
+        ];
+      }
+
       if (contacts.length) {
         return contacts.slice(0, 10).map((item, index) => ({
           key: `contact-${item.id}`,
@@ -1331,7 +1358,7 @@ function DetailsView(props: {
         key: "related-empty-fallback",
         iconClass: "fas fa-folder-open",
         label: t("Recent Activity"),
-        value: t("No job orders or recent activity available."),
+        value: t("No recent activity available."),
       },
     ];
   })();
@@ -1611,11 +1638,115 @@ function DetailsView(props: {
           )}
 
           {canViewRelatedCard && (
-            <PremiumDetailsCard
-              title={t("Customer Job Orders & Services")}
-              iconClass="fas fa-history"
-              fields={relatedFields}
-            />
+            <>
+              <PremiumDetailsCard
+                title={t("Job History / Recent Activity")}
+                iconClass="fas fa-history"
+                fields={relatedFields}
+              />
+
+              <div
+                className="customer-table-card-shell"
+                style={{
+                  background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)",
+                  borderRadius: 12,
+                  boxShadow: "0 10px 24px rgba(51, 84, 160, 0.08)",
+                  border: "1px solid #DDE7F6",
+                  overflow: "hidden",
+                  marginBottom: 6,
+                }}
+              >
+                <div style={{ height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)" }} />
+                <div style={{ padding: "12px 16px", borderBottom: "1px solid #DDE6F4" }}>
+                  <h3 style={{ margin: 0, color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                    <i className="fas fa-clipboard-list" /> {t("Related Job Orders")}
+                  </h3>
+                </div>
+                <div style={{ overflowX: "auto" }}>
+                  <table className="customer-dashboard-table" style={{ width: "100%", borderCollapse: "collapse", minWidth: 680 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Order #")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Status")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Payment")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Vehicle Plate")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Total")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Updated")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {jobOrders.length ? (
+                        jobOrders.slice(0, 30).map((order) => (
+                          <tr key={String(order.id)}>
+                            <td data-label={t("Order #")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{String(order.orderNumber ?? order.id ?? "-")}</td>
+                            <td data-label={t("Status")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{String(order.status ?? "-")}</td>
+                            <td data-label={t("Payment")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{String(order.paymentStatus ?? "-")}</td>
+                            <td data-label={t("Vehicle Plate")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{String(order.plateNumber ?? "-")}</td>
+                            <td data-label={t("Total")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{resolveOrderTotal(order)}</td>
+                            <td data-label={t("Updated")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{order.updatedAt ? new Date(order.updatedAt).toLocaleString() : "-"}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={6} style={{ padding: "16px 12px", textAlign: "center", color: "#6F7EA8" }}>
+                            {t("No related job orders found for this customer.")}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div
+                className="customer-table-card-shell"
+                style={{
+                  background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)",
+                  borderRadius: 12,
+                  boxShadow: "0 10px 24px rgba(51, 84, 160, 0.08)",
+                  border: "1px solid #DDE7F6",
+                  overflow: "hidden",
+                  marginBottom: 6,
+                }}
+              >
+                <div style={{ height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)" }} />
+                <div style={{ padding: "12px 16px", borderBottom: "1px solid #DDE6F4" }}>
+                  <h3 style={{ margin: 0, color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                    <i className="fas fa-check-circle" /> {t("Completed Services")}
+                  </h3>
+                </div>
+                <div style={{ overflowX: "auto" }}>
+                  <table className="customer-dashboard-table" style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Order #")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Service")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Status")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Updated")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {completedServiceActivities.length ? (
+                        completedServiceActivities.slice(0, 60).map((item) => (
+                          <tr key={item.key}>
+                            <td data-label={t("Order #")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{item.orderNumber}</td>
+                            <td data-label={t("Service")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{item.serviceName}</td>
+                            <td data-label={t("Status")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{item.status}</td>
+                            <td data-label={t("Updated")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{item.updatedAt}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={4} style={{ padding: "16px 12px", textAlign: "center", color: "#6F7EA8" }}>
+                            {t("No completed services found for this customer.")}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
           )}
 
           {!canViewInfoCard && !canViewRelatedCard && (
@@ -1781,18 +1912,21 @@ export default function Customers({ permissions }: PageProps) {
 
   const [loadingRelations, setLoadingRelations] = useState(false);
   const [vehicles, setVehicles] = useState<VehicleRow[]>([]);
-  const [jobOrders, setJobOrders] = useState<JobOrderRow[]>([]);
   const [contacts, setContacts] = useState<ContactRow[]>([]);
   const [deals, setDeals] = useState<DealRow[]>([]);
   const [tickets, setTickets] = useState<TicketRow[]>([]);
+  const [customerJobOrders, setCustomerJobOrders] = useState<JobOrderRow[]>([]);
+  const [customerCompletedServiceActivities, setCustomerCompletedServiceActivities] = useState<ServiceActivity[]>([]);
   const [customerStats, setCustomerStats] = useState<{ vehicles: number; completedServices: number }>({
     vehicles: 0,
     completedServices: 0,
   });
   const countsRequestRef = useRef(0);
   const relationsCacheRef = useRef<
-    Map<string, { vehicles?: VehicleRow[]; jobOrders?: JobOrderRow[]; contacts?: ContactRow[]; deals?: DealRow[]; tickets?: TicketRow[] }>
+    Map<string, { vehicles?: VehicleRow[]; contacts?: ContactRow[]; deals?: DealRow[]; tickets?: TicketRow[] }>
   >(new Map());
+  const customerOrdersCacheRef = useRef<Map<string, JobOrderRow[]>>(new Map());
+  const completedServiceCacheRef = useRef<Map<string, ServiceActivity[]>>(new Map());
   const customerStatsCacheRef = useRef<Map<string, { vehicles: number; completedServices: number }>>(new Map());
 
   const formatCustomerId = useCallback((id: string) => formatCustomerDisplayId(id), []);
@@ -2024,6 +2158,8 @@ export default function Customers({ permissions }: PageProps) {
 
     const cachedStats = customerStatsCacheRef.current.get(id);
     setCustomerStats(cachedStats ?? { vehicles: 0, completedServices: 0 });
+    setCustomerJobOrders(customerOrdersCacheRef.current.get(id) ?? []);
+    setCustomerCompletedServiceActivities(completedServiceCacheRef.current.get(id) ?? []);
 
     void (async () => {
       try {
@@ -2091,23 +2227,22 @@ export default function Customers({ permissions }: PageProps) {
     if (!shouldLoadRelations) {
       setLoadingRelations(false);
       setVehicles([]);
-      setJobOrders([]);
       setContacts([]);
       setDeals([]);
       setTickets([]);
+      setCustomerJobOrders([]);
+      setCustomerCompletedServiceActivities([]);
       return;
     }
 
     const cacheEntry = relationsCacheRef.current.get(id) ?? {};
     const needsVehicles = !cacheEntry.vehicles;
-    const needsJobOrders = !cacheEntry.jobOrders;
     const needsContacts = canCustomersRelatedContacts && !cacheEntry.contacts;
     const needsDeals = canCustomersRelatedDeals && !cacheEntry.deals;
     const needsTickets = canCustomersRelatedTickets && !cacheEntry.tickets;
 
-    if (!needsVehicles && !needsJobOrders && !needsContacts && !needsDeals && !needsTickets) {
+    if (!needsVehicles && !needsContacts && !needsDeals && !needsTickets) {
       setVehicles(cacheEntry.vehicles ?? []);
-      setJobOrders(cacheEntry.jobOrders ?? []);
       setContacts(cacheEntry.contacts ?? []);
       setDeals(cacheEntry.deals ?? []);
       setTickets(cacheEntry.tickets ?? []);
@@ -2117,7 +2252,6 @@ export default function Customers({ permissions }: PageProps) {
 
     setLoadingRelations(true);
     setVehicles(cacheEntry.vehicles ?? []);
-    setJobOrders(cacheEntry.jobOrders ?? []);
     setContacts(cacheEntry.contacts ?? []);
     setDeals(cacheEntry.deals ?? []);
     setTickets(cacheEntry.tickets ?? []);
@@ -2125,7 +2259,6 @@ export default function Customers({ permissions }: PageProps) {
     try {
       const nextEntry = {
         vehicles: (cacheEntry.vehicles ?? []) as VehicleRow[],
-        jobOrders: (cacheEntry.jobOrders ?? []) as JobOrderRow[],
         contacts: (cacheEntry.contacts ?? []) as ContactRow[],
         deals: (cacheEntry.deals ?? []) as DealRow[],
         tickets: (cacheEntry.tickets ?? []) as TicketRow[],
@@ -2138,20 +2271,6 @@ export default function Customers({ permissions }: PageProps) {
           client.models.Vehicle.list({ filter: { customerId: { eq: id } }, limit: 1000 }).then((vehicleRes: any) => {
             nextEntry.vehicles = (vehicleRes.data ?? []) as VehicleRow[];
             setVehicles(nextEntry.vehicles);
-          })
-        );
-      }
-
-      if (needsJobOrders) {
-        tasks.push(
-          client.models.JobOrder.list({ filter: { customerId: { eq: id } }, limit: 2000 } as any).then((jobOrderRes: any) => {
-            const rows = ((jobOrderRes.data ?? []) as JobOrderRow[]).slice().sort((a: any, b: any) => {
-              const aTime = new Date(String(a?.updatedAt ?? a?.createdAt ?? 0)).getTime();
-              const bTime = new Date(String(b?.updatedAt ?? b?.createdAt ?? 0)).getTime();
-              return bTime - aTime;
-            });
-            nextEntry.jobOrders = rows;
-            setJobOrders(rows);
           })
         );
       }
@@ -2185,6 +2304,62 @@ export default function Customers({ permissions }: PageProps) {
 
       await Promise.all(tasks);
       relationsCacheRef.current.set(id, nextEntry);
+
+      let relatedOrders: JobOrderRow[] = [];
+      try {
+        if (customerOrdersCacheRef.current.has(id)) {
+          relatedOrders = customerOrdersCacheRef.current.get(id) ?? [];
+        } else {
+          const byCustomer = await client.models.JobOrder.list({
+            filter: { customerId: { eq: id } } as any,
+            limit: 5000,
+          } as any);
+          relatedOrders = ((byCustomer.data ?? []) as JobOrderRow[]).slice();
+
+          if (!relatedOrders.length && nextEntry.vehicles.length) {
+            const plateSet = new Set(
+              nextEntry.vehicles.map((v: any) => String(v?.plateNumber ?? "").trim()).filter(Boolean)
+            );
+            if (plateSet.size) {
+              const byPlateGroups = await Promise.all(
+                Array.from(plateSet).map(async (plate) => {
+                  try {
+                    const res = await (client.models.JobOrder as any)?.jobOrdersByPlateNumber?.({
+                      plateNumber: plate,
+                      limit: 2000,
+                    });
+                    return ((res as any)?.data ?? []) as JobOrderRow[];
+                  } catch {
+                    const listed = await client.models.JobOrder.list({
+                      filter: { plateNumber: { eq: plate } } as any,
+                      limit: 2000,
+                    } as any);
+                    return (listed.data ?? []) as JobOrderRow[];
+                  }
+                })
+              );
+              const merged = byPlateGroups.flat();
+              const dedup = new Map<string, JobOrderRow>();
+              merged.forEach((row) => dedup.set(String(row?.id ?? ""), row));
+              relatedOrders = Array.from(dedup.values());
+            }
+          }
+
+          relatedOrders.sort((a, b) => String(b?.updatedAt ?? b?.createdAt ?? "").localeCompare(String(a?.updatedAt ?? a?.createdAt ?? "")));
+          customerOrdersCacheRef.current.set(id, relatedOrders);
+        }
+
+        const completedActivities = toServiceActivityRows(
+          relatedOrders.filter((row) => String(row?.status ?? "") === "COMPLETED")
+        );
+        completedServiceCacheRef.current.set(id, completedActivities);
+        setCustomerJobOrders(relatedOrders);
+        setCustomerCompletedServiceActivities(completedActivities);
+      } catch (orderErr) {
+        console.error(orderErr);
+        setCustomerJobOrders([]);
+        setCustomerCompletedServiceActivities([]);
+      }
     } catch (err) {
       console.error(err);
       await showAlert(t("Warning"), t("Could not load related records."), "warning");
@@ -2197,7 +2372,8 @@ export default function Customers({ permissions }: PageProps) {
     setViewMode("list");
     setSelectedCustomerId(null);
     setVehicles([]);
-    setJobOrders([]);
+    setCustomerJobOrders([]);
+    setCustomerCompletedServiceActivities([]);
     setCustomerStats({ vehicles: 0, completedServices: 0 });
   };
 
@@ -2364,7 +2540,8 @@ export default function Customers({ permissions }: PageProps) {
           customer={selectedCustomer}
           customerStats={customerStats}
           vehicles={vehicles}
-          jobOrders={jobOrders}
+          jobOrders={customerJobOrders}
+          completedServiceActivities={customerCompletedServiceActivities}
           contacts={contacts}
           deals={deals}
           tickets={tickets}

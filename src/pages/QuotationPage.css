@@ -273,6 +273,41 @@
   transition: all 0.18s ease;
 }
 
+.quotation-search-input-wrap {
+  position: relative;
+}
+
+.quotation-search-input {
+  padding-right: 36px !important;
+}
+
+.quotation-search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 999px;
+  background: #e8eefb;
+  color: #6f7ea8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.14s ease;
+}
+
+.quotation-search-clear:hover {
+  background: #dce7fb;
+  color: #324f88;
+}
+
+.quotation-search-clear:active {
+  transform: translateY(-50%) scale(0.95);
+}
+
 .quotation-form-grid input:focus,
 .quotation-form-grid select:focus,
 .quotation-form-grid textarea:focus,

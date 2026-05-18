@@ -98,6 +98,61 @@
     padding: 12px 8px;
   }
 
+  .vehicles-page .customer-table-card-shell {
+    overflow: hidden !important;
+  }
+
+  .vehicles-page .customer-table-card-shell .customer-dashboard-table,
+  .vehicles-page .customer-table-card-shell .customer-dashboard-table thead {
+    width: 100% !important;
+  }
+
+  .vehicles-page .customer-table-card-shell .customer-dashboard-table thead {
+    display: none;
+  }
+
+  .vehicles-page .customer-table-card-shell .customer-dashboard-table tbody,
+  .vehicles-page .customer-table-card-shell .customer-dashboard-table tr,
+  .vehicles-page .customer-table-card-shell .customer-dashboard-table td {
+    display: block;
+    width: 100% !important;
+  }
+
+  .vehicles-page .customer-table-card-shell .customer-dashboard-table tbody tr {
+    border: 1px solid #dbe6f6;
+    border-radius: 12px;
+    margin: 0 0 10px;
+    padding: 6px 10px;
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+    box-shadow: 0 6px 14px rgba(51, 84, 160, 0.08);
+  }
+
+  .vehicles-page .customer-table-card-shell .customer-dashboard-table td {
+    border: 0 !important;
+    border-bottom: 1px dashed #e4ecfb !important;
+    padding: 8px 0 !important;
+    text-align: left !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: anywhere !important;
+  }
+
+  .vehicles-page .customer-table-card-shell .customer-dashboard-table td:last-child {
+    border-bottom: 0 !important;
+    padding-bottom: 2px !important;
+  }
+
+  .vehicles-page .customer-table-card-shell .customer-dashboard-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 4px;
+    color: #7c8fb5;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
   /* KPI cards */
   .vehicles-stats-row {
     grid-template-columns: 1fr 1fr !important;
@@ -158,5 +213,109 @@
   .vehicles-table-wrap {
     overscroll-behavior-x: contain;
     padding-bottom: 2px;
+  }
+}
+
+@media (max-width: 430px) {
+  .vehicles-page .customer-table-card-shell .customer-dashboard-table tbody tr {
+    border-radius: 10px;
+    padding: 6px 8px;
+  }
+
+  .vehicles-page .customer-table-card-shell .customer-dashboard-table td {
+    padding: 7px 0 !important;
+    font-size: 0.84rem;
+    line-height: 1.35;
+  }
+
+  .vehicles-page .customer-table-card-shell .customer-dashboard-table td::before {
+    font-size: 0.64rem;
+    letter-spacing: 0.05em;
+    margin-bottom: 3px;
+  }
+}
+
+@media (max-width: 375px) {
+  .vehicles-page .customer-table-card-shell .customer-dashboard-table tbody tr {
+    padding: 5px 7px;
+    margin: 0 0 8px;
+  }
+
+  .vehicles-page .customer-table-card-shell .customer-dashboard-table td {
+    padding: 6px 0 !important;
+    font-size: 0.81rem;
+  }
+}
+
+@media (max-width: 320px) {
+  .vehicles-page .vehicle-details-orders-header {
+    gap: 6px !important;
+    margin-bottom: 5px !important;
+  }
+
+  .vehicles-page .vehicle-details-orders-header .customer-details-card-title {
+    font-size: 9.6px !important;
+    letter-spacing: 0.04em !important;
+    line-height: 1.15 !important;
+  }
+
+  .vehicles-page .vehicle-details-add-order-btn {
+    height: 32px !important;
+    min-height: 32px !important;
+    width: 100% !important;
+    border-radius: 9px !important;
+    padding: 0 8px !important;
+    gap: 5px !important;
+    font-size: 10.5px !important;
+    font-weight: 800 !important;
+    justify-content: center !important;
+    box-shadow: 0 4px 10px rgba(67, 24, 255, 0.18) !important;
+  }
+
+  .vehicles-page .vehicle-details-add-order-icon {
+    width: 13px !important;
+    height: 13px !important;
+  }
+
+  .vehicles-page .vehicle-details-add-order-icon i {
+    font-size: 9px !important;
+  }
+
+  .vehicles-page .customer-table-card-shell {
+    border-radius: 10px !important;
+  }
+
+  .vehicles-page .customer-table-card-shell > div[style*="display: flex"],
+  .vehicles-page .customer-table-card-shell > div[style*="padding: 12px 16px"] {
+    padding-left: 10px !important;
+    padding-right: 10px !important;
+    margin-bottom: 6px !important;
+  }
+
+  .vehicles-page .customer-table-card-shell h3,
+  .vehicles-page .customer-table-card-shell h4 {
+    font-size: 10px !important;
+    line-height: 1.2 !important;
+    margin-bottom: 6px !important;
+  }
+
+  .vehicles-page .customer-table-card-shell .customer-activity-table-wrap {
+    margin-top: 2px;
+  }
+
+  .vehicles-page .customer-table-card-shell .customer-dashboard-table tbody tr {
+    margin: 0 0 6px;
+    padding: 4px 6px;
+  }
+
+  .vehicles-page .customer-table-card-shell .customer-dashboard-table td {
+    font-size: 0.78rem;
+    line-height: 1.32;
+    padding: 5px 0 !important;
+  }
+
+  .vehicles-page .customer-table-card-shell .customer-dashboard-table td::before {
+    font-size: 0.6rem;
+    letter-spacing: 0.04em;
   }
 }

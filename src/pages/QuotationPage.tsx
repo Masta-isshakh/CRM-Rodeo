@@ -418,6 +418,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
 
   const [selectedCatalogIds, setSelectedCatalogIds] = useState<string[]>([]);
   const [selectedServiceCategory, setSelectedServiceCategory] = useState("all");
+  const [serviceSearchTerm, setServiceSearchTerm] = useState("");
   const [discountAmount, setDiscountAmount] = useState(0);
 
   useEffect(() => {
@@ -505,12 +506,28 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
   }, [servicesOnly]);
 
   const visibleServices = useMemo(() => {
-    if (selectedServiceCategory === "all") return servicesOnly;
+    const searchQuery = normalizeKey(serviceSearchTerm);
+
     return servicesOnly.filter((item) => {
       const category = String(item.categoryNameEn || item.categoryCode || item.categoryId || "").trim();
-      return category === selectedServiceCategory;
+      const matchesCategory = selectedServiceCategory === "all" || category === selectedServiceCategory;
+      if (!matchesCategory) return false;
+
+      if (!searchQuery) return true;
+
+      const searchableText = [
+        item.name,
+        item.nameAr,
+        item.serviceCode,
+        item.categoryNameEn,
+        item.categoryCode,
+      ]
+        .map((value) => String(value || "").toLowerCase())
+        .join(" ");
+
+      return searchableText.includes(searchQuery);
     });
-  }, [servicesOnly, selectedServiceCategory]);
+  }, [servicesOnly, selectedServiceCategory, serviceSearchTerm]);
 
   const packagesOnly = useMemo(
     () => catalog.filter((item) => String(item.type).toLowerCase() === "package"),
@@ -952,7 +969,35 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
                       ))}
                     </select>
                   </label>
+                  <label>
+                    <span>{t("Search Services")}</span>
+                    <div className="quotation-search-input-wrap">
+                      <input
+                        type="search"
+                        value={serviceSearchTerm}
+                        onChange={(e) => setServiceSearchTerm(e.target.value)}
+                        placeholder={t("Type service name or code")}
+                        className="quotation-search-input"
+                      />
+                      {serviceSearchTerm.trim() ? (
+                        <button
+                          type="button"
+                          className="quotation-search-clear"
+                          onClick={() => setServiceSearchTerm("")}
+                          aria-label={t("Clear search")}
+                          title={t("Clear search")}
+                        >
+                          <i className="fas fa-times" aria-hidden="true" />
+                        </button>
+                      ) : null}
+                    </div>
+                  </label>
                 </div>
+                {visibleServices.length === 0 ? (
+                  <div className="quotation-muted" style={{ marginBottom: 10 }}>
+                    {t("No services match this filter/search.")}
+                  </div>
+                ) : null}
                 <div className="quotation-catalog-grid">
                   {visibleServices.map((item) => {
                     const selected = selectedCatalogIds.includes(item.id);

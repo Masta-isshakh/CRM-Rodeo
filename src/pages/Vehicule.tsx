@@ -27,6 +27,14 @@ type VehicleRow = Schema["Vehicle"]["type"];
 type CustomerRow = Schema["Customer"]["type"];
 type JobOrderRow = Schema["JobOrder"]["type"];
 
+type VehicleServiceActivity = {
+  key: string;
+  orderNumber: string;
+  serviceName: string;
+  status: string;
+  updatedAt: string;
+};
+
 type VehicleForm = {
   customerId: string;
   vehicleId: string;
@@ -105,60 +113,66 @@ function normalizePaymentStatusLabel(value: any): string {
   return out || "—";
 }
 
-function collectTextItems(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.flatMap((entry) => collectTextItems(entry)).filter(Boolean);
-  }
-  if (!value || typeof value !== "object") {
-    const text = String(value ?? "").trim();
-    return text ? [text] : [];
-  }
-
-  const source = value as Record<string, unknown>;
-  const direct = ["name", "serviceName", "title", "label", "description", "productName"]
-    .flatMap((key) => collectTextItems(source[key]))
-    .filter(Boolean);
-  if (direct.length) return direct;
-
-  return Object.values(source)
-    .flatMap((entry) => collectTextItems(entry))
-    .filter(Boolean);
-}
-
-function extractJobOrderServices(order: JobOrderRow): string[] {
-  const payload = String((order as any)?.dataJson ?? "").trim();
-  if (!payload) return [];
+function safeParseJson<T = any>(value: any, fallback: T): T {
   try {
-    const parsed = JSON.parse(payload);
-    const buckets = [
-      parsed?.services,
-      parsed?.serviceLines,
-      parsed?.selectedServices,
-      parsed?.servicesItems,
-      parsed?.invoiceServices,
-    ];
-
-    const seen = new Set<string>();
-    for (const bucket of buckets) {
-      if (!Array.isArray(bucket)) continue;
-      for (const item of bucket) {
-        for (const label of collectTextItems(item)) {
-          const normalized = String(label ?? "").trim();
-          if (normalized) seen.add(normalized);
-        }
-      }
-    }
-    return Array.from(seen);
+    if (value == null || value === "") return fallback;
+    if (typeof value === "object") return value as T;
+    return JSON.parse(String(value)) as T;
   } catch {
-    return [];
+    return fallback;
   }
 }
 
-function summarizeJobOrderServices(order: JobOrderRow): string {
-  const names = extractJobOrderServices(order);
-  if (!names.length) return "—";
-  if (names.length <= 2) return names.join(", ");
-  return `${names.slice(0, 2).join(", ")} +${names.length - 2}`;
+function extractOrderServiceNames(order: any): string[] {
+  const parsed = safeParseJson<any>(order?.dataJson, {});
+  const candidates = [parsed?.services, parsed?.selectedServices, parsed?.serviceItems, order?.services];
+  const names = new Set<string>();
+
+  for (const bucket of candidates) {
+    if (!Array.isArray(bucket)) continue;
+    for (const item of bucket) {
+      const name = String(
+        item?.serviceName ?? item?.name ?? item?.title ?? item?.serviceTitle ?? item?.nameEn ?? ""
+      ).trim();
+      if (name) names.add(name);
+    }
+  }
+
+  return Array.from(names);
+}
+
+function toVehicleServiceActivities(orders: JobOrderRow[]): VehicleServiceActivity[] {
+  const out: VehicleServiceActivity[] = [];
+
+  for (const order of orders) {
+    const names = extractOrderServiceNames(order);
+    const orderNumber = String(order?.orderNumber ?? order?.id ?? "-");
+    const status = String(order?.status ?? "-");
+    const updatedAt = order?.updatedAt ? new Date(order.updatedAt).toLocaleString() : "-";
+
+    if (!names.length) {
+      out.push({
+        key: `${String(order?.id ?? orderNumber)}-none`,
+        orderNumber,
+        serviceName: "-",
+        status,
+        updatedAt,
+      });
+      continue;
+    }
+
+    names.forEach((name, idx) => {
+      out.push({
+        key: `${String(order?.id ?? orderNumber)}-${idx}-${name}`,
+        orderNumber,
+        serviceName: name,
+        status,
+        updatedAt,
+      });
+    });
+  }
+
+  return out;
 }
 
 // ----------------------
@@ -1000,7 +1014,9 @@ export default function VehicleManagement({
   const [selectedVehicleId, setSelectedVehicleId] = useState<string | null>(null);
   const [selectedVehicle, setSelectedVehicle] = useState<VehicleRow | null>(null);
   const [selectedCustomer, setSelectedCustomer] = useState<CustomerRow | null>(null);
-  const [relatedJobOrders, setRelatedJobOrders] = useState<JobOrderRow[]>([]);
+  const [relatedOrders, setRelatedOrders] = useState<JobOrderRow[]>([]);
+  const [completedOrders, setCompletedOrders] = useState<JobOrderRow[]>([]);
+  const [relatedServiceActivities, setRelatedServiceActivities] = useState<VehicleServiceActivity[]>([]);
   const [selectedCustomerVehiclesCount, setSelectedCustomerVehiclesCount] = useState(0);
   const [selectedCustomerCompletedServicesCount, setSelectedCustomerCompletedServicesCount] = useState(0);
 
@@ -1085,7 +1101,8 @@ export default function VehicleManagement({
   const customerLookupLoadedRef = useRef(false);
   const vehicleByBusinessIdRef = useRef<Map<string, VehicleRow>>(new Map());
   const customerByIdCacheRef = useRef<Map<string, CustomerRow | null>>(new Map());
-  const jobOrdersByPlateRef = useRef<Map<string, JobOrderRow[]>>(new Map());
+  const allOrdersByPlateRef = useRef<Map<string, JobOrderRow[]>>(new Map());
+  const completedOrdersByPlateRef = useRef<Map<string, JobOrderRow[]>>(new Map());
 
   const showAlert = useCallback((title: string, message: string, type: AlertType = "info", showCancel = false) => {
     return new Promise<boolean>((resolve) => {
@@ -1137,7 +1154,7 @@ export default function VehicleManagement({
       }
       vehicleByBusinessIdRef.current = byBusinessId;
       customerByIdCacheRef.current.clear();
-      jobOrdersByPlateRef.current.clear();
+      completedOrdersByPlateRef.current.clear();
       setVehicles(nextVehicles);
     } catch (e) {
       console.error(e);
@@ -1538,7 +1555,7 @@ export default function VehicleManagement({
         setSelectedVehicleId(null);
         setSelectedVehicle(null);
         setSelectedCustomer(null);
-        setRelatedJobOrders([]);
+        setCompletedOrders([]);
         setViewMode("list");
       }
 
@@ -1577,7 +1594,9 @@ export default function VehicleManagement({
         if (cancelled) return;
         setSelectedVehicle(vehicle);
         setSelectedCustomer(null);
-        setRelatedJobOrders([]);
+        setRelatedOrders([]);
+        setCompletedOrders([]);
+        setRelatedServiceActivities([]);
         setSelectedCustomerVehiclesCount(0);
         setSelectedCustomerCompletedServicesCount(0);
         setLoading(false);
@@ -1676,23 +1695,40 @@ export default function VehicleManagement({
         if (plateNumber) {
           void (async () => {
             try {
-              if (jobOrdersByPlateRef.current.has(plateNumber)) {
-                if (!cancelled) setRelatedJobOrders(jobOrdersByPlateRef.current.get(plateNumber) ?? []);
+              if (allOrdersByPlateRef.current.has(plateNumber)) {
+                const cached = allOrdersByPlateRef.current.get(plateNumber) ?? [];
+                const completed = cached.filter((row) => String(row?.status ?? "") === "COMPLETED");
+                completedOrdersByPlateRef.current.set(plateNumber, completed);
+                if (!cancelled) {
+                  setRelatedOrders(cached);
+                  setCompletedOrders(completed);
+                  setRelatedServiceActivities(toVehicleServiceActivities(cached));
+                }
                 return;
               }
+
               const ordersRes = await client.models.JobOrder.list({
                 limit: 1000,
                 filter: { plateNumber: { eq: plateNumber } },
               });
-              const rows = (((ordersRes as any)?.data ?? []) as JobOrderRow[]).slice().sort((a: any, b: any) => {
-                const aTime = new Date(String(a?.updatedAt ?? a?.createdAt ?? 0)).getTime();
-                const bTime = new Date(String(b?.updatedAt ?? b?.createdAt ?? 0)).getTime();
-                return bTime - aTime;
-              });
-              jobOrdersByPlateRef.current.set(plateNumber, rows);
-              if (!cancelled) setRelatedJobOrders(rows);
+              const rows = (((ordersRes as any)?.data ?? []) as JobOrderRow[]).slice();
+              rows.sort((a, b) => String(b?.updatedAt ?? b?.createdAt ?? "").localeCompare(String(a?.updatedAt ?? a?.createdAt ?? "")));
+              const completed = rows.filter((row) => String(row?.status ?? "") === "COMPLETED");
+
+              allOrdersByPlateRef.current.set(plateNumber, rows);
+              completedOrdersByPlateRef.current.set(plateNumber, completed);
+
+              if (!cancelled) {
+                setRelatedOrders(rows);
+                setCompletedOrders(completed);
+                setRelatedServiceActivities(toVehicleServiceActivities(rows));
+              }
             } catch {
-              if (!cancelled) setRelatedJobOrders([]);
+              if (!cancelled) {
+                setRelatedOrders([]);
+                setCompletedOrders([]);
+                setRelatedServiceActivities([]);
+              }
             }
           })();
         }
@@ -1713,30 +1749,12 @@ export default function VehicleManagement({
     setSelectedVehicleId(null);
     setSelectedVehicle(null);
     setSelectedCustomer(null);
-    setRelatedJobOrders([]);
+    setRelatedOrders([]);
+    setCompletedOrders([]);
+    setRelatedServiceActivities([]);
     setSelectedCustomerVehiclesCount(0);
     setSelectedCustomerCompletedServicesCount(0);
   };
-
-  const completedOrders = useMemo(
-    () => relatedJobOrders.filter((row: any) => String(row?.status ?? "") === "COMPLETED"),
-    [relatedJobOrders]
-  );
-
-  const relatedServicesSummary = useMemo(() => {
-    let totalServices = 0;
-    let completedServices = 0;
-    for (const order of relatedJobOrders) {
-      totalServices += Number((order as any)?.totalServiceCount ?? 0);
-      completedServices += Number((order as any)?.completedServiceCount ?? 0);
-    }
-    return {
-      totalOrders: relatedJobOrders.length,
-      completedOrders: completedOrders.length,
-      totalServices,
-      completedServices,
-    };
-  }, [relatedJobOrders, completedOrders]);
 
   type PremiumField = {
     key: string;
@@ -2277,20 +2295,8 @@ export default function VehicleManagement({
                 ]}
               />
 
-              <PremiumDetailsCard
-                title={t("Related Service Summary")}
-                iconClass="fas fa-clipboard-check"
-                forceSingleRow
-                fields={[
-                  { key: "related-orders-total", iconClass: "fas fa-list-ol", label: t("All Job Orders"), value: String(relatedServicesSummary.totalOrders) },
-                  { key: "related-orders-completed", iconClass: "fas fa-check-double", label: t("Completed Job Orders"), value: String(relatedServicesSummary.completedOrders) },
-                  { key: "related-services-total", iconClass: "fas fa-tools", label: t("Total Services"), value: String(relatedServicesSummary.totalServices) },
-                  { key: "related-services-completed", iconClass: "fas fa-check-circle", label: t("Completed Services"), value: String(relatedServicesSummary.completedServices) },
-                ]}
-              />
-
               <div
-                className="pim-detail-card customer-details-card customer-details-card--wide"
+                className="pim-detail-card customer-details-card customer-details-card--wide customer-table-card-shell"
                 style={{
                   background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)",
                   borderRadius: 12,
@@ -2300,15 +2306,15 @@ export default function VehicleManagement({
                 }}
               >
                 <div style={{ height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)" }} />
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+                <div className="vehicle-details-orders-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
                   <h3
                     className="text-lg font-bold text-[#2B3674] mb-0 customer-details-card-title"
                     style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", padding: 0, margin: 0 }}
                   >
-                    <i className="fas fa-tasks" /> {t("Related Job Orders & Services")}
+                    <i className="fas fa-tasks" /> {t("Completed Services (from Job Orders)")}
                   </h3>
                   <button
-                    className="btn-new-customer customer-primary-btn"
+                    className="btn-new-customer customer-primary-btn vehicle-details-add-order-btn"
                     onClick={() => {
                       if (!onNavigate) return;
                       onNavigate("Job Order Management", {
@@ -2351,6 +2357,7 @@ export default function VehicleManagement({
                     }}
                   >
                     <span
+                      className="vehicle-details-add-order-icon"
                       style={{
                         width: 16,
                         height: 16,
@@ -2367,36 +2374,112 @@ export default function VehicleManagement({
                 </div>
                 <div style={{ height: 1, background: "#DDE7F6", marginBottom: 12 }} />
 
+                <div style={{ marginBottom: 14 }}>
+                  <h4 style={{ margin: "0 0 8px", color: "#111827", fontSize: 10.5, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                    {t("Related Job Orders")}
+                  </h4>
+                  <div className="customer-activity-table-wrap">
+                    <table className="vehicles-table customer-dashboard-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto", minWidth: 680 }}>
+                      <thead>
+                        <tr>
+                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Order #")}</th>
+                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Status")}</th>
+                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Payment")}</th>
+                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Plate")}</th>
+                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Total")}</th>
+                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Updated")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {relatedOrders.length ? (
+                          relatedOrders.slice(0, 40).map((o) => (
+                            <tr key={String(o.id)}>
+                              <td data-label={t("Order #")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.orderNumber ?? o.id}</td>
+                              <td data-label={t("Status")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.status ?? "-"}</td>
+                              <td data-label={t("Payment")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{normalizePaymentStatusLabel(o.paymentStatus)}</td>
+                              <td data-label={t("Plate")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.plateNumber ?? "-"}</td>
+                              <td data-label={t("Total")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{typeof o.totalAmount === "number" ? `QAR ${o.totalAmount.toFixed(2)}` : "-"}</td>
+                              <td data-label={t("Updated")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.updatedAt ? new Date(o.updatedAt).toLocaleString() : "-"}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={6} style={{ textAlign: "center", padding: 20, opacity: 0.8 }}>
+                              {t("No related job orders found for this vehicle.")}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: 14 }}>
+                  <h4 style={{ margin: "0 0 8px", color: "#111827", fontSize: 10.5, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                    {t("Related Services")}
+                  </h4>
+                  <div className="customer-activity-table-wrap">
+                    <table className="vehicles-table customer-dashboard-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto", minWidth: 560 }}>
+                      <thead>
+                        <tr>
+                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Order #")}</th>
+                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Service")}</th>
+                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Status")}</th>
+                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Updated")}</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {relatedServiceActivities.length ? (
+                          relatedServiceActivities.slice(0, 70).map((item) => (
+                            <tr key={item.key}>
+                              <td data-label={t("Order #")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{item.orderNumber}</td>
+                              <td data-label={t("Service")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{item.serviceName}</td>
+                              <td data-label={t("Status")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{item.status}</td>
+                              <td data-label={t("Updated")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{item.updatedAt}</td>
+                            </tr>
+                          ))
+                        ) : (
+                          <tr>
+                            <td colSpan={4} style={{ textAlign: "center", padding: 20, opacity: 0.8 }}>
+                              {t("No services found for this vehicle.")}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                <h4 style={{ margin: "0 0 8px", color: "#111827", fontSize: 10.5, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                  {t("Completed Services")}
+                </h4>
+
                 <div className="customer-activity-table-wrap">
                   <table className="vehicles-table customer-dashboard-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto" }}>
                     <thead>
                       <tr>
                         <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Order #")}</th>
                         <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Status")}</th>
-                        <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Services")}</th>
-                        <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Done")}</th>
                         <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Payment")}</th>
                         <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Total")}</th>
                         <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Updated")}</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {relatedJobOrders.length ? (
-                        relatedJobOrders.map((o) => (
+                      {completedOrders.length ? (
+                        completedOrders.map((o) => (
                           <tr key={o.id}>
-                            <td style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.orderNumber ?? o.id}</td>
-                            <td style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.status ?? "-"}</td>
-                            <td style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{summarizeJobOrderServices(o)}</td>
-                            <td style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{`${Number((o as any)?.completedServiceCount ?? 0)}/${Number((o as any)?.totalServiceCount ?? 0)}`}</td>
-                            <td style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{normalizePaymentStatusLabel(o.paymentStatus)}</td>
-                            <td style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{typeof o.totalAmount === "number" ? `QAR ${o.totalAmount.toFixed(2)}` : "-"}</td>
-                            <td style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.updatedAt ? new Date(o.updatedAt).toLocaleString() : "-"}</td>
+                            <td data-label={t("Order #")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.orderNumber ?? o.id}</td>
+                            <td data-label={t("Status")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.status ?? "-"}</td>
+                            <td data-label={t("Payment")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{normalizePaymentStatusLabel(o.paymentStatus)}</td>
+                            <td data-label={t("Total")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{typeof o.totalAmount === "number" ? `QAR ${o.totalAmount.toFixed(2)}` : "-"}</td>
+                            <td data-label={t("Updated")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.updatedAt ? new Date(o.updatedAt).toLocaleString() : "-"}</td>
                           </tr>
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={7} style={{ textAlign: "center", padding: 30, opacity: 0.8 }}>
-                            {t("No related job orders found for this vehicle (matched by plate number).")}
+                          <td colSpan={5} style={{ textAlign: "center", padding: 30, opacity: 0.8 }}>
+                            {t("No completed job orders found for this vehicle (matched by plate number).")}
                           </td>
                         </tr>
                       )}
