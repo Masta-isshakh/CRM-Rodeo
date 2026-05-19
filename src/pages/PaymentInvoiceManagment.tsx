@@ -33,7 +33,7 @@ import {
   sumApprovedPayments,
   toCurrencyNumber,
 } from "../utils/billingFinance";
-import { filterVisibleDocuments } from "../utils/documentVisibility";
+import { filterVisibleDocuments, getDocumentVisibilityKind } from "../utils/documentVisibility";
 
 import {
   cancelJobOrderByOrderNumber,
@@ -531,6 +531,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   const [showBillGeneratedPopup, setShowBillGeneratedPopup] = useState(false);
   const [billGeneratedMessage, setBillGeneratedMessage] = useState("");
   const [isGeneratingBill, setIsGeneratingBill] = useState(false);
+  const [isSavingPayment, setIsSavingPayment] = useState(false);
 
   const [showPaymentPopup, setShowPaymentPopup] = useState(false);
   const [paymentForm, setPaymentForm] = useState<PaymentFormState | null>(null);
@@ -1307,22 +1308,10 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       return;
     }
 
-    // Close modal immediately for optimistic UI (non-blocking)
-    closePaymentPopup();
-    setSuccessMessage(
-      <>
-        <span className="pim-pop-title"><i className="fas fa-check-circle" /> {t("Payment Recorded")}</span>
-        <span className="pim-pop-text">
-          {t("Payment")} <strong>{fmtQar(amountToPay)}</strong> {t("recorded successfully.")}
-          {method === "Transfer" ? ` ${t("Transfer proof uploaded to Documents.")}` : ""}
-        </span>
-      </>
-    );
-    setShowSuccessPopup(true);
-
-    // Fire-and-forget background operations (no await, no blocking)
-    void withLoading((async () => {
-      try {
+    setIsSavingPayment(true);
+    setLoading(true);
+    try {
+      await withLoading((async () => {
         const actor = resolveActorUsername(currentUser, "user");
 
         let newDoc: DocItem | null = null;
@@ -1412,11 +1401,26 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
         invalidateDetailsCaches(String(paymentForm.orderNumber), String(paymentForm.jobOrderId));
         await refreshDetails();
-      } catch (e) {
-        setErrorMessage(`${t("Payment failed:")} ${errMsg(e)}`);
-        setShowErrorPopup(true);
-      }
-    })(), t("Saving payment..."));
+      })(), t("Saving payment..."));
+
+      closePaymentPopup();
+      setSuccessMessage(
+        <>
+          <span className="pim-pop-title"><i className="fas fa-check-circle" /> {t("Payment Recorded")}</span>
+          <span className="pim-pop-text">
+            {t("Payment")} <strong>{fmtQar(amountToPay)}</strong> {t("recorded successfully.")}
+            {method === "Transfer" ? ` ${t("Transfer proof uploaded to Documents.")}` : ""}
+          </span>
+        </>
+      );
+      setShowSuccessPopup(true);
+    } catch (e) {
+      setErrorMessage(`${t("Payment failed:")} ${errMsg(e)}`);
+      setShowErrorPopup(true);
+    } finally {
+      setIsSavingPayment(false);
+      setLoading(false);
+    }
   };
 
   // -------------------- refund popup --------------------
@@ -1814,6 +1818,27 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       doc.addImage(canvas.toDataURL("image/png"), "PNG", xRightMm - maxWidthMm, yTopMm, maxWidthMm, lineH);
     };
 
+    const drawSmartPdfLine = (
+      text: string,
+      xLeftMm: number,
+      baselineYMm: number,
+      maxWidthMm: number,
+      style: "normal" | "italic" | "bold" | "bolditalic" = "normal",
+      colorHex = "#111827"
+    ) => {
+      const safeValue = safeText(text) || "-";
+      if (containsArabic(safeValue)) {
+        drawArabicLine(safeValue, xLeftMm + maxWidthMm, baselineYMm - 3.4, maxWidthMm, BILL_BODY_FONT_SIZE, style, colorHex);
+        return;
+      }
+
+      doc.setFont("helvetica", style === "bolditalic" ? "bold" : style === "bold" ? "bold" : "normal");
+      doc.setFontSize(BILL_BODY_FONT_SIZE);
+      doc.setTextColor(colorHex);
+      const clipped = doc.splitTextToSize(safeValue, maxWidthMm) as string[];
+      doc.text(String(clipped[0] || "-"), xLeftMm, baselineYMm);
+    };
+
     // Letterhead geometry copied from provided HTML template.
     const mmPerPx = 25.4 / 96;
     const gridGap = 32 * mmPerPx; // 2rem gap
@@ -1916,14 +1941,14 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(BILL_BODY_FONT_SIZE);
-    doc.text(clipText(safeText(order?.customerName) || "-", infoW - 6), marginX + 3, infoTop + 10);
+    drawSmartPdfLine(safeText(order?.customerName) || "-", marginX + 3, infoTop + 10, infoW - 6);
     doc.text(`Mobile: ${safeText(order?.mobile) || "-"}`, marginX + 3, infoTop + 14.5);
     doc.text(`Order: ${safeText(order?.id) || "-"}`, marginX + 3, infoTop + 19);
     drawArabicLine(`الجوال: ${safeText(order?.mobile) || "-"}`, marginX + infoW - 3, infoTop + 12.1, infoW - 8, BILL_BODY_FONT_SIZE, "normal");
     drawArabicLine(`رقم الطلب: ${safeText(order?.id) || "-"}`, marginX + infoW - 3, infoTop + 16.6, infoW - 8, BILL_BODY_FONT_SIZE, "normal");
 
     const vehicleName = `${safeText(order?.vehicleDetails?.make)} ${safeText(order?.vehicleDetails?.model)}`.trim() || "-";
-    doc.text(clipText(vehicleName, infoW - 6), marginX + infoW + infoGap + 3, infoTop + 10);
+    drawSmartPdfLine(vehicleName, marginX + infoW + infoGap + 3, infoTop + 10, infoW - 6);
     doc.text(`Plate: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 14.5);
     doc.text(`VIN: ${safeText(order?.vehicleDetails?.vin) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 19);
     drawArabicLine(`رقم اللوحة: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "-"}`, marginX + infoW + infoGap + infoW - 3, infoTop + 12.1, infoW - 8, BILL_BODY_FONT_SIZE, "normal");
@@ -1960,7 +1985,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const noW = 12;
     const amountW = 36;
     const descW = contentW - noW - amountW;
-    const summaryReserve = 60;
+    const summaryReserve = 34;
     const maxRows = Math.max(1, Math.floor((footerTop - summaryReserve - (tableTop + tableHeaderH)) / rowH));
 
     doc.setFillColor(44, 62, 80);
@@ -2038,13 +2063,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       doc.setTextColor(20, 31, 46);
     }
 
-    const summaryW = 94;
-    const summaryX = pageW - marginX - summaryW;
-    const summaryEnglishX = summaryX + 3;
-    const summaryAmountX = summaryX + summaryW - 2;
-    const summaryArabicRightX = summaryAmountX - 24;
-    const summaryArabicW = 26;
-    const summaryRowH = 8.5;
+    const summaryW = contentW;
+    const summaryX = marginX;
+    const summaryRowH = 12.2;
     const summaryRows = [
       ["Total Amount", "إجمالي المبلغ", totalAmount],
       ["Discount", "الخصم", discount],
@@ -2057,29 +2078,38 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     doc.setDrawColor(188, 196, 206);
     doc.setFillColor(246, 249, 252);
-    doc.roundedRect(summaryX, summaryTop - 2, summaryW, summaryRows.length * summaryRowH + 3, 1.5, 1.5, "FD");
+    doc.roundedRect(summaryX, summaryTop - 2, summaryW, summaryRowH + 3, 1.5, 1.5, "FD");
+    const summaryColW = summaryW / summaryRows.length;
+    for (let i = 1; i < summaryRows.length; i += 1) {
+      const x = summaryX + i * summaryColW;
+      doc.line(x, summaryTop - 2, x, summaryTop + summaryRowH + 1);
+    }
+
     summaryRows.forEach(([enLabel, arLabel, value], idx) => {
-      const y = summaryTop + idx * summaryRowH;
-      if (idx === summaryRows.length - 1) {
+      const colLeft = summaryX + idx * summaryColW;
+      const colCenter = colLeft + summaryColW / 2;
+      const isBalance = idx === summaryRows.length - 1;
+      if (isBalance) {
         doc.setFillColor(44, 62, 80);
-        doc.rect(summaryX, y - 1.6, summaryW, summaryRowH, "F");
-        doc.setTextColor(255, 255, 255);
-      } else {
-        doc.setTextColor(20, 31, 46);
+        doc.rect(colLeft, summaryTop - 2, summaryColW, summaryRowH + 3, "F");
       }
-      doc.setFont("helvetica", idx >= 2 ? "bold" : "normal");
-      doc.setFontSize(BILL_BODY_FONT_SIZE);
-      doc.text(`${enLabel} |`, summaryEnglishX, y + 2.8);
+
+      doc.setTextColor(isBalance ? 255 : 20, isBalance ? 255 : 31, isBalance ? 255 : 46);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(6.1);
+      doc.text(enLabel, colCenter, summaryTop + 1.9, { align: "center" });
       drawArabicLine(
         arLabel,
-        summaryArabicRightX,
-        y - 0.3,
-        summaryArabicW,
-        BILL_BODY_FONT_SIZE,
-        idx >= 2 ? "bold" : "normal",
-        idx === summaryRows.length - 1 ? "#FFFFFF" : "#181818",
+        colLeft + summaryColW - 1.6,
+        summaryTop + 2.7,
+        summaryColW - 3.2,
+        5.9,
+        "normal",
+        isBalance ? "#FFFFFF" : "#181818",
       );
-      doc.text(fmtQar(value), summaryAmountX, y + 2.8, { align: "right" });
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(7.1);
+      doc.text(fmtQar(value), colCenter, summaryTop + 8.8, { align: "center" });
     });
 
     // Footer: exact 3-column structure from template
@@ -2091,7 +2121,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     doc.text("C.R. No: 122716", footerLeftColX, footerContentTop + footerLineH * 2);
     doc.text("LLC - capital QAR 200,000", footerLeftColX, footerContentTop + footerLineH * 3);
     doc.text("T: +974 44311871 | M: +974 3320 2409", footerLeftColX, footerContentTop + footerLineH * 4);
-    doc.text("E: info@rodeodrive.me | W: wwwrodeodrive.me", footerLeftColX, footerContentTop + footerLineH * 5);
+    doc.text("E: info@rodeodrive.qa | W: www.rodeodrive.qa", footerLeftColX, footerContentTop + footerLineH * 5);
 
     doc.addImage(qrDataUrl, "PNG", footerCenterColX, footerContentTop, footerQrSize, footerQrSize);
 
@@ -2099,7 +2129,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     drawArabicLine("س.ت:122716", footerRightColRightX, footerContentTop + footerLineH * 2 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
     drawArabicLine("شركة ذات مسؤلية محدودة برأس مال 200,000 رق", footerRightColRightX, footerContentTop + footerLineH * 3 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
     drawArabicLine("T:+974 44311871 | M:+974 3320 2409", footerRightColRightX, footerContentTop + footerLineH * 4 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
-    drawArabicLine("E: info@rodeodrive.me W:wwwRodeodrive.me", footerRightColRightX, footerContentTop + footerLineH * 5 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
+    drawArabicLine("E: info@rodeodrive.qa W: www.rodeodrive.qa", footerRightColRightX, footerContentTop + footerLineH * 5 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
 
     return doc.output("blob") as Blob;
   };
@@ -2108,20 +2138,18 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     if (!selectedOrder) return;
     if (isGeneratingBill) return;
 
-    // Set generating state and show success immediately (optimistic)
+    // Use button-level loading state until bill generation really completes.
     setIsGeneratingBill(true);
-    setBillGeneratedMessage(t("Bill generated successfully and added to Documents."));
-    setShowBillGeneratedPopup(true);
-
-    // Fire-and-forget background PDF generation
-    void (async () => {
-      try {
+    try {
         const billing = selectedOrder?.billing ?? {};
         const billId = String(billing.billId || selectedOrder.id || "BILL");
         const actor = resolveActorUsername(currentUser, "user");
         const billIssuedAt = new Date().toISOString();
+        const parsed = safeJsonParse<any>(selectedOrder?._parsed ?? selectedOrder?.dataJson, {});
 
-        const docs: DocItem[] = Array.isArray(selectedOrder.documents) ? selectedOrder.documents : [];
+        const docs: DocItem[] = Array.isArray(selectedOrder.documents)
+          ? selectedOrder.documents
+          : (Array.isArray(parsed?.documents) ? parsed.documents : []);
         const existingBills = docs.filter((d) => String(d.type).toLowerCase() === "invoice/bill");
 
         const currDetails = {
@@ -2135,7 +2163,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         if (duplicate) {
           setBillExistsMessage(t("Bill with the same payment details already exists in Documents."));
           setShowBillExistsPopup(true);
-          setShowBillGeneratedPopup(false);
           return;
         }
 
@@ -2165,8 +2192,19 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
           billDetails: currDetails,
         };
 
-        const parsed = safeJsonParse<any>(selectedOrder?._parsed ?? selectedOrder?.dataJson, {});
         const updatedDocs = [...docs, newDoc];
+
+        // Immediate UI update so the Documents section reflects the new bill without waiting.
+        setSelectedOrder((prev: any) => {
+          if (!prev) return prev;
+          const prevParsed = safeJsonParse<any>(prev?._parsed ?? prev?.dataJson, {});
+          return {
+            ...prev,
+            documents: updatedDocs,
+            _parsed: { ...prevParsed, documents: updatedDocs },
+            dataJson: JSON.stringify({ ...prevParsed, documents: updatedDocs }),
+          };
+        });
 
         const updatedOrder = {
           ...selectedOrder,
@@ -2177,14 +2215,16 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         await upsertJobOrder(updatedOrder);
         invalidateDetailsCaches(String(selectedOrder?.id), String(selectedOrder?._backendId ?? ""));
         await refreshDetails();
-      } catch (e) {
-        setErrorMessage(`${t("Bill generation failed:")} ${errMsg(e)}`);
-        setShowErrorPopup(true);
-        setShowBillGeneratedPopup(false);
-      } finally {
-        setIsGeneratingBill(false);
-      }
-    })();
+
+        setBillGeneratedMessage(t("Bill generated successfully and added to Documents."));
+        setShowBillGeneratedPopup(true);
+    } catch (e) {
+      setErrorMessage(`${t("Bill generation failed:")} ${errMsg(e)}`);
+      setShowErrorPopup(true);
+      setShowBillGeneratedPopup(false);
+    } finally {
+      setIsGeneratingBill(false);
+    }
   };
 
   // -------------------- UI helpers --------------------
@@ -2232,7 +2272,15 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       String(selectedOrder?.workStatus || "").toLowerCase().includes("cancel") ||
       String(selectedOrder?._row?.status || "").toUpperCase() === "CANCELLED";
 
-    const docs: DocItem[] = filterVisibleDocuments(Array.isArray(selectedOrder.documents) ? selectedOrder.documents : [], canOption);
+    const rawDocs: DocItem[] = Array.isArray(selectedOrder.documents) ? selectedOrder.documents : [];
+    const canViewPaymentDocuments = canOption("payment", "payment_documents", false);
+    const canGenerateBillDoc = canOption("payment", "payment_generatebill", false);
+    const canSeeDocumentsCard = canViewPaymentDocuments || canGenerateBillDoc;
+    const docs: DocItem[] = canViewPaymentDocuments
+      ? filterVisibleDocuments(rawDocs, canOption)
+      : canGenerateBillDoc
+        ? rawDocs.filter((doc) => getDocumentVisibilityKind(doc) === "bill")
+        : [];
     const detailServices: any[] = Array.isArray(selectedOrder?.services) ? selectedOrder.services : [];
     const createdByDisplay = resolveOrderCreatedBy(selectedOrder, {
       identityToUsernameMap: userLabelMap,
@@ -2513,7 +2561,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
               </div>
             </PermissionGate>
 
-            <PermissionGate moduleId="payment" optionId="payment_documents">
+            {canSeeDocumentsCard ? (
               <div className="pim-card pim-detail-card pim-card-full">
                 <h3><i className="fas fa-folder-open"></i> {t("Documents")}</h3>
 
@@ -2552,7 +2600,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                   <div className="pim-empty-inline">{t("No documents available.")}</div>
                 )}
               </div>
-            </PermissionGate>
+            ) : null}
           </div>
         </div>
 
@@ -2657,8 +2705,8 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
                   <div className="pim-modal-actions">
                     <button className="pim-btn pim-btn-ghost" type="button" onClick={closePaymentPopup}>{t("Cancel")}</button>
-                    <button className="pim-btn pim-btn-success" type="button" onClick={handleSavePayment} disabled={loading}>
-                      <i className="fas fa-check"></i> {loading ? t("Saving...") : t("Record Payment")}
+                    <button className="pim-btn pim-btn-success" type="button" onClick={handleSavePayment} disabled={loading || isSavingPayment}>
+                      <i className="fas fa-check"></i> {isSavingPayment ? t("Saving...") : t("Record Payment")}
                     </button>
                   </div>
                 </div>

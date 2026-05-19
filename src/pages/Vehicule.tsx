@@ -2265,7 +2265,7 @@ export default function VehicleManagement({
           </div>
 
           <div className="pim-details-body customer-details-body" style={{ padding: 0, marginTop: 8 }}>
-            <div className="pim-details-grid customer-details-grid" style={{ display: "grid", gap: 6, marginTop: 0 }}>
+            <div className="pim-details-grid customer-details-grid" style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr)", gap: 6, marginTop: 0 }}>
               <PremiumDetailsCard
                 title={t("Customer Information")}
                 iconClass="fas fa-user"
@@ -2296,22 +2296,23 @@ export default function VehicleManagement({
               />
 
               <div
-                className="pim-detail-card customer-details-card customer-details-card--wide customer-table-card-shell"
+                className="customer-table-card-shell"
                 style={{
                   background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)",
                   borderRadius: 12,
                   boxShadow: "0 10px 24px rgba(51, 84, 160, 0.08)",
                   border: "1px solid #DDE7F6",
                   overflow: "hidden",
+                  marginBottom: 6,
                 }}
               >
                 <div style={{ height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)" }} />
-                <div className="vehicle-details-orders-header" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap", marginBottom: 8 }}>
+                <div className="vehicle-details-orders-header" style={{ padding: "12px 16px", borderBottom: "1px solid #DDE6F4", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
                   <h3
-                    className="text-lg font-bold text-[#2B3674] mb-0 customer-details-card-title"
-                    style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase", padding: 0, margin: 0 }}
+                    className="customer-details-card-title"
+                    style={{ margin: 0, color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}
                   >
-                    <i className="fas fa-tasks" /> {t("Completed Services (from Job Orders)")}
+                    <i className="fas fa-clipboard-list" /> {t("Related Job Orders")}
                   </h3>
                   <button
                     className="btn-new-customer customer-primary-btn vehicle-details-add-order-btn"
@@ -2372,113 +2373,133 @@ export default function VehicleManagement({
                     {t("Add New Order")}
                   </button>
                 </div>
-                <div style={{ height: 1, background: "#DDE7F6", marginBottom: 12 }} />
-
-                <div style={{ marginBottom: 14 }}>
-                  <h4 style={{ margin: "0 0 8px", color: "#111827", fontSize: 10.5, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                    {t("Related Job Orders")}
-                  </h4>
-                  <div className="customer-activity-table-wrap">
-                    <table className="vehicles-table customer-dashboard-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto", minWidth: 680 }}>
-                      <thead>
-                        <tr>
-                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Order #")}</th>
-                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Status")}</th>
-                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Payment")}</th>
-                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Plate")}</th>
-                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Total")}</th>
-                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Updated")}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {relatedOrders.length ? (
-                          relatedOrders.slice(0, 40).map((o) => (
-                            <tr key={String(o.id)}>
-                              <td data-label={t("Order #")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.orderNumber ?? o.id}</td>
-                              <td data-label={t("Status")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.status ?? "-"}</td>
-                              <td data-label={t("Payment")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{normalizePaymentStatusLabel(o.paymentStatus)}</td>
-                              <td data-label={t("Plate")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.plateNumber ?? "-"}</td>
-                              <td data-label={t("Total")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{typeof o.totalAmount === "number" ? `QAR ${o.totalAmount.toFixed(2)}` : "-"}</td>
-                              <td data-label={t("Updated")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.updatedAt ? new Date(o.updatedAt).toLocaleString() : "-"}</td>
-                            </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan={6} style={{ textAlign: "center", padding: 20, opacity: 0.8 }}>
-                              {t("No related job orders found for this vehicle.")}
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div style={{ marginBottom: 14 }}>
-                  <h4 style={{ margin: "0 0 8px", color: "#111827", fontSize: 10.5, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                    {t("Related Services")}
-                  </h4>
-                  <div className="customer-activity-table-wrap">
-                    <table className="vehicles-table customer-dashboard-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto", minWidth: 560 }}>
-                      <thead>
-                        <tr>
-                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Order #")}</th>
-                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Service")}</th>
-                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Status")}</th>
-                          <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Updated")}</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {relatedServiceActivities.length ? (
-                          relatedServiceActivities.slice(0, 70).map((item) => (
-                            <tr key={item.key}>
-                              <td data-label={t("Order #")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{item.orderNumber}</td>
-                              <td data-label={t("Service")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{item.serviceName}</td>
-                              <td data-label={t("Status")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{item.status}</td>
-                              <td data-label={t("Updated")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{item.updatedAt}</td>
-                            </tr>
-                          ))
-                        ) : (
-                          <tr>
-                            <td colSpan={4} style={{ textAlign: "center", padding: 20, opacity: 0.8 }}>
-                              {t("No services found for this vehicle.")}
-                            </td>
-                          </tr>
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <h4 style={{ margin: "0 0 8px", color: "#111827", fontSize: 10.5, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>
-                  {t("Completed Services")}
-                </h4>
-
-                <div className="customer-activity-table-wrap">
-                  <table className="vehicles-table customer-dashboard-table" style={{ width: "100%", borderCollapse: "collapse", tableLayout: "auto" }}>
+                <div style={{ overflowX: "auto" }}>
+                  <table className="vehicles-table customer-dashboard-table" style={{ width: "100%", borderCollapse: "collapse", minWidth: 680 }}>
                     <thead>
                       <tr>
-                        <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Order #")}</th>
-                        <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Status")}</th>
-                        <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Payment")}</th>
-                        <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Total")}</th>
-                        <th style={{ color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Updated")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Order #")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Status")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Payment")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Plate")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Total")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Updated")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {relatedOrders.length ? (
+                        relatedOrders.slice(0, 40).map((o) => (
+                          <tr key={String(o.id)}>
+                            <td data-label={t("Order #")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{o.orderNumber ?? o.id}</td>
+                            <td data-label={t("Status")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{o.status ?? "-"}</td>
+                            <td data-label={t("Payment")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{normalizePaymentStatusLabel(o.paymentStatus)}</td>
+                            <td data-label={t("Plate")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{o.plateNumber ?? "-"}</td>
+                            <td data-label={t("Total")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{typeof o.totalAmount === "number" ? `QAR ${o.totalAmount.toFixed(2)}` : "-"}</td>
+                            <td data-label={t("Updated")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{o.updatedAt ? new Date(o.updatedAt).toLocaleString() : "-"}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={6} style={{ padding: "16px 12px", textAlign: "center", color: "#6F7EA8" }}>
+                            {t("No related job orders found for this vehicle.")}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div
+                className="customer-table-card-shell"
+                style={{
+                  background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)",
+                  borderRadius: 12,
+                  boxShadow: "0 10px 24px rgba(51, 84, 160, 0.08)",
+                  border: "1px solid #DDE7F6",
+                  overflow: "hidden",
+                  marginBottom: 6,
+                }}
+              >
+                <div style={{ height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)" }} />
+                <div style={{ padding: "12px 16px", borderBottom: "1px solid #DDE6F4" }}>
+                  <h3 style={{ margin: 0, color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                    <i className="fas fa-list-check" /> {t("Related Services")}
+                  </h3>
+                </div>
+                <div style={{ overflowX: "auto" }}>
+                  <table className="vehicles-table customer-dashboard-table" style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Order #")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Service")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Status")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Updated")}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {relatedServiceActivities.length ? (
+                        relatedServiceActivities.slice(0, 70).map((item) => (
+                          <tr key={item.key}>
+                            <td data-label={t("Order #")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{item.orderNumber}</td>
+                            <td data-label={t("Service")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{item.serviceName}</td>
+                            <td data-label={t("Status")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{item.status}</td>
+                            <td data-label={t("Updated")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{item.updatedAt}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td colSpan={4} style={{ padding: "16px 12px", textAlign: "center", color: "#6F7EA8" }}>
+                            {t("No services found for this vehicle.")}
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div
+                className="customer-table-card-shell"
+                style={{
+                  background: "linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%)",
+                  borderRadius: 12,
+                  boxShadow: "0 10px 24px rgba(51, 84, 160, 0.08)",
+                  border: "1px solid #DDE7F6",
+                  overflow: "hidden",
+                  marginBottom: 6,
+                }}
+              >
+                <div style={{ height: 4, background: "linear-gradient(90deg, #4E40F8 0%, #25D6E8 100%)" }} />
+                <div style={{ padding: "12px 16px", borderBottom: "1px solid #DDE6F4" }}>
+                  <h3 style={{ margin: 0, color: "#111827", fontSize: 11, fontWeight: 800, letterSpacing: "0.05em", textTransform: "uppercase" }}>
+                    <i className="fas fa-check-circle" /> {t("Completed Services")}
+                  </h3>
+                </div>
+                <div style={{ overflowX: "auto" }}>
+                  <table className="vehicles-table customer-dashboard-table" style={{ width: "100%", borderCollapse: "collapse", minWidth: 560 }}>
+                    <thead>
+                      <tr>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Order #")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Status")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Payment")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Total")}</th>
+                        <th style={{ textAlign: "left", padding: "10px 12px", fontSize: 11, color: "#6F7EA8" }}>{t("Updated")}</th>
                       </tr>
                     </thead>
                     <tbody>
                       {completedOrders.length ? (
                         completedOrders.map((o) => (
                           <tr key={o.id}>
-                            <td data-label={t("Order #")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.orderNumber ?? o.id}</td>
-                            <td data-label={t("Status")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.status ?? "-"}</td>
-                            <td data-label={t("Payment")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{normalizePaymentStatusLabel(o.paymentStatus)}</td>
-                            <td data-label={t("Total")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{typeof o.totalAmount === "number" ? `QAR ${o.totalAmount.toFixed(2)}` : "-"}</td>
-                            <td data-label={t("Updated")} style={{ color: "#0F2A66", fontSize: "0.92rem", fontWeight: 600 }}>{o.updatedAt ? new Date(o.updatedAt).toLocaleString() : "-"}</td>
+                            <td data-label={t("Order #")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{o.orderNumber ?? o.id}</td>
+                            <td data-label={t("Status")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{o.status ?? "-"}</td>
+                            <td data-label={t("Payment")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{normalizePaymentStatusLabel(o.paymentStatus)}</td>
+                            <td data-label={t("Total")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{typeof o.totalAmount === "number" ? `QAR ${o.totalAmount.toFixed(2)}` : "-"}</td>
+                            <td data-label={t("Updated")} style={{ padding: "10px 12px", borderTop: "1px solid #E7EEFC", color: "#0F2A66", fontWeight: 600 }}>{o.updatedAt ? new Date(o.updatedAt).toLocaleString() : "-"}</td>
                           </tr>
                         ))
                       ) : (
                         <tr>
-                          <td colSpan={5} style={{ textAlign: "center", padding: 30, opacity: 0.8 }}>
+                          <td colSpan={5} style={{ padding: "16px 12px", textAlign: "center", color: "#6F7EA8" }}>
                             {t("No completed job orders found for this vehicle (matched by plate number).")}
                           </td>
                         </tr>

@@ -41,6 +41,7 @@ type QuotationDisplayLine = {
 
 type CustomerInfo = {
   fullName: string;
+  area: string;
   mobile: string;
   email: string;
   vehiclePlate: string;
@@ -398,6 +399,29 @@ function drawWrappedArabicLines(
   return lines.length;
 }
 
+function drawPdfSmartText(
+  doc: jsPDF,
+  value: string,
+  xLeftMm: number,
+  baselineYMm: number,
+  maxWidthMm: number,
+  fontPx: number,
+  style: "normal" | "italic" | "bold" | "bolditalic" = "normal",
+  colorHex = "#111827"
+) {
+  const safeValue = safeText(value) || "-";
+  if (hasArabicChars(safeValue)) {
+    drawArabicLine(doc, safeValue, xLeftMm + maxWidthMm, baselineYMm - 3.4, maxWidthMm, fontPx, style, colorHex);
+    return;
+  }
+
+  doc.setFont("helvetica", style === "bolditalic" ? "bold" : style === "bold" ? "bold" : "normal");
+  doc.setFontSize(fontPx);
+  doc.setTextColor(colorHex);
+  const clipped = doc.splitTextToSize(safeValue, maxWidthMm) as string[];
+  doc.text(String(clipped[0] || "-"), xLeftMm, baselineYMm);
+}
+
 export default function QuotationPage({ currentUser }: { currentUser?: any; permissions?: any }) {
   const { t } = useLanguage();
   const { canOption, getOptionNumber } = usePermissions();
@@ -409,6 +433,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
 
   const [customer, setCustomer] = useState<CustomerInfo>({
     fullName: "",
+    area: "",
     mobile: "",
     email: "",
     vehiclePlate: "",
@@ -624,10 +649,10 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     doc.text("Email:", leftX + 1, infoTop + 19.1);
     doc.text("Phone:", leftX + 1, infoTop + 24);
     doc.setFont("helvetica", "normal");
-    doc.text(safeText(customer.fullName) || "-", leftX + 23, infoTop + 9.3);
-    doc.text("-", leftX + 23, infoTop + 14.2);
-    doc.text(safeText(customer.email) || "-", leftX + 23, infoTop + 19.1);
-    doc.text(safeText(customer.mobile) || "-", leftX + 23, infoTop + 24);
+    drawPdfSmartText(doc, customer.fullName, leftX + 23, infoTop + 9.3, leftW - 26, docTextSize);
+    drawPdfSmartText(doc, customer.area, leftX + 23, infoTop + 14.2, leftW - 26, docTextSize);
+    drawPdfSmartText(doc, customer.email, leftX + 23, infoTop + 19.1, leftW - 26, docTextSize);
+    drawPdfSmartText(doc, customer.mobile, leftX + 23, infoTop + 24, leftW - 26, docTextSize);
 
     drawArabicLine(doc, "اسم العميل:", centerX + centerW - 2, infoTop + 5.8, centerW - 4, docTextSize, "normal");
     drawArabicLine(doc, "اسم المنطقة:", centerX + centerW - 2, infoTop + 10.7, centerW - 4, docTextSize, "normal");
@@ -902,6 +927,10 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
               <label>
                 <span>{t("Mobile")}</span>
                 <input value={customer.mobile} onChange={(e) => updateCustomer("mobile", e.target.value)} />
+              </label>
+              <label>
+                <span>{t("Area")}</span>
+                <input value={customer.area} onChange={(e) => updateCustomer("area", e.target.value)} />
               </label>
               <label>
                 <span>{t("Email")}</span>
