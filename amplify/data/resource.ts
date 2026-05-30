@@ -1098,6 +1098,7 @@ const schema = a
         email: a.string().required(),
         fullName: a.string().required(),
         mobileNumber: a.string(),
+        password: a.string(),
         departmentKey: a.string().required(),
         departmentName: a.string(),
         roleId: a.id(),

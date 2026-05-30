@@ -466,9 +466,9 @@
 }
 
 .rac-module-header {
-	display: flex;
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) auto;
 	align-items: center;
-	justify-content: space-between;
 	gap: 10px;
 	padding: 11px 14px;
 	background: linear-gradient(90deg, #eef4ff 0%, #e8f7ff 100%);
@@ -481,7 +481,8 @@
 	display: flex;
 	align-items: center;
 	gap: 10px;
-	width: 100%;
+	width: auto;
+	flex: 1 1 auto;
 }
 
 .rac-section-icon {
@@ -509,7 +510,10 @@
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
 	white-space: normal;
-	overflow-wrap: anywhere;
+	overflow-wrap: normal;
+	word-break: keep-all;
+	writing-mode: horizontal-tb;
+	text-orientation: mixed;
 }
 
 .rac-module-meta {
@@ -540,12 +544,13 @@
 
 .rac-module-toggle {
 	display: grid;
-	grid-template-columns: minmax(0, 1fr) auto auto;
+	grid-template-columns: auto auto auto;
 	align-items: center;
 	column-gap: 10px;
 	flex-shrink: 0;
-	min-width: 0;
-	width: 100%;
+	min-width: max-content;
+	width: auto;
+	justify-self: end;
 }
 
 .rac-toggle-label {
@@ -554,10 +559,13 @@
 	font-weight: 800;
 	letter-spacing: 0.06em;
 	text-transform: uppercase;
-	white-space: normal;
+	white-space: nowrap;
 	min-width: 0;
 	line-height: 1.2;
-	overflow-wrap: anywhere;
+	overflow-wrap: normal;
+	word-break: keep-all;
+	writing-mode: horizontal-tb;
+	text-orientation: mixed;
 }
 
 .rac-label,
@@ -923,13 +931,17 @@
 	}
 
 	.rac-table-header,
-	.rac-module-header,
 	.rac-details-page-head,
 	.rac-actions,
 	.rac-modal-head,
 	.rac-modal-footer {
 		flex-direction: column;
 		align-items: flex-start;
+	}
+
+	.rac-module-header {
+		grid-template-columns: 1fr;
+		align-items: stretch;
 	}
 
 	.rac-details-page-title-wrap,
@@ -992,6 +1004,8 @@
 		width: 100%;
 		grid-template-columns: minmax(0, 1fr) auto auto;
 		column-gap: 12px;
+		justify-self: stretch;
+		min-width: 0;
 	}
 
 	.rac-toggle-label {

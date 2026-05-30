@@ -3517,8 +3517,8 @@ export default function FileSharing({ permissions }: PageProps) {
                         <button key={row.id} type="button" className="drive-quick-access-card" onClick={() => void openRow(row)}>
                           <div className="drive-quick-access-icon"><DriveItemIcon contentType={String(row?.contentType ?? "")} isFolder={isFolder(row)} /></div>
                           <div>
-                            <strong>{String(row?.displayName || t("Untitled"))}</strong>
-                            <span>{String(row?.ownerName || row?.ownerEmail || "-")}</span>
+                            <strong className="drive-card-item-name">{String(row?.displayName || t("Untitled"))}</strong>
+                            <span className="drive-card-item-owner">{String(row?.ownerName || row?.ownerEmail || "-")}</span>
                           </div>
                         </button>
                         );
@@ -3531,8 +3531,13 @@ export default function FileSharing({ permissions }: PageProps) {
                     <div className="drive-suggested-grid">
                       {homeFolderRows.length ? homeFolderRows.map((row) => (
                         <button key={row.id} type="button" className="drive-suggested-card" onClick={() => void openRow(row)}>
-                          <div className="drive-suggested-card-head"><span><span className="drive-home-file-icon"><DriveItemIcon contentType={String(row?.contentType ?? "")} isFolder={true} /></span> {String(row?.displayName || t("Untitled"))}</span></div>
-                          <span>{String(row?.ownerName || row?.ownerEmail || "-")}</span>
+                          <div className="drive-suggested-card-head">
+                            <span className="drive-suggested-card-name-wrap">
+                              <span className="drive-home-file-icon"><DriveItemIcon contentType={String(row?.contentType ?? "")} isFolder={true} /></span>
+                              <span className="drive-card-item-name">{String(row?.displayName || t("Untitled"))}</span>
+                            </span>
+                          </div>
+                          <span className="drive-card-item-owner">{String(row?.ownerName || row?.ownerEmail || "-")}</span>
                         </button>
                       )) : <div className="filesharing-empty">{t("No folders to suggest yet")}</div>}
                     </div>
@@ -3545,8 +3550,8 @@ export default function FileSharing({ permissions }: PageProps) {
                         const ct = String(row?.contentType ?? "");
                         return (
                           <button key={row.id} type="button" className="drive-home-file-card" onClick={() => void openRow(row)}>
-                            <div className="drive-home-file-card-title"><span className="drive-home-file-icon"><DriveItemIcon contentType={ct} isFolder={false} /></span> {String(row?.displayName || t("Untitled"))}</div>
-                            <span>{String(row?.ownerName || row?.ownerEmail || "-")}</span>
+                            <div className="drive-home-file-card-title"><span className="drive-home-file-icon"><DriveItemIcon contentType={ct} isFolder={false} /></span> <span className="drive-card-item-name">{String(row?.displayName || t("Untitled"))}</span></div>
+                            <span className="drive-card-item-owner">{String(row?.ownerName || row?.ownerEmail || "-")}</span>
                             <span>{formatBytes(Number(row?.sizeBytes ?? 0))}</span>
                           </button>
                         );

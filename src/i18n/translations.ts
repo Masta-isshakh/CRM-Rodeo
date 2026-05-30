@@ -1290,6 +1290,11 @@ const FRAGMENTS_EN_AR: Array<[string, string]> = [
   ["failedToDeleteUser", "فشل حذف المستخدم."],
   ["setPasswordLink", "تم نسخ رابط تعيين كلمة المرور."],
   ["inviteUser", "دعوة مستخدم"],
+  ["accountPassword", "كلمة مرور الحساب"],
+  ["sendTemporaryPasswordEmail", "إرسال كلمة مرور مؤقتة عبر البريد الإلكتروني"],
+  ["setPrimaryPasswordNow", "تعيين كلمة مرور أساسية الآن"],
+  ["primaryPasswordOptional", "كلمة المرور الأساسية (اختياري)"],
+  ["leaveBlankForTemporaryPassword", "اتركها فارغة لإرسال كلمة مرور مؤقتة."],
   ["employeeIdIsRequired", "معرف الموظف مطلوب."],
   ["emailFirstNameLastNameRequired", "البريد الإلكتروني والاسم الأول والأخير مطلوبة."],
   ["selectDepartment", "اختر قسماً."],
@@ -1608,6 +1613,38 @@ function replaceInsensitive(text: string, search: string, replacement: string): 
   return text.replace(re, replacement);
 }
 
+function titleCaseWord(word: string): string {
+  if (!word) return word;
+  const upper = word.toUpperCase();
+  // Keep common acronyms fully uppercased.
+  if (["ID", "URL", "API", "SMS", "CRM", "VIN", "QAR", "QC", "PDF", "EN", "AR"].includes(upper)) {
+    return upper;
+  }
+  return word.charAt(0).toUpperCase() + word.slice(1).toLowerCase();
+}
+
+function humanizeEnglishKey(value: string): string {
+  const raw = String(value ?? "");
+  if (!raw.trim()) return raw;
+
+  // Only humanize identifier-like values (keys), not full phrases/sentences.
+  if (!/^[A-Za-z][A-Za-z0-9_-]*$/.test(raw)) return raw;
+  if (raw.includes(" ")) return raw;
+  const looksLikeKey = /[_-]/.test(raw) || /[a-z][A-Z]/.test(raw);
+  if (!looksLikeKey) return raw;
+
+  const withSpaces = raw
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+
+  return withSpaces
+    .split(" ")
+    .map((part) => titleCaseWord(part))
+    .join(" ");
+}
+
 const WORDS_EN_AR: Array<[string, string]> = [
   ["dashboard", "لوحة التحكم"],
   ["customer", "عميل"],
@@ -1703,5 +1740,10 @@ export function translateTextValue(input: string, language: LanguageCode): strin
 }
 
 export function t(language: LanguageCode, englishText: string): string {
-  return language === "ar" ? translateTextValue(englishText, "ar") : englishText;
+  if (language === "ar") return translateTextValue(englishText, "ar");
+
+  const exact = EN_TO_AR.has(englishText) ? englishText : null;
+  if (exact) return exact;
+
+  return humanizeEnglishKey(englishText);
 }

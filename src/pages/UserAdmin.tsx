@@ -209,6 +209,8 @@ export default function Users(_: PageProps) {
   const [departmentKey, setDepartmentKey] = useState("");
   const [roleKey, setRoleKey] = useState("");
   const [lineManagerEmail, setLineManagerEmail] = useState("");
+  const [invitePasswordMode, setInvitePasswordMode] = useState<"invite" | "set">("invite");
+  const [invitePassword, setInvitePassword] = useState("");
   const [inviteStatus, setInviteStatus] = useState("");
 
   // Delete confirmation popup state
@@ -720,6 +722,8 @@ export default function Users(_: PageProps) {
       const fn = firstName.trim();
       const ln = lastName.trim();
       const mob = mobileNumber.trim();
+      const rawPassword = invitePassword.trim();
+      const password = invitePasswordMode === "set" ? rawPassword : "";
       const lmEmail = String(lineManagerEmail ?? "").trim().toLowerCase();
       const lmName =
         lineManagerOptions.find((x) => x.email === lmEmail)?.label.split(" (")[0]?.trim() ?? "";
@@ -749,6 +753,7 @@ export default function Users(_: PageProps) {
         departmentKey,
         departmentName: dept?.name ?? "",
         mobileNumber: mob,
+        password: password || undefined,
         roleId: roleKey,
         lineManagerEmail: lmEmail || undefined,
         lineManagerName: lmName || undefined,
@@ -771,7 +776,9 @@ export default function Users(_: PageProps) {
       setInviteStatus(
         inviteAction === "RESET"
           ? `Password reset email sent to ${deliveredTo}.`
-          : `Invitation email sent to ${deliveredTo}.`
+          : inviteAction === "PASSWORD_SET"
+            ? `Primary password set for ${deliveredTo}.`
+            : `Invitation email sent to ${deliveredTo}.`
       );
       setEmployeeId("");
       setEmail("");
@@ -781,6 +788,8 @@ export default function Users(_: PageProps) {
       setDepartmentKey("");
       setRoleKey("");
       setLineManagerEmail("");
+      setInvitePasswordMode("invite");
+      setInvitePassword("");
       setInviteOpen(false);
       void load();
     } catch (e: any) {
@@ -1171,7 +1180,7 @@ export default function Users(_: PageProps) {
                 className="ums-menu-item danger"
                 onClick={() => {
                   setMenu({ open: false });
-                    if (row) askDeleteUser(row);
+                  if (row) askDeleteUser(row);
                 }}
                 disabled={!canDeleteUsers || loading}
               >
@@ -1846,6 +1855,39 @@ export default function Users(_: PageProps) {
                           </option>
                         ))}
                     </select>
+                  </div>
+
+                  <div className="ums-span-2">
+                    <label className="ums-label">{t("accountPassword")}</label>
+                    <div className="ums-password-choice-row">
+                      <label className="ums-password-choice">
+                        <input
+                          type="radio"
+                          name="invitePasswordMode"
+                          checked={invitePasswordMode === "invite"}
+                          onChange={() => setInvitePasswordMode("invite")}
+                        />
+                        <span>{t("sendTemporaryPasswordEmail")}</span>
+                      </label>
+                      <label className="ums-password-choice">
+                        <input
+                          type="radio"
+                          name="invitePasswordMode"
+                          checked={invitePasswordMode === "set"}
+                          onChange={() => setInvitePasswordMode("set")}
+                        />
+                        <span>{t("setPrimaryPasswordNow")}</span>
+                      </label>
+                    </div>
+                    <input
+                      className="ums-input"
+                      type="password"
+                      value={invitePassword}
+                      onChange={(e) => setInvitePassword(e.target.value)}
+                      placeholder={t("primaryPasswordOptional")}
+                      autoComplete="new-password"
+                    />
+                    <div className="ums-field-hint">{t("leaveBlankForTemporaryPassword")}</div>
                   </div>
                 </div>
 

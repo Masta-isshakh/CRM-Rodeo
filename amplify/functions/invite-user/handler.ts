@@ -7,6 +7,7 @@ import {
   AdminCreateUserCommand,
   AdminDeleteUserCommand,
   AdminGetUserCommand,
+  AdminSetUserPasswordCommand,
   AdminResetUserPasswordCommand,
   AdminUpdateUserAttributesCommand,
   AdminListGroupsForUserCommand,
@@ -398,6 +399,8 @@ export const handler: Handler = async (event) => {
   const departmentKey = String(event.arguments?.departmentKey ?? "").trim();
   const departmentNameFromArgs = String(event.arguments?.departmentName ?? "").trim();
   const roleId = String((event.arguments as any)?.roleId ?? "").trim();
+  const adminPassword = String((event.arguments as any)?.password ?? "").trim();
+  const hasAdminPassword = Boolean(adminPassword);
 
   // ✅ NEW (backward-compatible)
   const mobileNumberRaw = (event.arguments as any)?.mobileNumber;
@@ -432,7 +435,7 @@ export const handler: Handler = async (event) => {
   await ensureGroup(userPoolId, departmentKey, departmentName);
 
   let sub: string | undefined;
-  let inviteAction: "CREATED" | "RESET" = "CREATED";
+  let inviteAction: "CREATED" | "RESET" | "PASSWORD_SET" = "CREATED";
   const temporaryPassword = generateTemporaryPassword();
   let cognitoUsername = email;
   const existingProfile = await findUserProfileByEmailCaseInsensitive(dataClient, email);
@@ -440,23 +443,50 @@ export const handler: Handler = async (event) => {
 
   // 1) Create user OR re-send invite if exists
   try {
-const createRes = await cognito.send(
-  new AdminCreateUserCommand({
-    UserPoolId: userPoolId,
-    Username: email,
-    TemporaryPassword: temporaryPassword,
-    UserAttributes: [
-      { Name: "email", Value: email },
-      { Name: "email_verified", Value: "true" },
-      { Name: "name", Value: fullName },
-    ],
-    DesiredDeliveryMediums: ["EMAIL"],
-    ForceAliasCreation: true
-  })
-);
-    sub = getAttr(createRes.User?.Attributes, "sub");
+    if (hasAdminPassword) {
+      const createRes = await cognito.send(
+        new AdminCreateUserCommand({
+          UserPoolId: userPoolId,
+          Username: email,
+          TemporaryPassword: temporaryPassword,
+          UserAttributes: [
+            { Name: "email", Value: email },
+            { Name: "email_verified", Value: "true" },
+            { Name: "name", Value: fullName },
+          ],
+          DesiredDeliveryMediums: ["EMAIL"],
+          MessageAction: "SUPPRESS",
+          ForceAliasCreation: true,
+        })
+      );
+      sub = getAttr(createRes.User?.Attributes, "sub");
+      cognitoUsername = email;
+    } else {
+      const createRes = await cognito.send(
+        new AdminCreateUserCommand({
+          UserPoolId: userPoolId,
+          Username: email,
+          TemporaryPassword: temporaryPassword,
+          UserAttributes: [
+            { Name: "email", Value: email },
+            { Name: "email_verified", Value: "true" },
+            { Name: "name", Value: fullName },
+          ],
+          DesiredDeliveryMediums: ["EMAIL"],
+          ForceAliasCreation: true,
+        })
+      );
+      sub = getAttr(createRes.User?.Attributes, "sub");
+    }
   } catch (e: any) {
     if (e?.name !== "UsernameExistsException") throw e;
+
+    if (hasAdminPassword) {
+      const existingUsernames = await resolveCognitoUsernames(userPoolId, email, existingProfileSub);
+      if (existingUsernames[0]) {
+        cognitoUsername = existingUsernames[0];
+      }
+    }
 
     const staleUsernames = await resolveCognitoUsernames(userPoolId, email, existingProfileSub);
     if (!existingProfile?.id && staleUsernames.length) {
@@ -528,43 +558,59 @@ const createRes = await cognito.send(
         })
       );
 
-      // Prefer RESEND to force an invitation email; fallback to reset for unsupported states.
-      try {
-        await cognito.send(
-          new AdminCreateUserCommand({
-            UserPoolId: userPoolId,
-            Username: cognitoUsername,
-            TemporaryPassword: temporaryPassword,
-            UserAttributes: [
-              { Name: "email", Value: email },
-              { Name: "email_verified", Value: "true" },
-              { Name: "name", Value: fullName },
-            ],
-            DesiredDeliveryMediums: ["EMAIL"],
-            MessageAction: "RESEND",
-            ForceAliasCreation: true,
-          })
-        );
-      } catch (resendErr: any) {
-        const resendErrName = String(resendErr?.name ?? "").toLowerCase();
-        const resendErrMsg = String(resendErr?.message ?? "").toLowerCase();
-        const canFallbackToReset =
-          resendErrName.includes("invalidparameter") ||
-          resendErrName.includes("notauthorized") ||
-          resendErrMsg.includes("cannot") ||
-          resendErrMsg.includes("current state");
+      if (hasAdminPassword) {
+        inviteAction = "PASSWORD_SET";
+      } else {
+        // Prefer RESEND to force an invitation email; fallback to reset for unsupported states.
+        try {
+          await cognito.send(
+            new AdminCreateUserCommand({
+              UserPoolId: userPoolId,
+              Username: cognitoUsername,
+              TemporaryPassword: temporaryPassword,
+              UserAttributes: [
+                { Name: "email", Value: email },
+                { Name: "email_verified", Value: "true" },
+                { Name: "name", Value: fullName },
+              ],
+              DesiredDeliveryMediums: ["EMAIL"],
+              MessageAction: "RESEND",
+              ForceAliasCreation: true,
+            })
+          );
+        } catch (resendErr: any) {
+          const resendErrName = String(resendErr?.name ?? "").toLowerCase();
+          const resendErrMsg = String(resendErr?.message ?? "").toLowerCase();
+          const canFallbackToReset =
+            resendErrName.includes("invalidparameter") ||
+            resendErrName.includes("notauthorized") ||
+            resendErrMsg.includes("cannot") ||
+            resendErrMsg.includes("current state");
 
-        if (!canFallbackToReset) throw resendErr;
+          if (!canFallbackToReset) throw resendErr;
 
-        // Reset flow still triggers Cognito email delivery for confirmed users.
-        await cognito.send(
-          new AdminResetUserPasswordCommand({
-            UserPoolId: userPoolId,
-            Username: cognitoUsername,
-          })
-        );
+          // Reset flow still triggers Cognito email delivery for confirmed users.
+          await cognito.send(
+            new AdminResetUserPasswordCommand({
+              UserPoolId: userPoolId,
+              Username: cognitoUsername,
+            })
+          );
+        }
       }
     }
+  }
+
+  if (hasAdminPassword) {
+    await cognito.send(
+      new AdminSetUserPasswordCommand({
+        UserPoolId: userPoolId,
+        Username: cognitoUsername,
+        Password: adminPassword,
+        Permanent: true,
+      })
+    );
+    inviteAction = "PASSWORD_SET";
   }
 
   // 2) Ensure user is in department group
@@ -642,7 +688,7 @@ const createRes = await cognito.send(
     roleName: roleName || null,
     sub,
     inviteAction,
-    emailDeliveryMedium: "EMAIL",
+    emailDeliveryMedium: hasAdminPassword ? "NONE" : "EMAIL",
     employeeId: employeeId || null,
     lineManagerEmail: lineManagerEmail || null,
     lineManagerName: lineManagerName || null,
