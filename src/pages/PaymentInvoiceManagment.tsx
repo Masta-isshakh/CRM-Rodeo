@@ -1818,6 +1818,80 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       doc.addImage(canvas.toDataURL("image/png"), "PNG", xRightMm - maxWidthMm, yTopMm, maxWidthMm, lineH);
     };
 
+    const splitArabicTextToLines = (
+      text: string,
+      maxWidthMm: number,
+      fontPx: number,
+      style: "normal" | "italic" | "bold" | "bolditalic",
+    ) => {
+      const normalized = String(text ?? "").trim();
+      if (!normalized) return [""];
+
+      const words = normalized.split(/\s+/).filter(Boolean);
+      if (!words.length) return [normalized];
+
+      if (typeof document === "undefined") {
+        const approxCharsPerLine = Math.max(12, Math.floor(maxWidthMm * 2.2));
+        const lines: string[] = [];
+        let current = "";
+        for (const word of words) {
+          const candidate = current ? `${current} ${word}` : word;
+          if (candidate.length <= approxCharsPerLine) current = candidate;
+          else {
+            if (current) lines.push(current);
+            current = word;
+          }
+        }
+        if (current) lines.push(current);
+        return lines;
+      }
+
+      const pxPerMm = 96 / 25.4;
+      const scale = 2;
+      const canvas = document.createElement("canvas");
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return [normalized];
+
+      const fontWeight = style.includes("bold") ? "700" : "400";
+      const fontStyle = style.includes("italic") ? "italic" : "normal";
+      const arabicVisualScale = 1.14;
+      ctx.font = `${fontStyle} ${fontWeight} ${Math.round(fontPx * arabicVisualScale * scale)}px Tahoma, Arial, "Segoe UI", sans-serif`;
+
+      const maxWidthPx = Math.max(1, maxWidthMm * pxPerMm * scale);
+      const lines: string[] = [];
+      let current = "";
+
+      for (const word of words) {
+        const candidate = current ? `${current} ${word}` : word;
+        if (ctx.measureText(candidate).width <= maxWidthPx) current = candidate;
+        else {
+          if (current) lines.push(current);
+          current = word;
+        }
+      }
+
+      if (current) lines.push(current);
+      return lines.length ? lines : [normalized];
+    };
+
+    const drawWrappedArabicLines = (
+      text: string,
+      xRightMm: number,
+      yTopMm: number,
+      maxWidthMm: number,
+      fontPx: number,
+      style: "normal" | "italic" | "bold" | "bolditalic",
+      colorHex = "#181818",
+      lineGapMm = 0.6,
+    ) => {
+      const lineHeightMm = 4.4 + lineGapMm;
+      const lines = splitArabicTextToLines(text, maxWidthMm, fontPx, style);
+      lines.forEach((line, idx) => {
+        drawArabicLine(line, xRightMm, yTopMm + idx * lineHeightMm, maxWidthMm, fontPx, style, colorHex);
+      });
+      return lines.length;
+    };
+
     const drawSmartPdfLine = (
       text: string,
       xLeftMm: number,
@@ -1977,8 +2051,59 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     drawArabicLine(`تاريخ الفتح: ${jobCreatedAtDisplay}`, pageW - marginX - 2.5, metaTop + 16.0, 66, BILL_BODY_FONT_SIZE, "normal");
     drawArabicLine(`آخر تحديث: ${jobUpdatedAtDisplay}`, pageW - marginX - 2.5, metaTop + 19.3, 66, BILL_BODY_FONT_SIZE, "normal");
 
+    const customerNote = safeText(
+      order?.customerNotes
+      || order?.notes
+      || order?._row?.customerNotes
+      || order?._row?.notes
+      || order?._parsed?.customerNotes
+      || order?._parsed?.notes
+      || order?._parsed?.customer?.notes
+    );
+
+    // Customer note block
+    let tableTop = metaTop + metaH + 3;
+    if (customerNote) {
+      const noteTitleTop = tableTop;
+      const noteY = noteTitleTop + 2;
+      const noteW = contentW;
+      const noteHasArabic = containsArabic(customerNote);
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(BILL_TITLE_FONT_SIZE);
+      doc.text("Customer Note", marginX + 1, noteTitleTop);
+      drawArabicLine("ملاحظة العميل", pageW - marginX - 1, noteTitleTop - 3.1, 28, BILL_TITLE_FONT_SIZE, "bolditalic");
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(BILL_BODY_FONT_SIZE);
+      const noteLines = noteHasArabic
+        ? splitArabicTextToLines(customerNote, noteW - 6, BILL_BODY_FONT_SIZE, "normal")
+        : (doc.splitTextToSize(customerNote, noteW - 6) as string[]);
+      const noteBoxH = Math.max(9, noteLines.length * 4.8 + 4);
+
+      doc.setFillColor(248, 251, 255);
+      doc.setDrawColor(220, 226, 234);
+      doc.roundedRect(marginX, noteY, noteW, noteBoxH, 1.5, 1.5, "FD");
+
+      if (noteHasArabic) {
+        drawWrappedArabicLines(
+          customerNote,
+          pageW - marginX - 2,
+          noteY + 2,
+          noteW - 4,
+          BILL_BODY_FONT_SIZE,
+          "normal",
+          "#111827",
+          0.6
+        );
+      } else {
+        doc.text(noteLines, marginX + 2, noteY + 4.8);
+      }
+
+      tableTop = noteY + noteBoxH + 4;
+    }
+
     // Services table area
-    const tableTop = metaTop + metaH + 3;
     const tableHeaderH = 11;
     const rowH = 10.5;
     const tableFontSize = BILL_BODY_FONT_SIZE;

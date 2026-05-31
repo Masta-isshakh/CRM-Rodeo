@@ -85,7 +85,7 @@ function buildDefaultRemarkEnglish(validityDays: number) {
   return [
     "1) The customer agrees to the terms and conditions mentioned in the vehicle receipt paper and the services mentioned in this invoice.",
     "2) Warranty terms and conditions apply to the services provided in this invoice and it is the customer's responsibility to read them before ordering the services.",
-    `3) This quotation is valid for ${validityDays} day(s) from issuance date.`,
+    `3) This voucher is valid for ${validityDays} day(s) from issuance date.`,
   ].join("\n");
 }
 
@@ -93,7 +93,7 @@ function buildDefaultRemarkArabic(validityDays: number) {
   return [
     "1) يوافق العميل على الشروط والأحكام المذكورة في ورقة استلام المركبة والخدمات المذكورة في هذه الفاتورة.",
     "2) تنطبق شروط وأحكام الضمان على الخدمات المقدمة في هذه الفاتورة وتقع مسؤولية قراءتها على العميل قبل طلب الخدمات.",
-    `3) عرض السعر هذا صالح لمدة ${validityDays} يومًا من تاريخ الإصدار.`,
+    `3) هذه القسيمة صالحة لمدة ${validityDays} يومًا من تاريخ الإصدار.`,
   ].join("\n");
 }
 
@@ -486,7 +486,7 @@ function drawPdfSmartText(
   doc.text(String(clipped[0] || "-"), xLeftMm, baselineYMm);
 }
 
-export default function QuotationPage({ currentUser }: { currentUser?: any; permissions?: any }) {
+export default function VoucherGiftPage({ currentUser }: { currentUser?: any; permissions?: any }) {
   const { t } = useLanguage();
   const { canOption, getOptionNumber } = usePermissions();
   const { withLoading } = useGlobalLoading();
@@ -508,6 +508,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
   const [selectedServiceCategory, setSelectedServiceCategory] = useState("all");
   const [serviceSearchTerm, setServiceSearchTerm] = useState("");
   const [discountAmount, setDiscountAmount] = useState(0);
+  const [amountPaid, setAmountPaid] = useState(0);
   const [validityUntilDate, setValidityUntilDate] = useState(() => toDateInputValue(addDays(new Date(), 7)));
   const [remarkEnTouched, setRemarkEnTouched] = useState(false);
   const [remarkArTouched, setRemarkArTouched] = useState(false);
@@ -583,6 +584,8 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
 
   const discountPercent = subtotal > 0 ? (safeDiscount / subtotal) * 100 : 0;
   const netAmount = Math.max(0, subtotal - safeDiscount);
+  const safeAmountPaid = Math.max(0, Math.min(netAmount, Number(amountPaid || 0)));
+  const balanceDue = Math.max(0, netAmount - safeAmountPaid);
 
   const servicesOnly = useMemo(
     () => catalog.filter((item) => String(item.type).toLowerCase() !== "package"),
@@ -627,8 +630,8 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     [catalog]
   );
 
-  const canViewRemarks = canOption("quotation", "quotation_remarks_view", false);
-  const canEditRemarks = canOption("quotation", "quotation_remarks_edit", false);
+  const canViewRemarks = canOption("vouchergift", "vouchergift_remarks_view", false);
+  const canEditRemarks = canOption("vouchergift", "vouchergift_remarks_edit", false);
 
   useEffect(() => {
     const { safeValidityDays } = resolveValidityWindow(new Date(), validityUntilDate);
@@ -649,7 +652,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
 
   const requiredReady = customer.fullName.trim() && customer.mobile.trim() && selectedLines.length > 0;
 
-  const buildQuotationPdf = async () => {
+  const buildVoucherPdf = async (includePaymentInfo: boolean) => {
     if (!requiredReady) {
       setStatus(t("Please complete customer info and select at least one service/package."));
       return;
@@ -664,7 +667,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     const docTitleSize = 13;
     const docLabelSize = 9.2;
     const docSectionTitleSize = 10.6;
-    const quoteNumber = `QT-${Date.now().toString().slice(-8)}`;
+    const quoteNumber = `VG-${Date.now().toString().slice(-8)}`;
     const issuedAt = new Date();
     const { safeValidityDays, safeValidUntil } = resolveValidityWindow(issuedAt, validityUntilDate);
     const remarkLinesEnglish = normalizeMultilineText(remarkEnglish);
@@ -717,7 +720,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     doc.text("for trading & services", pageW - marginX, 14.6, { align: "right" });
     drawArabicLine(doc, "روديو درايف للتجارة والخدمات", pageW - marginX, 16.8, 46, docLabelSize, "bold");
 
-    // Quotation details block
+    // Voucher details block
     const infoTop = 38;
     const infoH = 38;
     const leftX = marginX + 3;
@@ -742,8 +745,8 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(docSectionTitleSize);
-    doc.text("QUOTATION #", rightLabelX, infoTop + 5.6);
-    drawArabicLine(doc, "رقم الفاتورة", pageW - marginX - 2, infoTop + 2.1, 22, docSectionTitleSize, "bold");
+    doc.text("VOUCHER #", rightLabelX, infoTop + 5.6);
+    drawArabicLine(doc, "رقم القسيمة", pageW - marginX - 2, infoTop + 2.1, 22, docSectionTitleSize, "bold");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(docSectionTitleSize);
     doc.text(quoteNumber, rightLabelX, infoTop + 11.2);
@@ -806,8 +809,10 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     doc.setFontSize(docLabelSize);
     doc.text("Service", marginX + 2, tableTop + 6.5);
     drawArabicLine(doc, "الخدمة", marginX + descW - 5, tableTop + 0.8, 20, docLabelSize, "bold");
-    doc.text("AMOUNT", amountRightX, tableTop + 6.5, { align: "right" });
-    drawArabicLine(doc, "مبلغ الخدمة", amountRightX, tableTop + 0.8, amountW - 6, docLabelSize, "bold");
+    if (includePaymentInfo) {
+      doc.text("AMOUNT", amountRightX, tableTop + 6.5, { align: "right" });
+      drawArabicLine(doc, "مبلغ الخدمة", amountRightX, tableTop + 0.8, amountW - 6, docLabelSize, "bold");
+    }
 
     const shown = quotationDisplayLines.slice(0, rowsCount);
     shown.forEach((line, idx) => {
@@ -851,8 +856,10 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
           isIncludedService ? "#718096" : "#111827"
         );
       }
-      const amountText = line.price == null ? "" : formatMoney(toMoney(line.price));
-      doc.text(amountText, amountRightX, y, { align: "right" });
+      if (includePaymentInfo) {
+        const amountText = line.price == null ? "" : formatMoney(toMoney(line.price));
+        doc.text(amountText, amountRightX, y, { align: "right" });
+      }
     });
     doc.setTextColor(17, 24, 39);
 
@@ -861,12 +868,12 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     const totalsW = 78;
     const totalsX = pageW - marginX - totalsW;
     const totalsRowH = 7;
-    const taxRate = 0;
     const totals = [
       ["TOTAL", "الإجمالي", subtotal],
       ["DISCOUNT", "الخصم", safeDiscount],
       ["NET TOTAL", "الصافي", netAmount],
-      ["TAX RATE", "الضريبة", taxRate],
+      ["AMOUNT PAID", "المبلغ المدفوع", safeAmountPaid],
+      ["BALANCE DUE", "المبلغ المتبقي", balanceDue],
     ] as const;
 
     const drawWrapped = (
@@ -884,37 +891,39 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
       return lines.length;
     };
 
-    doc.setDrawColor(borderSoft.r, borderSoft.g, borderSoft.b);
-    doc.setLineWidth(0.42);
-    doc.line(marginX, totalsTop - 1.5, pageW - marginX, totalsTop - 1.5);
-    doc.setDrawColor(borderStrong.r, borderStrong.g, borderStrong.b);
-    doc.setLineWidth(0.38);
-    doc.setFillColor(tintTotals.r, tintTotals.g, tintTotals.b);
-    doc.roundedRect(totalsX, totalsTop, totalsW, totalsRowH * totals.length, 1.6, 1.6, "FD");
-    for (let i = 1; i < totals.length; i += 1) {
-      doc.line(totalsX, totalsTop + i * totalsRowH, totalsX + totalsW, totalsTop + i * totalsRowH);
-    }
-    doc.line(totalsX + 48, totalsTop, totalsX + 48, totalsTop + totalsRowH * totals.length);
-
-    totals.forEach(([en, ar, value], idx) => {
-      const y = totalsTop + idx * totalsRowH + 4.9;
-      if (en === "NET TOTAL") {
-        doc.setFillColor(244, 248, 252);
-        doc.rect(totalsX + 0.2, totalsTop + idx * totalsRowH + 0.2, totalsW - 0.4, totalsRowH - 0.4, "F");
+    if (includePaymentInfo) {
+      doc.setDrawColor(borderSoft.r, borderSoft.g, borderSoft.b);
+      doc.setLineWidth(0.42);
+      doc.line(marginX, totalsTop - 1.5, pageW - marginX, totalsTop - 1.5);
+      doc.setDrawColor(borderStrong.r, borderStrong.g, borderStrong.b);
+      doc.setLineWidth(0.38);
+      doc.setFillColor(tintTotals.r, tintTotals.g, tintTotals.b);
+      doc.roundedRect(totalsX, totalsTop, totalsW, totalsRowH * totals.length, 1.6, 1.6, "FD");
+      for (let i = 1; i < totals.length; i += 1) {
+        doc.line(totalsX, totalsTop + i * totalsRowH, totalsX + totalsW, totalsTop + i * totalsRowH);
       }
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(docLabelSize);
-      doc.text(en, totalsX + 2, y);
-      drawArabicLine(doc, ar, totalsX + 45.5, y - 2.5, 16, docLabelSize, "bold", en === "DISCOUNT" ? "#cc1f1a" : "#111827");
-      if (en === "DISCOUNT") doc.setTextColor(204, 31, 26);
-      doc.text(en === "TAX RATE" ? `${value}%` : formatMoney(Number(value || 0)), totalsX + totalsW - 2, y, { align: "right" });
-      doc.setTextColor(17, 24, 39);
-    });
+      doc.line(totalsX + 48, totalsTop, totalsX + 48, totalsTop + totalsRowH * totals.length);
+
+      totals.forEach(([en, ar, value], idx) => {
+        const y = totalsTop + idx * totalsRowH + 4.9;
+        if (en === "NET TOTAL" || en === "BALANCE DUE") {
+          doc.setFillColor(244, 248, 252);
+          doc.rect(totalsX + 0.2, totalsTop + idx * totalsRowH + 0.2, totalsW - 0.4, totalsRowH - 0.4, "F");
+        }
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(docLabelSize);
+        doc.text(en, totalsX + 2, y);
+        drawArabicLine(doc, ar, totalsX + 45.5, y - 2.5, 16, docLabelSize, "bold", en === "DISCOUNT" ? "#cc1f1a" : "#111827");
+        if (en === "DISCOUNT") doc.setTextColor(204, 31, 26);
+        doc.text(formatMoney(Number(value || 0)), totalsX + totalsW - 2, y, { align: "right" });
+        doc.setTextColor(17, 24, 39);
+      });
+    }
 
     const customerNote = safeText(customer.notes).trim();
     let customerNoteBoxHeight = 0;
     if (customerNote) {
-      const noteTop = totalsTop + totalsRowH * totals.length + 3;
+      const noteTop = (includePaymentInfo ? totalsTop + totalsRowH * totals.length : totalsTop) + 3;
       const noteW = contentW - 2;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
@@ -949,7 +958,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     }
 
     // Remarks and terms
-    const remarksTop = totalsTop + totalsRowH * totals.length + (customerNote ? customerNoteBoxHeight + 8 : 3);
+    const remarksTop = (includePaymentInfo ? totalsTop + totalsRowH * totals.length : totalsTop) + (customerNote ? customerNoteBoxHeight + 8 : 3);
     const remarksLeftX = marginX + 1;
     const remarksLeftW = 118;
     const remarksRightX = pageW - marginX - 1;
@@ -1007,7 +1016,11 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     }
     opened.focus();
     window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 60_000);
-    setStatus(t("Quotation opened in a new tab."));
+    setStatus(
+      includePaymentInfo
+        ? t("Voucher with payment information opened in a new tab.")
+        : t("Voucher without payment information opened in a new tab.")
+    );
   };
 
   return (
@@ -1022,16 +1035,16 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
             <span className="quotation-title-icon" aria-hidden="true">
               <i className="fas fa-file-signature" />
             </span>
-            <h1>{t("Quotation Builder")}</h1>
+            <h1>{t("Voucher Gift Builder")}</h1>
           </div>
-          <p>{t("Create customer quotations with live service/package pricing and policy-based discount limits.")}</p>
+          <p>{t("Create voucher gifts with live service/package pricing and policy-based discount limits.")}</p>
         </div>
       </div>
 
       {status ? <div className="quotation-status">{status}</div> : null}
 
       <div className="quotation-grid">
-        <PermissionGate moduleId="quotation" optionId="quotation_customer">
+        <PermissionGate moduleId="vouchergift" optionId="vouchergift_customer">
           <section className="quotation-card">
             <h3><i className="fas fa-user" /> {t("Customer Information")}</h3>
             <div className="quotation-form-grid">
@@ -1137,7 +1150,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
           </section>
         </PermissionGate>
 
-        <PermissionGate moduleId="quotation" optionId="quotation_catalog">
+        <PermissionGate moduleId="vouchergift" optionId="vouchergift_catalog">
           <section className="quotation-card">
             <h3><i className="fas fa-tags" /> {t("Services & Packages")}</h3>
             {loadingCatalog ? <div className="quotation-muted">{t("Loading services and packages...")}</div> : null}
@@ -1228,7 +1241,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
           </section>
         </PermissionGate>
 
-        <PermissionGate moduleId="quotation" optionId="quotation_discount">
+        <PermissionGate moduleId="vouchergift" optionId="vouchergift_discount">
           <section className="quotation-card">
             <h3><i className="fas fa-percent" /> {t("Discount")}</h3>
             <div className="quotation-discount-row">
@@ -1257,16 +1270,29 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
                   }}
                 />
               </label>
+              <label>
+                <span>{t("Amount Paid")}</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={Math.max(0, netAmount)}
+                  step={0.01}
+                  value={Number(amountPaid || 0)}
+                  onChange={(e) => setAmountPaid(Math.max(0, Number(e.target.value || 0)))}
+                />
+              </label>
             </div>
             <div className="quotation-muted">
               {t("Max discount allowed by policy:")} {Number(maxDiscountPercent.toFixed(2))}% ({formatMoney(maxAllowedDiscountAmount)})
+              {" • "}
+              {t("Balance Due")}: {formatMoney(balanceDue)}
             </div>
           </section>
         </PermissionGate>
 
-        <PermissionGate moduleId="quotation" optionId="quotation_summary">
+        <PermissionGate moduleId="vouchergift" optionId="vouchergift_summary">
           <section className="quotation-card">
-            <h3><i className="fas fa-receipt" /> {t("Quotation Summary")}</h3>
+            <h3><i className="fas fa-receipt" /> {t("Voucher Gift Summary")}</h3>
             <div className="quotation-summary-list">
               {quotationDisplayLines.length === 0 ? <div className="quotation-muted">{t("No selected lines yet.")}</div> : null}
               {quotationDisplayLines.length > 0 ? (
@@ -1289,7 +1315,8 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
             <div className="quotation-totals">
               <div><span>{t("Subtotal")}</span><strong>{formatMoney(subtotal)}</strong></div>
               <div><span>{t("Discount")}</span><strong>- {formatMoney(safeDiscount)}</strong></div>
-              <div className="net"><span>{t("Net Quotation")}</span><strong>{formatMoney(netAmount)}</strong></div>
+              <div><span>{t("Amount Paid")}</span><strong>{formatMoney(safeAmountPaid)}</strong></div>
+              <div className="net"><span>{t("Net Voucher")}</span><strong>{formatMoney(netAmount)}</strong></div>
             </div>
           </section>
         </PermissionGate>
@@ -1300,14 +1327,24 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
       </div>
 
       <div className="quotation-bottom-actions">
-        <PermissionGate moduleId="quotation" optionId="quotation_generatepdf">
+        <PermissionGate moduleId="vouchergift" optionId="vouchergift_generate_with_payment">
           <button
             type="button"
             className="quotation-generate-btn"
-            onClick={() => void withLoading(buildQuotationPdf(), t("Generating PDF…"))}
+            onClick={() => void withLoading(buildVoucherPdf(true), t("Generating PDF…"))}
             disabled={!requiredReady}
           >
-            <i className="fas fa-file-pdf" /> {t("Generate Quotation PDF")}
+            <i className="fas fa-file-pdf" /> {t("Generate Voucher With Payment Info")}
+          </button>
+        </PermissionGate>
+        <PermissionGate moduleId="vouchergift" optionId="vouchergift_generate_without_payment">
+          <button
+            type="button"
+            className="quotation-generate-btn"
+            onClick={() => void withLoading(buildVoucherPdf(false), t("Generating PDF…"))}
+            disabled={!requiredReady}
+          >
+            <i className="fas fa-file-pdf" /> {t("Generate Voucher Without Payment Info")}
           </button>
         </PermissionGate>
       </div>

@@ -257,6 +257,36 @@
   letter-spacing: 0.08em;
 }
 
+.quotation-label-with-action {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.quotation-inline-reset-btn {
+  border: 1px solid #cfdcf4;
+  background: #eef4ff;
+  color: #365e9a;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: none;
+  padding: 4px 9px;
+  cursor: pointer;
+  line-height: 1.2;
+}
+
+.quotation-inline-reset-btn:hover {
+  background: #e3edff;
+  border-color: #b9cbec;
+}
+
+.quotation-inline-reset-btn:active {
+  transform: scale(0.98);
+}
+
 .quotation-form-grid input,
 .quotation-form-grid select,
 .quotation-form-grid textarea,
@@ -576,6 +606,11 @@
 
   .quotation-summary-row > div:last-child {
     justify-self: start;
+  }
+
+  .quotation-label-with-action {
+    flex-wrap: wrap;
+    row-gap: 6px;
   }
 }
 

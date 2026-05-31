@@ -3894,3 +3894,100 @@ body.lang-ar .layout-root.desktop-sidebar .layout-main {
     border-radius: 12px !important;
   }
 }
+
+/* ============================================================
+   Header Language Switch (May 2026)
+   ============================================================ */
+
+.topbar-lang-toggle {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  order: 2;
+}
+
+.topbar-lang-label {
+  font-size: 12px !important;
+  font-weight: 700 !important;
+  color: #2b3674 !important;
+  white-space: nowrap;
+}
+
+.topbar-lang-switch {
+  display: inline-flex !important;
+  align-items: center !important;
+  padding: 3px !important;
+  border: 1px solid #d7e2f2 !important;
+  border-radius: 999px !important;
+  background: #f4f7fe !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.92) !important;
+}
+
+.topbar-lang-option {
+  border: 0 !important;
+  background: transparent !important;
+  color: #6b7aa6 !important;
+  border-radius: 999px !important;
+  min-width: 38px !important;
+  height: 28px !important;
+  padding: 0 10px !important;
+  font-size: 12px !important;
+  font-weight: 800 !important;
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+
+.topbar-lang-option:hover {
+  color: #2b3674 !important;
+}
+
+.topbar-lang-option.is-active {
+  background: linear-gradient(135deg, #39bfff, #4318ff) !important;
+  color: #ffffff !important;
+  box-shadow: 0 6px 14px rgba(67, 24, 255, 0.28) !important;
+}
+
+.topbar-greeting { order: 1; }
+.topbar-mini-avatar { order: 3; }
+.topbar-user-caret { order: 4; }
+
+body.lang-ar .topbar-lang-label {
+  font-weight: 800 !important;
+}
+
+@media (max-width: 900px) {
+  .topbar-lang-label {
+    display: none !important;
+  }
+
+  .topbar-lang-option {
+    min-width: 34px !important;
+    height: 26px !important;
+    padding: 0 8px !important;
+  }
+}
+
+@media (max-width: 768px) {
+  .topbar-lang-toggle {
+    order: 1;
+    gap: 6px !important;
+  }
+
+  .topbar-lang-switch {
+    padding: 2px !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .topbar-lang-option {
+    min-width: 32px !important;
+    height: 24px !important;
+    font-size: 11px !important;
+    padding: 0 7px !important;
+  }
+
+  .topbar-right {
+    gap: 6px !important;
+  }
+}

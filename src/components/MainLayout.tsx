@@ -24,6 +24,7 @@ const loadCampaignAudienceAdmin = () => import("../pages/CampaignAudienceAdmin")
 
 const loadJobOrderHistory = () => import("../pages/JobOrderHistory");
 const loadQuotationPage = () => import("../pages/QuotationPage");
+const loadVoucherGiftPage = () => import("../pages/VoucherGiftPage");
 const loadQualityCheckModule = () => import("../pages/QualityCheckModule");
 const loadExitPermitManagement = () => import("../pages/ExitPermitManagement");
 
@@ -53,6 +54,7 @@ const CampaignAudienceAdmin = lazy(loadCampaignAudienceAdmin);
 
 const JobOrderHistory = lazy(loadJobOrderHistory);
 const QuotationPage = lazy(loadQuotationPage);
+const VoucherGiftPage = lazy(loadVoucherGiftPage);
 const QualityCheckModule = lazy(loadQualityCheckModule);
 const ExitPermitManagement = lazy(loadExitPermitManagement);
 
@@ -82,6 +84,7 @@ type Page =
   | "servicecreation"
   | "jobhistory"
   | "quotation"
+  | "vouchergift"
   | "serviceexecution"
   | "paymentinvoices"
   | "qualitycheck"
@@ -109,6 +112,7 @@ const PAGE_LOADERS: Record<Page, () => Promise<unknown>> = {
   servicecreation: loadServiceCreation,
   jobhistory: loadJobOrderHistory,
   quotation: loadQuotationPage,
+  vouchergift: loadVoucherGiftPage,
   serviceexecution: loadServiceExecution,
   paymentinvoices: loadPaymentInvoiceManagment,
   qualitycheck: loadQualityCheckModule,
@@ -203,7 +207,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   const prefetchedPagesRef = useRef<Set<Page>>(new Set());
 
   const { loading, email, employeeName, isAdminGroup, can, canOption, isModuleEnabled, refresh } = usePermissions();
-  const { t, language, toggleLanguage } = useLanguage();
+  const { t, language, setLanguage } = useLanguage();
   const currentYear = new Date().getFullYear();
   const canAny = (key: string) => ((can as any)(key) ?? EMPTY) as CrudPerm;
 
@@ -293,6 +297,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       servicecreation: jobCardsRead && listOn("joborder", "joborder_list"),
       jobhistory: jobCardsRead && listOn("jobhistory", "jobhistory_list"),
       quotation: jobCardsRead && listOn("quotation", "quotation_list"),
+      vouchergift: jobCardsRead && listOn("vouchergift", "vouchergift_list"),
       serviceexecution: jobCardsRead && listOn("serviceexec", "serviceexec_list"),
       paymentinvoices: jobCardsRead && listOn("payment", "payment_list"),
       qualitycheck: jobCardsRead && listOn("qualitycheck", "qualitycheck_list"),
@@ -333,6 +338,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.servicecreation) pages.push("servicecreation");
     if (show.jobhistory) pages.push("jobhistory");
     if (show.quotation) pages.push("quotation");
+    if (show.vouchergift) pages.push("vouchergift");
     if (show.serviceexecution) pages.push("serviceexecution");
     if (show.paymentinvoices) pages.push("paymentinvoices");
     if (show.qualitycheck) pages.push("qualitycheck");
@@ -410,6 +416,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !show.servicecreation &&
     !show.jobhistory &&
     !show.quotation &&
+    !show.vouchergift &&
     !show.serviceexecution &&
     !show.paymentinvoices &&
     !show.qualitycheck &&
@@ -433,6 +440,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.servicecreation) allowedPages.push("servicecreation");
     if (show.jobhistory) allowedPages.push("jobhistory");
     if (show.quotation) allowedPages.push("quotation");
+    if (show.vouchergift) allowedPages.push("vouchergift");
     if (show.serviceexecution) allowedPages.push("serviceexecution");
     if (show.paymentinvoices) allowedPages.push("paymentinvoices");
     if (show.qualitycheck) allowedPages.push("qualitycheck");
@@ -461,6 +469,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       (page === "servicecreation" && show.servicecreation) ||
       (page === "jobhistory" && show.jobhistory) ||
       (page === "quotation" && show.quotation) ||
+      (page === "vouchergift" && show.vouchergift) ||
       (page === "serviceexecution" && show.serviceexecution) ||
       (page === "paymentinvoices" && show.paymentinvoices) ||
       (page === "qualitycheck" && show.qualitycheck) ||
@@ -702,6 +711,12 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               </button>
             )}
 
+            {show.vouchergift && (
+              <button className={page === "vouchergift" ? "active" : ""} onClick={() => go("vouchergift")}>
+                <i className="fas fa-gift" aria-hidden="true" /> {t("Voucher Gift")}
+              </button>
+            )}
+
             {show.serviceexecution && (
               <button className={page === "serviceexecution" ? "active" : ""} onClick={() => go("serviceexecution")}>
                 <i className="fas fa-gears" aria-hidden="true" /> {t("Service Execution")}
@@ -813,9 +828,6 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
           </nav>
 
           <div className="drawer-footer">
-            <button className="lang-toggle" type="button" onClick={toggleLanguage}>
-              {language === "ar" ? t("EN") : t("AR")}
-            </button>
             <button className="danger" onClick={signOut}>
               <i className="fas fa-power-off" aria-hidden="true" /> {t("Sign out")}
             </button>
@@ -838,6 +850,27 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               </div>
 
               <div className="topbar-right">
+                <div className="topbar-lang-toggle" role="group" aria-label={t("Language")}>
+                  <span className="topbar-lang-label">{t("Language")}</span>
+                  <div className="topbar-lang-switch" aria-label={t("Language switch")}>
+                    <button
+                      type="button"
+                      className={`topbar-lang-option ${language === "en" ? "is-active" : ""}`}
+                      onClick={() => setLanguage("en")}
+                      aria-pressed={language === "en"}
+                    >
+                      EN
+                    </button>
+                    <button
+                      type="button"
+                      className={`topbar-lang-option ${language === "ar" ? "is-active" : ""}`}
+                      onClick={() => setLanguage("ar")}
+                      aria-pressed={language === "ar"}
+                    >
+                      AR
+                    </button>
+                  </div>
+                </div>
                 <div className="topbar-greeting">{topbarDisplayName}</div>
                 <div className="topbar-mini-avatar" aria-hidden="true">{topbarAvatarInitial}</div>
                 <i className="fas fa-chevron-down topbar-user-caret" aria-hidden="true" />
@@ -921,6 +954,12 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             {page === "quotation" && show.quotation && (
               <PermissionGate moduleId="quotation" optionId="quotation_list">
                 <QuotationPage currentUser={currentUser} />
+              </PermissionGate>
+            )}
+
+            {page === "vouchergift" && show.vouchergift && (
+              <PermissionGate moduleId="vouchergift" optionId="vouchergift_list">
+                <VoucherGiftPage currentUser={currentUser} />
               </PermissionGate>
             )}
 

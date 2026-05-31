@@ -257,6 +257,26 @@ const MODULE_DEFINITIONS = [
       { id: "quotation_discount", label: "Discount Section", prefix: "c." },
       { id: "quotation_summary", label: "Quotation Summary Section", prefix: "d." },
       { id: "quotation_generatepdf", label: "Generate Quotation PDF", prefix: "e." },
+      { id: "quotation_remarks_view", label: "View Remarks Fields", prefix: "f." },
+      { id: "quotation_remarks_edit", label: "Edit Remarks Fields", prefix: "g." },
+    ],
+  },
+
+  {
+    id: "vouchergift",
+    title: "Voucher Gift",
+    icon: "fas fa-gift",
+    category: "financial",
+    options: [
+      { id: "vouchergift_list", label: "Show Voucher Gift page in sidebar", prefix: "-" },
+      { id: "vouchergift_customer", label: "Customer Information Section", prefix: "a." },
+      { id: "vouchergift_catalog", label: "Services & Packages Section", prefix: "b." },
+      { id: "vouchergift_discount", label: "Discount Section", prefix: "c." },
+      { id: "vouchergift_summary", label: "Voucher Gift Summary Section", prefix: "d." },
+      { id: "vouchergift_generate_with_payment", label: "Generate Voucher With Payment Info", prefix: "e." },
+      { id: "vouchergift_generate_without_payment", label: "Generate Voucher Without Payment Info", prefix: "f." },
+      { id: "vouchergift_remarks_view", label: "View Remarks Fields", prefix: "g." },
+      { id: "vouchergift_remarks_edit", label: "Edit Remarks Fields", prefix: "h." },
     ],
   },
 
