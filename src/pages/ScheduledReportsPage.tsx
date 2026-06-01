@@ -23,6 +23,7 @@ type QueueItem = {
   sendAt: string;
   createdAt: string;
   reportModel: string;
+  errorMessage?: string;
 };
 
 type FilterState = {
@@ -229,6 +230,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
             sendAt: txt(s.sendAt),
             createdAt: txt(s.createdAt),
             reportModel: txt(s.reportModel) || "JobOrder",
+            errorMessage: txt(s.errorMessage),
           }))
           .filter((r) => r.id)
           .sort((a, b) => (dt(b.sendAt)?.getTime() ?? 0) - (dt(a.sendAt)?.getTime() ?? 0));
@@ -480,6 +482,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
           sendAt: txt(row.sendAt || payload.sendAt),
           createdAt: txt(row.createdAt || payload.createdAt),
           reportModel: txt(row.reportModel || selectedModel),
+          errorMessage: txt(row.errorMessage),
         },
         ...prev,
       ]);
@@ -750,13 +753,14 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
                   <th>{t("Format")}</th>
                   <th>{t("Send At")}</th>
                   <th>{t("Status")}</th>
+                  <th>{t("Error")}</th>
                   <th>{t("Created")}</th>
                   <th>{t("Action")}</th>
                 </tr>
               </thead>
               <tbody>
                 {queue.length === 0 && (
-                  <tr><td colSpan={8}>{t("No schedules found.")}</td></tr>
+                  <tr><td colSpan={9}>{t("No schedules found.")}</td></tr>
                 )}
                 {queue.map((row) => (
                   <tr key={row.id}>
@@ -766,6 +770,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
                     <td data-label={t("Format")}>{row.reportFormat}</td>
                     <td data-label={t("Send At")}>{dateLabel(row.sendAt)}</td>
                     <td data-label={t("Status")}><span className={`sr-badge sr-${row.status.toLowerCase()}`}>{row.status}</span></td>
+                    <td data-label={t("Error")} title={row.errorMessage || ""}>{row.errorMessage || "-"}</td>
                     <td data-label={t("Created")}>{dateLabel(row.createdAt)}</td>
                     <td data-label={t("Action")}>
                       <button

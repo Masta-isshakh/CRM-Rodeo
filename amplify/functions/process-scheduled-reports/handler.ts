@@ -196,13 +196,17 @@ async function sendEmailWithAttachment(params: {
   contentType: string;
   binaryData: Buffer;
 }) {
+  const from = text(params.from) || FROM_EMAIL;
+  if (!from) {
+    throw new Error("No sender email configured for SES send.");
+  }
+
   const boundaryMixed = `mix_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const boundaryAlt = `alt_${Date.now()}_${Math.random().toString(16).slice(2)}`;
   const attachmentBase64 = chunkBase64(params.binaryData.toString("base64"));
 
   const raw = [
-    `From: ${FROM_EMAIL}`,
-    `From: ${params.from}`,
+    `From: ${from}`,
     `To: ${params.to}`,
     `Subject: ${params.subject}`,
     "MIME-Version: 1.0",
@@ -231,7 +235,7 @@ async function sendEmailWithAttachment(params: {
   ].join("\r\n");
 
   const command = new SendEmailCommand({
-    FromEmailAddress: params.from,
+    FromEmailAddress: from,
     Destination: { ToAddresses: [params.to] },
     Content: {
       Raw: {
@@ -292,6 +296,14 @@ export const handler = async () => {
     })
     .slice(0, 50);
 
+  console.info("[scheduled-reports] scan", {
+    nowIso,
+    pendingCount: (schedulesRes?.data ?? []).length,
+    dueCount: schedules.length,
+    region: REGION,
+    hasDefaultFrom: Boolean(FROM_EMAIL),
+  });
+
   let sent = 0;
   let failed = 0;
 
@@ -302,6 +314,15 @@ export const handler = async () => {
     const title = text(schedule.title) || "Scheduled Report";
     const fromEmail = text(schedule.senderEmail) || FROM_EMAIL;
 
+    console.info("[scheduled-reports] processing", {
+      id,
+      to,
+      fromEmail,
+      reportFormat,
+      sendAt: text(schedule.sendAt),
+      status: text(schedule.status),
+    });
+
     if (!fromEmail) {
       await client.models.ScheduledReport.update({
         id,
@@ -311,6 +332,7 @@ export const handler = async () => {
         updatedAt: new Date().toISOString(),
       } as any);
       failed += 1;
+      console.warn("[scheduled-reports] failed-no-sender", { id, to });
       continue;
     }
 
@@ -343,7 +365,14 @@ export const handler = async () => {
         updatedAt: new Date().toISOString(),
       } as any);
       sent += 1;
+      console.info("[scheduled-reports] sent", { id, to, fromEmail });
     } catch (error: any) {
+      console.error("[scheduled-reports] send-failed", {
+        id,
+        to,
+        fromEmail,
+        message: String(error?.message ?? error),
+      });
       await client.models.ScheduledReport.update({
         id,
         status: "FAILED",

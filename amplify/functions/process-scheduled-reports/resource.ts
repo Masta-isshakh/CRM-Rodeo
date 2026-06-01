@@ -7,7 +7,7 @@ export const processScheduledReports = defineFunction({
   timeoutSeconds: 120,
   environment: {
     SES_REGION: "eu-west-1",
-    SES_FROM_EMAIL: "",
+    SES_FROM_EMAIL: "crm@rodeodrive.work",
     REPORT_MAX_ROWS: "3000",
   },
 });
