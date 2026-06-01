@@ -533,9 +533,14 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
     <section className="sr-page">
       <div className="sr-shell">
         <header className="sr-header">
-          <div>
+          <div className="sr-head-main">
+            <div className="sr-head-title-row">
+              <div className="sr-head-icon" aria-hidden>
+                <i className="fas fa-chart-line" />
+              </div>
+              <h1>{t("Scheduled Reports")}</h1>
+            </div>
             <p className="sr-kicker">{t("Reports & Delivery")}</p>
-            <h1>{t("Scheduled Reports")}</h1>
             <p>{t("Build a report, keep the filters simple, and send it by email on a schedule.")}</p>
           </div>
           <div className="sr-metrics">
@@ -544,6 +549,13 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
             <div><span>{t("Scheduled")}</span><strong>{queue.length}</strong></div>
           </div>
         </header>
+
+        <section className="sr-meta-row">
+          <p>
+            <span className="sr-meta-rail" aria-hidden />
+            <span>{t("Manage report filters, exports, and scheduled email delivery in one place.")}</span>
+          </p>
+        </section>
 
         <section className="sr-card">
           <div className="sr-card-title">{t("Report Scope")}</div>
@@ -714,7 +726,11 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
                 )}
                 {!loading && filteredRows.slice(0, 250).map((row, idx) => (
                   <tr key={idx}>
-                    {selectedFields.map((f) => <td key={`${idx}-${f}`} className="sr-services">{txt(row[f]) || "-"}</td>)}
+                    {selectedFields.map((f) => (
+                      <td key={`${idx}-${f}`} className="sr-services" data-label={f}>
+                        {txt(row[f]) || "-"}
+                      </td>
+                    ))}
                   </tr>
                 ))}
               </tbody>
@@ -744,14 +760,14 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
                 )}
                 {queue.map((row) => (
                   <tr key={row.id}>
-                    <td>{row.title || "-"}</td>
-                    <td>{row.reportModel || "JobOrder"}</td>
-                    <td>{row.recipientEmail || "-"}</td>
-                    <td>{row.reportFormat}</td>
-                    <td>{dateLabel(row.sendAt)}</td>
-                    <td><span className={`sr-badge sr-${row.status.toLowerCase()}`}>{row.status}</span></td>
-                    <td>{dateLabel(row.createdAt)}</td>
-                    <td>
+                    <td data-label={t("Title")}>{row.title || "-"}</td>
+                    <td data-label={t("Model")}>{row.reportModel || "JobOrder"}</td>
+                    <td data-label={t("Recipient")}>{row.recipientEmail || "-"}</td>
+                    <td data-label={t("Format")}>{row.reportFormat}</td>
+                    <td data-label={t("Send At")}>{dateLabel(row.sendAt)}</td>
+                    <td data-label={t("Status")}><span className={`sr-badge sr-${row.status.toLowerCase()}`}>{row.status}</span></td>
+                    <td data-label={t("Created")}>{dateLabel(row.createdAt)}</td>
+                    <td data-label={t("Action")}>
                       <button
                         type="button"
                         className="sr-btn sr-btn-ghost sr-btn-mini"

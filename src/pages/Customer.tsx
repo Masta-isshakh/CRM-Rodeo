@@ -36,6 +36,7 @@ type AlertState = {
 };
 
 type ArtTheme = "theme-elegant-glass" | "theme-executive-minimal";
+type PixelPassTarget = "list" | "details";
 
 type CustomerForm = {
   name: string;
@@ -979,6 +980,8 @@ function DetailsView(props: {
   canViewRelatedTickets: boolean;
   themeClass: ArtTheme;
   onToggleTheme: () => void;
+  pixelPassTarget: PixelPassTarget;
+  onTogglePixelPassTarget: () => void;
 }) {
   const { t } = useLanguage();
   const {
@@ -1002,6 +1005,8 @@ function DetailsView(props: {
     canViewRelatedTickets,
     themeClass,
     onToggleTheme,
+    pixelPassTarget,
+    onTogglePixelPassTarget,
   } = props;
 
   const fullName = `${customer.name ?? ""} ${customer.lastname ?? ""}`.trim();
@@ -1365,6 +1370,7 @@ function DetailsView(props: {
 
   return (
     <div
+      className={`detail-view pim-details-screen customer-details-screen dashboard-customer-details-bg customer-details-exact ${themeClass}`}
       style={{
         background: "linear-gradient(145deg, #f8fafe 0%, #eef3ff 100%)",
         minHeight: "calc(100vh - 120px)",
@@ -1498,6 +1504,42 @@ function DetailsView(props: {
                 <i className="fas fa-gem" style={{ fontSize: 11 }} />
               </span>
               {themeClass === "theme-elegant-glass" ? t("Elegant Glass") : t("Executive Minimal")}
+            </button>
+            <button
+              onClick={onTogglePixelPassTarget}
+              type="button"
+              style={{
+                border: "1px solid #DDE5F8",
+                background: "rgba(255,255,255,0.92)",
+                color: "#1E2F67",
+                borderRadius: 12,
+                height: 40,
+                padding: "0 10px",
+                fontSize: 12,
+                fontWeight: 800,
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                cursor: "pointer",
+                boxShadow: "0 6px 12px rgba(112, 144, 176, 0.08)",
+                backdropFilter: "blur(10px)",
+                WebkitBackdropFilter: "blur(10px)",
+              }}
+            >
+              <span
+                style={{
+                  width: 16,
+                  height: 16,
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#5E42FF",
+                  flexShrink: 0,
+                }}
+              >
+                <i className="fas fa-layer-group" style={{ fontSize: 11 }} />
+              </span>
+              {pixelPassTarget === "list" ? t("Pixel Pass: List View") : t("Pixel Pass: Detail View")}
             </button>
             {canUpdate && (
               <button
@@ -1902,6 +1944,11 @@ export default function Customers({ permissions }: PageProps) {
       ? stored
       : "theme-executive-minimal";
   });
+  const [pixelPassTarget, setPixelPassTarget] = useState<PixelPassTarget>(() => {
+    if (typeof window === "undefined") return "list";
+    const stored = window.localStorage.getItem("crm-customer-pixel-pass-target");
+    return stored === "details" || stored === "list" ? stored : "list";
+  });
 
   const [viewMode, setViewMode] = useState<"list" | "details">("list");
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
@@ -1984,19 +2031,33 @@ export default function Customers({ permissions }: PageProps) {
     setThemeClass((prev) => (prev === "theme-elegant-glass" ? "theme-executive-minimal" : "theme-elegant-glass"));
   }, []);
 
+  const togglePixelPassTarget = useCallback(() => {
+    setPixelPassTarget((prev) => (prev === "list" ? "details" : "list"));
+  }, []);
+
+  const listThemeClass: ArtTheme = pixelPassTarget === "list" ? themeClass : "theme-executive-minimal";
+  const detailsThemeClass: ArtTheme = pixelPassTarget === "details" ? themeClass : "theme-executive-minimal";
+  const activeBodyThemeClass: ArtTheme =
+    pixelPassTarget === "list"
+      ? listThemeClass
+      : viewMode === "details"
+      ? detailsThemeClass
+      : "theme-executive-minimal";
+
   useEffect(() => {
     if (typeof document === "undefined") return;
     document.body.classList.remove("theme-elegant-glass", "theme-executive-minimal");
-    document.body.classList.add(themeClass);
+    document.body.classList.add(activeBodyThemeClass);
     try {
       window.localStorage.setItem("crm-customer-theme", themeClass);
+      window.localStorage.setItem("crm-customer-pixel-pass-target", pixelPassTarget);
     } catch {
       // ignore localStorage failures in restricted contexts
     }
     return () => {
       document.body.classList.remove("theme-elegant-glass", "theme-executive-minimal");
     };
-  }, [themeClass]);
+  }, [activeBodyThemeClass, themeClass, pixelPassTarget]);
 
   const computeCounts = useCallback((contactsList: ContactRow[], dealsList: DealRow[], ticketsList: TicketRow[]) => {
     const map: CountsMap = {};
@@ -2555,8 +2616,10 @@ export default function Customers({ permissions }: PageProps) {
           canViewRelatedContacts={canCustomersRelatedContacts}
           canViewRelatedDeals={canCustomersRelatedDeals}
           canViewRelatedTickets={canCustomersRelatedTickets}
-          themeClass={themeClass}
+          themeClass={detailsThemeClass}
           onToggleTheme={toggleTheme}
+          pixelPassTarget={pixelPassTarget}
+          onTogglePixelPassTarget={togglePixelPassTarget}
         />
 
         <Modal
@@ -2739,7 +2802,7 @@ export default function Customers({ permissions }: PageProps) {
 
   return (
     <div
-      className={`vehicle-page customer-page customer-dashboard-shell ${themeClass}`}
+      className={`vehicle-page customer-page customer-dashboard-shell ${listThemeClass}`}
       id="mainScreen"
       style={{ background: "linear-gradient(145deg, #f8fafe 0%, #eef3ff 100%)", minHeight: "100vh" }}
     >
@@ -2764,6 +2827,14 @@ export default function Customers({ permissions }: PageProps) {
               >
                 <i className="fas fa-palette" />
                 {themeClass === "theme-elegant-glass" ? t("Elegant Glass") : t("Executive Minimal")}
+              </button>
+              <button
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "7px 14px", borderRadius: 8, border: "1px solid #DDE7F6", background: "#F7F9FF", color: "#5D54FF", fontSize: "0.88rem", fontWeight: 700, cursor: "pointer" }}
+                onClick={togglePixelPassTarget}
+                type="button"
+              >
+                <i className="fas fa-layer-group" />
+                {pixelPassTarget === "list" ? t("Pixel Pass: List View") : t("Pixel Pass: Detail View")}
               </button>
 
               {canCustomersSearch ? (

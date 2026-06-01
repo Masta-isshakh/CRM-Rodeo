@@ -1233,3 +1233,136 @@
     width: 100%;
   }
 }
+
+@media (max-width: 480px) {
+  .ums-page {
+    padding: 6px;
+  }
+
+  .ums-topbar {
+    padding: 12px 10px;
+    border-radius: 12px;
+  }
+
+  .ums-topbar-icon,
+  .ums-details-head-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+  }
+
+  .ums-topbar h1,
+  .ums-details-page-head h3 {
+    font-size: 16px;
+  }
+
+  .ums-topbar-metric {
+    flex: 1 1 100%;
+    font-size: 11px;
+    padding: 6px 8px;
+  }
+
+  .ums-table-scroll {
+    padding: 8px;
+  }
+
+  .ums-table tbody tr {
+    border-radius: 10px;
+    margin-bottom: 8px;
+  }
+
+  .ums-table tbody td {
+    padding: 8px 9px;
+    font-size: 0.84rem;
+    line-height: 1.35;
+  }
+
+  .ums-table tbody td::before {
+    font-size: 0.64rem;
+    letter-spacing: 0.05em;
+  }
+
+  .ums-email,
+  .ums-muted,
+  .ums-name,
+  .ums-mono,
+  .ums-line-manager-cell,
+  .ums-th-actions,
+  .ums-actions-cell {
+    min-width: 0;
+    width: auto;
+  }
+
+  .ums-add-btn,
+  .ums-actions-btn,
+  .ums-back-btn,
+  .ums-card-edit-btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 375px) {
+  .ums-page {
+    padding: 5px;
+  }
+
+  .ums-topbar {
+    padding: 10px 8px;
+  }
+
+  .ums-topbar h1,
+  .ums-details-page-head h3 {
+    font-size: 15px;
+  }
+
+  .ums-topbar p,
+  .ums-details-page-sub {
+    font-size: 9.5px;
+  }
+
+  .ums-table tbody td {
+    padding: 7px 8px;
+    font-size: 0.81rem;
+  }
+
+  .ums-modal-head,
+  .ums-modal-body,
+  .ums-modal-foot,
+  .ums-details-page-head,
+  .ums-details-page-body,
+  .ums-details-page-foot {
+    padding-left: 8px;
+    padding-right: 8px;
+  }
+}
+
+@media (max-width: 320px) {
+  .ums-page {
+    padding: 4px;
+  }
+
+  .ums-topbar {
+    border-radius: 10px;
+    padding: 9px 7px;
+  }
+
+  .ums-topbar h1,
+  .ums-details-page-head h3 {
+    font-size: 14px;
+  }
+
+  .ums-table-scroll {
+    padding: 6px;
+  }
+
+  .ums-table tbody td {
+    padding: 6px 7px;
+    font-size: 0.78rem;
+  }
+
+  .ums-table tbody td::before {
+    font-size: 0.6rem;
+    letter-spacing: 0.04em;
+  }
+}
