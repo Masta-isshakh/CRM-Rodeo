@@ -32,6 +32,7 @@ import { processSmsEvents } from "./functions/process-sms-events/resource";
 import { resolveDriveShareLink } from "./functions/resolve-drive-share-link/resource";
 import { driveRetentionCleanup } from "./functions/drive-retention-cleanup/resource";
 import { processSmsDeliveryStatus } from "./functions/process-sms-delivery-status/resource";
+import { processScheduledReports } from "./functions/process-scheduled-reports/resource";
 
 const backend = defineBackend({
   auth,
@@ -58,6 +59,7 @@ const backend = defineBackend({
   resolveDriveShareLink,
   driveRetentionCleanup,
   processSmsDeliveryStatus,
+  processScheduledReports,
 });
 
 // ---- myGroups Lambda needs permission to read Cognito groups ----
@@ -156,6 +158,22 @@ processSmsDeliveryStatusFn.addEventSource(
     reportBatchItemFailures: true,
   })
 );
+
+const processScheduledReportsFn =
+  backend.processScheduledReports.resources.lambda as unknown as lambda.Function;
+
+processScheduledReportsFn.addToRolePolicy(
+  new PolicyStatement({
+    actions: ["ses:SendEmail", "ses:SendRawEmail"],
+    resources: ["*"],
+  })
+);
+
+new events.Rule(processScheduledReportsFn, "ProcessScheduledReportsEveryMinute", {
+  schedule: events.Schedule.rate(cdk.Duration.minutes(1)),
+  targets: [new targets.LambdaFunction(processScheduledReportsFn)],
+});
+
 const resolveDriveShareLinkFn =
   backend.resolveDriveShareLink.resources.lambda as unknown as lambda.Function;
 const driveRetentionCleanupFn =

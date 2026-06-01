@@ -281,6 +281,22 @@ const MODULE_DEFINITIONS = [
   },
 
   {
+    id: "scheduledreports",
+    title: "Scheduled Reports",
+    icon: "fas fa-calendar-days",
+    category: "financial",
+    options: [
+      { id: "scheduledreports_list", label: "Show Scheduled Reports page in sidebar", prefix: "-" },
+      { id: "scheduledreports_view", label: "View report data", prefix: "a." },
+      { id: "scheduledreports_filter", label: "Use dropdown filters", prefix: "b." },
+      { id: "scheduledreports_export_pdf", label: "Generate PDF reports", prefix: "c." },
+      { id: "scheduledreports_export_excel", label: "Generate Excel reports", prefix: "d." },
+      { id: "scheduledreports_create", label: "Create report schedules", prefix: "e." },
+      { id: "scheduledreports_cancel", label: "Cancel report schedules", prefix: "f." },
+    ],
+  },
+
+  {
     id: "serviceexec",
     title: "Service Execution",
     icon: "fas fa-screwdriver-wrench",

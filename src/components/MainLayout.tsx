@@ -25,6 +25,7 @@ const loadCampaignAudienceAdmin = () => import("../pages/CampaignAudienceAdmin")
 const loadJobOrderHistory = () => import("../pages/JobOrderHistory");
 const loadQuotationPage = () => import("../pages/QuotationPage");
 const loadVoucherGiftPage = () => import("../pages/VoucherGiftPage");
+const loadScheduledReportsPage = () => import("../pages/ScheduledReportsPage");
 const loadQualityCheckModule = () => import("../pages/QualityCheckModule");
 const loadExitPermitManagement = () => import("../pages/ExitPermitManagement");
 
@@ -55,6 +56,7 @@ const CampaignAudienceAdmin = lazy(loadCampaignAudienceAdmin);
 const JobOrderHistory = lazy(loadJobOrderHistory);
 const QuotationPage = lazy(loadQuotationPage);
 const VoucherGiftPage = lazy(loadVoucherGiftPage);
+const ScheduledReportsPage = lazy(loadScheduledReportsPage);
 const QualityCheckModule = lazy(loadQualityCheckModule);
 const ExitPermitManagement = lazy(loadExitPermitManagement);
 
@@ -85,6 +87,7 @@ type Page =
   | "jobhistory"
   | "quotation"
   | "vouchergift"
+  | "scheduledreports"
   | "serviceexecution"
   | "paymentinvoices"
   | "qualitycheck"
@@ -113,6 +116,7 @@ const PAGE_LOADERS: Record<Page, () => Promise<unknown>> = {
   jobhistory: loadJobOrderHistory,
   quotation: loadQuotationPage,
   vouchergift: loadVoucherGiftPage,
+  scheduledreports: loadScheduledReportsPage,
   serviceexecution: loadServiceExecution,
   paymentinvoices: loadPaymentInvoiceManagment,
   qualitycheck: loadQualityCheckModule,
@@ -298,6 +302,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       jobhistory: jobCardsRead && listOn("jobhistory", "jobhistory_list"),
       quotation: jobCardsRead && listOn("quotation", "quotation_list"),
       vouchergift: jobCardsRead && listOn("vouchergift", "vouchergift_list"),
+      scheduledreports: jobCardsRead && listOn("scheduledreports", "scheduledreports_list"),
       serviceexecution: jobCardsRead && listOn("serviceexec", "serviceexec_list"),
       paymentinvoices: jobCardsRead && listOn("payment", "payment_list"),
       qualitycheck: jobCardsRead && listOn("qualitycheck", "qualitycheck_list"),
@@ -339,6 +344,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.jobhistory) pages.push("jobhistory");
     if (show.quotation) pages.push("quotation");
     if (show.vouchergift) pages.push("vouchergift");
+    if (show.scheduledreports) pages.push("scheduledreports");
     if (show.serviceexecution) pages.push("serviceexecution");
     if (show.paymentinvoices) pages.push("paymentinvoices");
     if (show.qualitycheck) pages.push("qualitycheck");
@@ -417,6 +423,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !show.jobhistory &&
     !show.quotation &&
     !show.vouchergift &&
+    !show.scheduledreports &&
     !show.serviceexecution &&
     !show.paymentinvoices &&
     !show.qualitycheck &&
@@ -441,6 +448,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.jobhistory) allowedPages.push("jobhistory");
     if (show.quotation) allowedPages.push("quotation");
     if (show.vouchergift) allowedPages.push("vouchergift");
+    if (show.scheduledreports) allowedPages.push("scheduledreports");
     if (show.serviceexecution) allowedPages.push("serviceexecution");
     if (show.paymentinvoices) allowedPages.push("paymentinvoices");
     if (show.qualitycheck) allowedPages.push("qualitycheck");
@@ -470,6 +478,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       (page === "jobhistory" && show.jobhistory) ||
       (page === "quotation" && show.quotation) ||
       (page === "vouchergift" && show.vouchergift) ||
+      (page === "scheduledreports" && show.scheduledreports) ||
       (page === "serviceexecution" && show.serviceexecution) ||
       (page === "paymentinvoices" && show.paymentinvoices) ||
       (page === "qualitycheck" && show.qualitycheck) ||
@@ -717,6 +726,12 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               </button>
             )}
 
+            {show.scheduledreports && (
+              <button className={page === "scheduledreports" ? "active" : ""} onClick={() => go("scheduledreports")}>
+                <i className="fas fa-calendar-days" aria-hidden="true" /> {t("Scheduled Reports")}
+              </button>
+            )}
+
             {show.serviceexecution && (
               <button className={page === "serviceexecution" ? "active" : ""} onClick={() => go("serviceexecution")}>
                 <i className="fas fa-gears" aria-hidden="true" /> {t("Service Execution")}
@@ -960,6 +975,12 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             {page === "vouchergift" && show.vouchergift && (
               <PermissionGate moduleId="vouchergift" optionId="vouchergift_list">
                 <VoucherGiftPage currentUser={currentUser} />
+              </PermissionGate>
+            )}
+
+            {page === "scheduledreports" && show.scheduledreports && (
+              <PermissionGate moduleId="scheduledreports" optionId="scheduledreports_list">
+                <ScheduledReportsPage permissions={canAny("JOB_CARDS")} />
               </PermissionGate>
             )}
 

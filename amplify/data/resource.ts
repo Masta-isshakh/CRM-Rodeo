@@ -29,6 +29,7 @@ import { processSmsEvents } from "../functions/process-sms-events/resource";
 import { resolveDriveShareLink } from "../functions/resolve-drive-share-link/resource";
 import { driveRetentionCleanup } from "../functions/drive-retention-cleanup/resource";
 import { processSmsDeliveryStatus } from "../functions/process-sms-delivery-status/resource";
+import { processScheduledReports } from "../functions/process-scheduled-reports/resource";
 
 // ✅ MUST MATCH your Cognito group name EXACTLY
 const ADMIN_GROUP = "Admins";
@@ -1089,6 +1090,33 @@ const schema = a
       .authorization((allow) => [allow.authenticated()]),
 
     // -----------------------------
+    // SCHEDULED REPORTS
+    // -----------------------------
+    ScheduledReport: a
+      .model({
+        title: a.string().required(),
+        recipientEmail: a.string().required(),
+        reportFormat: a.enum(["PDF", "EXCEL"]),
+        reportModel: a.string(),
+        selectedFieldsJson: a.string(),
+        filtersJson: a.string().required(),
+        sendAt: a.datetime().required(),
+        status: a.enum(["PENDING", "SENT", "FAILED", "CANCELLED"]),
+        lastRunAt: a.datetime(),
+        fileName: a.string(),
+        errorMessage: a.string(),
+        createdBy: a.string(),
+        createdAt: a.datetime(),
+        updatedAt: a.datetime(),
+      })
+      .secondaryIndexes((index) => [
+        index("recipientEmail").queryField("scheduledReportsByRecipient"),
+        index("status").queryField("scheduledReportsByStatus"),
+        index("sendAt").queryField("scheduledReportsBySendAt"),
+      ])
+      .authorization((allow) => [allow.authenticated()]),
+
+    // -----------------------------
     // ADMIN MUTATIONS / QUERIES
     // -----------------------------
     inviteUser: a
@@ -1356,6 +1384,7 @@ const schema = a
     allow.resource(processSmsDeliveryStatus),
     allow.resource(resolveDriveShareLink),
     allow.resource(driveRetentionCleanup),
+    allow.resource(processScheduledReports),
   ]);
 
 export type Schema = ClientSchema<typeof schema>;

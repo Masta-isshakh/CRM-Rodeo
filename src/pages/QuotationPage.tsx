@@ -679,6 +679,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
       year: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+      hour12: true,
     });
     const validUntilDisplay = safeValidUntil.toLocaleDateString("en-GB", {
       day: "2-digit",
@@ -729,6 +730,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     const leftValueX = leftX + 23;
     const rightLabelX = rightX + 2;
     const rightValueX = rightX + 27;
+    const rightCellCenterX = rightX + (pageW - marginX - rightX) / 2;
 
     doc.setFillColor(tintPanel.r, tintPanel.g, tintPanel.b);
     doc.roundedRect(marginX, infoTop, contentW, infoH, 1.8, 1.8, "FD");
@@ -746,7 +748,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     drawArabicLine(doc, "رقم الفاتورة", pageW - marginX - 2, infoTop + 2.1, 22, docSectionTitleSize, "bold");
     doc.setFont("helvetica", "bold");
     doc.setFontSize(docSectionTitleSize);
-    doc.text(quoteNumber, rightLabelX, infoTop + 11.2);
+    doc.text(quoteNumber, rightCellCenterX, infoTop + 11.8, { align: "center" });
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(docLabelSize);
@@ -783,14 +785,14 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     // Services table
     const footerTop = pageH - 42;
     const tableTop = 81;
-    const rowH = 9.6;
-    const reservedBelowTable = 90;
+    const rowH = 9.2;
+    const reservedBelowTable = 62;
     const maxRowsForLayout = Math.max(4, Math.floor((footerTop - tableTop - reservedBelowTable) / rowH));
     const rowsCount = Math.max(1, Math.min(quotationDisplayLines.length, maxRowsForLayout));
     const tableH = rowH * (rowsCount + 1);
-    const amountW = 34;
+    const amountW = 40;
     const descW = contentW - amountW;
-    const amountRightX = pageW - marginX - 2;
+    const amountRightX = pageW - marginX - 4;
 
     doc.setFillColor(tintPanel.r, tintPanel.g, tintPanel.b);
     doc.roundedRect(marginX, tableTop, contentW, tableH, 1.6, 1.6, "FD");
@@ -804,14 +806,14 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
 
     doc.setFont("helvetica", "bold");
     doc.setFontSize(docLabelSize);
-    doc.text("Service", marginX + 2, tableTop + 6.5);
+    doc.text("Service", marginX + 2, tableTop + 6.6);
     drawArabicLine(doc, "الخدمة", marginX + descW - 5, tableTop + 0.8, 20, docLabelSize, "bold");
-    doc.text("AMOUNT", amountRightX, tableTop + 6.5, { align: "right" });
-    drawArabicLine(doc, "مبلغ الخدمة", amountRightX, tableTop + 0.8, amountW - 6, docLabelSize, "bold");
+    doc.text("AMOUNT", amountRightX - 1.2, tableTop + 6.6, { align: "right" });
+    drawArabicLine(doc, "مبلغ الخدمة", amountRightX, tableTop + 0.8, amountW - 10, docLabelSize, "bold");
 
     const shown = quotationDisplayLines.slice(0, rowsCount);
     shown.forEach((line, idx) => {
-      const y = tableTop + rowH + idx * rowH + 6.2;
+      const y = tableTop + rowH + idx * rowH + 6.4;
       if (line.isIncludedService) {
         const rowTop = tableTop + rowH + idx * rowH;
         doc.setFillColor(241, 245, 249);
@@ -857,7 +859,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     doc.setTextColor(17, 24, 39);
 
     // Totals block
-    const totalsTop = tableTop + tableH + 5.5;
+    const totalsTop = tableTop + tableH + 8.5;
     const totalsW = 78;
     const totalsX = pageW - marginX - totalsW;
     const totalsRowH = 7;
@@ -914,7 +916,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     const customerNote = safeText(customer.notes).trim();
     let customerNoteBoxHeight = 0;
     if (customerNote) {
-      const noteTop = totalsTop + totalsRowH * totals.length + 3;
+      const noteTop = totalsTop + totalsRowH * totals.length + 8;
       const noteW = contentW - 2;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
@@ -926,7 +928,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
       const noteLines = noteHasArabic
         ? splitArabicTextToLines(customerNote, noteW - 6, 9.2, "normal")
         : (doc.splitTextToSize(customerNote, noteW - 4) as string[]);
-      const noteBoxH = Math.max(9, noteLines.length * 4.8 + 4);
+      const noteBoxH = Math.max(12, noteLines.length * 4.8 + 8);
       customerNoteBoxHeight = noteBoxH;
       doc.setDrawColor(220, 231, 246);
       doc.setFillColor(248, 251, 255);
@@ -944,12 +946,12 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
           0.6
         );
       } else {
-        doc.text(noteLines, marginX + 3, noteTop + 6);
+        doc.text(noteLines, marginX + 3, noteTop + 7.2);
       }
     }
 
     // Remarks and terms
-    const remarksTop = totalsTop + totalsRowH * totals.length + (customerNote ? customerNoteBoxHeight + 8 : 3);
+    const remarksTop = totalsTop + totalsRowH * totals.length + (customerNote ? customerNoteBoxHeight + 16 : 10);
     const remarksLeftX = marginX + 1;
     const remarksLeftW = 118;
     const remarksRightX = pageW - marginX - 1;
@@ -964,13 +966,13 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     const remarksLineHeight = 4.7;
     const remarksArabicLineGap = 0.4;
     const remarksArabicLineHeight = 4.4 + remarksArabicLineGap;
-    let remarksEnglishY = remarksTop + 4.8;
+    let remarksEnglishY = remarksTop + 6.2;
     effectiveRemarkLinesEnglish.forEach((line) => {
       const lineCount = drawWrapped(line, remarksLeftX, remarksEnglishY, remarksLeftW, remarksLineHeight, "left");
       remarksEnglishY += lineCount * remarksLineHeight + 1.2;
     });
 
-    let remarksArabicY = remarksTop + 4.6;
+    let remarksArabicY = remarksTop + 6.0;
     effectiveRemarkLinesArabic.forEach((line) => {
       const lineCount = drawWrappedArabicLines(
         doc,
@@ -994,7 +996,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     doc.text("Email", marginX + 16, footerTop + 16.2, { align: "right" });
     doc.setFont("helvetica", "normal");
     doc.setFontSize(8.8);
-    doc.text("RodeoDrive.QA", marginX + 18, footerTop + 10.2);
+    doc.text("rodeodrive.qa", marginX + 18, footerTop + 10.2);
     doc.text("info@rodeodrive.qa", marginX + 18, footerTop + 16.2);
 
     const pdfBlob = doc.output("blob") as Blob;

@@ -161,6 +161,26 @@ export function resolvePolicyAndOp(moduleId: string, optionId: string): Resolved
     return null;
   }
 
+  if (m === "scheduledreports" || m === "scheduledreport") {
+    if (
+      o === "scheduledreports_list" ||
+      o === "scheduledreports_view" ||
+      o === "scheduledreports_filter"
+    ) {
+      return { policyKey: "JOB_CARDS", op: "canRead" };
+    }
+
+    if (
+      o === "scheduledreports_export_pdf" ||
+      o === "scheduledreports_export_excel" ||
+      o === "scheduledreports_create" ||
+      o === "scheduledreports_cancel"
+    ) {
+      return { policyKey: "JOB_CARDS", op: "canUpdate", fallbackOps: ["canCreate"] };
+    }
+    return null;
+  }
+
   // JOB ORDERS
   if (m === "joborder" || m === "joborders") {
     if (
