@@ -1095,6 +1095,7 @@ const schema = a
     ScheduledReport: a
       .model({
         title: a.string().required(),
+        senderEmail: a.string(),
         recipientEmail: a.string().required(),
         reportFormat: a.enum(["PDF", "EXCEL"]),
         reportModel: a.string(),

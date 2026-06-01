@@ -188,6 +188,7 @@ function chunkBase64(input: string): string {
 }
 
 async function sendEmailWithAttachment(params: {
+  from: string;
   to: string;
   subject: string;
   bodyText: string;
@@ -201,6 +202,7 @@ async function sendEmailWithAttachment(params: {
 
   const raw = [
     `From: ${FROM_EMAIL}`,
+    `From: ${params.from}`,
     `To: ${params.to}`,
     `Subject: ${params.subject}`,
     "MIME-Version: 1.0",
@@ -229,7 +231,7 @@ async function sendEmailWithAttachment(params: {
   ].join("\r\n");
 
   const command = new SendEmailCommand({
-    FromEmailAddress: FROM_EMAIL,
+    FromEmailAddress: params.from,
     Destination: { ToAddresses: [params.to] },
     Content: {
       Raw: {
@@ -274,9 +276,6 @@ async function loadModelRows(client: ReturnType<typeof generateClient<Schema>>, 
 export const handler = async () => {
   const client = await configureClient();
 
-  if (!FROM_EMAIL) {
-    return { ok: false, message: "SES_FROM_EMAIL is not configured." };
-  }
 
   const nowIso = new Date().toISOString();
   const schedulesRes = await client.models.ScheduledReport.list({
@@ -301,6 +300,19 @@ export const handler = async () => {
     const to = text(schedule.recipientEmail).toLowerCase();
     const reportFormat = text(schedule.reportFormat).toUpperCase() === "EXCEL" ? "EXCEL" : "PDF";
     const title = text(schedule.title) || "Scheduled Report";
+    const fromEmail = text(schedule.senderEmail) || FROM_EMAIL;
+
+    if (!fromEmail) {
+      await client.models.ScheduledReport.update({
+        id,
+        status: "FAILED",
+        errorMessage: "No sender email configured.",
+        lastRunAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      } as any);
+      failed += 1;
+      continue;
+    }
 
     try {
       const payload = parseFilters(text(schedule.filtersJson));
@@ -313,6 +325,7 @@ export const handler = async () => {
       const attachment = reportFormat === "EXCEL" ? toCsvAttachment(rows, fields) : toPdfAttachment(rows, fields);
 
       await sendEmailWithAttachment({
+        from: fromEmail,
         to,
         subject: `${title} (${modelKey})`,
         bodyText: `Your scheduled report is attached.\nModel: ${modelKey}\nRows: ${rows.length}\nGenerated: ${new Date().toISOString()}`,

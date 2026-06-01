@@ -155,6 +155,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
   });
 
   const [recipientEmail, setRecipientEmail] = useState("");
+  const [senderEmail, setSenderEmail] = useState("");
   const [scheduleAt, setScheduleAt] = useState("");
   const [scheduleFormat, setScheduleFormat] = useState<ReportFormat>("PDF");
   const [scheduleTitle, setScheduleTitle] = useState("");
@@ -414,6 +415,12 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
       return;
     }
 
+    const sender = txt(senderEmail);
+    if (!sender) {
+      setMessage(t("Please enter a verified SES sender email."));
+      return;
+    }
+
     const selectedTime = scheduleAt ? new Date(scheduleAt) : null;
     if (!selectedTime || Number.isNaN(selectedTime.getTime())) {
       setMessage(t("Please choose a valid schedule date and time."));
@@ -444,6 +451,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
 
       const payload = {
         title: txt(scheduleTitle) || `${selectedModel} ${new Date().toLocaleDateString()} ${scheduleFormat}`,
+        senderEmail: sender,
         recipientEmail: recipient,
         reportFormat: scheduleFormat,
         reportModel: selectedModel,
@@ -478,6 +486,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
 
       setScheduleTitle("");
       setRecipientEmail("");
+      setSenderEmail("");
       setScheduleAt("");
       setScheduleFormat("PDF");
       setMessage(t("Report schedule saved successfully."));
@@ -525,9 +534,9 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
       <div className="sr-shell">
         <header className="sr-header">
           <div>
-            <p className="sr-kicker">{t("Analytics & Delivery")}</p>
+            <p className="sr-kicker">{t("Reports & Delivery")}</p>
             <h1>{t("Scheduled Reports")}</h1>
-            <p>{t("Filter data, export PDF/Excel instantly, and schedule report delivery by email.")}</p>
+            <p>{t("Build a report, keep the filters simple, and send it by email on a schedule.")}</p>
           </div>
           <div className="sr-metrics">
             <div><span>{t("Model")}</span><strong>{selectedModel}</strong></div>
@@ -538,6 +547,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
 
         <section className="sr-card">
           <div className="sr-card-title">{t("Report Scope")}</div>
+          <p className="sr-help">{t("Start with the model, then use the optional filters if you need to narrow the report further.")}</p>
           <div className="sr-grid">
             <label>
               <span>{t("Data Model")}</span>
@@ -563,77 +573,81 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
               <input type="date" value={filters.dateTo} onChange={(e) => setFilters((p) => ({ ...p, dateTo: e.target.value }))} />
             </label>
 
-            <label>
-              <span>{t("Filter Field 1")}</span>
-              <select value={filters.field1} onChange={(e) => setFilters((p) => ({ ...p, field1: e.target.value, value1: "" }))}>
-                <option value="">{t("All")}</option>
-                {fieldOptions.map((f) => <option key={f} value={f}>{f}</option>)}
-              </select>
-            </label>
-
-            <label>
-              <span>{t("Filter Value 1")}</span>
-              <select value={filters.value1} onChange={(e) => setFilters((p) => ({ ...p, value1: e.target.value }))}>
-                <option value="">{t("All")}</option>
-                {fieldValueOptions(filters.field1).map((v) => <option key={v} value={v}>{v}</option>)}
-              </select>
-            </label>
-
-            <label>
-              <span>{t("Filter Field 2")}</span>
-              <select value={filters.field2} onChange={(e) => setFilters((p) => ({ ...p, field2: e.target.value, value2: "" }))}>
-                <option value="">{t("All")}</option>
-                {fieldOptions.map((f) => <option key={f} value={f}>{f}</option>)}
-              </select>
-            </label>
-
-            <label>
-              <span>{t("Filter Value 2")}</span>
-              <select value={filters.value2} onChange={(e) => setFilters((p) => ({ ...p, value2: e.target.value }))}>
-                <option value="">{t("All")}</option>
-                {fieldValueOptions(filters.field2).map((v) => <option key={v} value={v}>{v}</option>)}
-              </select>
-            </label>
-
-            <label>
-              <span>{t("Filter Field 3")}</span>
-              <select value={filters.field3} onChange={(e) => setFilters((p) => ({ ...p, field3: e.target.value, value3: "" }))}>
-                <option value="">{t("All")}</option>
-                {fieldOptions.map((f) => <option key={f} value={f}>{f}</option>)}
-              </select>
-            </label>
-
-            <label>
-              <span>{t("Filter Value 3")}</span>
-              <select value={filters.value3} onChange={(e) => setFilters((p) => ({ ...p, value3: e.target.value }))}>
-                <option value="">{t("All")}</option>
-                {fieldValueOptions(filters.field3).map((v) => <option key={v} value={v}>{v}</option>)}
-              </select>
-            </label>
           </div>
 
-          <div className="sr-card-title" style={{ marginTop: 12 }}>{t("Included Fields")}</div>
-          <div className="sr-fields">
-            {fieldOptions.map((field) => {
-              const checked = selectedFields.includes(field);
-              return (
-                <label key={field} className="sr-check">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    onChange={(e) => {
-                      const on = e.target.checked;
-                      setSelectedFields((prev) => {
-                        if (on) return [...prev, field];
-                        return prev.filter((f) => f !== field);
-                      });
-                    }}
-                  />
-                  <span>{field}</span>
-                </label>
-              );
-            })}
-          </div>
+          <details className="sr-disclosure">
+            <summary>{t("Advanced filters")}</summary>
+            <p className="sr-help">{t("Use these only when the simple search and date range are not enough.")}</p>
+            <div className="sr-grid sr-grid-advanced">
+              <label>
+                <span>{t("Filter Field 1")}</span>
+                <select value={filters.field1} onChange={(e) => setFilters((p) => ({ ...p, field1: e.target.value, value1: "" }))}>
+                  <option value="">{t("All")}</option>
+                  {fieldOptions.map((f) => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>{t("Filter Value 1")}</span>
+                <select value={filters.value1} onChange={(e) => setFilters((p) => ({ ...p, value1: e.target.value }))}>
+                  <option value="">{t("All")}</option>
+                  {fieldValueOptions(filters.field1).map((v) => <option key={v} value={v}>{v}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>{t("Filter Field 2")}</span>
+                <select value={filters.field2} onChange={(e) => setFilters((p) => ({ ...p, field2: e.target.value, value2: "" }))}>
+                  <option value="">{t("All")}</option>
+                  {fieldOptions.map((f) => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>{t("Filter Value 2")}</span>
+                <select value={filters.value2} onChange={(e) => setFilters((p) => ({ ...p, value2: e.target.value }))}>
+                  <option value="">{t("All")}</option>
+                  {fieldValueOptions(filters.field2).map((v) => <option key={v} value={v}>{v}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>{t("Filter Field 3")}</span>
+                <select value={filters.field3} onChange={(e) => setFilters((p) => ({ ...p, field3: e.target.value, value3: "" }))}>
+                  <option value="">{t("All")}</option>
+                  {fieldOptions.map((f) => <option key={f} value={f}>{f}</option>)}
+                </select>
+              </label>
+              <label>
+                <span>{t("Filter Value 3")}</span>
+                <select value={filters.value3} onChange={(e) => setFilters((p) => ({ ...p, value3: e.target.value }))}>
+                  <option value="">{t("All")}</option>
+                  {fieldValueOptions(filters.field3).map((v) => <option key={v} value={v}>{v}</option>)}
+                </select>
+              </label>
+            </div>
+          </details>
+
+          <details className="sr-disclosure">
+            <summary>{t("Choose columns")}</summary>
+            <div className="sr-fields">
+              {fieldOptions.map((field) => {
+                const checked = selectedFields.includes(field);
+                return (
+                  <label key={field} className="sr-check">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={(e) => {
+                        const on = e.target.checked;
+                        setSelectedFields((prev) => {
+                          if (on) return [...prev, field];
+                          return prev.filter((f) => f !== field);
+                        });
+                      }}
+                    />
+                    <span>{field}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </details>
 
           <div className="sr-actions">
             <button type="button" className="sr-btn sr-btn-ghost" onClick={() => setFilters({ ...EMPTY_FILTERS })}>{t("Reset Filters")}</button>
@@ -644,10 +658,15 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
 
         <section className="sr-card">
           <div className="sr-card-title">{t("Schedule Delivery")}</div>
+          <p className="sr-help">{t("The sender must be a verified SES identity in eu-west-1.")}</p>
           <div className="sr-schedule-grid">
             <label>
               <span>{t("Report Title")}</span>
               <input value={scheduleTitle} onChange={(e) => setScheduleTitle(e.target.value)} placeholder={t("Scheduled Reports") as string} />
+            </label>
+            <label>
+              <span>{t("Sender Email")}</span>
+              <input value={senderEmail} onChange={(e) => setSenderEmail(e.target.value)} placeholder={t("Verified SES identity") as string} />
             </label>
             <label>
               <span>{t("Recipient Email")}</span>
