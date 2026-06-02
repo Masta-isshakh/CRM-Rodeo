@@ -211,7 +211,9 @@ export default function Users(_: PageProps) {
   const [lineManagerEmail, setLineManagerEmail] = useState("");
   const [invitePasswordMode, setInvitePasswordMode] = useState<"invite" | "set">("invite");
   const [invitePassword, setInvitePassword] = useState("");
+  const [invitePasswordConfirm, setInvitePasswordConfirm] = useState("");
   const [invitePasswordVisible, setInvitePasswordVisible] = useState(false);
+  const [invitePasswordConfirmVisible, setInvitePasswordConfirmVisible] = useState(false);
   const [inviteStatus, setInviteStatus] = useState("");
 
   // Delete confirmation popup state
@@ -253,6 +255,8 @@ export default function Users(_: PageProps) {
   const [editDashboardAccessEnabled, setEditDashboardAccessEnabled] = useState(true);
   const [editPrimaryPassword, setEditPrimaryPassword] = useState("");
   const [editPrimaryPasswordConfirm, setEditPrimaryPasswordConfirm] = useState("");
+  const [editPrimaryPasswordVisible, setEditPrimaryPasswordVisible] = useState(false);
+  const [editPrimaryPasswordConfirmVisible, setEditPrimaryPasswordConfirmVisible] = useState(false);
   const [lockoutNow, setLockoutNow] = useState(() => Date.now());
   const [detailsStatus, setDetailsStatus] = useState("");
 
@@ -726,6 +730,7 @@ export default function Users(_: PageProps) {
       const ln = lastName.trim();
       const mob = mobileNumber.trim();
       const rawPassword = invitePassword.trim();
+      const rawPasswordConfirm = invitePasswordConfirm.trim();
       const password = invitePasswordMode === "set" ? rawPassword : "";
       const lmEmail = String(lineManagerEmail ?? "").trim().toLowerCase();
       const lmName =
@@ -736,6 +741,10 @@ export default function Users(_: PageProps) {
       if (!departmentKey) throw new Error(t("selectDepartment"));
       if (!roleKey) throw new Error(t("selectRole"));
       if (!mob) throw new Error(t("mobileNumberRequired"));
+      if (invitePasswordMode === "set") {
+        if (rawPassword.length < 8) throw new Error(t("passwordMustBeAtLeast8Characters"));
+        if (rawPassword !== rawPasswordConfirm) throw new Error(t("passwordConfirmationDoesNotMatch"));
+      }
       const duplicateEmployeeId = users.some(
         (u) => normalizeEmployeeId(String((u as any).employeeId ?? "")) === eid
       );
@@ -793,8 +802,9 @@ export default function Users(_: PageProps) {
       setLineManagerEmail("");
       setInvitePasswordMode("invite");
       setInvitePassword("");
+      setInvitePasswordConfirm("");
       setInvitePasswordVisible(false);
-      setInviteOpen(false);
+      setInvitePasswordConfirmVisible(false);
       void load();
     } catch (e: any) {
       console.error(e);
@@ -873,6 +883,8 @@ export default function Users(_: PageProps) {
       setEditDashboardAccessEnabled(nextIsActive ? nextDashboardEnabled : false);
       setEditPrimaryPassword("");
       setEditPrimaryPasswordConfirm("");
+      setEditPrimaryPasswordVisible(false);
+      setEditPrimaryPasswordConfirmVisible(false);
       setDetailsStatus("");
       setDetailsOpen(true);
     });
@@ -1261,6 +1273,8 @@ export default function Users(_: PageProps) {
 
       setEditPrimaryPassword("");
       setEditPrimaryPasswordConfirm("");
+      setEditPrimaryPasswordVisible(false);
+      setEditPrimaryPasswordConfirmVisible(false);
       setDetailsStatus(t("primaryPasswordUpdatedSuccessfully"));
     } catch (e: any) {
       console.error(e);
@@ -1666,24 +1680,48 @@ export default function Users(_: PageProps) {
                       <div className="ums-toggle-title">{t("setPrimaryPasswordNow")}</div>
                       <div className="ums-toggle-sub">{t("changePrimaryPasswordForThisUser")}</div>
                       <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
-                        <input
-                          className="ums-input"
-                          type="password"
-                          value={editPrimaryPassword}
-                          onChange={(e) => setEditPrimaryPassword(e.target.value)}
-                          placeholder={t("newPassword")}
-                          autoComplete="new-password"
-                          disabled={loading || !detailsEditing || isRootAdminSyntheticUser(detailsUser)}
-                        />
-                        <input
-                          className="ums-input"
-                          type="password"
-                          value={editPrimaryPasswordConfirm}
-                          onChange={(e) => setEditPrimaryPasswordConfirm(e.target.value)}
-                          placeholder={t("confirmNewPassword")}
-                          autoComplete="new-password"
-                          disabled={loading || !detailsEditing || isRootAdminSyntheticUser(detailsUser)}
-                        />
+                        <div className="ums-password-input-wrap">
+                          <input
+                            className="ums-input ums-password-input"
+                            type={editPrimaryPasswordVisible ? "text" : "password"}
+                            value={editPrimaryPassword}
+                            onChange={(e) => setEditPrimaryPassword(e.target.value)}
+                            placeholder={t("newPassword")}
+                            autoComplete="new-password"
+                            disabled={loading || isRootAdminSyntheticUser(detailsUser)}
+                          />
+                          <button
+                            type="button"
+                            className="ums-password-toggle-btn"
+                            onClick={() => setEditPrimaryPasswordVisible((prev) => !prev)}
+                            aria-label={editPrimaryPasswordVisible ? t("Hide password") : t("Show password")}
+                            title={editPrimaryPasswordVisible ? t("Hide password") : t("Show password")}
+                            disabled={loading || isRootAdminSyntheticUser(detailsUser)}
+                          >
+                            <i className={`fas ${editPrimaryPasswordVisible ? "fa-eye-slash" : "fa-eye"}`} aria-hidden="true" />
+                          </button>
+                        </div>
+                        <div className="ums-password-input-wrap">
+                          <input
+                            className="ums-input ums-password-input"
+                            type={editPrimaryPasswordConfirmVisible ? "text" : "password"}
+                            value={editPrimaryPasswordConfirm}
+                            onChange={(e) => setEditPrimaryPasswordConfirm(e.target.value)}
+                            placeholder={t("confirmNewPassword")}
+                            autoComplete="new-password"
+                            disabled={loading || isRootAdminSyntheticUser(detailsUser)}
+                          />
+                          <button
+                            type="button"
+                            className="ums-password-toggle-btn"
+                            onClick={() => setEditPrimaryPasswordConfirmVisible((prev) => !prev)}
+                            aria-label={editPrimaryPasswordConfirmVisible ? t("Hide password") : t("Show password")}
+                            title={editPrimaryPasswordConfirmVisible ? t("Hide password") : t("Show password")}
+                            disabled={loading || isRootAdminSyntheticUser(detailsUser)}
+                          >
+                            <i className={`fas ${editPrimaryPasswordConfirmVisible ? "fa-eye-slash" : "fa-eye"}`} aria-hidden="true" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                     <Button
@@ -1691,7 +1729,6 @@ export default function Users(_: PageProps) {
                       isDisabled={
                         loading ||
                         isRootAdminSyntheticUser(detailsUser) ||
-                        !detailsEditing ||
                         !editPrimaryPassword ||
                         !editPrimaryPasswordConfirm
                       }
@@ -1699,7 +1736,6 @@ export default function Users(_: PageProps) {
                         !canEditUsers ||
                         loading ||
                         isRootAdminSyntheticUser(detailsUser) ||
-                        !detailsEditing ||
                         !editPrimaryPassword ||
                         !editPrimaryPasswordConfirm
                       }
@@ -1808,7 +1844,10 @@ export default function Users(_: PageProps) {
                   className="ums-add-btn"
                   onClick={() => {
                     setInviteStatus("");
+                    setInvitePassword("");
+                    setInvitePasswordConfirm("");
                     setInvitePasswordVisible(false);
+                    setInvitePasswordConfirmVisible(false);
                     setInviteOpen(true);
                   }}
                   disabled={!canInviteUsers}
@@ -1926,6 +1965,7 @@ export default function Users(_: PageProps) {
                   className="ums-modal-close"
                   onClick={() => {
                     setInvitePasswordVisible(false);
+                    setInvitePasswordConfirmVisible(false);
                     setInviteOpen(false);
                   }}
                   aria-label={t("Close")}
@@ -2089,6 +2129,27 @@ export default function Users(_: PageProps) {
                         <i className={`fas ${invitePasswordVisible ? "fa-eye-slash" : "fa-eye"}`} aria-hidden="true" />
                       </button>
                     </div>
+                    {invitePasswordMode === "set" ? (
+                      <div className="ums-password-input-wrap" style={{ marginTop: 8 }}>
+                        <input
+                          className="ums-input ums-password-input"
+                          type={invitePasswordConfirmVisible ? "text" : "password"}
+                          value={invitePasswordConfirm}
+                          onChange={(e) => setInvitePasswordConfirm(e.target.value)}
+                          placeholder={t("confirmNewPassword")}
+                          autoComplete="new-password"
+                        />
+                        <button
+                          type="button"
+                          className="ums-password-toggle-btn"
+                          onClick={() => setInvitePasswordConfirmVisible((prev) => !prev)}
+                          aria-label={invitePasswordConfirmVisible ? t("Hide password") : t("Show password")}
+                          title={invitePasswordConfirmVisible ? t("Hide password") : t("Show password")}
+                        >
+                          <i className={`fas ${invitePasswordConfirmVisible ? "fa-eye-slash" : "fa-eye"}`} aria-hidden="true" />
+                        </button>
+                      </div>
+                    ) : null}
                     <div className="ums-field-hint">{t("leaveBlankForTemporaryPassword")}</div>
                   </div>
                 </div>
@@ -2114,6 +2175,7 @@ export default function Users(_: PageProps) {
                 <Button
                   onClick={() => {
                     setInvitePasswordVisible(false);
+                    setInvitePasswordConfirmVisible(false);
                     setInviteOpen(false);
                   }}
                 >
