@@ -215,6 +215,7 @@ export default function Users(_: PageProps) {
   const [invitePasswordVisible, setInvitePasswordVisible] = useState(false);
   const [invitePasswordConfirmVisible, setInvitePasswordConfirmVisible] = useState(false);
   const [inviteStatus, setInviteStatus] = useState("");
+  const [inviteStatusTone, setInviteStatusTone] = useState<"ok" | "error">("ok");
 
   // Delete confirmation popup state
   const [deletePopupOpen, setDeletePopupOpen] = useState(false);
@@ -722,6 +723,7 @@ export default function Users(_: PageProps) {
   // Backend actions
   const invite = async () => {
     if (!canInviteUsers) return;
+    setInviteStatusTone("ok");
     setInviteStatus(t("inviting"));
     try {
       const e = email.trim().toLowerCase();
@@ -792,6 +794,7 @@ export default function Users(_: PageProps) {
             ? `Primary password set for ${deliveredTo}.`
             : `Invitation email sent to ${deliveredTo}.`
       );
+      setInviteStatusTone("ok");
       setEmployeeId("");
       setEmail("");
       setFirstName("");
@@ -808,6 +811,7 @@ export default function Users(_: PageProps) {
       void load();
     } catch (e: any) {
       console.error(e);
+      setInviteStatusTone("error");
       setInviteStatus(e?.message ?? t("inviteFailed"));
     }
   };
@@ -815,6 +819,7 @@ export default function Users(_: PageProps) {
   const copyInviteLink = async () => {
     if (!inviteLink) return;
     await navigator.clipboard.writeText(inviteLink);
+    setInviteStatusTone("ok");
     setInviteStatus(t("setPasswordLink"));
   };
 
@@ -1843,6 +1848,7 @@ export default function Users(_: PageProps) {
                 <button
                   className="ums-add-btn"
                   onClick={() => {
+                    setInviteStatusTone("ok");
                     setInviteStatus("");
                     setInvitePassword("");
                     setInvitePasswordConfirm("");
@@ -2168,7 +2174,7 @@ export default function Users(_: PageProps) {
                   </div>
                 </div>
 
-                {inviteStatus && <div className="ums-toast">{inviteStatus}</div>}
+                {inviteStatus && <div className={`ums-toast ${inviteStatusTone === "error" ? "error" : ""}`}>{inviteStatus}</div>}
               </div>
 
               <div className="ums-modal-foot">
