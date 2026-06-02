@@ -13,6 +13,7 @@ import { matchesSearchQuery } from "../lib/searchUtils";
 import { usePermissions } from "../lib/userPermissions";
 import PermissionGate from "./PermissionGate";
 import ConfirmationPopup from "./ConfirmationPopup";
+import SuccessPopup from "./SuccessPopup";
 
 import "./UserAdmin.css";
 
@@ -216,6 +217,8 @@ export default function Users(_: PageProps) {
   const [invitePasswordConfirmVisible, setInvitePasswordConfirmVisible] = useState(false);
   const [inviteStatus, setInviteStatus] = useState("");
   const [inviteStatusTone, setInviteStatusTone] = useState<"ok" | "error">("ok");
+  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
+  const [successPopupMessage, setSuccessPopupMessage] = useState("");
 
   // Delete confirmation popup state
   const [deletePopupOpen, setDeletePopupOpen] = useState(false);
@@ -795,6 +798,13 @@ export default function Users(_: PageProps) {
             : `Invitation email sent to ${deliveredTo}.`
       );
       setInviteStatusTone("ok");
+      setInviteOpen(false);
+      if (inviteAction === "PASSWORD_SET") {
+        setSuccessPopupMessage("User is successfully created.");
+      } else {
+        setSuccessPopupMessage("Invitation sent successfully.");
+      }
+      setShowSuccessPopup(true);
       setEmployeeId("");
       setEmail("");
       setFirstName("");
@@ -1281,6 +1291,8 @@ export default function Users(_: PageProps) {
       setEditPrimaryPasswordVisible(false);
       setEditPrimaryPasswordConfirmVisible(false);
       setDetailsStatus(t("primaryPasswordUpdatedSuccessfully"));
+      setSuccessPopupMessage("User updated successfully.");
+      setShowSuccessPopup(true);
     } catch (e: any) {
       console.error(e);
       setDetailsStatus(e?.message ?? t("failedToSetPrimaryPassword"));
@@ -1380,6 +1392,13 @@ export default function Users(_: PageProps) {
         closeOnEsc={!deleteLoading}
         icon={<span className="cp-iconMark" aria-hidden="true">🗑</span>}
         footerNote={t("tipSetInactiveInsteadOfDeleting")}
+      />
+
+      <SuccessPopup
+        isVisible={showSuccessPopup}
+        onClose={() => setShowSuccessPopup(false)}
+        title={t("Success")}
+        message={successPopupMessage}
       />
 
       <div className="ums-shell">
@@ -2195,7 +2214,7 @@ export default function Users(_: PageProps) {
                     isDisabled={!canInviteUsers || loading}
                     isLoading={loading}
                   >
-                    {t("inviteUser")}
+                    {t("Create User")}
                   </Button>
                 </PermissionGate>
               </div>

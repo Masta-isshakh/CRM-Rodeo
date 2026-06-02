@@ -657,21 +657,27 @@
 
 .ums-password-input-wrap {
   position: relative;
+  display: flex;
+  align-items: center;
 }
 
 .ums-password-input {
-  padding-right: 44px;
+  padding-right: 46px;
 }
 
 .ums-password-toggle-btn {
   position: absolute;
-  right: 6px;
+  right: 8px;
   top: 50%;
   transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
   border: 0;
   background: transparent;
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   border-radius: 8px;
   color: #415785;
   cursor: pointer;
