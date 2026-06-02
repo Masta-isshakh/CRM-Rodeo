@@ -211,6 +211,7 @@ export default function Users(_: PageProps) {
   const [lineManagerEmail, setLineManagerEmail] = useState("");
   const [invitePasswordMode, setInvitePasswordMode] = useState<"invite" | "set">("invite");
   const [invitePassword, setInvitePassword] = useState("");
+  const [invitePasswordVisible, setInvitePasswordVisible] = useState(false);
   const [inviteStatus, setInviteStatus] = useState("");
 
   // Delete confirmation popup state
@@ -250,6 +251,8 @@ export default function Users(_: PageProps) {
   const [editLineManagerEmail, setEditLineManagerEmail] = useState("");
   const [editIsActive, setEditIsActive] = useState(true);
   const [editDashboardAccessEnabled, setEditDashboardAccessEnabled] = useState(true);
+  const [editPrimaryPassword, setEditPrimaryPassword] = useState("");
+  const [editPrimaryPasswordConfirm, setEditPrimaryPasswordConfirm] = useState("");
   const [lockoutNow, setLockoutNow] = useState(() => Date.now());
   const [detailsStatus, setDetailsStatus] = useState("");
 
@@ -790,6 +793,7 @@ export default function Users(_: PageProps) {
       setLineManagerEmail("");
       setInvitePasswordMode("invite");
       setInvitePassword("");
+      setInvitePasswordVisible(false);
       setInviteOpen(false);
       void load();
     } catch (e: any) {
@@ -867,6 +871,8 @@ export default function Users(_: PageProps) {
       const nextDashboardEnabled = Boolean((u as any).dashboardAccessEnabled ?? true);
       setEditIsActive(nextIsActive);
       setEditDashboardAccessEnabled(nextIsActive ? nextDashboardEnabled : false);
+      setEditPrimaryPassword("");
+      setEditPrimaryPasswordConfirm("");
       setDetailsStatus("");
       setDetailsOpen(true);
     });
@@ -1129,6 +1135,136 @@ export default function Users(_: PageProps) {
     } catch (e: any) {
       console.error(e);
       setDetailsStatus(e?.message ?? t("failedToSendResetPasswordEmail"));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const setPrimaryPasswordForUser = async (u: UserRow) => {
+    if (!canEditUsers) return;
+    if (isRootAdminSyntheticUser(u)) return;
+
+    const targetEmail = String(u.email ?? "").trim().toLowerCase();
+    if (!targetEmail) {
+      setDetailsStatus(t("userEmailMissing"));
+      return;
+    }
+
+    const nextPassword = String(editPrimaryPassword ?? "");
+    const nextPasswordConfirm = String(editPrimaryPasswordConfirm ?? "");
+    if (nextPassword.length < 8) {
+      setDetailsStatus(t("passwordMustBeAtLeast8Characters"));
+      return;
+    }
+    if (nextPassword !== nextPasswordConfirm) {
+      setDetailsStatus(t("passwordConfirmationDoesNotMatch"));
+      return;
+    }
+
+    const loadedUser = users.find(
+      (x) => String((x as any)?.email ?? "").trim().toLowerCase() === targetEmail
+    );
+    const isDetailsTarget =
+      detailsOpen &&
+      String((detailsUser as any)?.email ?? "").trim().toLowerCase() === targetEmail;
+
+    const fullName = String(u.fullName ?? (loadedUser as any)?.fullName ?? "").trim();
+
+    let deptKey = String(
+      u.departmentKey ??
+        (loadedUser as any)?.departmentKey ??
+        (isDetailsTarget ? editDepartmentKey : "")
+    ).trim();
+    const deptNameHint = String(
+      u.departmentName ?? (loadedUser as any)?.departmentName ?? ""
+    ).trim();
+    if (!deptKey && deptNameHint) {
+      const fromName = departments.find(
+        (d) => String(d.name ?? "").trim().toLowerCase() === deptNameHint.toLowerCase()
+      );
+      deptKey = String(fromName?.key ?? "").trim();
+    }
+
+    let roleId = String(
+      (u as any).roleId ??
+        (loadedUser as any)?.roleId ??
+        (isDetailsTarget ? editRoleKey : "")
+    ).trim();
+    const roleName = String((u as any).roleName ?? (loadedUser as any)?.roleName ?? "").trim();
+    if (!roleId && roleName) {
+      const roleByName = roles.find(
+        (r: any) => String(r?.name ?? "").trim().toLowerCase() === roleName.toLowerCase()
+      );
+      roleId = String(roleByName?.id ?? "").trim();
+    }
+    if (!roleId && deptKey) {
+      const link = deptRoleLinks.find((l: any) => String(l?.departmentKey ?? "") === deptKey);
+      roleId = String(link?.roleId ?? "").trim();
+    }
+
+    const employeeIdValue = normalizeEmployeeId(
+      String(
+        (u as any).employeeId ??
+          (loadedUser as any)?.employeeId ??
+          (isDetailsTarget ? editEmployeeId : "")
+      )
+    );
+    const mobileValue = String(
+      (u as any).mobileNumber ??
+        (loadedUser as any)?.mobileNumber ??
+        (isDetailsTarget ? editMobileNumber : "")
+    ).trim();
+
+    if (!deptKey) {
+      setDetailsStatus(t("departmentRequiredForReset"));
+      return;
+    }
+    if (!employeeIdValue) {
+      setDetailsStatus(t("employeeIdIsRequired"));
+      return;
+    }
+    if (!roleId) {
+      setDetailsStatus(t("roleRequired"));
+      return;
+    }
+
+    setLoading(true);
+    setDetailsStatus(t("settingPrimaryPassword"));
+    try {
+      const deptName =
+        departments.find((d) => d.key === deptKey)?.name ??
+        String(u.departmentName ?? "").trim() ??
+        "";
+
+      const res = await client.mutations.inviteUser({
+        employeeId: employeeIdValue,
+        email: targetEmail,
+        fullName: fullName || targetEmail,
+        mobileNumber: mobileValue || undefined,
+        departmentKey: deptKey,
+        departmentName: deptName,
+        roleId,
+        password: nextPassword,
+        lineManagerEmail: isDetailsTarget ? (String(editLineManagerEmail ?? "").trim().toLowerCase() || undefined) : undefined,
+      } as any);
+
+      const errs = (res as any)?.errors;
+      if (Array.isArray(errs) && errs.length) {
+        throw new Error(errs.map((x: any) => x.message).join(" | "));
+      }
+
+      const payload = (res as any)?.data ?? {};
+      const ok = payload?.ok !== false;
+      if (!ok) {
+        throw new Error(t("failedToSetPrimaryPassword"));
+      }
+
+      setEditPrimaryPassword("");
+      setEditPrimaryPasswordConfirm("");
+      setDetailsStatus(t("primaryPasswordUpdatedSuccessfully"));
+    } catch (e: any) {
+      console.error(e);
+      setDetailsStatus(e?.message ?? t("failedToSetPrimaryPassword"));
     } finally {
       setLoading(false);
     }
@@ -1524,6 +1660,53 @@ export default function Users(_: PageProps) {
                       {t("resetPassword")}
                     </Button>
                   </div>
+
+                  <div className="ums-password-row" style={{ marginTop: 12, alignItems: "flex-end", gap: 12, flexWrap: "wrap" }}>
+                    <div style={{ flex: "1 1 260px", minWidth: 220 }}>
+                      <div className="ums-toggle-title">{t("setPrimaryPasswordNow")}</div>
+                      <div className="ums-toggle-sub">{t("changePrimaryPasswordForThisUser")}</div>
+                      <div style={{ display: "grid", gap: 8, marginTop: 8 }}>
+                        <input
+                          className="ums-input"
+                          type="password"
+                          value={editPrimaryPassword}
+                          onChange={(e) => setEditPrimaryPassword(e.target.value)}
+                          placeholder={t("newPassword")}
+                          autoComplete="new-password"
+                          disabled={loading || !detailsEditing || isRootAdminSyntheticUser(detailsUser)}
+                        />
+                        <input
+                          className="ums-input"
+                          type="password"
+                          value={editPrimaryPasswordConfirm}
+                          onChange={(e) => setEditPrimaryPasswordConfirm(e.target.value)}
+                          placeholder={t("confirmNewPassword")}
+                          autoComplete="new-password"
+                          disabled={loading || !detailsEditing || isRootAdminSyntheticUser(detailsUser)}
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => void withLoading(setPrimaryPasswordForUser(detailsUser), t("Updating password..."))}
+                      isDisabled={
+                        loading ||
+                        isRootAdminSyntheticUser(detailsUser) ||
+                        !detailsEditing ||
+                        !editPrimaryPassword ||
+                        !editPrimaryPasswordConfirm
+                      }
+                      disabled={
+                        !canEditUsers ||
+                        loading ||
+                        isRootAdminSyntheticUser(detailsUser) ||
+                        !detailsEditing ||
+                        !editPrimaryPassword ||
+                        !editPrimaryPasswordConfirm
+                      }
+                    >
+                      {t("updatePrimaryPassword")}
+                    </Button>
+                  </div>
                 </div>
               </div>
 
@@ -1625,6 +1808,7 @@ export default function Users(_: PageProps) {
                   className="ums-add-btn"
                   onClick={() => {
                     setInviteStatus("");
+                    setInvitePasswordVisible(false);
                     setInviteOpen(true);
                   }}
                   disabled={!canInviteUsers}
@@ -1738,7 +1922,14 @@ export default function Users(_: PageProps) {
             <div className="ums-modal">
               <div className="ums-modal-head">
                 <h3>{t("Add New User")}</h3>
-                <button className="ums-modal-close" onClick={() => setInviteOpen(false)} aria-label={t("Close")}>
+                <button
+                  className="ums-modal-close"
+                  onClick={() => {
+                    setInvitePasswordVisible(false);
+                    setInviteOpen(false);
+                  }}
+                  aria-label={t("Close")}
+                >
                   ✕
                 </button>
               </div>
@@ -1879,14 +2070,25 @@ export default function Users(_: PageProps) {
                         <span>{t("setPrimaryPasswordNow")}</span>
                       </label>
                     </div>
-                    <input
-                      className="ums-input"
-                      type="password"
-                      value={invitePassword}
-                      onChange={(e) => setInvitePassword(e.target.value)}
-                      placeholder={t("primaryPasswordOptional")}
-                      autoComplete="new-password"
-                    />
+                    <div className="ums-password-input-wrap">
+                      <input
+                        className="ums-input ums-password-input"
+                        type={invitePasswordVisible ? "text" : "password"}
+                        value={invitePassword}
+                        onChange={(e) => setInvitePassword(e.target.value)}
+                        placeholder={t("primaryPasswordOptional")}
+                        autoComplete="new-password"
+                      />
+                      <button
+                        type="button"
+                        className="ums-password-toggle-btn"
+                        onClick={() => setInvitePasswordVisible((prev) => !prev)}
+                        aria-label={invitePasswordVisible ? t("Hide password") : t("Show password")}
+                        title={invitePasswordVisible ? t("Hide password") : t("Show password")}
+                      >
+                        <i className={`fas ${invitePasswordVisible ? "fa-eye-slash" : "fa-eye"}`} aria-hidden="true" />
+                      </button>
+                    </div>
                     <div className="ums-field-hint">{t("leaveBlankForTemporaryPassword")}</div>
                   </div>
                 </div>
@@ -1909,7 +2111,14 @@ export default function Users(_: PageProps) {
               </div>
 
               <div className="ums-modal-foot">
-                <Button onClick={() => setInviteOpen(false)}>{t("Cancel")}</Button>
+                <Button
+                  onClick={() => {
+                    setInvitePasswordVisible(false);
+                    setInviteOpen(false);
+                  }}
+                >
+                  {t("Cancel")}
+                </Button>
                 <Button onClick={copyInviteLink} isDisabled={!inviteLink}>{t("copyLink")}</Button>
                 <PermissionGate moduleId="users" optionId="users_invite">
                   <Button

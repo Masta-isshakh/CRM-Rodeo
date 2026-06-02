@@ -5,6 +5,7 @@ import "./QuotationPage.css";
 import PermissionGate from "./PermissionGate";
 import { useLanguage } from "../i18n/LanguageContext";
 import { usePermissions } from "../lib/userPermissions";
+import { getDataClient } from "../lib/amplifyClient";
 import logo from "../assets/logo.jpeg";
 import {
   listServiceCatalog,
@@ -46,6 +47,23 @@ type CustomerInfo = {
   vehiclePlate: string;
   vehicleType: string;
   notes: string;
+};
+
+type VoucherHistoryRow = {
+  id: string;
+  quoteNumber: string;
+  customerName: string;
+  customerMobile: string;
+  customerEmail: string;
+  vehicleType: string;
+  vehiclePlate: string;
+  includePaymentInfo: boolean;
+  subtotal: number;
+  discountAmount: number;
+  netAmount: number;
+  amountPaid: number;
+  balanceDue: number;
+  createdAt: string;
 };
 
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -490,6 +508,7 @@ export default function VoucherGiftPage({ currentUser }: { currentUser?: any; pe
   const { t } = useLanguage();
   const { canOption, getOptionNumber } = usePermissions();
   const { withLoading } = useGlobalLoading();
+  const client = useMemo(() => getDataClient(), []);
 
   const [catalog, setCatalog] = useState<ServiceCatalogItem[]>([]);
   const [loadingCatalog, setLoadingCatalog] = useState(true);
@@ -514,6 +533,48 @@ export default function VoucherGiftPage({ currentUser }: { currentUser?: any; pe
   const [remarkArTouched, setRemarkArTouched] = useState(false);
   const [remarkEnglish, setRemarkEnglish] = useState(() => buildDefaultRemarkEnglish(7));
   const [remarkArabic, setRemarkArabic] = useState(() => buildDefaultRemarkArabic(7));
+  const [voucherHistoryOpen, setVoucherHistoryOpen] = useState(false);
+  const [voucherHistoryLoading, setVoucherHistoryLoading] = useState(false);
+  const [voucherHistoryRows, setVoucherHistoryRows] = useState<VoucherHistoryRow[]>([]);
+
+  const loadVoucherHistory = async () => {
+    setVoucherHistoryLoading(true);
+    try {
+      const res = await client.models.VoucherGiftHistory.list({ limit: 2000 } as any);
+      const rows = Array.isArray((res as any)?.data) ? (res as any).data : [];
+      const normalized: VoucherHistoryRow[] = rows
+        .map((row: any) => ({
+          id: String(row?.id ?? `${row?.quoteNumber ?? "voucher"}-${row?.createdAt ?? Math.random()}`),
+          quoteNumber: String(row?.quoteNumber ?? ""),
+          customerName: String(row?.customerName ?? ""),
+          customerMobile: String(row?.customerMobile ?? ""),
+          customerEmail: String(row?.customerEmail ?? ""),
+          vehicleType: String(row?.vehicleType ?? ""),
+          vehiclePlate: String(row?.vehiclePlate ?? ""),
+          includePaymentInfo: Boolean(row?.includePaymentInfo),
+          subtotal: toMoney(row?.subtotal),
+          discountAmount: toMoney(row?.discountAmount),
+          netAmount: toMoney(row?.netAmount),
+          amountPaid: toMoney(row?.amountPaid),
+          balanceDue: toMoney(row?.balanceDue),
+          createdAt: String(row?.createdAt ?? ""),
+        }))
+        .sort((a: VoucherHistoryRow, b: VoucherHistoryRow) => {
+          const at = new Date(a.createdAt).getTime();
+          const bt = new Date(b.createdAt).getTime();
+          return (Number.isFinite(bt) ? bt : 0) - (Number.isFinite(at) ? at : 0);
+        });
+      setVoucherHistoryRows(normalized);
+    } catch (e) {
+      console.error("Failed to load voucher history", e);
+    } finally {
+      setVoucherHistoryLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadVoucherHistory();
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -1009,39 +1070,166 @@ export default function VoucherGiftPage({ currentUser }: { currentUser?: any; pe
     doc.text("info@rodeodrive.qa", marginX + 18, footerTop + 16.2);
 
     const pdfBlob = doc.output("blob") as Blob;
+
+    let historyWarning = "";
+    try {
+      const historyCreate = await client.models.VoucherGiftHistory.create({
+        quoteNumber,
+        title: "Voucher Gift",
+        customerName: safeText(customer.fullName) || "Unknown Customer",
+        customerMobile: safeText(customer.mobile),
+        customerEmail: safeText(customer.email),
+        vehicleType: safeText(customer.vehicleType),
+        vehiclePlate: safeText(customer.vehiclePlate),
+        validityUntil: safeValidUntil.toISOString(),
+        includePaymentInfo,
+        subtotal,
+        discountAmount: safeDiscount,
+        netAmount,
+        amountPaid: safeAmountPaid,
+        balanceDue,
+        servicesJson: JSON.stringify(selectedLines),
+        remarksEn: effectiveRemarkLinesEnglish.join("\n"),
+        remarksAr: effectiveRemarkLinesArabic.join("\n"),
+        generatedBy: String(currentUser?.email || currentUser?.name || "System"),
+        createdAt: new Date().toISOString(),
+      } as any);
+      if (Array.isArray((historyCreate as any)?.errors) && (historyCreate as any).errors.length > 0) {
+        historyWarning = t("Voucher generated but history record failed to save.");
+      } else {
+        void loadVoucherHistory();
+      }
+    } catch (e) {
+      console.error("Failed to save voucher history", e);
+      historyWarning = t("Voucher generated but history record failed to save.");
+    }
+
     const pdfUrl = URL.createObjectURL(pdfBlob);
     const opened = window.open(pdfUrl, "_blank", "noopener,noreferrer");
     if (!opened) {
-      setStatus(t("Popup blocked. Please allow popups and try again."));
+      setStatus(
+        historyWarning
+          ? `${t("Popup blocked. Please allow popups and try again.")} ${historyWarning}`
+          : t("Popup blocked. Please allow popups and try again.")
+      );
       URL.revokeObjectURL(pdfUrl);
       return;
     }
     opened.focus();
     window.setTimeout(() => URL.revokeObjectURL(pdfUrl), 60_000);
-    setStatus(
+    const successStatus =
       includePaymentInfo
         ? t("Voucher with payment information opened in a new tab.")
-        : t("Voucher without payment information opened in a new tab.")
-    );
+        : t("Voucher without payment information opened in a new tab.");
+    setStatus(historyWarning ? `${successStatus} ${historyWarning}` : successStatus);
   };
 
   return (
     <div className="quotation-page">
       <div className="quotation-hero">
-        <div className="quotation-hero-main">
-          <div className="quotation-kicker">
-            <i className="fas fa-file-invoice" style={{ marginRight: 6 }} />
-            {t("Records")}
+        <div className="quotation-hero-main" style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 14, flexWrap: "wrap" }}>
+          <div style={{ flex: "1 1 560px", minWidth: 260 }}>
+            <div className="quotation-kicker">
+              <i className="fas fa-file-invoice" style={{ marginRight: 6 }} />
+              {t("Records")}
+            </div>
+            <div className="quotation-hero-title-row">
+              <span className="quotation-title-icon" aria-hidden="true">
+                <i className="fas fa-file-signature" />
+              </span>
+              <h1>{t("Voucher Gift Builder")}</h1>
+            </div>
+            <p>{t("Create voucher gifts with live service/package pricing and policy-based discount limits.")}</p>
           </div>
-          <div className="quotation-hero-title-row">
-            <span className="quotation-title-icon" aria-hidden="true">
-              <i className="fas fa-file-signature" />
-            </span>
-            <h1>{t("Voucher Gift Builder")}</h1>
-          </div>
-          <p>{t("Create voucher gifts with live service/package pricing and policy-based discount limits.")}</p>
+          <button
+            type="button"
+            className="quotation-generate-btn"
+            style={{ minWidth: 220, marginLeft: "auto" }}
+            onClick={() => {
+              setVoucherHistoryOpen(true);
+              void loadVoucherHistory();
+            }}
+          >
+            <i className="fas fa-history" /> {t("View Voucher History")}
+          </button>
         </div>
       </div>
+
+      {voucherHistoryOpen ? (
+        <div
+          role="dialog"
+          aria-modal="true"
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(2,6,23,0.45)",
+            display: "grid",
+            placeItems: "center",
+            zIndex: 1200,
+            padding: 12,
+          }}
+          onClick={() => setVoucherHistoryOpen(false)}
+        >
+          <section
+            className="quotation-card"
+            style={{ width: "min(1120px, 98vw)", maxHeight: "90vh", overflow: "auto", margin: 0 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+              <h3 style={{ margin: 0 }}><i className="fas fa-history" /> {t("Voucher History")}</h3>
+              <button type="button" className="quotation-inline-reset-btn" onClick={() => setVoucherHistoryOpen(false)}>
+                {t("Close")}
+              </button>
+            </div>
+
+            {voucherHistoryLoading ? <div className="quotation-muted" style={{ marginTop: 10 }}>{t("Loading voucher history...")}</div> : null}
+            {!voucherHistoryLoading && voucherHistoryRows.length === 0 ? (
+              <div className="quotation-muted" style={{ marginTop: 10 }}>{t("No vouchers found yet.")}</div>
+            ) : null}
+
+            {!voucherHistoryLoading && voucherHistoryRows.length > 0 ? (
+              <div style={{ overflowX: "auto", marginTop: 12 }}>
+                <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+                  <thead>
+                    <tr>
+                      <th style={{ textAlign: "left", borderBottom: "1px solid #d1d5db", padding: "8px" }}>{t("Created At")}</th>
+                      <th style={{ textAlign: "left", borderBottom: "1px solid #d1d5db", padding: "8px" }}>{t("Voucher #")}</th>
+                      <th style={{ textAlign: "left", borderBottom: "1px solid #d1d5db", padding: "8px" }}>{t("Customer")}</th>
+                      <th style={{ textAlign: "left", borderBottom: "1px solid #d1d5db", padding: "8px" }}>{t("Mobile")}</th>
+                      <th style={{ textAlign: "left", borderBottom: "1px solid #d1d5db", padding: "8px" }}>{t("Vehicle")}</th>
+                      <th style={{ textAlign: "right", borderBottom: "1px solid #d1d5db", padding: "8px" }}>{t("Net")}</th>
+                      <th style={{ textAlign: "right", borderBottom: "1px solid #d1d5db", padding: "8px" }}>{t("Paid")}</th>
+                      <th style={{ textAlign: "right", borderBottom: "1px solid #d1d5db", padding: "8px" }}>{t("Balance")}</th>
+                      <th style={{ textAlign: "center", borderBottom: "1px solid #d1d5db", padding: "8px" }}>{t("Payment Info")}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {voucherHistoryRows.map((row) => {
+                      const createdLabel = row.createdAt ? new Date(row.createdAt).toLocaleString() : "-";
+                      const vehicleLabel = [row.vehicleType, row.vehiclePlate].filter(Boolean).join(" / ") || "-";
+                      return (
+                        <tr key={row.id}>
+                          <td style={{ borderBottom: "1px solid #eef2f7", padding: "8px" }}>{createdLabel}</td>
+                          <td style={{ borderBottom: "1px solid #eef2f7", padding: "8px", fontWeight: 600 }}>{row.quoteNumber || "-"}</td>
+                          <td style={{ borderBottom: "1px solid #eef2f7", padding: "8px" }}>{row.customerName || "-"}</td>
+                          <td style={{ borderBottom: "1px solid #eef2f7", padding: "8px" }}>{row.customerMobile || "-"}</td>
+                          <td style={{ borderBottom: "1px solid #eef2f7", padding: "8px" }}>{vehicleLabel}</td>
+                          <td style={{ borderBottom: "1px solid #eef2f7", padding: "8px", textAlign: "right" }}>{formatMoney(row.netAmount)}</td>
+                          <td style={{ borderBottom: "1px solid #eef2f7", padding: "8px", textAlign: "right" }}>{formatMoney(row.amountPaid)}</td>
+                          <td style={{ borderBottom: "1px solid #eef2f7", padding: "8px", textAlign: "right" }}>{formatMoney(row.balanceDue)}</td>
+                          <td style={{ borderBottom: "1px solid #eef2f7", padding: "8px", textAlign: "center" }}>
+                            {row.includePaymentInfo ? t("Yes") : t("No")}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </section>
+        </div>
+      ) : null}
 
       {status ? <div className="quotation-status">{status}</div> : null}
 

@@ -655,6 +655,37 @@
   box-shadow: 0 0 0 3px rgba(101, 92, 255, 0.13);
 }
 
+.ums-password-input-wrap {
+  position: relative;
+}
+
+.ums-password-input {
+  padding-right: 44px;
+}
+
+.ums-password-toggle-btn {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: #415785;
+  cursor: pointer;
+}
+
+.ums-password-toggle-btn:hover {
+  background: rgba(65, 87, 133, 0.08);
+}
+
+.ums-password-toggle-btn:focus-visible {
+  outline: 2px solid #7c6df0;
+  outline-offset: 1px;
+}
+
 .ums-field-hint {
   margin-top: 4px;
   color: #6f7ea8;

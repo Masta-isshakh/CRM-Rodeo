@@ -1117,6 +1117,34 @@ const schema = a
       ])
       .authorization((allow) => [allow.authenticated()]),
 
+    VoucherGiftHistory: a
+      .model({
+        quoteNumber: a.string().required(),
+        title: a.string(),
+        customerName: a.string().required(),
+        customerMobile: a.string(),
+        customerEmail: a.string(),
+        vehicleType: a.string(),
+        vehiclePlate: a.string(),
+        validityUntil: a.datetime(),
+        includePaymentInfo: a.boolean().default(true),
+        subtotal: a.float(),
+        discountAmount: a.float(),
+        netAmount: a.float(),
+        amountPaid: a.float(),
+        balanceDue: a.float(),
+        servicesJson: a.string(),
+        remarksEn: a.string(),
+        remarksAr: a.string(),
+        generatedBy: a.string(),
+        createdAt: a.datetime(),
+      })
+      .secondaryIndexes((index) => [
+        index("createdAt").queryField("voucherGiftHistoryByCreatedAt"),
+        index("customerMobile").queryField("voucherGiftHistoryByCustomerMobile"),
+      ])
+      .authorization((allow) => [allow.authenticated()]),
+
     // -----------------------------
     // ADMIN MUTATIONS / QUERIES
     // -----------------------------
