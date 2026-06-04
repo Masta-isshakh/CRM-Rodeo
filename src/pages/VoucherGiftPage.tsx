@@ -795,6 +795,7 @@ export default function VoucherGiftPage({ currentUser }: { currentUser?: any; pe
     const rightLabelX = rightX + 2;
     const rightValueX = rightX + 27;
     const rightCellCenterX = rightX + (pageW - marginX - rightX) / 2;
+    const rightValueMaxWidth = pageW - marginX - 2 - rightValueX;
 
     doc.setFillColor(tintPanel.r, tintPanel.g, tintPanel.b);
     doc.roundedRect(marginX, infoTop, contentW, infoH, 1.8, 1.8, "FD");
@@ -836,10 +837,10 @@ export default function VoucherGiftPage({ currentUser }: { currentUser?: any; pe
     doc.text("Model:", rightLabelX, infoTop + 28.8);
     doc.text("Plate #", rightLabelX, infoTop + 34.4);
     doc.setFont("helvetica", "normal");
-    drawPdfSmartText(doc, `${safeValidityDays} day(s)`, rightValueX, infoTop + 17.6, rightX + 34 - rightValueX, docTextSize);
-    drawPdfSmartText(doc, validUntilDisplay, rightValueX, infoTop + 23.2, rightX + 34 - rightValueX, docTextSize);
-    drawPdfSmartText(doc, safeText(customer.vehicleType) || "-", rightValueX, infoTop + 28.8, rightX + 34 - rightValueX, docTextSize);
-    drawPdfSmartText(doc, safeText(customer.vehiclePlate) || "-", rightValueX, infoTop + 34.4, rightX + 34 - rightValueX, docTextSize);
+    drawPdfSmartText(doc, `${safeValidityDays} day(s)`, rightValueX, infoTop + 17.6, rightValueMaxWidth, docTextSize);
+    drawPdfSmartText(doc, validUntilDisplay, rightValueX, infoTop + 23.2, rightValueMaxWidth, docTextSize);
+    drawPdfSmartText(doc, safeText(customer.vehicleType) || "-", rightValueX, infoTop + 28.8, rightValueMaxWidth, docTextSize);
+    drawPdfSmartText(doc, safeText(customer.vehiclePlate) || "-", rightValueX, infoTop + 34.4, rightValueMaxWidth, docTextSize);
 
     drawArabicLine(doc, "صالحة لمدة:", pageW - marginX - 2, infoTop + 14.3, 20, docLabelSize, "normal");
     drawArabicLine(doc, "تاريخ الانتهاء:", pageW - marginX - 2, infoTop + 19.9, 20, docLabelSize, "normal");

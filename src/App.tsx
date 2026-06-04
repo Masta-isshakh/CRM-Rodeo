@@ -1,7 +1,7 @@
 import { Component, lazy, Suspense, type ErrorInfo, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Authenticator, ThemeProvider, useAuthenticator } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
-import { getCurrentUser, signIn } from "aws-amplify/auth";
+import { fetchAuthSession, getCurrentUser, signIn } from "aws-amplify/auth";
 import SetPasswordPage from "./pages/SetPassword";
 import { getDataClient } from "./lib/amplifyClient";
 import appLogo from "./assets/logo.jpeg";
@@ -480,6 +480,7 @@ function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
   useEffect(() => {
     let timeoutId: number | null = null;
     let intervalId: number | null = null;
+    let cancelled = false;
 
     const readExpiry = () => {
       try {
@@ -531,6 +532,28 @@ function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
       }, remainingMs);
     };
 
+    const ensureExpiryFromLogin = async () => {
+      try {
+        const session = await fetchAuthSession();
+        const accessPayload: any = session.tokens?.accessToken?.payload ?? {};
+        const idPayload: any = session.tokens?.idToken?.payload ?? {};
+        const authTimeSec = Number(
+          accessPayload?.auth_time ??
+            idPayload?.auth_time ??
+            accessPayload?.iat ??
+            idPayload?.iat ??
+            0
+        );
+        const loginAt = Number.isFinite(authTimeSec) && authTimeSec > 0 ? authTimeSec * 1000 : Date.now();
+        const expiresAt = loginAt + SESSION_EXPIRY_MS;
+        writeExpiry(expiresAt);
+      } catch {
+        // If token introspection fails, keep existing fallback behavior.
+      }
+
+      if (!cancelled) ensureExpiry();
+    };
+
     const onVisibility = () => {
       if (document.visibilityState === "visible") ensureExpiry();
     };
@@ -545,12 +568,13 @@ function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
       ensureExpiry();
     };
 
-    ensureExpiry();
+    void ensureExpiryFromLogin();
     intervalId = window.setInterval(ensureExpiry, 60 * 1000);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("storage", onStorage);
 
     return () => {
+      cancelled = true;
       clearScheduled();
       if (intervalId != null) window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", onVisibility);

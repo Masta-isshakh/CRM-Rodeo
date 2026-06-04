@@ -1985,10 +1985,10 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     doc.text(`Bill #: ${billId}`, marginX, bodyTop + 6);
     doc.text(`Date: ${billDateOnly}`, marginX + 45, bodyTop + 6);
     doc.text(`Status: ${paymentStatus}`, marginX + 88, bodyTop + 6);
-    doc.text(`Order ID: ${safeText(order?.id) || "-"}`, pageW - marginX, bodyTop + 6, { align: "right" });
+    drawSmartPdfLine(`Order ID: ${safeText(order?.id) || "-"}`, marginX + 124, bodyTop + 6, pageW - marginX - (marginX + 124));
     doc.setFontSize(BILL_BODY_FONT_SIZE);
-    doc.text(`Issued At: ${billIssuedAtDisplay}`, marginX, bodyTop + 10.5);
-    doc.text(`Issued By: ${billGeneratedBy}`, pageW - marginX, bodyTop + 10.5, { align: "right" });
+    drawSmartPdfLine(`Issued At: ${billIssuedAtDisplay}`, marginX, bodyTop + 10.5, 95);
+    drawSmartPdfLine(`Issued By: ${billGeneratedBy}`, marginX + 110, bodyTop + 10.5, pageW - marginX - (marginX + 110));
     drawArabicLine(`رقم الفاتورة: ${billId} | التاريخ: ${billDateOnly}`, pageW - marginX, bodyTop + 11.9, 95, BILL_BODY_FONT_SIZE, "normal");
     drawArabicLine(`الحالة: ${paymentStatusArabic} | رقم الطلب: ${safeText(order?.id) || "-"}`, pageW - marginX, bodyTop + 16.2, 95, BILL_BODY_FONT_SIZE, "normal");
     drawArabicLine(`وقت الإصدار: ${billIssuedAtDisplay} | أنشأ الفاتورة: ${billGeneratedBy}`, pageW - marginX, bodyTop + 20.5, 120, BILL_BODY_FONT_SIZE, "normal");
@@ -2023,8 +2023,8 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     const vehicleName = `${safeText(order?.vehicleDetails?.make)} ${safeText(order?.vehicleDetails?.model)}`.trim() || "-";
     drawSmartPdfLine(vehicleName, marginX + infoW + infoGap + 3, infoTop + 10, infoW - 6);
-    doc.text(`Plate: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 14.5);
-    doc.text(`VIN: ${safeText(order?.vehicleDetails?.vin) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 19);
+    drawSmartPdfLine(`Plate: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 14.5, infoW - 6);
+    drawSmartPdfLine(`VIN: ${safeText(order?.vehicleDetails?.vin) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 19, infoW - 6);
     drawArabicLine(`رقم اللوحة: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "-"}`, marginX + infoW + infoGap + infoW - 3, infoTop + 12.1, infoW - 8, BILL_BODY_FONT_SIZE, "normal");
     drawArabicLine(`الرقم التعريفي: ${safeText(order?.vehicleDetails?.vin) || "-"}`, marginX + infoW + infoGap + infoW - 3, infoTop + 16.6, infoW - 8, BILL_BODY_FONT_SIZE, "normal");
 

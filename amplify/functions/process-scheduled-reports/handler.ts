@@ -196,7 +196,7 @@ async function sendEmailWithAttachment(params: {
   contentType: string;
   binaryData: Buffer;
 }) {
-  const from = text(params.from) || FROM_EMAIL;
+  const from = FROM_EMAIL || text(params.from);
   if (!from) {
     throw new Error("No sender email configured for SES send.");
   }
@@ -281,24 +281,57 @@ export const handler = async () => {
   const client = await configureClient();
 
 
-  const nowIso = new Date().toISOString();
-  const schedulesRes = await client.models.ScheduledReport.list({
-    limit: 200,
-    filter: {
-      status: { eq: "PENDING" as any },
-    } as any,
-  });
+  const now = Date.now();
+  const nowIso = new Date(now).toISOString();
+  let pending: AnyObj[] = [];
+  try {
+    const schedulesRes = await client.models.ScheduledReport.list({
+      limit: 200,
+      filter: {
+        status: { eq: "PENDING" as any },
+      } as any,
+    });
+    pending = (schedulesRes?.data ?? []) as AnyObj[];
+  } catch (error) {
+    console.error("[scheduled-reports] list-failed", error);
+    return {
+      ok: false,
+      fatalError: asErrorMessage(error),
+      nowIso,
+      pending: 0,
+      due: 0,
+      sent: 0,
+      failed: 0,
+      errors: [{ stage: "list", message: asErrorMessage(error) }],
+    };
+  }
 
-  const schedules = ((schedulesRes?.data ?? []) as AnyObj[])
-    .filter((s) => {
-      const sendAt = text(s.sendAt);
-      return !!sendAt && sendAt <= nowIso;
-    })
-    .slice(0, 50);
+  const schedules: AnyObj[] = [];
+
+  for (const s of pending) {
+    const sendAtRaw = text(s.sendAt);
+    const sendAtMs = Date.parse(sendAtRaw);
+    const id = text(s.id);
+
+    if (!Number.isFinite(sendAtMs)) {
+      await client.models.ScheduledReport.update({
+        id,
+        status: "FAILED",
+        errorMessage: `Invalid sendAt value: ${sendAtRaw || "(empty)"}`.slice(0, 1800),
+        lastRunAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      } as any);
+      console.warn("[scheduled-reports] invalid-sendAt", { id, sendAtRaw });
+      continue;
+    }
+
+    if (sendAtMs <= now) schedules.push(s);
+    if (schedules.length >= 50) break;
+  }
 
   console.info("[scheduled-reports] scan", {
     nowIso,
-    pendingCount: (schedulesRes?.data ?? []).length,
+    pendingCount: pending.length,
     dueCount: schedules.length,
     region: REGION,
     hasDefaultFrom: Boolean(FROM_EMAIL),

@@ -94,6 +94,23 @@ function normalizeRow(row: AnyObj): AnyObj {
   return out;
 }
 
+function toQueueRows(schedules: AnyObj[]): QueueItem[] {
+  return (schedules as AnyObj[])
+    .map((s) => ({
+      id: txt(s.id),
+      title: txt(s.title),
+      recipientEmail: txt(s.recipientEmail),
+      reportFormat: (txt(s.reportFormat).toUpperCase() === "EXCEL" ? "EXCEL" : "PDF") as ReportFormat,
+      status: txt(s.status) || "PENDING",
+      sendAt: txt(s.sendAt),
+      createdAt: txt(s.createdAt),
+      reportModel: txt(s.reportModel) || "JobOrder",
+      errorMessage: txt(s.errorMessage),
+    }))
+    .filter((r) => r.id)
+    .sort((a, b) => (dt(b.sendAt)?.getTime() ?? 0) - (dt(a.sendAt)?.getTime() ?? 0));
+}
+
 function valueMatches(value: unknown, expected: string): boolean {
   if (!expected) return true;
   return txt(value) === expected;
@@ -220,20 +237,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
           return { value: email, label: name ? `${name} (${email})` : email };
         });
 
-        const queueRows: QueueItem[] = (schedules as AnyObj[])
-          .map((s) => ({
-            id: txt(s.id),
-            title: txt(s.title),
-            recipientEmail: txt(s.recipientEmail),
-            reportFormat: (txt(s.reportFormat).toUpperCase() === "EXCEL" ? "EXCEL" : "PDF") as ReportFormat,
-            status: txt(s.status) || "PENDING",
-            sendAt: txt(s.sendAt),
-            createdAt: txt(s.createdAt),
-            reportModel: txt(s.reportModel) || "JobOrder",
-            errorMessage: txt(s.errorMessage),
-          }))
-          .filter((r) => r.id)
-          .sort((a, b) => (dt(b.sendAt)?.getTime() ?? 0) - (dt(a.sendAt)?.getTime() ?? 0));
+        const queueRows: QueueItem[] = toQueueRows(schedules as AnyObj[]);
 
         setAllData(nextData);
         setUsers(userOptions);
@@ -251,6 +255,30 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
       cancelled = true;
     };
   }, [client, permissions?.canRead, t]);
+
+  useEffect(() => {
+    if (!permissions?.canRead) return;
+    let cancelled = false;
+
+    const refreshQueue = async () => {
+      try {
+        const schedules = await safeList(client, "ScheduledReport", 3000);
+        if (cancelled) return;
+        setQueue(toQueueRows(schedules));
+      } catch {
+        // Keep current queue on transient refresh errors.
+      }
+    };
+
+    const id = window.setInterval(() => {
+      void refreshQueue();
+    }, 30000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [client, permissions?.canRead]);
 
   const modelRows = useMemo(() => allData[selectedModel] ?? [], [allData, selectedModel]);
 
@@ -418,10 +446,6 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
     }
 
     const sender = txt(senderEmail);
-    if (!sender) {
-      setMessage(t("Please enter a verified SES sender email."));
-      return;
-    }
 
     const selectedTime = scheduleAt ? new Date(scheduleAt) : null;
     if (!selectedTime || Number.isNaN(selectedTime.getTime())) {
@@ -453,7 +477,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
 
       const payload = {
         title: txt(scheduleTitle) || `${selectedModel} ${new Date().toLocaleDateString()} ${scheduleFormat}`,
-        senderEmail: sender,
+        senderEmail: sender || undefined,
         recipientEmail: recipient,
         reportFormat: scheduleFormat,
         reportModel: selectedModel,
