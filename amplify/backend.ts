@@ -165,7 +165,10 @@ const processScheduledReportsFn =
 processScheduledReportsFn.addToRolePolicy(
   new PolicyStatement({
     actions: ["ses:SendEmail", "ses:SendRawEmail"],
-    resources: ["*"],
+    resources: [
+      "arn:aws:ses:eu-west-1:115246381405:identity/crm@rodeodrive.work",
+      "arn:aws:ses:eu-west-1:115246381405:identity/*",
+    ],
   })
 );
 

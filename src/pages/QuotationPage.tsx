@@ -772,10 +772,11 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
     doc.text("Model:", rightLabelX, infoTop + 28.8);
     doc.text("Plate #", rightLabelX, infoTop + 34.4);
     doc.setFont("helvetica", "normal");
-    drawPdfSmartText(doc, `${safeValidityDays} day(s)`, rightValueX, infoTop + 17.6, rightX + 34 - rightValueX, docTextSize);
-    drawPdfSmartText(doc, validUntilDisplay, rightValueX, infoTop + 23.2, rightX + 34 - rightValueX, docTextSize);
-    drawPdfSmartText(doc, safeText(customer.vehicleType) || "-", rightValueX, infoTop + 28.8, rightX + 34 - rightValueX, docTextSize);
-    drawPdfSmartText(doc, safeText(customer.vehiclePlate) || "-", rightValueX, infoTop + 34.4, rightX + 34 - rightValueX, docTextSize);
+    const rightValueMaxW = pageW - marginX - rightValueX - 2;
+    drawPdfSmartText(doc, `${safeValidityDays} day(s)`, rightValueX, infoTop + 17.6, rightValueMaxW, docTextSize);
+    drawPdfSmartText(doc, validUntilDisplay, rightValueX, infoTop + 23.2, rightValueMaxW, docTextSize);
+    drawPdfSmartText(doc, safeText(customer.vehicleType) || "-", rightValueX, infoTop + 28.8, rightValueMaxW, docTextSize);
+    drawPdfSmartText(doc, safeText(customer.vehiclePlate) || "-", rightValueX, infoTop + 34.4, rightValueMaxW, docTextSize);
 
     drawArabicLine(doc, "صالحة لمدة:", pageW - marginX - 2, infoTop + 14.3, 20, docLabelSize, "normal");
     drawArabicLine(doc, "تاريخ الانتهاء:", pageW - marginX - 2, infoTop + 19.9, 20, docLabelSize, "normal");
