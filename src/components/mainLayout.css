@@ -278,6 +278,20 @@ body {
   z-index: 1;
 }
 
+.topbar-current-datetime {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  border: 1px solid #d5e2f3;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #ffffff, #edf5ff);
+  color: #193a66;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  padding: 6px 10px;
+}
+
 .lang-toggle {
   border: 1px solid #c9d9ec;
   background: linear-gradient(180deg, #ffffff, #eff6ff);

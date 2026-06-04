@@ -1145,6 +1145,31 @@ const schema = a
       ])
       .authorization((allow) => [allow.authenticated()]),
 
+    QuotationHistory: a
+      .model({
+        quoteNumber: a.string().required(),
+        title: a.string(),
+        customerName: a.string().required(),
+        customerMobile: a.string(),
+        customerEmail: a.string(),
+        vehicleType: a.string(),
+        vehiclePlate: a.string(),
+        validityUntil: a.datetime(),
+        subtotal: a.float(),
+        discountAmount: a.float(),
+        netAmount: a.float(),
+        servicesJson: a.string(),
+        remarksEn: a.string(),
+        remarksAr: a.string(),
+        generatedBy: a.string(),
+        createdAt: a.datetime(),
+      })
+      .secondaryIndexes((index) => [
+        index("createdAt").queryField("quotationHistoryByCreatedAt"),
+        index("customerMobile").queryField("quotationHistoryByCustomerMobile"),
+      ])
+      .authorization((allow) => [allow.authenticated()]),
+
     // -----------------------------
     // ADMIN MUTATIONS / QUERIES
     // -----------------------------

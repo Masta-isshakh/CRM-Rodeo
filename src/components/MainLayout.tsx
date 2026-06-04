@@ -208,6 +208,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(detectDesktop);
   const [themeMode] = useState<ThemeMode>(resolveInitialTheme);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [now, setNow] = useState<Date>(() => new Date());
   const prefetchedPagesRef = useRef<Set<Page>>(new Set());
 
   const { loading, email, employeeName, isAdminGroup, can, canOption, isModuleEnabled, refresh } = usePermissions();
@@ -609,6 +610,13 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   }, [page, email]);
 
   useEffect(() => {
+    const timer = window.setInterval(() => {
+      setNow(new Date());
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     const prev = document.body.style.overflow;
     if (!isDesktop && sidebarOpen) document.body.style.overflow = "hidden";
     else document.body.style.overflow = prev || "";
@@ -633,6 +641,20 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     const e = (email || "").trim();
     return { name: e, email: e };
   }, [email]);
+
+  const currentDateTimeLabel = useMemo(
+    () =>
+      now.toLocaleString(language === "ar" ? "ar-QA" : "en-GB", {
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      }),
+    [language, now]
+  );
 
   const topbarDisplayName = useMemo(() => String(employeeName ?? "").trim() || "Employee", [employeeName]);
   const topbarAvatarInitial = useMemo(() => topbarDisplayName.charAt(0).toUpperCase() || "U", [topbarDisplayName]);
@@ -865,6 +887,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               </div>
 
               <div className="topbar-right">
+                <div className="topbar-current-datetime" title={t("Current date and time")}>{currentDateTimeLabel}</div>
                 <div className="topbar-lang-toggle" role="group" aria-label={t("Language")}>
                   <span className="topbar-lang-label">{t("Language")}</span>
                   <div className="topbar-lang-switch" aria-label={t("Language switch")}>
