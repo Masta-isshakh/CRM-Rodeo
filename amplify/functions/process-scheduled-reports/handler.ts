@@ -41,6 +41,11 @@ function text(value: unknown): string {
   return String(value ?? "").trim();
 }
 
+function asErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  return String(error ?? "Unknown error");
+}
+
 function dateInput(iso: string): string {
   if (!iso) return "";
   const d = new Date(iso);

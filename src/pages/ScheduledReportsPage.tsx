@@ -179,6 +179,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
   const [scheduleTitle, setScheduleTitle] = useState("");
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [runningProcessor, setRunningProcessor] = useState(false);
+  const [lastManualRunAt, setLastManualRunAt] = useState("");
 
   const [users, setUsers] = useState<UserOption[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -299,6 +300,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
 
     setRunningProcessor(true);
     setMessage("");
+    setLastManualRunAt(new Date().toISOString());
     try {
       const res: any = await mutation({});
       const payload = (res?.data ?? res ?? {}) as AnyObj;
@@ -806,7 +808,14 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
 
         <section className="sr-card">
           <div className="sr-card-head">
-            <div className="sr-card-title">{t("Scheduled Reports Queue")}</div>
+            <div className="sr-card-title-wrap">
+              <div className="sr-card-title">{t("Scheduled Reports Queue")}</div>
+              <div className="sr-queue-meta">
+                {lastManualRunAt
+                  ? `${t("Last manual run at")}: ${dateLabel(lastManualRunAt)}`
+                  : `${t("Last manual run at")}: -`}
+              </div>
+            </div>
             {isAdminGroup && (
               <button
                 type="button"
