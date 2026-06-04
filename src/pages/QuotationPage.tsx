@@ -62,6 +62,7 @@ type QuotationHistoryRow = {
   netAmount: number;
   validityUntil: string;
   servicesJson: string;
+  customerNotes: string;
   remarksEn: string;
   remarksAr: string;
   generatedBy: string;
@@ -557,6 +558,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
           netAmount: toMoney(row?.netAmount),
           validityUntil: String(row?.validityUntil ?? ""),
           servicesJson: String(row?.servicesJson ?? ""),
+          customerNotes: String(row?.customerNotes ?? ""),
           remarksEn: String(row?.remarksEn ?? ""),
           remarksAr: String(row?.remarksAr ?? ""),
           generatedBy: String(row?.generatedBy ?? ""),
@@ -1242,6 +1244,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
         discountAmount: safeDiscount,
         netAmount,
         servicesJson: JSON.stringify(selectedLines),
+        customerNotes: safeText(customer.notes),
         remarksEn: effectiveRemarkLinesEnglish.join("\n"),
         remarksAr: effectiveRemarkLinesArabic.join("\n"),
         generatedBy: String(currentUser?.email || currentUser?.name || "System"),

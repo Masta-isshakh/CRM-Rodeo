@@ -11,6 +11,7 @@ import "./ScheduledReportsPage.css";
 type AnyObj = Record<string, unknown>;
 type ReportFormat = "PDF" | "EXCEL";
 type ModelKey = "JobOrder" | "Customer" | "Vehicle" | "Employee" | "ServiceCatalog" | "UserProfile" | "Ticket";
+type WeekdayKey = "SUN" | "MON" | "TUE" | "WED" | "THU" | "FRI" | "SAT";
 
 type UserOption = { label: string; value: string };
 
@@ -23,8 +24,19 @@ type QueueItem = {
   sendAt: string;
   createdAt: string;
   reportModel: string;
+  daysOfWeek: WeekdayKey[];
   errorMessage?: string;
 };
+
+const WEEKDAY_OPTIONS: Array<{ key: WeekdayKey; label: string }> = [
+  { key: "SUN", label: "Sunday" },
+  { key: "MON", label: "Monday" },
+  { key: "TUE", label: "Tuesday" },
+  { key: "WED", label: "Wednesday" },
+  { key: "THU", label: "Thursday" },
+  { key: "FRI", label: "Friday" },
+  { key: "SAT", label: "Saturday" },
+];
 
 type FilterState = {
   search: string;
@@ -105,10 +117,35 @@ function toQueueRows(schedules: AnyObj[]): QueueItem[] {
       sendAt: txt(s.sendAt),
       createdAt: txt(s.createdAt),
       reportModel: txt(s.reportModel) || "JobOrder",
+      daysOfWeek: (() => {
+        try {
+          const parsed = JSON.parse(txt(s.daysOfWeekJson) || "[]");
+          return Array.isArray(parsed) ? parsed.map((entry) => txt(entry).toUpperCase()).filter(Boolean) as WeekdayKey[] : [];
+        } catch {
+          return [];
+        }
+      })(),
       errorMessage: txt(s.errorMessage),
     }))
     .filter((r) => r.id)
     .sort((a, b) => (dt(b.sendAt)?.getTime() ?? 0) - (dt(a.sendAt)?.getTime() ?? 0));
+}
+
+function getNextMatchingSendAt(baseDate: Date, selectedDays: WeekdayKey[]): Date {
+  if (selectedDays.length === 0) return baseDate;
+  const weekdayNumbers = new Set(
+    selectedDays
+      .map((day) => WEEKDAY_OPTIONS.findIndex((option) => option.key === day))
+      .filter((value) => value >= 0)
+  );
+
+  const next = new Date(baseDate);
+  for (let i = 0; i < 7; i += 1) {
+    const candidate = new Date(next);
+    candidate.setDate(baseDate.getDate() + i);
+    if (weekdayNumbers.has(candidate.getDay())) return candidate;
+  }
+  return baseDate;
 }
 
 function valueMatches(value: unknown, expected: string): boolean {
@@ -176,6 +213,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
   const [senderEmail, setSenderEmail] = useState("");
   const [scheduleAt, setScheduleAt] = useState("");
   const [scheduleFormat, setScheduleFormat] = useState<ReportFormat>("PDF");
+  const [scheduleDaysOfWeek, setScheduleDaysOfWeek] = useState<WeekdayKey[]>([]);
   const [scheduleTitle, setScheduleTitle] = useState("");
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [runningProcessor, setRunningProcessor] = useState(false);
@@ -531,6 +569,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
     setSavingSchedule(true);
     setMessage("");
     try {
+      const effectiveSendAt = getNextMatchingSendAt(selectedTime, scheduleDaysOfWeek);
       let actor = "";
       try {
         const user = await getCurrentUser();
@@ -551,7 +590,8 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
           selectedFields,
           filters,
         }),
-        sendAt: selectedTime.toISOString(),
+        daysOfWeekJson: scheduleDaysOfWeek.length > 0 ? JSON.stringify(scheduleDaysOfWeek) : undefined,
+        sendAt: effectiveSendAt.toISOString(),
         status: "PENDING",
         createdBy: actor,
         createdAt: new Date().toISOString(),
@@ -570,6 +610,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
           sendAt: txt(row.sendAt || payload.sendAt),
           createdAt: txt(row.createdAt || payload.createdAt),
           reportModel: txt(row.reportModel || selectedModel),
+          daysOfWeek: scheduleDaysOfWeek,
           errorMessage: txt(row.errorMessage),
         },
         ...prev,
@@ -580,6 +621,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
       setSenderEmail("");
       setScheduleAt("");
       setScheduleFormat("PDF");
+      setScheduleDaysOfWeek([]);
       setMessage(t("Report schedule saved successfully."));
     } catch (error) {
       console.error("[ScheduledReports] save schedule failed", error);
@@ -789,6 +831,30 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
                 <option value="EXCEL">Excel</option>
               </select>
             </label>
+            <label style={{ gridColumn: "1 / -2" }}>
+              <span>{t("Days of Week")}</span>
+              <div className="sr-weekdays">
+                {WEEKDAY_OPTIONS.map((day) => {
+                  const active = scheduleDaysOfWeek.includes(day.key);
+                  return (
+                    <button
+                      key={day.key}
+                      type="button"
+                      className={`sr-day-chip${active ? " active" : ""}`}
+                      onClick={() => {
+                        setScheduleDaysOfWeek((prev) => (
+                          prev.includes(day.key)
+                            ? prev.filter((item) => item !== day.key)
+                            : [...prev, day.key]
+                        ));
+                      }}
+                    >
+                      {t(day.label)}
+                    </button>
+                  );
+                })}
+              </div>
+            </label>
             <button type="button" className="sr-btn sr-btn-schedule" onClick={() => void saveSchedule()} disabled={savingSchedule || !canCreateSchedule}>
               {savingSchedule ? t("Saving...") : t("Schedule Report")}
             </button>
@@ -859,6 +925,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
                   <th>{t("Model")}</th>
                   <th>{t("Recipient")}</th>
                   <th>{t("Format")}</th>
+                  <th>{t("Days")}</th>
                   <th>{t("Send At")}</th>
                   <th>{t("Status")}</th>
                   <th>{t("Error")}</th>
@@ -868,7 +935,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
               </thead>
               <tbody>
                 {queue.length === 0 && (
-                  <tr><td colSpan={9}>{t("No schedules found.")}</td></tr>
+                  <tr><td colSpan={10}>{t("No schedules found.")}</td></tr>
                 )}
                 {queue.map((row) => (
                   <tr key={row.id}>
@@ -876,6 +943,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
                     <td data-label={t("Model")}>{row.reportModel || "JobOrder"}</td>
                     <td data-label={t("Recipient")}>{row.recipientEmail || "-"}</td>
                     <td data-label={t("Format")}>{row.reportFormat}</td>
+                    <td data-label={t("Days")}>{row.daysOfWeek.length > 0 ? row.daysOfWeek.map((day) => t(WEEKDAY_OPTIONS.find((option) => option.key === day)?.label || day)).join(", ") : "-"}</td>
                     <td data-label={t("Send At")}>{dateLabel(row.sendAt)}</td>
                     <td data-label={t("Status")}><span className={`sr-badge sr-${row.status.toLowerCase()}`}>{row.status}</span></td>
                     <td data-label={t("Error")} title={row.errorMessage || ""}>{row.errorMessage || "-"}</td>

@@ -8,6 +8,7 @@ import type { Schema } from "../../data/resource";
 
 type AnyObj = Record<string, unknown>;
 type ModelData = AnyObj[];
+type WeekdayKey = "SUN" | "MON" | "TUE" | "WED" | "THU" | "FRI" | "SAT";
 
 type SchedulePayload = {
   modelKey?: string;
@@ -30,6 +31,15 @@ const FROM_EMAIL = String(process.env.SES_FROM_EMAIL ?? "").trim();
 const REPORT_MAX_ROWS = Math.max(100, Number(process.env.REPORT_MAX_ROWS ?? "3000") || 3000);
 
 const ses = new SESv2Client({ region: REGION });
+const WEEKDAY_INDEX: Record<WeekdayKey, number> = {
+  SUN: 0,
+  MON: 1,
+  TUE: 2,
+  WED: 3,
+  THU: 4,
+  FRI: 5,
+  SAT: 6,
+};
 
 async function configureClient() {
   const { resourceConfig, libraryOptions } = await getAmplifyDataClientConfig(process.env as any);
@@ -44,6 +54,38 @@ function text(value: unknown): string {
 function asErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
   return String(error ?? "Unknown error");
+}
+
+function parseDaysOfWeek(raw: string): WeekdayKey[] {
+  try {
+    const parsed = JSON.parse(raw || "[]");
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((entry) => text(entry).toUpperCase())
+      .filter((entry): entry is WeekdayKey => entry in WEEKDAY_INDEX);
+  } catch {
+    return [];
+  }
+}
+
+function nextRecurringSendAt(baseIso: string, selectedDays: WeekdayKey[], nowMs: number): string {
+  const base = new Date(baseIso);
+  if (!Number.isFinite(base.getTime()) || selectedDays.length === 0) return baseIso;
+
+  const allowedDays = new Set(selectedDays.map((day) => WEEKDAY_INDEX[day]));
+  const candidate = new Date(base);
+  if (candidate.getTime() <= nowMs) {
+    candidate.setDate(candidate.getDate() + 1);
+  }
+
+  for (let i = 0; i < 14; i += 1) {
+    if (allowedDays.has(candidate.getDay()) && candidate.getTime() > nowMs) {
+      return candidate.toISOString();
+    }
+    candidate.setDate(candidate.getDate() + 1);
+  }
+
+  return candidate.toISOString();
 }
 
 function dateInput(iso: string): string {
@@ -317,6 +359,7 @@ export const handler = async () => {
     const sendAtRaw = text(s.sendAt);
     const sendAtMs = Date.parse(sendAtRaw);
     const id = text(s.id);
+    const selectedDays = parseDaysOfWeek(text(s.daysOfWeekJson));
 
     if (!Number.isFinite(sendAtMs)) {
       await client.models.ScheduledReport.update({
@@ -327,6 +370,16 @@ export const handler = async () => {
         updatedAt: new Date().toISOString(),
       } as any);
       console.warn("[scheduled-reports] invalid-sendAt", { id, sendAtRaw });
+      continue;
+    }
+
+    if (selectedDays.length > 0 && !selectedDays.map((day) => WEEKDAY_INDEX[day]).includes(new Date(sendAtMs).getDay())) {
+      const nextSendAt = nextRecurringSendAt(sendAtRaw, selectedDays, now);
+      await client.models.ScheduledReport.update({
+        id,
+        sendAt: nextSendAt,
+        updatedAt: new Date().toISOString(),
+      } as any);
       continue;
     }
 
@@ -351,6 +404,7 @@ export const handler = async () => {
     const reportFormat = text(schedule.reportFormat).toUpperCase() === "EXCEL" ? "EXCEL" : "PDF";
     const title = text(schedule.title) || "Scheduled Report";
     const fromEmail = text(schedule.senderEmail) || FROM_EMAIL;
+    const recurringDays = parseDaysOfWeek(text(schedule.daysOfWeekJson));
 
     console.info("[scheduled-reports] processing", {
       id,
@@ -396,7 +450,8 @@ export const handler = async () => {
 
       await client.models.ScheduledReport.update({
         id,
-        status: "SENT",
+        status: recurringDays.length > 0 ? "PENDING" : "SENT",
+        sendAt: recurringDays.length > 0 ? nextRecurringSendAt(text(schedule.sendAt), recurringDays, now) : text(schedule.sendAt),
         lastRunAt: new Date().toISOString(),
         errorMessage: null,
         fileName: attachment.fileName,
