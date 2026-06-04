@@ -96,6 +96,17 @@ function parseDateInputValue(value: string) {
   return parsed;
 }
 
+function dt(value: unknown): Date | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function dateInput(date: Date): string {
+  return new Date(date).toISOString().slice(0, 10);
+}
+
 function resolveValidityWindow(issuedAt: Date, selectedDateValue: string) {
   const issued = new Date(issuedAt.getFullYear(), issuedAt.getMonth(), issuedAt.getDate());
   const requested = parseDateInputValue(selectedDateValue);

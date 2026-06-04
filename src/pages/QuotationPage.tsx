@@ -93,6 +93,17 @@ function parseDateInputValue(value: string) {
   return parsed;
 }
 
+function dt(value: unknown): Date | null {
+  const raw = String(value ?? "").trim();
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function dateInput(date: Date): string {
+  return new Date(date).toISOString().slice(0, 10);
+}
+
 function resolveValidityWindow(issuedAt: Date, selectedDateValue: string) {
   const issued = new Date(issuedAt.getFullYear(), issuedAt.getMonth(), issuedAt.getDate());
   const requested = parseDateInputValue(selectedDateValue);
@@ -719,10 +730,44 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
   const buildQuotationHistoryPdfBlob = async (row: QuotationHistoryRow) => {
     const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
     const pageW = 210;
-    const marginX = 12;
+    const pageH = 297;
+    const marginX = 8;
     const contentW = pageW - marginX * 2;
-    const lineH = 6.6;
-    let y = 16;
+    const docTextSize = 9.8;
+    const docTitleSize = 13;
+    const docLabelSize = 9.2;
+    const docSectionTitleSize = 10.6;
+    const quoteNumber = row.quoteNumber || `QT-${Date.now().toString().slice(-8)}`;
+    const issuedAt = dt(row.createdAt) ?? new Date();
+    const validitySource = row.validityUntil ? dateInput(new Date(row.validityUntil)) : "";
+    const { safeValidityDays, safeValidUntil } = resolveValidityWindow(issuedAt, validitySource);
+    const effectiveRemarkLinesEnglish = normalizeMultilineText(row.remarksEn).length > 0
+      ? normalizeMultilineText(row.remarksEn)
+      : normalizeMultilineText(buildDefaultRemarkEnglish(safeValidityDays));
+    const effectiveRemarkLinesArabic = normalizeMultilineText(row.remarksAr).length > 0
+      ? normalizeMultilineText(row.remarksAr)
+      : normalizeMultilineText(buildDefaultRemarkArabic(safeValidityDays));
+    const issuedAtDisplay = issuedAt.toLocaleString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+    const validUntilDisplay = safeValidUntil.toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+    let selectedLinesFromHistory: QuotationLine[] = [];
+    try {
+      const parsed = JSON.parse(row.servicesJson || "[]");
+      if (Array.isArray(parsed)) selectedLinesFromHistory = parsed as QuotationLine[];
+    } catch {
+      selectedLinesFromHistory = [];
+    }
+    const quotationDisplayLinesFromHistory = buildQuotationDisplayLines(selectedLinesFromHistory, t);
 
     let logoDataUrl = "";
     try {
@@ -732,97 +777,304 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
       logoDataUrl = "";
     }
 
-    if (logoDataUrl) doc.addImage(logoDataUrl, "JPEG", marginX, 8, 14, 14);
+    doc.setDrawColor(30, 41, 59);
+    doc.setLineWidth(0.38);
+    const tintPanel = { r: 251, g: 252, b: 254 };
+    const tintHeader = { r: 246, g: 248, b: 251 };
+    const tintTotals = { r: 248, g: 250, b: 253 };
+    const borderStrong = { r: 30, g: 41, b: 59 };
+    const borderSoft = { r: 162, g: 174, b: 190 };
+
+    if (logoDataUrl) {
+      doc.addImage(logoDataUrl, "JPEG", marginX + 3, 8, 15, 15);
+    }
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(docLabelSize);
+    doc.text(issuedAtDisplay, pageW / 2, 12, { align: "center" });
+
+    doc.setFontSize(docTitleSize);
+    doc.text("Rodeo Drive", pageW - marginX, 11, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(docLabelSize);
+    doc.text("for trading & services", pageW - marginX, 14.6, { align: "right" });
+    drawArabicLine(doc, "روديو درايف للتجارة والخدمات", pageW - marginX, 16.8, 46, docLabelSize, "bold");
+
+    const infoTop = 38;
+    const infoH = 38;
+    const leftX = marginX + 3;
+    const leftW = 74;
+    const centerX = leftX + leftW;
+    const centerW = 44;
+    const rightX = centerX + centerW;
+    const leftLabelX = leftX + 1;
+    const leftValueX = leftX + 23;
+    const rightLabelX = rightX + 2;
+    const rightValueX = rightX + 27;
+    const rightCellCenterX = rightX + (pageW - marginX - rightX) / 2;
+
+    doc.setFillColor(tintPanel.r, tintPanel.g, tintPanel.b);
+    doc.roundedRect(marginX, infoTop, contentW, infoH, 1.8, 1.8, "FD");
+    doc.line(centerX, infoTop, centerX, infoTop + infoH);
+    doc.line(rightX, infoTop, rightX, infoTop + infoH);
+    doc.setDrawColor(borderSoft.r, borderSoft.g, borderSoft.b);
+    doc.setLineWidth(0.5);
+    doc.line(marginX, infoTop, marginX + contentW, infoTop);
+    doc.setDrawColor(borderStrong.r, borderStrong.g, borderStrong.b);
+    doc.setLineWidth(0.38);
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(15);
-    doc.text("Quotation", pageW - marginX, 14, { align: "right" });
-    doc.setFontSize(10);
-    doc.text(row.quoteNumber || "-", pageW - marginX, 20, { align: "right" });
+    doc.setFontSize(docSectionTitleSize);
+    doc.text("QUOTATION #", rightLabelX, infoTop + 5.6);
+    drawArabicLine(doc, "رقم الفاتورة", pageW - marginX - 2, infoTop + 2.1, 22, docSectionTitleSize, "bold");
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(docSectionTitleSize);
+    doc.text(quoteNumber, rightCellCenterX, infoTop + 11.8, { align: "center" });
 
-    y = 30;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(docLabelSize);
+    doc.text("Name:", leftLabelX, infoTop + 10.2);
+    doc.text("Email:", leftLabelX, infoTop + 16.5);
+    doc.text("Phone:", leftLabelX, infoTop + 22.8);
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(10.5);
-    const createdAt = row.createdAt ? new Date(row.createdAt).toLocaleString() : "-";
-    const validity = row.validityUntil ? new Date(row.validityUntil).toLocaleDateString() : "-";
-    const info = [
-      `Customer: ${safeText(row.customerName) || "-"}`,
-      `Mobile: ${safeText(row.customerMobile) || "-"}`,
-      `Email: ${safeText(row.customerEmail) || "-"}`,
-      `Vehicle: ${[safeText(row.vehicleType), safeText(row.vehiclePlate)].filter(Boolean).join(" / ") || "-"}`,
-      `Created At: ${createdAt}`,
-      `Valid Until: ${validity}`,
-      `Subtotal: ${formatMoney(toMoney(row.subtotal))}`,
-      `Discount: ${formatMoney(toMoney(row.discountAmount))}`,
-      `Net Amount: ${formatMoney(toMoney(row.netAmount))}`,
-      `Generated By: ${safeText(row.generatedBy) || "System"}`,
-    ];
+    doc.setFontSize(docTextSize);
+    drawPdfSmartText(doc, row.customerName, leftValueX, infoTop + 10.2, leftW - 26, docTextSize);
+    drawPdfSmartText(doc, row.customerEmail, leftValueX, infoTop + 16.5, leftW - 26, docTextSize);
+    drawPdfSmartText(doc, row.customerMobile, leftValueX, infoTop + 22.8, leftW - 26, docTextSize);
 
-    info.forEach((line) => {
-      doc.text(line, marginX, y);
-      y += lineH;
+    drawArabicLine(doc, "اسم العميل:", centerX + centerW - 2, infoTop + 7.1, centerW - 4, docLabelSize, "normal");
+    drawArabicLine(doc, "الإيميل:", centerX + centerW - 2, infoTop + 13.4, centerW - 4, docLabelSize, "normal");
+    drawArabicLine(doc, "رقم الهاتف:", centerX + centerW - 2, infoTop + 19.7, centerW - 4, docLabelSize, "normal");
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(docLabelSize);
+    doc.text("Valid For:", rightLabelX, infoTop + 17.6);
+    doc.text("Valid Until:", rightLabelX, infoTop + 23.2);
+    doc.text("Model:", rightLabelX, infoTop + 28.8);
+    doc.text("Plate #", rightLabelX, infoTop + 34.4);
+    doc.setFont("helvetica", "normal");
+    const rightValueMaxW = pageW - marginX - rightValueX - 2;
+    drawPdfSmartText(doc, `${safeValidityDays} day(s)`, rightValueX, infoTop + 17.6, rightValueMaxW, docTextSize);
+    drawPdfSmartText(doc, validUntilDisplay, rightValueX, infoTop + 23.2, rightValueMaxW, docTextSize);
+    drawPdfSmartText(doc, safeText(row.vehicleType) || "-", rightValueX, infoTop + 28.8, rightValueMaxW, docTextSize);
+    drawPdfSmartText(doc, safeText(row.vehiclePlate) || "-", rightValueX, infoTop + 34.4, rightValueMaxW, docTextSize);
+
+    drawArabicLine(doc, "صالحة لمدة:", pageW - marginX - 2, infoTop + 14.3, 20, docLabelSize, "normal");
+    drawArabicLine(doc, "تاريخ الانتهاء:", pageW - marginX - 2, infoTop + 19.9, 20, docLabelSize, "normal");
+    drawArabicLine(doc, "الموديل:", pageW - marginX - 2, infoTop + 25.5, 20, docLabelSize, "normal");
+    drawArabicLine(doc, "رقم اللوحة:", pageW - marginX - 2, infoTop + 31.1, 20, docLabelSize, "normal");
+
+    const footerTop = pageH - 42;
+    const tableTop = 81;
+    const rowH = 9.2;
+    const reservedBelowTable = 62;
+    const maxRowsForLayout = Math.max(4, Math.floor((footerTop - tableTop - reservedBelowTable) / rowH));
+    const rowsCount = Math.max(1, Math.min(quotationDisplayLinesFromHistory.length, maxRowsForLayout));
+    const tableH = rowH * (rowsCount + 1);
+    const amountW = 40;
+    const descW = contentW - amountW;
+    const amountRightX = pageW - marginX - 4;
+
+    doc.setFillColor(tintPanel.r, tintPanel.g, tintPanel.b);
+    doc.roundedRect(marginX, tableTop, contentW, tableH, 1.6, 1.6, "FD");
+    doc.line(marginX + descW, tableTop, marginX + descW, tableTop + tableH);
+    doc.setFillColor(tintHeader.r, tintHeader.g, tintHeader.b);
+    doc.rect(marginX + 0.2, tableTop + 0.2, contentW - 0.4, rowH - 0.4, "F");
+    doc.line(marginX, tableTop + rowH, marginX + contentW, tableTop + rowH);
+    for (let i = 1; i <= rowsCount; i += 1) {
+      doc.line(marginX, tableTop + rowH + i * rowH, marginX + contentW, tableTop + rowH + i * rowH);
+    }
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(docLabelSize);
+    doc.text("Service", marginX + 2, tableTop + 6.6);
+    drawArabicLine(doc, "الخدمة", marginX + descW - 5, tableTop + 0.8, 20, docLabelSize, "bold");
+    doc.text("AMOUNT", amountRightX - 1.2, tableTop + 6.6, { align: "right" });
+    drawArabicLine(doc, "مبلغ الخدمة", amountRightX, tableTop + 0.8, amountW - 10, docLabelSize, "bold");
+
+    const shown = quotationDisplayLinesFromHistory.slice(0, rowsCount);
+    shown.forEach((line, idx) => {
+      const y = tableTop + rowH + idx * rowH + 6.4;
+      if (line.isIncludedService) {
+        const rowTop = tableTop + rowH + idx * rowH;
+        doc.setFillColor(241, 245, 249);
+        doc.rect(marginX + 0.3, rowTop + 0.3, contentW - 0.6, rowH - 0.6, "F");
+      }
+      const isPackageHeader = line.isPackage;
+      const isIncludedService = line.isIncludedService;
+      doc.setFont("helvetica", isPackageHeader ? "bold" : "normal");
+      doc.setFontSize(docTextSize);
+      if (isIncludedService) {
+        doc.setTextColor(113, 128, 150);
+      } else {
+        doc.setTextColor(17, 24, 39);
+      }
+      const fullTitle = safeText(line.label || t("Service"));
+      const hadBullet = /^\s*-\s*/.test(fullTitle);
+      const titleNoBullet = fullTitle.replace(/^\s*-\s*/, "").trim();
+      const titleParts = splitBilingualLabel(titleNoBullet);
+      const englishPrefix = isIncludedService && hadBullet ? "- " : "";
+      const englishRaw = `${englishPrefix}${titleParts.en || (!titleParts.ar ? titleNoBullet : "")}`.trim();
+      const englishX = marginX + (isIncludedService ? 6.5 : 2);
+      const arabicRightX = marginX + descW - 5;
+      const arabicW = 40;
+      const englishW = Math.max(28, descW - arabicW - (isIncludedService ? 11 : 8));
+      const englishLines = doc.splitTextToSize(englishRaw || "-", englishW) as string[];
+      const englishLine = String(englishLines[0] || englishRaw || "-");
+      doc.text(englishLine, englishX, y);
+      if (titleParts.ar) {
+        drawArabicLine(
+          doc,
+          titleParts.ar,
+          arabicRightX,
+          y - 2.0,
+          arabicW,
+          docTextSize,
+          isPackageHeader ? "bold" : "normal",
+          isIncludedService ? "#718096" : "#111827"
+        );
+      }
+      const amountText = line.price == null ? "" : formatMoney(toMoney(line.price));
+      doc.text(amountText, amountRightX, y, { align: "right" });
+    });
+    doc.setTextColor(17, 24, 39);
+
+    const totalsTop = tableTop + tableH + 8.5;
+    const totalsW = 78;
+    const totalsX = pageW - marginX - totalsW;
+    const totalsRowH = 7;
+    const taxRate = 0;
+    const totals = [
+      ["TOTAL", "الإجمالي", row.subtotal],
+      ["DISCOUNT", "الخصم", row.discountAmount],
+      ["NET TOTAL", "الصافي", row.netAmount],
+      ["TAX RATE", "الضريبة", taxRate],
+    ] as const;
+
+    const drawWrapped = (
+      text: string,
+      x: number,
+      y: number,
+      maxWidth: number,
+      lineHeight: number,
+      align: "left" | "right" = "left"
+    ) => {
+      const lines = doc.splitTextToSize(String(text || "-"), maxWidth) as string[];
+      lines.forEach((line, idx) => {
+        doc.text(line, x, y + idx * lineHeight, align === "right" ? { align: "right" } : undefined);
+      });
+      return lines.length;
+    };
+
+    doc.setDrawColor(borderSoft.r, borderSoft.g, borderSoft.b);
+    doc.setLineWidth(0.42);
+    doc.line(marginX, totalsTop - 1.5, pageW - marginX, totalsTop - 1.5);
+    doc.setDrawColor(borderStrong.r, borderStrong.g, borderStrong.b);
+    doc.setLineWidth(0.38);
+    doc.setFillColor(tintTotals.r, tintTotals.g, tintTotals.b);
+    doc.roundedRect(totalsX, totalsTop, totalsW, totalsRowH * totals.length, 1.6, 1.6, "FD");
+    for (let i = 1; i < totals.length; i += 1) {
+      doc.line(totalsX, totalsTop + i * totalsRowH, totalsX + totalsW, totalsTop + i * totalsRowH);
+    }
+    doc.line(totalsX + 48, totalsTop, totalsX + 48, totalsTop + totalsRowH * totals.length);
+
+    totals.forEach(([en, ar, value], idx) => {
+      const y = totalsTop + idx * totalsRowH + 4.9;
+      if (en === "NET TOTAL") {
+        doc.setFillColor(244, 248, 252);
+        doc.rect(totalsX + 0.2, totalsTop + idx * totalsRowH + 0.2, totalsW - 0.4, totalsRowH - 0.4, "F");
+      }
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(docLabelSize);
+      doc.text(en, totalsX + 2, y);
+      drawArabicLine(doc, ar, totalsX + 45.5, y - 2.5, 16, docLabelSize, "bold", en === "DISCOUNT" ? "#cc1f1a" : "#111827");
+      if (en === "DISCOUNT") doc.setTextColor(204, 31, 26);
+      doc.text(en === "TAX RATE" ? `${value}%` : formatMoney(Number(value || 0)), totalsX + totalsW - 2, y, { align: "right" });
+      doc.setTextColor(17, 24, 39);
     });
 
-    y += 2;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(11);
-    doc.text("Services", marginX, y);
-    y += 6;
-
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    let serviceRows: QuotationLine[] = [];
-    try {
-      const parsed = JSON.parse(row.servicesJson || "[]");
-      if (Array.isArray(parsed)) serviceRows = parsed as QuotationLine[];
-    } catch {
-      serviceRows = [];
-    }
-
-    if (serviceRows.length === 0) {
-      doc.text("-", marginX, y);
-      y += lineH;
-    } else {
-      for (const service of serviceRows) {
-        const serviceLabel = toBilingualName(service?.name, service?.nameAr, "Service");
-        const servicePrice = formatMoney(toMoney((service as any)?.price));
-        const wrapped = doc.splitTextToSize(`${serviceLabel} - ${servicePrice}`, contentW) as string[];
-        wrapped.forEach((line) => {
-          if (y > 282) {
-            doc.addPage();
-            y = 16;
-          }
-          doc.text(line, marginX, y);
-          y += lineH;
-        });
-      }
-    }
-
-    const remarksEn = normalizeMultilineText(row.remarksEn).join("\n");
-    const remarksAr = normalizeMultilineText(row.remarksAr).join("\n");
-    if (remarksEn || remarksAr) {
-      if (y > 258) {
-        doc.addPage();
-        y = 16;
-      }
-      y += 2;
+    const customerNote = safeText(row.customerNotes).trim();
+    let customerNoteBoxHeight = 0;
+    if (customerNote) {
+      const noteTop = totalsTop + totalsRowH * totals.length + 8;
+      const noteW = contentW - 2;
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(11);
-      doc.text("Remarks", marginX, y);
-      y += 6;
-      doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
-      const remarksText = [remarksEn, remarksAr].filter(Boolean).join("\n\n");
-      const wrappedRemarks = doc.splitTextToSize(remarksText, contentW) as string[];
-      wrappedRemarks.forEach((line) => {
-        if (y > 282) {
-          doc.addPage();
-          y = 16;
-        }
-        doc.text(line, marginX, y);
-        y += 5.8;
-      });
+      doc.text("Customer Note", marginX + 1, noteTop);
+      drawArabicLine(doc, "ملاحظة العميل", pageW - marginX - 1, noteTop - 3.1, 24, 10, "bold");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9.2);
+      const noteHasArabic = hasArabicChars(customerNote);
+      const noteLines = noteHasArabic
+        ? splitArabicTextToLines(customerNote, noteW - 6, 9.2, "normal")
+        : (doc.splitTextToSize(customerNote, noteW - 4) as string[]);
+      const noteBoxH = Math.max(12, noteLines.length * 4.8 + 8);
+      customerNoteBoxHeight = noteBoxH;
+      doc.setDrawColor(220, 231, 246);
+      doc.setFillColor(248, 251, 255);
+      doc.roundedRect(marginX + 0.5, noteTop + 2, noteW, noteBoxH, 2.5, 2.5, "FD");
+      if (noteHasArabic) {
+        drawWrappedArabicLines(
+          doc,
+          customerNote,
+          pageW - marginX - 3,
+          noteTop + 4.2,
+          noteW - 4,
+          9.2,
+          "normal",
+          "#1f2937",
+          0.6
+        );
+      } else {
+        doc.text(noteLines, marginX + 3, noteTop + 7.2);
+      }
     }
+
+    const remarksTop = totalsTop + totalsRowH * totals.length + (customerNote ? customerNoteBoxHeight + 16 : 10);
+    const remarksLeftX = marginX + 1;
+    const remarksLeftW = 118;
+    const remarksRightX = pageW - marginX - 1;
+    const remarksRightW = 66;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("Remarks", remarksLeftX, remarksTop);
+    drawArabicLine(doc, "إيضاحات", remarksRightX, remarksTop - 3.1, 16, 10, "bold");
+    doc.setFont("helvetica", "normal");
+    const remarksTextSize = 10;
+    doc.setFontSize(remarksTextSize);
+    const remarksLineHeight = 4.7;
+    const remarksArabicLineGap = 0.4;
+    const remarksArabicLineHeight = 4.4 + remarksArabicLineGap;
+    let remarksEnglishY = remarksTop + 6.2;
+    effectiveRemarkLinesEnglish.forEach((line) => {
+      const lineCount = drawWrapped(line, remarksLeftX, remarksEnglishY, remarksLeftW, remarksLineHeight, "left");
+      remarksEnglishY += lineCount * remarksLineHeight + 1.2;
+    });
+
+    let remarksArabicY = remarksTop + 6.0;
+    effectiveRemarkLinesArabic.forEach((line) => {
+      const lineCount = drawWrappedArabicLines(
+        doc,
+        line,
+        remarksRightX,
+        remarksArabicY,
+        remarksRightW,
+        remarksTextSize,
+        "normal",
+        "#181818",
+        remarksArabicLineGap
+      );
+      remarksArabicY += lineCount * remarksArabicLineHeight + 1.2;
+    });
+
+    doc.line(marginX, footerTop, pageW - marginX, footerTop);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(8.8);
+    doc.text("Website", marginX + 16, footerTop + 10.2, { align: "right" });
+    doc.text("Email", marginX + 16, footerTop + 16.2, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.8);
+    doc.text("rodeodrive.qa", marginX + 18, footerTop + 10.2);
+    doc.text("info@rodeodrive.qa", marginX + 18, footerTop + 16.2);
 
     return doc.output("blob") as Blob;
   };
