@@ -178,9 +178,15 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
   const [scheduleFormat, setScheduleFormat] = useState<ReportFormat>("PDF");
   const [scheduleTitle, setScheduleTitle] = useState("");
   const [savingSchedule, setSavingSchedule] = useState(false);
+  const [runningProcessor, setRunningProcessor] = useState(false);
 
   const [users, setUsers] = useState<UserOption[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
+
+  const refreshQueue = async () => {
+    const schedules = await safeList(client, "ScheduledReport", 3000);
+    setQueue(toQueueRows(schedules));
+  };
 
   useEffect(() => {
     if (!permissions?.canRead) return;
@@ -260,7 +266,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
     if (!permissions?.canRead) return;
     let cancelled = false;
 
-    const refreshQueue = async () => {
+    const refreshQueuePoll = async () => {
       try {
         const schedules = await safeList(client, "ScheduledReport", 3000);
         if (cancelled) return;
@@ -271,7 +277,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
     };
 
     const id = window.setInterval(() => {
-      void refreshQueue();
+      void refreshQueuePoll();
     }, 30000);
 
     return () => {
@@ -279,6 +285,39 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
       window.clearInterval(id);
     };
   }, [client, permissions?.canRead]);
+
+  const triggerProcessorNow = async () => {
+    if (!isAdminGroup) {
+      setMessage(t("Only admins can run the processor manually."));
+      return;
+    }
+    const mutation = (client as any)?.mutations?.processScheduledReportsNow;
+    if (!mutation) {
+      setMessage(t("Manual trigger is not available yet. Please deploy backend changes."));
+      return;
+    }
+
+    setRunningProcessor(true);
+    setMessage("");
+    try {
+      const res: any = await mutation({});
+      const payload = (res?.data ?? res ?? {}) as AnyObj;
+      await refreshQueue();
+
+      const due = Number(payload?.due ?? 0);
+      const sent = Number(payload?.sent ?? 0);
+      const failed = Number(payload?.failed ?? 0);
+      const errors = Array.isArray(payload?.errors) ? payload.errors.length : 0;
+      setMessage(
+        `${t("Processor run completed.")} ${t("Due")}: ${due}, ${t("Sent")}: ${sent}, ${t("Failed")}: ${failed}, ${t("Errors")}: ${errors}`
+      );
+    } catch (error) {
+      console.error("[ScheduledReports] manual processor trigger failed", error);
+      setMessage(t("Failed to run processor manually."));
+    } finally {
+      setRunningProcessor(false);
+    }
+  };
 
   const modelRows = useMemo(() => allData[selectedModel] ?? [], [allData, selectedModel]);
 
@@ -766,7 +805,20 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
         </section>
 
         <section className="sr-card">
-          <div className="sr-card-title">{t("Scheduled Reports Queue")}</div>
+          <div className="sr-card-head">
+            <div className="sr-card-title">{t("Scheduled Reports Queue")}</div>
+            {isAdminGroup && (
+              <button
+                type="button"
+                className="sr-btn sr-btn-ghost"
+                onClick={() => void triggerProcessorNow()}
+                disabled={runningProcessor}
+                title={t("Run scheduled processor once now") as string}
+              >
+                {runningProcessor ? t("Running...") : t("Run Processor Now")}
+              </button>
+            )}
+          </div>
           <div className="sr-table-wrap">
             <table className="sr-table">
               <thead>

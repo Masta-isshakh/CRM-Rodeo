@@ -206,6 +206,18 @@
   margin-bottom: 8px;
 }
 
+.sr-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.sr-card-head .sr-card-title {
+  margin-bottom: 0;
+}
+
 .sr-help {
   margin: 0 0 10px;
   color: var(--sr-muted);

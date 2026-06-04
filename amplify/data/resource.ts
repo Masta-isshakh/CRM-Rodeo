@@ -1388,6 +1388,13 @@ const schema = a
         .authorization((allow) => [allow.authenticated()])
         .handler(a.handler.function(sendSms))
         .returns(a.json()),
+
+        processScheduledReportsNow: a
+          .mutation()
+          .arguments({})
+          .authorization((allow) => [allow.group(ADMIN_GROUP)])
+          .handler(a.handler.function(processScheduledReports))
+          .returns(a.json()),
   })
   .authorization((allow) => [
     allow.resource(inviteUser),
