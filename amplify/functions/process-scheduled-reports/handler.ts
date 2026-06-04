@@ -291,7 +291,7 @@ export const handler = async () => {
   let pending: AnyObj[] = [];
   try {
     const schedulesRes = await client.models.ScheduledReport.list({
-      limit: 200,
+      limit: 3000,
       filter: {
         status: { eq: "PENDING" as any },
       } as any,

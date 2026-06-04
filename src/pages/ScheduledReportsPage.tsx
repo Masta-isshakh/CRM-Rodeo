@@ -180,6 +180,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
   const [savingSchedule, setSavingSchedule] = useState(false);
   const [runningProcessor, setRunningProcessor] = useState(false);
   const [lastManualRunAt, setLastManualRunAt] = useState("");
+  const [lastAutoRunAt, setLastAutoRunAt] = useState(0);
 
   const [users, setUsers] = useState<UserOption[]>([]);
   const [queue, setQueue] = useState<QueueItem[]>([]);
@@ -287,39 +288,61 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
     };
   }, [client, permissions?.canRead]);
 
-  const triggerProcessorNow = async () => {
+  const triggerProcessorNow = async (options?: { silent?: boolean; source?: "manual" | "auto" }) => {
+    const silent = Boolean(options?.silent);
+    const source = options?.source ?? "manual";
     if (!isAdminGroup) {
-      setMessage(t("Only admins can run the processor manually."));
+      if (!silent) setMessage(t("Only admins can run the processor manually."));
       return;
     }
     const mutation = (client as any)?.mutations?.processScheduledReportsNow;
     if (!mutation) {
-      setMessage(t("Manual trigger is not available yet. Please deploy backend changes."));
+      if (!silent) setMessage(t("Manual trigger is not available yet. Please deploy backend changes."));
       return;
     }
 
     setRunningProcessor(true);
-    setMessage("");
-    setLastManualRunAt(new Date().toISOString());
+    if (!silent) setMessage("");
+    if (source === "manual") setLastManualRunAt(new Date().toISOString());
     try {
       const res: any = await mutation({});
       const payload = (res?.data ?? res ?? {}) as AnyObj;
       await refreshQueue();
+      if (source === "auto") setLastAutoRunAt(Date.now());
 
       const due = Number(payload?.due ?? 0);
       const sent = Number(payload?.sent ?? 0);
       const failed = Number(payload?.failed ?? 0);
       const errors = Array.isArray(payload?.errors) ? payload.errors.length : 0;
-      setMessage(
-        `${t("Processor run completed.")} ${t("Due")}: ${due}, ${t("Sent")}: ${sent}, ${t("Failed")}: ${failed}, ${t("Errors")}: ${errors}`
-      );
+      if (!silent) {
+        setMessage(
+          `${t("Processor run completed.")} ${t("Due")}: ${due}, ${t("Sent")}: ${sent}, ${t("Failed")}: ${failed}, ${t("Errors")}: ${errors}`
+        );
+      }
     } catch (error) {
       console.error("[ScheduledReports] manual processor trigger failed", error);
-      setMessage(t("Failed to run processor manually."));
+      if (!silent) setMessage(t("Failed to run processor manually."));
     } finally {
       setRunningProcessor(false);
     }
   };
+
+  useEffect(() => {
+    if (!permissions?.canRead || !isAdminGroup) return;
+    if (runningProcessor) return;
+
+    const now = Date.now();
+    if (now - lastAutoRunAt < 60000) return;
+
+    const hasDuePending = queue.some((item) => {
+      if (txt(item.status).toUpperCase() !== "PENDING") return false;
+      const sendAtMs = Date.parse(txt(item.sendAt));
+      return Number.isFinite(sendAtMs) && sendAtMs <= now;
+    });
+
+    if (!hasDuePending) return;
+    void triggerProcessorNow({ silent: true, source: "auto" });
+  }, [permissions?.canRead, isAdminGroup, runningProcessor, lastAutoRunAt, queue]);
 
   const modelRows = useMemo(() => allData[selectedModel] ?? [], [allData, selectedModel]);
 
