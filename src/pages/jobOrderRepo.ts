@@ -2061,6 +2061,8 @@ export interface DashboardStats {
   newRequestJobs: number;
   cancelledJobs: number;
   partiallyPaidJobs: number;
+  voucherCount: number;
+  quotationCount: number;
   upcomingDeliveries: number;
   totalRevenue: number;
   statusBreakdown: Array<{ name: string; value: number; pct: string; color: string }>;
@@ -2082,12 +2084,16 @@ export async function getDashboardStats(): Promise<DashboardStats> {
   const client = getDataClient();
 
   // Fetch raw job orders
-  const [jobRes, paymentRes] = await Promise.all([
+  const [jobRes, paymentRes, voucherRes, quotationRes] = await Promise.all([
     client.models.JobOrder.list({ limit: 2000 }),
     client.models.JobOrderPayment.list({ limit: 5000 }).catch(() => ({ data: [] as any[] })),
+    client.models.VoucherGiftHistory.list({ limit: 5000 }).catch(() => ({ data: [] as any[] })),
+    client.models.QuotationHistory.list({ limit: 5000 }).catch(() => ({ data: [] as any[] })),
   ]);
   const rawJobs: any[] = jobRes.data ?? [];
   const allPayments: any[] = (paymentRes as any).data ?? [];
+  const voucherCount = ((voucherRes as any)?.data ?? []).length;
+  const quotationCount = ((quotationRes as any)?.data ?? []).length;
 
   // Build authoritative amountPaid per job
   const paidByJobId: Record<string, number> = {};
@@ -2200,6 +2206,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     newRequestJobs: statusCounts["New Request"] ?? 0,
     cancelledJobs: statusCounts["Cancelled"] ?? 0,
     partiallyPaidJobs: statusCounts["Partially Paid"] ?? 0,
+    voucherCount,
+    quotationCount,
     upcomingDeliveries,
     totalRevenue: Math.round(totalRevenue),
     statusBreakdown,

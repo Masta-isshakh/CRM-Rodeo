@@ -366,6 +366,44 @@
   accent-color: var(--sr-primary-2);
 }
 
+.sr-columns-toolbar {
+  margin-top: 10px;
+  margin-bottom: 10px;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.sr-columns-search {
+  min-width: 260px;
+  display: grid;
+  gap: 6px;
+}
+
+.sr-columns-search span {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #425c8f;
+}
+
+.sr-columns-search input {
+  min-height: 34px;
+  border: 1px solid #d6e3f7;
+  border-radius: 8px;
+  padding: 0 10px;
+  background: #ffffff;
+}
+
+.sr-columns-empty {
+  font-size: 12px;
+  color: #60739b;
+  font-weight: 700;
+}
+
 .sr-btn {
   border: 1px solid #dde7f6;
   background: #fafbff;

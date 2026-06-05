@@ -24,27 +24,54 @@ export default function ActivityLog({ permissions }: PageProps) {
 
   useEffect(() => {
     void fetchLogs();
+    const id = window.setInterval(() => {
+      void fetchLogs(true);
+    }, 30000);
+    return () => window.clearInterval(id);
   }, []);
 
-  const fetchLogs = async () => {
+  const fetchLogs = async (silent = false) => {
     setLoading(true);
-    setError(null);
+    if (!silent) setError(null);
     try {
-      const { data } = await withLoading(client.models.ActivityLog.list({ limit: 50 }), "Loading activity logs...");
-      const sorted = [...(data ?? [])].sort(
+      const all: LogRow[] = [];
+      let nextToken: string | null | undefined = undefined;
+
+      do {
+        const response: any = await withLoading(
+          client.models.ActivityLog.list({ limit: 200, nextToken } as any),
+          silent ? "Refreshing activity logs..." : "Loading activity logs..."
+        );
+        const pageRows = (response?.data ?? []) as LogRow[];
+        all.push(...pageRows);
+        nextToken = response?.nextToken;
+      } while (nextToken);
+
+      const sorted = [...all].sort(
         (a, b) => new Date(String(b.createdAt)).getTime() - new Date(String(a.createdAt)).getTime()
       );
       setLogs(sorted);
     } catch (err) {
-      setError("Failed to load activity logs. Please try again.");
+      if (!silent) setError("Failed to load activity logs. Please try again.");
       console.error("[ActivityLogs] fetchLogs error:", err);
     } finally {
       setLoading(false);
     }
   };
 
+  const actorOf = (log: LogRow) =>
+    String((log as any)?.actor ?? (log as any)?.username ?? (log as any)?.userEmail ?? (log as any)?.createdBy ?? "System");
+
+  const entityOf = (log: LogRow) => {
+    const entityType = String((log as any)?.entityType ?? "-");
+    const entityId = String((log as any)?.entityId ?? "").trim();
+    return entityId ? `${entityType} • ${entityId}` : entityType;
+  };
+
   return (
-    <div className="activity-page">
+    <div className="vehicle-page customer-page customer-dashboard-shell theme-elegant-glass">
+      <main className="main-content customer-dashboard-main" style={{ padding: "16px 8px" }}>
+      <div className="activity-page customer-table-card-shell">
       {!permissions.canRead ? (
         <div style={{ padding: 24 }}>You don't have access to this page.</div>
       ) : (
@@ -80,7 +107,7 @@ export default function ActivityLog({ permissions }: PageProps) {
                 <div className="content">
                   <p className="message">{log.message}</p>
                   <span className="meta">
-                    {log.entityType} \u2022 {safeDate(log.createdAt)}
+                    {actorOf(log)} \u2022 {entityOf(log)} \u2022 {safeDate(log.createdAt)}
                   </span>
                 </div>
               </div>
@@ -91,6 +118,8 @@ export default function ActivityLog({ permissions }: PageProps) {
       </PermissionGate>
         </>
       )}
+      </div>
+      </main>
     </div>
   );
 }

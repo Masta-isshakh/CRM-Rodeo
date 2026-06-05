@@ -214,10 +214,29 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
 
   useEffect(() => {
     let cancelled = false;
-    withLoading(getDashboardStats(), "Loading dashboard...").then((s) => {
-      if (!cancelled) { setStats(s); setLoading(false); }
-    }).catch(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
+    const refresh = async (withUiLoading: boolean) => {
+      try {
+        const result = withUiLoading
+          ? await withLoading(getDashboardStats(), "Loading dashboard...")
+          : await getDashboardStats();
+        if (!cancelled) {
+          setStats(result);
+          setLoading(false);
+        }
+      } catch {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    void refresh(true);
+    const interval = window.setInterval(() => {
+      void refresh(false);
+    }, 30000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
   }, [withLoading]);
 
   useEffect(() => {
@@ -235,6 +254,8 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
   const completedJobs  = stats?.completedJobs ?? 0;
   const inProgressJobs = stats?.inProgressJobs ?? 0;
   const newRequestJobs = stats?.newRequestJobs ?? 0;
+  const voucherCount = stats?.voucherCount ?? 0;
+  const quotationCount = stats?.quotationCount ?? 0;
   const upcomingDeliveries = stats?.upcomingDeliveries ?? 0;
   const totalRevenue   = stats?.totalRevenue ?? 0;
 
@@ -416,6 +437,32 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
                 6.2%&nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>vs last 7 days</span>
               </div>
               <Stars rating={4.5} />
+            </div>}
+
+            {showDashboardKpis && <div className="crm-db__stat-card">
+              <div className="crm-db__stat-top">
+                <span className="crm-db__stat-title">Voucher Gifts</span>
+                <div className="crm-db__stat-icon crm-db__stat-icon--blue"><HiOutlineDocumentAdd /></div>
+              </div>
+              <div className="crm-db__stat-value">{loading ? "—" : voucherCount.toLocaleString()}</div>
+              <div className="crm-db__stat-change crm-db__stat-change--up">
+                <span>↑</span>
+                &nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>history count</span>
+              </div>
+              <Sparkline points={SPARK_CYAN} color="#39BFFF" className="crm-db__sparkline" />
+            </div>}
+
+            {showDashboardKpis && <div className="crm-db__stat-card">
+              <div className="crm-db__stat-top">
+                <span className="crm-db__stat-title">Quotations</span>
+                <div className="crm-db__stat-icon crm-db__stat-icon--purple"><HiOutlineDocumentText /></div>
+              </div>
+              <div className="crm-db__stat-value">{loading ? "—" : quotationCount.toLocaleString()}</div>
+              <div className="crm-db__stat-change crm-db__stat-change--up">
+                <span>↑</span>
+                &nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>history count</span>
+              </div>
+              <Sparkline points={SPARK_PURPLE} color="#7551FF" className="crm-db__sparkline" />
             </div>}
           </div>}
 

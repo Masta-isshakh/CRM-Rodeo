@@ -1167,6 +1167,21 @@ export default function VehicleManagement({
   const loadCompletedServicesByPlate = useCallback(async () => {
     try {
       let rows: JobOrderRow[] = [];
+      const isCompletedRow = (row: any) => {
+        const status = String(row?.status ?? "").trim().toUpperCase();
+        if (status === "COMPLETED") return true;
+
+        const workStatus = String(row?.workStatusLabel ?? "").trim().toLowerCase();
+        if (workStatus === "completed") return true;
+
+        try {
+          const parsed = typeof row?.dataJson === "string" ? JSON.parse(row.dataJson) : row?.dataJson;
+          const fromJson = String(parsed?.workStatusLabel ?? "").trim().toLowerCase();
+          return fromJson === "completed";
+        } catch {
+          return false;
+        }
+      };
 
       try {
         const out: JobOrderRow[] = [];
@@ -1187,6 +1202,12 @@ export default function VehicleManagement({
           filter: { status: { eq: "COMPLETED" } },
         } as any);
         rows = ((res as any)?.data ?? []) as JobOrderRow[];
+      }
+
+      // Fallback for legacy rows whose completion state is not stored as enum COMPLETED.
+      if (!rows.length) {
+        const resAll = await client.models.JobOrder.list({ limit: 5000 } as any);
+        rows = (((resAll as any)?.data ?? []) as JobOrderRow[]).filter((row) => isCompletedRow(row));
       }
 
       const counts: Record<string, number> = {};

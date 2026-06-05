@@ -1,4 +1,4 @@
-// src/pages/UserAdmin.tsx
+﻿// src/pages/UserAdmin.tsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@aws-amplify/ui-react";
 import { createPortal, flushSync } from "react-dom";
@@ -263,6 +263,7 @@ export default function Users(_: PageProps) {
   const [editPrimaryPasswordConfirmVisible, setEditPrimaryPasswordConfirmVisible] = useState(false);
   const [lockoutNow, setLockoutNow] = useState(() => Date.now());
   const [detailsStatus, setDetailsStatus] = useState("");
+  const [editEmail, setEditEmail] = useState("");
 
   // RBAC display helpers
   const [dashboardAllowedByDept, setDashboardAllowedByDept] = useState<Record<string, boolean>>({});
@@ -585,7 +586,7 @@ export default function Users(_: PageProps) {
       setDepartments(deptList);
       setRoles(roles ?? []);
       setDeptRoleLinks(links ?? []);
-      setStatus(`Loaded ${sorted.length} users • ${deptList.length} departments.`);
+      setStatus(`Loaded ${sorted.length} users ΓÇó ${deptList.length} departments.`);
     } catch (e: any) {
       console.error(e);
       setUsers([]);
@@ -658,15 +659,15 @@ export default function Users(_: PageProps) {
     return (users ?? []).map((u, idx) => {
       const persistedEmpId = String((u as any).employeeId ?? "").trim();
       const empId = persistedEmpId || empIdFromIndex(idx);
-      const deptName = deptNameByKey.get(String(u.departmentKey ?? "")) ?? (u.departmentName ?? "—");
+      const deptName = deptNameByKey.get(String(u.departmentKey ?? "")) ?? (u.departmentName ?? "ΓÇö");
       const lineManagerDisplay =
         String((u as any).lineManagerName ?? "").trim() ||
         String((u as any).lineManagerEmail ?? "").trim() ||
-        "—";
+        "ΓÇö";
 
       const userRoleId = String((u as any).roleId ?? "").trim();
       const userRoleName = String((u as any).roleName ?? "").trim();
-      const roleName = userRoleName || roleNameById.get(userRoleId) || (u.departmentKey ? (firstRoleByDept[u.departmentKey] ?? "—") : "—");
+      const roleName = userRoleName || roleNameById.get(userRoleId) || (u.departmentKey ? (firstRoleByDept[u.departmentKey] ?? "ΓÇö") : "ΓÇö");
       const dashboardAccessEnabled = Boolean((u as any).dashboardAccessEnabled ?? true);
 
       const dashboardAllowed = isRootAdminSyntheticUser(u)
@@ -682,8 +683,8 @@ export default function Users(_: PageProps) {
       return {
         u,
         empId,
-        deptName: String(deptName || "—"),
-        roleName: String(roleName || "—"),
+        deptName: String(deptName || "ΓÇö"),
+        roleName: String(roleName || "ΓÇö"),
         lineManagerDisplay,
         dashboardAllowed,
         mobile,
@@ -901,6 +902,7 @@ export default function Users(_: PageProps) {
       setEditPrimaryPasswordVisible(false);
       setEditPrimaryPasswordConfirmVisible(false);
       setDetailsStatus("");
+      setEditEmail(String(u.email ?? "").trim().toLowerCase());
       setDetailsOpen(true);
     });
   };
@@ -914,6 +916,23 @@ export default function Users(_: PageProps) {
     if (!editFirstName.trim() || !editLastName.trim()) {
       setDetailsStatus(t("firstNameLastNameRequired"));
       return;
+    }
+    const trimmedNewEmail = editEmail.trim().toLowerCase();
+    if (!trimmedNewEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedNewEmail)) {
+      setDetailsStatus(t("Please enter a valid email address."));
+      return;
+    }
+    const emailChanged = trimmedNewEmail !== String(detailsUser.email ?? "").trim().toLowerCase();
+    if (emailChanged) {
+      const emailExists = users.some(
+        (u) =>
+          String(u.id ?? "") !== String(detailsUser.id ?? "") &&
+          String(u.email ?? "").trim().toLowerCase() === trimmedNewEmail
+      );
+      if (emailExists) {
+        setDetailsStatus(t("A user with this email already exists."));
+        return;
+      }
     }
     if (!editDepartmentKey) {
       setDetailsStatus(t("departmentRequired"));
@@ -1016,11 +1035,37 @@ export default function Users(_: PageProps) {
         }
       }
 
+      if (emailChanged) {
+        const resEmail = await (client.mutations as any).adminUpdateUserEmail({
+          currentEmail: String(detailsUser.email ?? "").trim().toLowerCase(),
+          newEmail: trimmedNewEmail,
+        });
+        const errsEmail = (resEmail as any)?.errors;
+        if (Array.isArray(errsEmail) && errsEmail.length) {
+          throw new Error(errsEmail.map((x: any) => x.message).join(" | "));
+        }
+
+        // Best effort: keep UserProfile.email aligned with Cognito email.
+        try {
+          const profileRes = await client.models.UserProfile.list({
+            filter: { email: { eq: String(detailsUser.email ?? "").trim().toLowerCase() } } as any,
+            limit: 5,
+          } as any);
+          const profileRow = (profileRes?.data ?? [])[0] as any;
+          if (profileRow?.id) {
+            await client.models.UserProfile.update({ id: profileRow.id, email: trimmedNewEmail } as any);
+          }
+        } catch {
+          // no-op
+        }
+      }
+
       const selectedDept = departments.find((d) => d.key === editDepartmentKey);
       setDetailsUser((prev) =>
         prev
           ? ({
               ...prev,
+              email: emailChanged ? trimmedNewEmail : prev.email,
               fullName: newFullName,
               departmentKey: editDepartmentKey,
               departmentName: selectedDept?.name ?? prev.departmentName,
@@ -1034,6 +1079,14 @@ export default function Users(_: PageProps) {
               dashboardAccessEnabled: effectiveDashboardAccess,
             } as any)
           : prev
+      );
+
+      setUsers((prev) =>
+        prev.map((u) =>
+          String(u.id ?? "") === String(detailsUser.id ?? "")
+            ? ({ ...u, email: emailChanged ? trimmedNewEmail : u.email } as any)
+            : u
+        )
       );
 
       setDetailsStatus(t("userUpdatedSuccessfully"));
@@ -1390,7 +1443,7 @@ export default function Users(_: PageProps) {
         onCancel={closeDeletePopup}
         closeOnOverlay={!deleteLoading}
         closeOnEsc={!deleteLoading}
-        icon={<span className="cp-iconMark" aria-hidden="true">🗑</span>}
+        icon={<span className="cp-iconMark" aria-hidden="true">≡ƒùæ</span>}
         footerNote={t("tipSetInactiveInsteadOfDeleting")}
       />
 
@@ -1483,7 +1536,7 @@ export default function Users(_: PageProps) {
               <div className={`ums-edit-page ${detailsEditing ? "is-editing" : "is-readonly"}`}>
                 <div className="ums-edit-card">
                   <div className="ums-edit-card-head-wrap">
-                    <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden>●</span>{t("userInformation")}</div>
+                    <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden>ΓùÅ</span>{t("userInformation")}</div>
                     <PermissionGate moduleId="users" optionId="users_edit">
                       <button
                         type="button"
@@ -1506,13 +1559,24 @@ export default function Users(_: PageProps) {
                           placeholder={t("employeeIdExample")}
                         />
                       ) : (
-                        <div className="ums-static-value">{String((detailsUser as any).employeeId ?? "").trim() || "—"}</div>
+                        <div className="ums-static-value">{String((detailsUser as any).employeeId ?? "").trim() || "ΓÇö"}</div>
                       )}
                     </div>
 
                     <div>
                       <label className="ums-label">{t("Email")}</label>
-                      <div className="ums-static-value">{detailsUser.email ?? "—"}</div>
+                      {detailsEditing ? (
+                        <input
+                          className="ums-input"
+                          type="email"
+                          value={editEmail}
+                          onChange={(e) => setEditEmail(e.target.value)}
+                          placeholder="user@example.com"
+                          autoComplete="off"
+                        />
+                      ) : (
+                        <div className="ums-static-value">{detailsUser.email ?? "ΓÇö"}</div>
+                      )}
                     </div>
 
                     <div>
@@ -1525,7 +1589,7 @@ export default function Users(_: PageProps) {
                           placeholder={t("firstName")}
                         />
                       ) : (
-                        <div className="ums-static-value">{editFirstName || "—"}</div>
+                        <div className="ums-static-value">{editFirstName || "ΓÇö"}</div>
                       )}
                     </div>
 
@@ -1539,7 +1603,7 @@ export default function Users(_: PageProps) {
                           placeholder={t("lastName")}
                         />
                       ) : (
-                        <div className="ums-static-value">{editLastName || "—"}</div>
+                        <div className="ums-static-value">{editLastName || "ΓÇö"}</div>
                       )}
                     </div>
 
@@ -1553,7 +1617,7 @@ export default function Users(_: PageProps) {
                           placeholder={t("phoneExample")}
                         />
                       ) : (
-                        <div className="ums-static-value">{editMobileNumber || "—"}</div>
+                        <div className="ums-static-value">{editMobileNumber || "ΓÇö"}</div>
                       )}
                     </div>
 
@@ -1579,7 +1643,7 @@ export default function Users(_: PageProps) {
                         </select>
                       ) : (
                         <div className="ums-static-value">
-                          {departments.find((d) => d.key === editDepartmentKey)?.name ?? detailsUser.departmentName ?? "—"}
+                          {departments.find((d) => d.key === editDepartmentKey)?.name ?? detailsUser.departmentName ?? "ΓÇö"}
                         </div>
                       )}
                     </div>
@@ -1597,7 +1661,7 @@ export default function Users(_: PageProps) {
                             <option value="">{t("selectEllipsis")}</option>
                             {availableRolesForEditDept.map((r) => (
                               <option key={String(r.id ?? "")} value={String(r.id ?? "")}>
-                                {r.name ?? "—"}
+                                {r.name ?? "ΓÇö"}
                               </option>
                             ))}
                           </select>
@@ -1606,7 +1670,7 @@ export default function Users(_: PageProps) {
                           )}
                         </>
                       ) : (
-                        <div className="ums-static-value">{String((detailsUser as any).roleName ?? "").trim() || "—"}</div>
+                        <div className="ums-static-value">{String((detailsUser as any).roleName ?? "").trim() || "ΓÇö"}</div>
                       )}
                     </div>
 
@@ -1630,7 +1694,7 @@ export default function Users(_: PageProps) {
                         </select>
                       ) : (
                         <div className="ums-static-value">
-                          {String((detailsUser as any).lineManagerName ?? "").trim() || String((detailsUser as any).lineManagerEmail ?? "").trim() || "—"}
+                          {String((detailsUser as any).lineManagerName ?? "").trim() || String((detailsUser as any).lineManagerEmail ?? "").trim() || "ΓÇö"}
                         </div>
                       )}
                     </div>
@@ -1638,7 +1702,7 @@ export default function Users(_: PageProps) {
                 </div>
 
                 <div className="ums-edit-card">
-                  <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden>●</span>{t("accountSettings")}</div>
+                  <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden>ΓùÅ</span>{t("accountSettings")}</div>
                   <div className="ums-toggle-grid">
                     <div className="ums-toggle-row">
                       <div>
@@ -1679,7 +1743,7 @@ export default function Users(_: PageProps) {
                 </div>
 
                 <div className="ums-edit-card">
-                  <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden>●</span>{t("passwordManagement")}</div>
+                  <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden>ΓùÅ</span>{t("passwordManagement")}</div>
                   {editUserLockoutInfo.active && (
                     <div className="ums-lockout-label" role="status" aria-live="polite">
                       {t("resetPassword")} ({editUserLockoutInfo.remainingMinutes} min left)
@@ -1849,7 +1913,7 @@ export default function Users(_: PageProps) {
         <div className="ums-card ums-table-card">
           <div className="ums-table-header">
             <div className="ums-table-title">
-              <span className="ums-list-icon" aria-hidden>≡</span>
+              <span className="ums-list-icon" aria-hidden>Γëí</span>
               <h2>{t("Users List")}</h2>
             </div>
 
@@ -1915,9 +1979,9 @@ export default function Users(_: PageProps) {
                   return (
                     <tr key={u.id}>
                       <td data-label={t("employeeID")} className="ums-mono">{row.empId}</td>
-                      <td data-label={t("employeeName")} className="ums-name">{u.fullName ?? "—"}</td>
-                      <td data-label={t("emailAddress")} className="ums-email">{u.email ?? "—"}</td>
-                      <td data-label={t("mobileNumber")} className="ums-muted">{row.mobile || "—"}</td>
+                      <td data-label={t("employeeName")} className="ums-name">{u.fullName ?? "ΓÇö"}</td>
+                      <td data-label={t("emailAddress")} className="ums-email">{u.email ?? "ΓÇö"}</td>
+                      <td data-label={t("mobileNumber")} className="ums-muted">{row.mobile || "ΓÇö"}</td>
 
                       <td data-label={t("department")}>
                         <span className="pill pill-dept">{row.deptName}</span>
@@ -1959,7 +2023,7 @@ export default function Users(_: PageProps) {
                               }}
                               disabled={loading}
                             >
-                              <span aria-hidden>⚙</span> Actions <span className="ums-caret" aria-hidden>▾</span>
+                              <span aria-hidden>ΓÜÖ</span> Actions <span className="ums-caret" aria-hidden>Γû╛</span>
                             </button>
                           </PermissionGate>
                         )}
@@ -1995,7 +2059,7 @@ export default function Users(_: PageProps) {
                   }}
                   aria-label={t("Close")}
                 >
-                  ✕
+                  Γ£ò
                 </button>
               </div>
 
@@ -2085,7 +2149,7 @@ export default function Users(_: PageProps) {
                       <option value="">{t("selectEllipsis")}</option>
                       {availableRolesForDept.map((r) => (
                         <option key={String(r.id ?? "")} value={String(r.id ?? "")}>
-                          {r.name ?? "—"}
+                          {r.name ?? "ΓÇö"}
                         </option>
                       ))}
                     </select>

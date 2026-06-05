@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 import { createPortal, flushSync } from "react-dom";
 import "./PaymentInvoiceManagment.css";
@@ -1172,6 +1172,11 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
     setPaymentForm((prev) => {
       if (!prev) return prev;
+
+      if ((name === "discount" || name === "discountPercent" || name === "amountToPay") && !/^\d*\.?\d{0,2}$/.test(value)) {
+        return prev;
+      }
+
       const next = { ...prev, [name]: value } as PaymentFormState;
 
       if (name === "discount" || name === "discountPercent" || name === "amountToPay") {
@@ -1186,17 +1191,23 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         if (name === "discountPercent") {
           let percent = Math.max(0, toNum(next.discountPercent));
           percent = Math.min(percent, centralDiscountPercent);
-          next.discountPercent = percent.toFixed(2);
+          if (percent !== toNum(next.discountPercent)) next.discountPercent = percent.toFixed(2);
           discount = (Math.max(0, prev.totalAmount) * percent) / 100;
         }
 
         discount = clampTotalDiscountAmount(discount, discountAllowance);
 
-        next.discount = discount.toFixed(2);
-        next.discountPercent =
-          prev.totalAmount > 0
-            ? ((discount / prev.totalAmount) * 100).toFixed(2)
-            : "0.00";
+        if (name !== "discount") {
+          next.discount = discount.toFixed(2);
+        } else {
+          const typedDiscount = toNum(next.discount);
+          if (typedDiscount > discount) next.discount = discount.toFixed(2);
+        }
+
+        const computedPercent = prev.totalAmount > 0 ? ((discount / prev.totalAmount) * 100) : 0;
+        if (name !== "discountPercent") {
+          next.discountPercent = computedPercent.toFixed(2);
+        }
 
         const net = roundMoney(Math.max(0, prev.totalAmount - discount));
         next.netAmount = net;
@@ -1215,6 +1226,40 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         next.transferProofDataUrl = null;
         next.transferProofName = "";
       }
+
+      return next;
+    });
+  };
+
+  const handlePaymentFieldBlur = (name: "discount" | "discountPercent" | "amountToPay") => {
+    setPaymentForm((prev) => {
+      if (!prev) return prev;
+      const next = { ...prev } as PaymentFormState;
+
+      const discountAllowance = computeCumulativeDiscountAllowance({
+        policyMaxPercent: centralDiscountPercent,
+        baseAmount: prev.totalAmount,
+        existingDiscountAmount: Math.max(0, prev.discountFloor || 0),
+        floorDiscountAmount: Math.max(0, prev.discountFloor || 0),
+      });
+
+      let discount = Math.max(0, toNum(next.discount));
+      if (name === "discountPercent") {
+        const percent = Math.min(Math.max(0, toNum(next.discountPercent)), centralDiscountPercent);
+        discount = (Math.max(0, prev.totalAmount) * percent) / 100;
+      }
+
+      discount = clampTotalDiscountAmount(discount, discountAllowance);
+      next.discount = discount.toFixed(2);
+      next.discountPercent = prev.totalAmount > 0 ? ((discount / prev.totalAmount) * 100).toFixed(2) : "0.00";
+
+      const net = roundMoney(Math.max(0, prev.totalAmount - discount));
+      next.netAmount = net;
+
+      const remainingBeforePayment = roundMoney(Math.max(0, net - prev.amountPaid));
+      const amountToPay = Math.min(roundMoney(Math.max(0, toNum(next.amountToPay))), remainingBeforePayment);
+      next.amountToPay = amountToPay.toFixed(2);
+      next.balance = roundMoney(Math.max(0, remainingBeforePayment - amountToPay));
 
       return next;
     });
@@ -1368,7 +1413,8 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
             balanceDue: fmtQar(afterPayment.balanceDue),
             paymentMethod: method,
           },
-          paymentStatus: afterPayment.paymentStatusLabel,
+          paymentStatus: afterPayment.paymentStatusEnum,
+          paymentStatusLabel: afterPayment.paymentStatusLabel,
           paymentStatusEnum: afterPayment.paymentStatusEnum,
           dataJson: JSON.stringify({
             ...parsed,
@@ -1384,6 +1430,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
               balanceDue: afterPayment.balanceDue,
               paymentMethod: method,
             },
+            paymentStatusEnum: afterPayment.paymentStatusEnum,
             paymentStatusLabel: afterPayment.paymentStatusLabel,
           }),
         };
@@ -2123,6 +2170,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     doc.text("Amount", pageW - marginX - 2, tableTop + 7.8, { align: "right" });
 
     const shownServices = services.slice(0, maxRows);
+    const remainingServices = services.slice(maxRows);
     doc.setTextColor(20, 31, 46);
     shownServices.forEach((service, idx) => {
       const y = tableTop + tableHeaderH + idx * rowH;
@@ -2179,11 +2227,11 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     });
 
     let summaryTop = tableTop + tableHeaderH + shownServices.length * rowH + 4;
-    if (services.length > shownServices.length) {
+    if (remainingServices.length > 0) {
       doc.setFont("helvetica", "italic");
       doc.setFontSize(BILL_BODY_FONT_SIZE);
       doc.setTextColor(110, 118, 128);
-      doc.text(`+ ${services.length - shownServices.length} additional service(s) omitted to keep one-page A4 print`, marginX, summaryTop);
+      doc.text(`+ ${remainingServices.length} more service(s) are included in continuation page(s).`, marginX, summaryTop);
       summaryTop += 4.8;
       doc.setTextColor(20, 31, 46);
     }
@@ -2255,6 +2303,92 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     drawArabicLine("شركة ذات مسؤلية محدودة برأس مال 200,000 رق", footerRightColRightX, footerContentTop + footerLineH * 3 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
     drawArabicLine("T:+974 44311871 | M:+974 3320 2409", footerRightColRightX, footerContentTop + footerLineH * 4 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
     drawArabicLine("E: info@rodeodrive.qa W: www.rodeodrive.qa", footerRightColRightX, footerContentTop + footerLineH * 5 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
+
+    if (remainingServices.length > 0) {
+      const continuationRowH = 9.6;
+      const continuationHeaderTop = 48;
+      const continuationHeaderH = 9;
+      const continuationTableBottom = footerTop - 10;
+      const continuationMaxRows = Math.max(1, Math.floor((continuationTableBottom - (continuationHeaderTop + continuationHeaderH)) / continuationRowH));
+      const chunks: Array<typeof remainingServices> = [];
+      for (let i = 0; i < remainingServices.length; i += continuationMaxRows) {
+        chunks.push(remainingServices.slice(i, i + continuationMaxRows));
+      }
+
+      chunks.forEach((chunk, chunkIndex) => {
+        doc.addPage("a4", "portrait");
+
+        doc.setDrawColor(44, 62, 80);
+        doc.setLineWidth(0.53);
+        doc.line(marginX, headerBottom, pageW - marginX, headerBottom);
+        doc.line(marginX, footerTop, pageW - marginX, footerTop);
+
+        doc.setTextColor(20, 31, 46);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(BILL_TITLE_FONT_SIZE);
+        doc.text(`INVOICE - SERVICES CONTINUATION (${chunkIndex + 1}/${chunks.length})`, marginX, 24);
+        drawArabicLine("متابعة تفاصيل الخدمات", pageW - marginX, 20, 42, BILL_TITLE_FONT_SIZE, "bolditalic");
+
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(BILL_BODY_FONT_SIZE);
+        doc.text(`Bill #: ${billId}`, marginX, 30);
+        doc.text(`Order #: ${safeText(order?.id) || "-"}`, marginX + 48, 30);
+        doc.text(`Payment Status: ${paymentStatus}`, marginX + 100, 30);
+        doc.text(`Work Status: ${workStatusLabel || "-"}`, marginX, 35);
+
+        doc.setFillColor(44, 62, 80);
+        doc.setTextColor(255, 255, 255);
+        doc.rect(marginX, continuationHeaderTop, contentW, continuationHeaderH, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(BILL_BODY_FONT_SIZE);
+        doc.text("No", marginX + noW / 2, continuationHeaderTop + 6.2, { align: "center" });
+        doc.text("Description", marginX + noW + 2, continuationHeaderTop + 6.2);
+        doc.text("Amount", pageW - marginX - 2, continuationHeaderTop + 6.2, { align: "right" });
+
+        doc.setTextColor(20, 31, 46);
+        chunk.forEach((service, idx) => {
+          const absoluteIndex = maxRows + chunkIndex * continuationMaxRows + idx + 1;
+          const y = continuationHeaderTop + continuationHeaderH + idx * continuationRowH;
+          if (idx % 2 === 0) {
+            doc.setFillColor(250, 252, 255);
+            doc.rect(marginX, y, contentW, continuationRowH, "F");
+          }
+          doc.setDrawColor(220, 226, 234);
+          doc.setLineWidth(0.22);
+          doc.rect(marginX, y, contentW, continuationRowH);
+          doc.setFont("helvetica", service.type === "package" ? "bold" : "normal");
+          doc.text(String(absoluteIndex), marginX + noW / 2, y + 6.2, { align: "center" });
+
+          const descriptionText =
+            service.type === "package"
+              ? `Package: ${safeText(service.name)}`
+              : service.type === "package-included"
+                ? `- ${safeText(service.name)} (included in package)`
+                : safeText(service.name) || "-";
+          const clippedDescription = clipText(descriptionText, descW - 4);
+          doc.text(clippedDescription, marginX + noW + 2, y + 6.2);
+
+          const amountText = service.price == null ? "" : fmtQar(toNum(service.price));
+          doc.text(amountText, pageW - marginX - 2, y + 6.2, { align: "right" });
+        });
+
+        doc.setTextColor(24, 24, 24);
+        doc.setFont("helvetica", "bolditalic");
+        doc.setFontSize(BILL_BODY_FONT_SIZE);
+        doc.text("RODEO DRIVE TRADING & SERVICES", footerLeftColX, footerContentTop + footerLineH * 1);
+        doc.text("C.R. No: 122716", footerLeftColX, footerContentTop + footerLineH * 2);
+        doc.text("LLC - capital QAR 200,000", footerLeftColX, footerContentTop + footerLineH * 3);
+        doc.text("T: +974 44311871 | M: +974 3320 2409", footerLeftColX, footerContentTop + footerLineH * 4);
+        doc.text("E: info@rodeodrive.qa | W: www.rodeodrive.qa", footerLeftColX, footerContentTop + footerLineH * 5);
+
+        doc.addImage(qrDataUrl, "PNG", footerCenterColX, footerContentTop, footerQrSize, footerQrSize);
+        drawArabicLine("روديو درايف للتجارة والخدمات", footerRightColRightX, footerContentTop + footerLineH * 1 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
+        drawArabicLine("س.ت:122716", footerRightColRightX, footerContentTop + footerLineH * 2 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
+        drawArabicLine("شركة ذات مسؤلية محدودة برأس مال 200,000 رق", footerRightColRightX, footerContentTop + footerLineH * 3 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
+        drawArabicLine("T:+974 44311871 | M:+974 3320 2409", footerRightColRightX, footerContentTop + footerLineH * 4 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
+        drawArabicLine("E: info@rodeodrive.qa W: www.rodeodrive.qa", footerRightColRightX, footerContentTop + footerLineH * 5 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
+      });
+    }
 
     return doc.output("blob") as Blob;
   };
@@ -2771,26 +2905,26 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                         <div className="pim-field">
                           <label>{t("Total Discount (QAR)")}</label>
                           <input
-                            type="number"
+                            type="text"
                             name="discount"
                             value={paymentForm.discount}
                             onChange={handlePaymentChange}
-                            min={0}
-                            max={maxDiscountQarUi}
-                            step={0.01}
+                            onBlur={() => handlePaymentFieldBlur("discount")}
+                            inputMode="decimal"
+                            pattern="[0-9]*[.]?[0-9]{0,2}"
                           />
                           <div className="pim-help">{t("Max discount:")} {centralDiscountPercent}% ({fmtQar(maxDiscountQarUi)})</div>
                         </div>
                         <div className="pim-field">
                           <label>{t("Total Discount (%)")}</label>
                           <input
-                            type="number"
+                            type="text"
                             name="discountPercent"
                             value={paymentForm.discountPercent}
                             onChange={handlePaymentChange}
-                            min={0}
-                            max={centralDiscountPercent}
-                            step={0.01}
+                            onBlur={() => handlePaymentFieldBlur("discountPercent")}
+                            inputMode="decimal"
+                            pattern="[0-9]*[.]?[0-9]{0,2}"
                           />
                           <div className="pim-help">{t("Changing either discount field updates the other automatically.")}</div>
                         </div>
@@ -2803,7 +2937,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
                       <div className="pim-field">
                         <label>{t("Amount to Pay (QAR) *")}</label>
-                        <input type="number" name="amountToPay" value={paymentForm.amountToPay} onChange={handlePaymentChange} min={0} step={0.01} required />
+                        <input type="text" name="amountToPay" value={paymentForm.amountToPay} onChange={handlePaymentChange} onBlur={() => handlePaymentFieldBlur("amountToPay")} inputMode="decimal" pattern="[0-9]*[.]?[0-9]{0,2}" required />
                       </div>
 
                       <div className="pim-field">

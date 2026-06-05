@@ -1275,6 +1275,16 @@ const schema = a
       .handler(a.handler.function(updateUserProfile))
       .returns(a.json()),
 
+      adminUpdateUserEmail: a
+        .mutation()
+        .arguments({
+          currentEmail: a.string().required(),
+          newEmail: a.string().required(),
+        })
+        .authorization((allow) => [allow.authenticated()])
+        .handler(a.handler.function(adminCognito))
+        .returns(a.json()),
+
     myGroups: a
       .query()
       .authorization((allow) => [allow.authenticated()])

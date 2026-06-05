@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { getCurrentUser } from "aws-amplify/auth";
 import { jsPDF } from "jspdf";
 import * as XLSX from "xlsx";
@@ -10,7 +10,7 @@ import "./ScheduledReportsPage.css";
 
 type AnyObj = Record<string, unknown>;
 type ReportFormat = "PDF" | "EXCEL";
-type ModelKey = "JobOrder" | "Customer" | "Vehicle" | "Employee" | "ServiceCatalog" | "UserProfile" | "Ticket";
+type ModelKey = "JobOrder" | "Customer" | "Vehicle" | "Employee" | "ServiceCatalog" | "UserProfile" | "Ticket" | "VoucherGiftHistory" | "QuotationHistory";
 type WeekdayKey = "SUN" | "MON" | "TUE" | "WED" | "THU" | "FRI" | "SAT";
 
 type UserOption = { label: string; value: string };
@@ -58,6 +58,8 @@ const MODELS: Array<{ key: ModelKey; label: string }> = [
   { key: "ServiceCatalog", label: "Service Catalog" },
   { key: "UserProfile", label: "User Profiles" },
   { key: "Ticket", label: "Tickets" },
+  { key: "VoucherGiftHistory", label: "Voucher Gifts" },
+  { key: "QuotationHistory", label: "Quotations" },
 ];
 
 const EMPTY_FILTERS: FilterState = {
@@ -201,9 +203,12 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
     ServiceCatalog: [],
     UserProfile: [],
     Ticket: [],
+    VoucherGiftHistory: [],
+    QuotationHistory: [],
   });
 
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
+  const [columnSearch, setColumnSearch] = useState("");
   const [filters, setFilters] = useState<FilterState>(() => {
     const today = dateInput(new Date());
     return { ...EMPTY_FILTERS, dateFrom: today.slice(0, 8) + "01", dateTo: today };
@@ -236,7 +241,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
       setLoading(true);
       setMessage("");
       try {
-        const [jobOrders, jobServices, customers, vehicles, employees, serviceCatalog, userProfiles, tickets, schedules] = await Promise.all([
+        const [jobOrders, jobServices, customers, vehicles, employees, serviceCatalog, userProfiles, tickets, voucherHistory, quotationHistory, schedules] = await Promise.all([
           safeList(client, "JobOrder", 3000),
           safeList(client, "JobOrderServiceItem", 6000),
           safeList(client, "Customer", 3000),
@@ -245,6 +250,8 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
           safeList(client, "ServiceCatalog", 3000),
           safeList(client, "UserProfile", 3000),
           safeList(client, "Ticket", 3000),
+          safeList(client, "VoucherGiftHistory", 3000),
+          safeList(client, "QuotationHistory", 3000),
           safeList(client, "ScheduledReport", 3000),
         ]);
 
@@ -275,6 +282,8 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
           ServiceCatalog: serviceCatalog.map(normalizeRow),
           UserProfile: userProfiles.map(normalizeRow),
           Ticket: tickets.map(normalizeRow),
+          VoucherGiftHistory: voucherHistory.map(normalizeRow),
+          QuotationHistory: quotationHistory.map(normalizeRow),
         };
 
         const userOptions = Array.from(new Set(userProfiles.map((u) => txt(u.email).toLowerCase()).filter(Boolean))).map((email) => {
@@ -391,6 +400,29 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
     }
     return Array.from(set).sort((a, b) => a.localeCompare(b));
   }, [modelRows]);
+
+  const filteredFieldOptions = useMemo(() => {
+    const q = txt(columnSearch).toLowerCase();
+    if (!q) return fieldOptions;
+    return fieldOptions.filter((field) => field.toLowerCase().includes(q));
+  }, [fieldOptions, columnSearch]);
+
+  const allVisibleColumnsSelected = useMemo(
+    () => filteredFieldOptions.length > 0 && filteredFieldOptions.every((field) => selectedFields.includes(field)),
+    [filteredFieldOptions, selectedFields]
+  );
+
+  const toggleSelectAllVisibleColumns = () => {
+    setSelectedFields((prev) => {
+      if (filteredFieldOptions.length === 0) return prev;
+      const allSelected = filteredFieldOptions.every((field) => prev.includes(field));
+      if (allSelected) {
+        return prev.filter((field) => !filteredFieldOptions.includes(field));
+      }
+      const merged = new Set([...prev, ...filteredFieldOptions]);
+      return Array.from(merged);
+    });
+  };
 
   useEffect(() => {
     if (fieldOptions.length === 0) {
@@ -771,8 +803,21 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
 
           <details className="sr-disclosure">
             <summary>{t("Choose columns")}</summary>
+            <div className="sr-columns-toolbar">
+              <label className="sr-columns-search">
+                <span>{t("Search columns")}</span>
+                <input
+                  value={columnSearch}
+                  onChange={(e) => setColumnSearch(e.target.value)}
+                  placeholder={t("Type to filter columns") as string}
+                />
+              </label>
+              <button type="button" className="sr-btn sr-btn-ghost" onClick={toggleSelectAllVisibleColumns}>
+                {allVisibleColumnsSelected ? t("Clear visible") : t("Select all visible")}
+              </button>
+            </div>
             <div className="sr-fields">
-              {fieldOptions.map((field) => {
+              {filteredFieldOptions.map((field) => {
                 const checked = selectedFields.includes(field);
                 return (
                   <label key={field} className="sr-check">
@@ -791,6 +836,9 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
                   </label>
                 );
               })}
+              {filteredFieldOptions.length === 0 ? (
+                <div className="sr-columns-empty">{t("No columns match your search.")}</div>
+              ) : null}
             </div>
           </details>
 

@@ -888,7 +888,20 @@ export default function JobOrderHistory({
 
     return rows.filter((r) => {
       return matchesSearchQuery(
-        [r.orderNumber, r.orderType, r.customerName, r.mobile, r.vehiclePlate, r.workStatus, r.paymentStatus, r.createDate],
+        [
+          r.orderNumber,
+          r._backendId,
+          r.orderType,
+          r.customerName,
+          r.mobile,
+          r.vehiclePlate,
+          r.workStatus,
+          r.statusEnum,
+          r.paymentStatus,
+          r.paymentEnum,
+          r.createDate,
+          r.createdAtIso,
+        ],
         searchQuery
       );
     });

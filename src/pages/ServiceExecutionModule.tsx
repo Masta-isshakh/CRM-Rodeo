@@ -1,4 +1,4 @@
-// src/pages/serviceexecution/ServiceExecutionModule.tsx
+﻿// src/pages/serviceexecution/ServiceExecutionModule.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 import { createPortal, flushSync } from "react-dom";
@@ -177,7 +177,7 @@ function resolveActorName(user: any) {
   return resolveActorUsername(user, "serviceexec");
 }
 
-function normalizeActorDisplay(value: any, fallback = "—") {
+function normalizeActorDisplay(value: any, fallback = "â€”") {
   const raw = String(value ?? "").trim();
   if (!raw) return fallback;
   const normalized = raw.toLowerCase();
@@ -335,7 +335,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
         pickEmailLike(u?.email, u?.attributes?.email, u?.username)
       );
       if (!emailKey) return false;
-      return activeProfileByEmail[emailKey] === true;
+      return activeProfileByEmail[emailKey] !== false;
     });
   }, [systemUsers, activeProfileByEmail]);
 
@@ -488,7 +488,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
   const getAssigneeDisplayName = (assignedTo: any) => {
     const normalized = normalizeIdentity(assignedTo);
-    if (!normalized) return "—";
+    if (!normalized) return "â€”";
     return assigneeLabelByValue.get(normalized) ?? String(assignedTo);
   };
 
@@ -503,7 +503,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   const [isFinishingWork, setIsFinishingWork] = useState(false);
   const [isAddingService, setIsAddingService] = useState(false);
 
-  // ✅ THIS is what enables Edit/Add service to work
+  // âœ… THIS is what enables Edit/Add service to work
   const [detailsEditMode, setDetailsEditMode] = useState(false);
 
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
@@ -872,7 +872,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
                 return {
                   id: invoiceId,
-                  number: String(inv?.number ?? "—"),
+                  number: String(inv?.number ?? "â€”"),
                   amount: toNum(inv?.amount),
                   discount: toNum(inv?.discount),
                   status: String(inv?.status ?? "Unpaid"),
@@ -936,7 +936,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
             ? new Date(String(p.paidAt)).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
             : (p?.createdAt
                 ? new Date(String(p.createdAt)).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
-                : "—"),
+                : "â€”"),
         }));
 
       const totalAmountRaw = toNum(pickBillingFirstValue("totalAmount", detailed, row, parsed));
@@ -1421,7 +1421,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                         : t("No active services");
                       const assignedToDisplay = currentService?.assignedTo
                         ? getAssigneeDisplayName(currentService.assignedTo)
-                        : "—";
+                        : "â€”";
 
                       return (
                         <tr key={job.id}>
@@ -1583,7 +1583,7 @@ function VehicleInfoCard({ order }: any) {
 function JobOrderSummaryCard({ order, identityToUsernameMap }: any) {
   const createdByDisplay = resolveOrderCreatedBy(order, {
     identityToUsernameMap,
-    fallback: "—",
+    fallback: "â€”",
   });
   const normalizedWorkStatus = normalizeWorkStatusLabel(order?.summary?.workStatus || order?.workStatus);
   const normalizedPaymentStatus = normalizePaymentStatusLabel(order?.summary?.paymentStatus || order?.paymentStatus);
@@ -1630,10 +1630,10 @@ function DocumentsCard({ order, resolveUrl }: any) {
                 <div>
                   <div className="sem-doc-name">{doc.name}</div>
                   <div className="sem-doc-meta">
-                    {doc.type} {doc.category ? `• ${doc.category}` : ""}
-                    {doc.paymentReference ? ` • ${doc.paymentReference}` : ""}
+                    {doc.type} {doc.category ? `â€¢ ${doc.category}` : ""}
+                    {doc.paymentReference ? ` â€¢ ${doc.paymentReference}` : ""}
                     {String(doc?.addedAt ?? doc?.generatedAt ?? doc?.createdAt ?? doc?.uploadedAt ?? doc?.timestamp ?? "").trim()
-                      ? ` • ${t("Generated:")} ${String(doc?.addedAt ?? doc?.generatedAt ?? doc?.createdAt ?? doc?.uploadedAt ?? doc?.timestamp ?? "").trim()}`
+                      ? ` â€¢ ${t("Generated:")} ${String(doc?.addedAt ?? doc?.generatedAt ?? doc?.createdAt ?? doc?.uploadedAt ?? doc?.timestamp ?? "").trim()}`
                       : ""}
                   </div>
                 </div>
@@ -1700,19 +1700,19 @@ function ExitPermitDetailsCard({ order }: any) {
     Boolean(firstNonEmptyText(permit?.permitId, permitInfo?.permitId))
   );
 
-  const permitId = firstNonEmptyText(permit?.permitId, permitInfo?.permitId) || "—";
-  const createDate = firstNonEmptyText(permit?.createDate, permitInfo?.createDate, order?.exitPermitDate) || "—";
-  const nextServiceDate = firstNonEmptyText(permit?.nextServiceDate, permitInfo?.nextServiceDate, order?.nextServiceDate) || "—";
+  const permitId = firstNonEmptyText(permit?.permitId, permitInfo?.permitId) || "â€”";
+  const createDate = firstNonEmptyText(permit?.createDate, permitInfo?.createDate, order?.exitPermitDate) || "â€”";
+  const nextServiceDate = firstNonEmptyText(permit?.nextServiceDate, permitInfo?.nextServiceDate, order?.nextServiceDate) || "â€”";
   const createdBy = normalizeActorDisplay(
     firstNonEmptyText(permit?.createdBy, permitInfo?.createdBy, permitInfo?.actionBy),
-    "—"
+    "â€”"
   );
-  const collectedBy = firstNonEmptyText(permit?.collectedBy, permitInfo?.collectedBy) || "—";
+  const collectedBy = firstNonEmptyText(permit?.collectedBy, permitInfo?.collectedBy) || "â€”";
   const collectedByMobile = firstNonEmptyText(
     permit?.collectedByMobile,
     permitInfo?.collectedByMobile,
     permitInfo?.mobileNumber
-  ) || "—";
+  ) || "â€”";
 
   return (
     <div className="epm-detail-card ex-unified-card">

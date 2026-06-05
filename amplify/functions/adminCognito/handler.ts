@@ -11,6 +11,10 @@ import {
   AdminListGroupsForUserCommand,
   ListUsersInGroupCommand,
 } from "@aws-sdk/client-cognito-identity-provider";
+  import {
+    AdminUpdateUserAttributesCommand,
+    AdminGetUserCommand,
+  } from "@aws-sdk/client-cognito-identity-provider";
 
 const USERPOOL_ID = process.env.USERPOOL_ID!;
 const DEPT_PREFIX = process.env.DEPT_PREFIX || "dept_";
@@ -299,8 +303,43 @@ export const handler = async (event: any) => {
       const { username } = event.arguments;
       return await listUserDepartments(username);
     }
+      case "adminUpdateUserEmail": {
+        const { currentEmail, newEmail } = event.arguments;
+        return await updateUserEmail(currentEmail, newEmail);
+      }
 
     default:
       throw new Error(`Unknown field: ${field}`);
   }
 };
+
+  async function updateUserEmail(currentEmail: string, newEmail: string) {
+    const normalizedCurrent = currentEmail.trim().toLowerCase();
+    const normalizedNew = newEmail.trim().toLowerCase();
+    if (!normalizedCurrent || !normalizedNew) throw new Error("Both currentEmail and newEmail are required.");
+    if (normalizedCurrent === normalizedNew) return { ok: true, message: "No change needed." };
+
+    // Find the username by email
+    const listRes = await cognito.send(
+      new ListUsersCommand({
+        UserPoolId: USERPOOL_ID,
+        Filter: `email = "${normalizedCurrent}"`,
+        Limit: 1,
+      })
+    );
+    const user = (listRes.Users ?? [])[0];
+    if (!user?.Username) throw new Error(`User with email ${normalizedCurrent} not found.`);
+
+    // Update the email attribute and mark it verified
+    await cognito.send(
+      new AdminUpdateUserAttributesCommand({
+        UserPoolId: USERPOOL_ID,
+        Username: user.Username,
+        UserAttributes: [
+          { Name: "email", Value: normalizedNew },
+          { Name: "email_verified", Value: "true" },
+        ],
+      })
+    );
+    return { ok: true };
+  }

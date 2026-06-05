@@ -549,6 +549,33 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
   const [quotationHistoryOpen, setQuotationHistoryOpen] = useState(false);
   const [quotationHistoryLoading, setQuotationHistoryLoading] = useState(false);
   const [quotationHistoryRows, setQuotationHistoryRows] = useState<QuotationHistoryRow[]>([]);
+  const [quotationHistorySearch, setQuotationHistorySearch] = useState("");
+  const [quotationHistoryDateFrom, setQuotationHistoryDateFrom] = useState("");
+  const [quotationHistoryDateTo, setQuotationHistoryDateTo] = useState("");
+
+  const filteredQuotationHistoryRows = useMemo(() => {
+    const q = normalizeKey(quotationHistorySearch);
+    return quotationHistoryRows.filter((row) => {
+      const created = row.createdAt ? dateInput(new Date(row.createdAt)) : "";
+      const fromOk = !quotationHistoryDateFrom || (created && created >= quotationHistoryDateFrom);
+      const toOk = !quotationHistoryDateTo || (created && created <= quotationHistoryDateTo);
+      if (!fromOk || !toOk) return false;
+      if (!q) return true;
+
+      const searchText = [
+        row.quoteNumber,
+        row.customerName,
+        row.customerMobile,
+        row.customerEmail,
+        row.vehicleType,
+        row.vehiclePlate,
+      ]
+        .map((value) => String(value ?? "").toLowerCase())
+        .join(" ");
+
+      return searchText.includes(q);
+    });
+  }, [quotationHistoryRows, quotationHistorySearch, quotationHistoryDateFrom, quotationHistoryDateTo]);
 
   const loadQuotationHistory = async () => {
     setQuotationHistoryLoading(true);
@@ -1587,12 +1614,35 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
               </button>
             </div>
 
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) repeat(2,minmax(150px,180px))", gap: 10, marginTop: 10 }}>
+              <input
+                className="quotation-input"
+                placeholder={t("Search quotations...")}
+                value={quotationHistorySearch}
+                onChange={(e) => setQuotationHistorySearch(e.target.value)}
+              />
+              <input
+                className="quotation-input"
+                type="date"
+                value={quotationHistoryDateFrom}
+                onChange={(e) => setQuotationHistoryDateFrom(e.target.value)}
+                title={t("Date from")}
+              />
+              <input
+                className="quotation-input"
+                type="date"
+                value={quotationHistoryDateTo}
+                onChange={(e) => setQuotationHistoryDateTo(e.target.value)}
+                title={t("Date to")}
+              />
+            </div>
+
             {quotationHistoryLoading ? <div className="quotation-muted" style={{ marginTop: 10 }}>{t("Loading quotation history...")}</div> : null}
-            {!quotationHistoryLoading && quotationHistoryRows.length === 0 ? (
+            {!quotationHistoryLoading && filteredQuotationHistoryRows.length === 0 ? (
               <div className="quotation-muted" style={{ marginTop: 10 }}>{t("No quotations found yet.")}</div>
             ) : null}
 
-            {!quotationHistoryLoading && quotationHistoryRows.length > 0 ? (
+            {!quotationHistoryLoading && filteredQuotationHistoryRows.length > 0 ? (
               <div style={{ overflowX: "auto", marginTop: 12 }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
@@ -1607,7 +1657,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
                     </tr>
                   </thead>
                   <tbody>
-                    {quotationHistoryRows.map((row) => {
+                    {filteredQuotationHistoryRows.map((row) => {
                       const createdLabel = row.createdAt ? new Date(row.createdAt).toLocaleString() : "-";
                       const vehicleLabel = [row.vehicleType, row.vehiclePlate].filter(Boolean).join(" / ") || "-";
                       return (

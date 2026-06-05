@@ -640,6 +640,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
   // Success popup state
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [submittedOrderId, setSubmittedOrderId] = useState("");
+  const [lastCreatedOrderSnapshot, setLastCreatedOrderSnapshot] = useState<any>(null);
   const [lastAction, setLastAction] = useState<"create" | "cancel" | "addService">("create");
   const [showAddServiceSuccessPopup, setShowAddServiceSuccessPopup] = useState(false);
   const [addServiceSuccessData, setAddServiceSuccessData] = useState({ orderId: "", invoiceId: "" });
@@ -653,6 +654,150 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
   const [errorRetry, setErrorRetry] = useState<(() => void) | undefined>(undefined);
   const [actorIdentityMap, setActorIdentityMap] = useState<Record<string, string>>({});
   const detailsViewCacheRef = useRef<Map<string, any>>(new Map());
+
+  const printCreatedReceipt = () => {
+    if (!lastCreatedOrderSnapshot) return;
+    const order = lastCreatedOrderSnapshot;
+    const services = Array.isArray(order?.services)
+      ? order.services
+      : Array.isArray(order?.selectedServices)
+        ? order.selectedServices
+        : [];
+
+    const serviceRows = services
+      .map((item: any, idx: number) => {
+        const name = String(item?.name ?? item?.serviceName ?? item?.title ?? "Service").trim();
+        const price = Number(item?.price ?? item?.unitPrice ?? item?.amount ?? 0);
+        return `<tr><td class=\"cell center\">${idx + 1}</td><td class=\"cell\">${name || "Service"}</td><td class=\"cell right\">QAR ${price.toFixed(2)}</td></tr>`;
+      })
+      .join("");
+
+    const subtotal = Number(order?.subtotal ?? order?.totalAmount ?? 0);
+    const discount = Number(order?.discount ?? 0);
+    const net = Number(order?.netAmount ?? Math.max(0, subtotal - discount));
+    const paid = Number(order?.amountPaid ?? 0);
+    const balance = Number(order?.balanceDue ?? Math.max(0, net - paid));
+    const customer = String(order?.customerName ?? order?.customer?.fullName ?? "-").trim();
+    const mobile = String(order?.customerMobile ?? order?.mobile ?? order?.customer?.mobile ?? "-").trim();
+    const plate = String(order?.vehiclePlate ?? order?.vehicle?.plateNumber ?? "-").trim();
+
+    const receiptHtml = `<!doctype html>
+<html>
+<head>
+  <meta charset=\"utf-8\" />
+  <title>Job Order Receipt</title>
+  <style>
+    @page { size: A4; margin: 16mm 14mm 18mm; }
+    * { box-sizing: border-box; }
+    body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: #0f172a; background: #fff; }
+    .header, .footer { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; }
+    .header { border-bottom: 2px solid #1f2a44; padding-bottom: 10px; margin-bottom: 14px; }
+    .footer { border-top: 2px solid #1f2a44; padding-top: 10px; margin-top: 18px; }
+    .brand-title { font-size: 15px; font-weight: 800; letter-spacing: 0.04em; }
+    .brand-sub { font-size: 11px; color: #475569; }
+    .logo { width: 64px; height: 64px; border-radius: 50%; border: 1px solid #dbe3f0; object-fit: cover; }
+    .rtl { text-align: right; font-weight: 700; }
+    .title { display: flex; justify-content: space-between; align-items: end; margin-bottom: 10px; }
+    .title h1 { margin: 0; font-size: 18px; letter-spacing: 0.04em; }
+    .meta { font-size: 12px; color: #334155; }
+    .info-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
+    .box { border: 1px solid #dbe3f0; border-radius: 10px; padding: 8px 10px; background: #f8fbff; }
+    .box-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+    .box-value { margin-top: 2px; font-size: 13px; font-weight: 700; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    thead th { background: #1f2a44; color: #fff; font-size: 12px; font-weight: 700; padding: 8px; text-align: left; }
+    .cell { border-bottom: 1px solid #dbe3f0; padding: 7px 8px; font-size: 12px; vertical-align: top; }
+    .center { text-align: center; width: 52px; }
+    .right { text-align: right; }
+    .totals { margin-left: auto; width: 300px; border: 1px solid #dbe3f0; border-radius: 10px; padding: 8px 10px; margin-top: 12px; }
+    .totals-row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 12px; }
+    .totals-row.total { border-top: 1px solid #c9d8ef; margin-top: 4px; padding-top: 8px; font-weight: 800; }
+    .signatures { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; margin-top: 24px; }
+    .sig-box { border: 1px solid #dbe3f0; border-radius: 10px; min-height: 90px; padding: 10px; break-inside: avoid; }
+    .sig-label { font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 48px; }
+    .sig-line { border-top: 1px solid #1e293b; font-size: 11px; color: #64748b; padding-top: 6px; }
+    .note { margin-top: 10px; font-size: 11px; color: #64748b; }
+    @media print {
+      tr { break-inside: avoid; }
+      .signatures { page-break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <div class=\"header\">
+    <div>
+      <div class=\"brand-title\">RODEO DRIVE</div>
+      <div class=\"brand-sub\">Gloss Perfected</div>
+      <div class=\"brand-sub\">Block 2, Shop SYS 066, Doha</div>
+    </div>
+    <img class=\"logo\" src=\"/vite.png\" alt=\"Rodeo Drive\" />
+    <div class=\"rtl\">
+      <div>روديو درايف</div>
+      <div class=\"brand-sub\">اللمعان المثالي</div>
+      <div class=\"brand-sub\">الدوحة، قطر</div>
+    </div>
+  </div>
+
+  <div class=\"title\">
+    <h1>JOB ORDER RECEIPT</h1>
+    <div class=\"meta\">Order # ${String(order?.id ?? submittedOrderId ?? "-")}</div>
+  </div>
+
+  <div class=\"info-grid\">
+    <div class=\"box\"><div class=\"box-label\">Customer</div><div class=\"box-value\">${customer || "-"}</div></div>
+    <div class=\"box\"><div class=\"box-label\">Mobile</div><div class=\"box-value\">${mobile || "-"}</div></div>
+    <div class=\"box\"><div class=\"box-label\">Vehicle Plate</div><div class=\"box-value\">${plate || "-"}</div></div>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th style=\"width:52px;\">#</th><th>Service</th><th style=\"width:180px;text-align:right;\">Price</th></tr>
+    </thead>
+    <tbody>
+      ${serviceRows || "<tr><td class=\"cell center\">-</td><td class=\"cell\">No services listed</td><td class=\"cell right\">-</td></tr>"}
+    </tbody>
+  </table>
+
+  <div class=\"totals\">
+    <div class=\"totals-row\"><span>Subtotal</span><strong>QAR ${subtotal.toFixed(2)}</strong></div>
+    <div class=\"totals-row\"><span>Discount</span><strong>QAR ${discount.toFixed(2)}</strong></div>
+    <div class=\"totals-row\"><span>Net</span><strong>QAR ${net.toFixed(2)}</strong></div>
+    <div class=\"totals-row\"><span>Paid</span><strong>QAR ${paid.toFixed(2)}</strong></div>
+    <div class=\"totals-row total\"><span>Balance Due</span><strong>QAR ${balance.toFixed(2)}</strong></div>
+  </div>
+
+  <div class=\"signatures\">
+    <div class=\"sig-box\">
+      <div class=\"sig-label\">Employee Signature</div>
+      <div class=\"sig-line\">Name & Signature</div>
+    </div>
+    <div class=\"sig-box\">
+      <div class=\"sig-label\">Customer Signature</div>
+      <div class=\"sig-line\">Name & Signature</div>
+    </div>
+  </div>
+
+  <div class=\"note\">This printout is generated directly from the job order record. Save as PDF from the print dialog if needed.</div>
+
+  <div class=\"footer\">
+    <div>
+      <div class=\"brand-sub\">RODEO DRIVE TRADING & SERVICES</div>
+      <div class=\"brand-sub\">T: +974 44311871 | M: +974 3320 2409</div>
+    </div>
+    <div class=\"brand-sub\">www.rodeodrive.qa</div>
+    <div class=\"rtl\">روديو درايف للتجارة والخدمات</div>
+  </div>
+
+  <script>window.print();</script>
+</body>
+</html>`;
+
+    const w = window.open("", "_blank", "noopener,noreferrer,width=900,height=800");
+    if (!w) return;
+    w.document.open();
+    w.document.write(receiptHtml);
+    w.document.close();
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -1057,6 +1202,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
 
               setScreenState("main");
               setSubmittedOrderId(String(newOrder.id || ""));
+              setLastCreatedOrderSnapshot({ ...newOrder });
               setLastAction("create");
               setShowSuccessPopup(true);
 
@@ -1165,6 +1311,11 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
                   </div>
                   <div style={{ fontSize: "0.82rem", color: "#8C9ABF", fontWeight: 600, paddingTop: 6, borderTop: "1px solid #EEF2FB" }}>
                     {t("Your order has been added to the system and is ready for processing.")}
+                  </div>
+                  <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                    <button type="button" className="quotation-inline-reset-btn" onClick={printCreatedReceipt}>
+                      <i className="fas fa-print" /> {t("Print Receipt")}
+                    </button>
                   </div>
                 </div>
               </>

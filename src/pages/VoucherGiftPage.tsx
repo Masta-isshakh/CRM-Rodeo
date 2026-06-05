@@ -553,6 +553,33 @@ export default function VoucherGiftPage({ currentUser }: { currentUser?: any; pe
   const [voucherHistoryOpen, setVoucherHistoryOpen] = useState(false);
   const [voucherHistoryLoading, setVoucherHistoryLoading] = useState(false);
   const [voucherHistoryRows, setVoucherHistoryRows] = useState<VoucherHistoryRow[]>([]);
+  const [voucherHistorySearch, setVoucherHistorySearch] = useState("");
+  const [voucherHistoryDateFrom, setVoucherHistoryDateFrom] = useState("");
+  const [voucherHistoryDateTo, setVoucherHistoryDateTo] = useState("");
+
+  const filteredVoucherHistoryRows = useMemo(() => {
+    const q = normalizeKey(voucherHistorySearch);
+    return voucherHistoryRows.filter((row) => {
+      const created = row.createdAt ? dateInput(new Date(row.createdAt)) : "";
+      const fromOk = !voucherHistoryDateFrom || (created && created >= voucherHistoryDateFrom);
+      const toOk = !voucherHistoryDateTo || (created && created <= voucherHistoryDateTo);
+      if (!fromOk || !toOk) return false;
+      if (!q) return true;
+
+      const searchText = [
+        row.quoteNumber,
+        row.customerName,
+        row.customerMobile,
+        row.customerEmail,
+        row.vehicleType,
+        row.vehiclePlate,
+      ]
+        .map((value) => String(value ?? "").toLowerCase())
+        .join(" ");
+
+      return searchText.includes(q);
+    });
+  }, [voucherHistoryRows, voucherHistorySearch, voucherHistoryDateFrom, voucherHistoryDateTo]);
 
   const loadVoucherHistory = async () => {
     setVoucherHistoryLoading(true);
@@ -1567,12 +1594,35 @@ export default function VoucherGiftPage({ currentUser }: { currentUser?: any; pe
               </button>
             </div>
 
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(220px,1fr) repeat(2,minmax(150px,180px))", gap: 10, marginTop: 10 }}>
+              <input
+                className="quotation-input"
+                placeholder={t("Search vouchers...")}
+                value={voucherHistorySearch}
+                onChange={(e) => setVoucherHistorySearch(e.target.value)}
+              />
+              <input
+                className="quotation-input"
+                type="date"
+                value={voucherHistoryDateFrom}
+                onChange={(e) => setVoucherHistoryDateFrom(e.target.value)}
+                title={t("Date from")}
+              />
+              <input
+                className="quotation-input"
+                type="date"
+                value={voucherHistoryDateTo}
+                onChange={(e) => setVoucherHistoryDateTo(e.target.value)}
+                title={t("Date to")}
+              />
+            </div>
+
             {voucherHistoryLoading ? <div className="quotation-muted" style={{ marginTop: 10 }}>{t("Loading voucher history...")}</div> : null}
-            {!voucherHistoryLoading && voucherHistoryRows.length === 0 ? (
+            {!voucherHistoryLoading && filteredVoucherHistoryRows.length === 0 ? (
               <div className="quotation-muted" style={{ marginTop: 10 }}>{t("No vouchers found yet.")}</div>
             ) : null}
 
-            {!voucherHistoryLoading && voucherHistoryRows.length > 0 ? (
+            {!voucherHistoryLoading && filteredVoucherHistoryRows.length > 0 ? (
               <div style={{ overflowX: "auto", marginTop: 12 }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
                   <thead>
@@ -1590,7 +1640,7 @@ export default function VoucherGiftPage({ currentUser }: { currentUser?: any; pe
                     </tr>
                   </thead>
                   <tbody>
-                    {voucherHistoryRows.map((row) => {
+                    {filteredVoucherHistoryRows.map((row) => {
                       const createdLabel = row.createdAt ? new Date(row.createdAt).toLocaleString() : "-";
                       const vehicleLabel = [row.vehicleType, row.vehiclePlate].filter(Boolean).join(" / ") || "-";
                       return (
