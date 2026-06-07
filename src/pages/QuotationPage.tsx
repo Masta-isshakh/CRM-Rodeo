@@ -556,7 +556,7 @@ export default function QuotationPage({ currentUser }: { currentUser?: any; perm
   const filteredQuotationHistoryRows = useMemo(() => {
     const q = normalizeKey(quotationHistorySearch);
     return quotationHistoryRows.filter((row) => {
-      const created = row.createdAt ? dateInput(new Date(row.createdAt)) : "";
+      const created = String(row.createdAt ?? "").slice(0, 10);
       const fromOk = !quotationHistoryDateFrom || (created && created >= quotationHistoryDateFrom);
       const toOk = !quotationHistoryDateTo || (created && created <= quotationHistoryDateTo);
       if (!fromOk || !toOk) return false;

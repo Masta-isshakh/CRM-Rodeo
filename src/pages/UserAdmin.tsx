@@ -2023,7 +2023,7 @@ export default function Users(_: PageProps) {
                               }}
                               disabled={loading}
                             >
-                              <span aria-hidden>ΓÜÖ</span> Actions <span className="ums-caret" aria-hidden>Γû╛</span>
+                              Actions <span className="ums-caret" aria-hidden>▾</span>
                             </button>
                           </PermissionGate>
                         )}

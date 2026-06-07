@@ -496,11 +496,6 @@ function ServiceItem({
                   <i className="fas fa-chevron-down"></i>
                 </button>
 
-                {/* TEMP DEBUG: remove after user confirms dropdown behavior. */}
-                <div className="pim-help" style={{ marginTop: 6, fontSize: 11, color: "#475569", fontWeight: 600 }}>
-                  [TEMP_DEBUG] Operations technicians resolved: {normalizedTechOptions.length}
-                </div>
-
                 {techDropdownOpen && (
                   <div className="tech-dropdown-content show">
                     {normalizedTechOptions.map((tech, idx) => (

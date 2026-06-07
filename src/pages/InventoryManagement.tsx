@@ -36,6 +36,13 @@ interface ScannedEntry {
   notes: string;
 }
 
+interface SerialRangeInfo {
+  prefix: string;
+  startValue: number;
+  endValue: number;
+  width: number;
+}
+
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function parseJSON<T>(raw: unknown): T | null {
   try {
@@ -68,6 +75,31 @@ function fmtDate(iso: string | null | undefined): string {
   } catch {
     return iso;
   }
+}
+
+function parseSerialRange(startSerialRaw: string, endSerialRaw: string): SerialRangeInfo | null {
+  const startSerial = String(startSerialRaw ?? "").trim();
+  const endSerial = String(endSerialRaw ?? "").trim();
+  if (!startSerial || !endSerial) return null;
+
+  const startMatch = startSerial.match(/^(.*?)(\d{3})$/);
+  const endMatch = endSerial.match(/^(.*?)(\d{3})$/);
+  if (!startMatch || !endMatch) return null;
+
+  const [, startPrefix, startSuffix] = startMatch;
+  const [, endPrefix, endSuffix] = endMatch;
+  if (startPrefix !== endPrefix) return null;
+
+  const startValue = Number(startSuffix);
+  const endValue = Number(endSuffix);
+  if (!Number.isFinite(startValue) || !Number.isFinite(endValue) || endValue < startValue) return null;
+
+  return {
+    prefix: startPrefix,
+    startValue,
+    endValue,
+    width: startSuffix.length,
+  };
 }
 
 // ─── Component ────────────────────────────────────────────────────────────────
@@ -132,6 +164,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
   const [modalSubcategoryId, setModalSubcategoryId] = useState("");
   const [prodName, setProdName]     = useState("");
   const [prodSerial, setProdSerial] = useState("");
+  const [prodSerialEnd, setProdSerialEnd] = useState("");
   const [prodBarcode, setProdBarcode] = useState("");
   const [prodQty, setProdQty]       = useState(1);
   const [prodNotes, setProdNotes]   = useState("");
@@ -508,7 +541,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
 
     setModalCategory(nextCategory);
     setModalSubcategoryId(nextSubcategory?.id ?? "");
-    setProdName(""); setProdSerial(""); setProdBarcode("");
+    setProdName(""); setProdSerial(""); setProdSerialEnd(""); setProdBarcode("");
     setProdQty(1); setProdNotes("");
     setProdCustom({});
     setScannedItems([]);
@@ -534,44 +567,90 @@ export default function InventoryManagement({ permissions }: PageProps) {
     if (!activeModalSubcategory || !modalCategory) return;
     const name = prodName.trim();
     if (!name) { setStatus({ msg: t("Please enter a product name."), type: "error" }); return; }
+    const serialRange = parseSerialRange(prodSerial, prodSerialEnd);
+    if (prodSerialEnd.trim() && !serialRange) {
+      setStatus({ msg: t("Enter a valid serial range. Start and end serials must share the same prefix and differ only in the last three digits."), type: "error" });
+      return;
+    }
     const qty = Math.max(1, Number(prodQty) || 1);
     setSaving(true);
     try {
       const actor = (await getCurrentUser()).signInDetails?.loginId ?? "";
       const now = new Date().toISOString();
-      const product = await client.models.InventoryProduct.create({
-        categoryId: modalCategory.id,
-        subcategoryId: activeModalSubcategory.id,
-        subcategoryName: activeModalSubcategory.name ?? "",
-        name,
-        serialNumber: prodSerial.trim() || undefined,
-        barcode: prodBarcode.trim() || undefined,
-        quantity: qty,
-        availableQuantity: qty,
-        customFieldsJson: JSON.stringify(prodCustom),
-        status: "ACTIVE",
-        notes: prodNotes.trim() || undefined,
-        createdAt: now,
-        createdBy: actor,
-        updatedAt: now,
-      });
+      if (serialRange) {
+        const serials: string[] = [];
+        for (let current = serialRange.startValue; current <= serialRange.endValue; current += 1) {
+          serials.push(`${serialRange.prefix}${String(current).padStart(serialRange.width, "0")}`);
+        }
 
-      if (product.data) {
-        await client.models.InventoryTransaction.create({
-          productId: product.data.id,
-          productName: name,
-          subcategoryId: activeModalSubcategory.id,
+        await Promise.all(
+          serials.map(async (serial) => {
+            const created = await client.models.InventoryProduct.create({
+              categoryId: modalCategory.id,
+              subcategoryId: activeModalSubcategory.id,
+              subcategoryName: activeModalSubcategory.name ?? "",
+              name,
+              serialNumber: serial,
+              quantity: 1,
+              availableQuantity: 1,
+              customFieldsJson: JSON.stringify(prodCustom),
+              status: "ACTIVE",
+              notes: prodNotes.trim() || undefined,
+              createdAt: now,
+              createdBy: actor,
+              updatedAt: now,
+            });
+
+            if (created.data) {
+              await client.models.InventoryTransaction.create({
+                productId: created.data.id,
+                productName: name,
+                subcategoryId: activeModalSubcategory.id,
+                categoryId: modalCategory.id,
+                transactionType: "ADD",
+                quantity: 1,
+                notesText: `Added from serial range ${prodSerial.trim()} → ${prodSerialEnd.trim()}`,
+                createdAt: now,
+                createdBy: actor,
+              });
+            }
+          })
+        );
+      } else {
+        const product = await client.models.InventoryProduct.create({
           categoryId: modalCategory.id,
-          transactionType: "ADD",
+          subcategoryId: activeModalSubcategory.id,
+          subcategoryName: activeModalSubcategory.name ?? "",
+          name,
+          serialNumber: prodSerial.trim() || undefined,
+          barcode: prodBarcode.trim() || undefined,
           quantity: qty,
-          notesText: `Initial stock addition of ${qty} unit(s)`,
+          availableQuantity: qty,
+          customFieldsJson: JSON.stringify(prodCustom),
+          status: "ACTIVE",
+          notes: prodNotes.trim() || undefined,
           createdAt: now,
           createdBy: actor,
+          updatedAt: now,
         });
+
+        if (product.data) {
+          await client.models.InventoryTransaction.create({
+            productId: product.data.id,
+            productName: name,
+            subcategoryId: activeModalSubcategory.id,
+            categoryId: modalCategory.id,
+            transactionType: "ADD",
+            quantity: qty,
+            notesText: `Initial stock addition of ${qty} unit(s)`,
+            createdAt: now,
+            createdBy: actor,
+          });
+        }
       }
 
       setShowAddProdModal(false);
-      setStatus({ msg: `${t("Added")} ${qty} ${t("unit(s) of")} "${name}".`, type: "success" });
+      setStatus({ msg: serialRange ? `${t("Added serial range")} ${prodSerial.trim()} → ${prodSerialEnd.trim()} ${t("for")} "${name}".` : `${t("Added")} ${qty} ${t("unit(s) of")} "${name}".`, type: "success" });
       if (selectedSubcategory && selectedSubcategory.id === activeModalSubcategory.id && productsView === "products") {
         await loadProducts(activeModalSubcategory.id);
       } else if (modalCategory) {
@@ -1849,8 +1928,8 @@ export default function InventoryManagement({ permissions }: PageProps) {
                         type="text"
                         value={prodName}
                         onChange={(e) => setProdName(e.target.value)}
-                        placeholder="Enter product name"
                         autoFocus
+                        placeholder={t("Product name") as string}
                       />
                     </div>
                     <div className="inv-form-group">
@@ -1860,29 +1939,50 @@ export default function InventoryManagement({ permissions }: PageProps) {
                         min={1}
                         value={prodQty}
                         onChange={(e) => setProdQty(Math.max(1, Number(e.target.value) || 1))}
+                        disabled={Boolean(prodSerialEnd.trim())}
                       />
-                      <p className="inv-form-hint">You can add multiple units at once (e.g. 100)</p>
+                      <p className="inv-form-hint">
+                        {prodSerialEnd.trim()
+                          ? t("Quantity is automatically calculated from the serial range.")
+                          : t("You can add multiple units at once (e.g. 100).")}
+                      </p>
                     </div>
                   </div>
 
-                  <div className="inv-form-row">
-                    <div className="inv-form-group">
-                      <label>Serial Number</label>
+                  <div className="inv-grid-2">
+                    <label className="inv-field">
+                      <span>{t("First Serial Number")}</span>
                       <input
-                        type="text"
                         value={prodSerial}
                         onChange={(e) => setProdSerial(e.target.value)}
-                        placeholder="Optional serial number"
+                        placeholder={t("Optional serial or range start") as string}
                       />
-                    </div>
-                    <div className="inv-form-group">
-                      <label>Barcode / QR Code</label>
+                    </label>
+                    <label className="inv-field">
+                      <span>{t("Last Serial Number")}</span>
                       <input
-                        type="text"
+                        value={prodSerialEnd}
+                        onChange={(e) => setProdSerialEnd(e.target.value)}
+                        placeholder={t("Optional range end") as string}
+                      />
+                    </label>
+                  </div>
+
+                  <div className="inv-grid-2">
+                    <label className="inv-field">
+                      <span>{t("Barcode / QR")}</span>
+                      <input
                         value={prodBarcode}
                         onChange={(e) => setProdBarcode(e.target.value)}
-                        placeholder="Optional barcode/QR"
+                        placeholder={t("Optional") as string}
+                        disabled={Boolean(prodSerialEnd.trim())}
                       />
+                    </label>
+                    <div className="inv-field" style={{ justifyContent: "end" }}>
+                      <span>{t("Range rule")}</span>
+                      <div style={{ color: "#6d7d90", fontSize: 12, lineHeight: 1.5 }}>
+                        {t("If you enter both first and last serials, products will be created by incrementing the last three digits.")}
+                      </div>
                     </div>
                   </div>
 
