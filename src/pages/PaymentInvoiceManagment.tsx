@@ -1173,11 +1173,12 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     setPaymentForm((prev) => {
       if (!prev) return prev;
 
-      if ((name === "discount" || name === "discountPercent" || name === "amountToPay") && !/^\d*\.?\d{0,2}$/.test(value)) {
-        return prev;
-      }
+      const isNumericField = name === "discount" || name === "discountPercent" || name === "amountToPay";
+      if (isNumericField && !/^\d*(?:[.,]\d*)?$/.test(value)) return prev;
 
-      const next = { ...prev, [name]: value } as PaymentFormState;
+      const normalizedValue = isNumericField ? value.replace(",", ".") : value;
+
+      const next = { ...prev, [name]: normalizedValue } as PaymentFormState;
 
       if (name === "discount" || name === "discountPercent" || name === "amountToPay") {
         const discountAllowance = computeCumulativeDiscountAllowance({

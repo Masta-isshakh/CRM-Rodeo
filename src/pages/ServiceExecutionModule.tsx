@@ -320,6 +320,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   // user lists (optional)
   const [systemUsers, setSystemUsers] = useState<any[]>([]);
   const [activeProfileByEmail, setActiveProfileByEmail] = useState<Record<string, boolean>>({});
+  const [profileDeptByEmail, setProfileDeptByEmail] = useState<Record<string, { departmentKey: string; departmentName: string }>>({});
   const [actorLabelMap, setActorLabelMap] = useState<Record<string, string>>({});
 
   const activeSystemUsers = useMemo(() => {
@@ -389,34 +390,50 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   );
 
   const technicianNames = useMemo(() => {
-    const isOperationsUser = (user: any) => {
-      const deptKey = String(user?.departmentKey ?? user?.attributes?.departmentKey ?? user?.attributes?.["custom:departmentKey"] ?? "").trim().toLowerCase();
-      const deptName = String(user?.departmentName ?? user?.attributes?.departmentName ?? user?.attributes?.department ?? user?.attributes?.["custom:departmentName"] ?? "").trim().toLowerCase();
-      const opsRegex = /(^|[^a-z])operations?([^a-z]|$)/i;
-      return opsRegex.test(deptKey) || opsRegex.test(deptName);
+    const opsRegex = /(^|[^a-z])operations?([^a-z]|$)/i;
+    const out = new Map<string, string>();
+
+    const addTech = (value: any) => {
+      const label = String(value ?? "").trim();
+      if (!label) return;
+      const key = normalizeIdentity(label);
+      if (!key || out.has(key)) return;
+      out.set(key, label);
     };
 
-    const operationsLabelSet = new Set<string>();
+    const isOperationsDept = (deptKey: string, deptName: string) =>
+      opsRegex.test(String(deptKey ?? "").toLowerCase()) || opsRegex.test(String(deptName ?? "").toLowerCase());
+
+    // Primary source: active users currently loaded in directory/list-users response.
     for (const user of activeSystemUsers) {
-      if (!isOperationsUser(user)) continue;
-      const preferredLabel =
+      const email = normalizeIdentity(pickEmailLike(user?.email, user?.attributes?.email, user?.username));
+      const directDeptKey = String(user?.departmentKey ?? user?.attributes?.departmentKey ?? user?.attributes?.["custom:departmentKey"] ?? "").trim();
+      const directDeptName = String(user?.departmentName ?? user?.attributes?.departmentName ?? user?.attributes?.department ?? user?.attributes?.["custom:departmentName"] ?? "").trim();
+
+      let inOperations = isOperationsDept(directDeptKey, directDeptName);
+      if (!inOperations && email) {
+        const prof = profileDeptByEmail[email];
+        if (prof) inOperations = isOperationsDept(prof.departmentKey, prof.departmentName);
+      }
+      if (!inOperations) continue;
+
+      addTech(
         String(user?.name ?? "").trim() ||
         String(user?.fullName ?? "").trim() ||
         String(user?.displayName ?? "").trim() ||
-        pickEmailLike(user?.email, user?.attributes?.email, user?.username);
-      if (preferredLabel) operationsLabelSet.add(preferredLabel);
+        (email || "")
+      );
     }
 
-    const byKey = new Map<string, string>();
-    for (const opt of assigneeOptions) {
-      const label = String(opt?.label ?? "").trim();
-      if (!operationsLabelSet.has(label)) continue;
-      const key = normalizeIdentity(label);
-      if (!key || byKey.has(key)) continue;
-      byKey.set(key, label);
+    // Fallback source: UserProfile rows (covers users missing from activeSystemUsers).
+    for (const [email, dept] of Object.entries(profileDeptByEmail)) {
+      if (activeProfileByEmail[email] === false) continue;
+      if (!isOperationsDept(dept.departmentKey, dept.departmentName)) continue;
+      addTech(String(actorLabelMap[email] ?? "").trim() || email);
     }
-    return Array.from(byKey.values());
-  }, [assigneeOptions, activeSystemUsers]);
+
+    return Array.from(out.values()).sort((a, b) => a.localeCompare(b));
+  }, [activeSystemUsers, profileDeptByEmail, activeProfileByEmail, actorLabelMap]);
 
   const assigneeLabelByValue = useMemo(() => {
     const map = new Map<string, string>();
@@ -584,14 +601,21 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
             limit: 20000,
           } as any);
           const profileMap: Record<string, boolean> = {};
+          const deptMap: Record<string, { departmentKey: string; departmentName: string }> = {};
           for (const row of profileRes?.data ?? []) {
             const emailKey = normalizeIdentity((row as any)?.email);
             if (!emailKey) continue;
             profileMap[emailKey] = Boolean((row as any)?.isActive ?? true);
+            deptMap[emailKey] = {
+              departmentKey: String((row as any)?.departmentKey ?? "").trim(),
+              departmentName: String((row as any)?.departmentName ?? "").trim(),
+            };
           }
           setActiveProfileByEmail(profileMap);
+          setProfileDeptByEmail(deptMap);
         } catch {
           setActiveProfileByEmail({});
+          setProfileDeptByEmail({});
         }
 
         try {
@@ -631,6 +655,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
       } catch {
         setSystemUsers([]);
         setActiveProfileByEmail({});
+        setProfileDeptByEmail({});
         setActorLabelMap({});
       }
     })();
