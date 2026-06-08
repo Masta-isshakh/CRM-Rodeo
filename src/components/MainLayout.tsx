@@ -715,57 +715,15 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
             <div className="drawer-section-label">{t("Operations")}</div>
 
-            {show.customers && (
-              <button className={page === "customers" ? "active" : ""} onClick={() => go("customers")}>
-                <i className="fas fa-user" aria-hidden="true" /> {t("Customers")}
-              </button>
-            )}
-
-            {show.vehicles && (
-              <button className={page === "vehicles" ? "active" : ""} onClick={() => go("vehicles")}>
-                <i className="fas fa-car" aria-hidden="true" /> {t("Vehicles")}
-              </button>
-            )}
-
             {show.jobcards && (
               <button className={page === "jobcards" ? "active" : ""} onClick={() => go("jobcards")}>
                 <i className="fas fa-rectangle-list" aria-hidden="true" /> {t("Job Cards")}
               </button>
             )}
 
-            {show.servicecreation && (
-              <button className={page === "servicecreation" ? "active" : ""} onClick={() => go("servicecreation")}>
-                <i className="fas fa-square-plus" aria-hidden="true" /> {t("Service Creation")}
-              </button>
-            )}
-
-            {show.servicetech && (
-              <button className={page === "servicetech" ? "active" : ""} onClick={() => go("servicetech")}>
-                <i className="fas fa-user-cog" aria-hidden="true" /> {t("Service Technicians")}
-              </button>
-            )}
-
-            {show.jobhistory && (
-              <button className={page === "jobhistory" ? "active" : ""} onClick={() => go("jobhistory")}>
-                <i className="fas fa-clock-rotate-left" aria-hidden="true" /> {t("Job History")}
-              </button>
-            )}
-
-            {show.quotation && (
-              <button className={page === "quotation" ? "active" : ""} onClick={() => go("quotation")}>
-                <i className="fas fa-file-lines" aria-hidden="true" /> {t("Quotations")}
-              </button>
-            )}
-
-            {show.vouchergift && (
-              <button className={page === "vouchergift" ? "active" : ""} onClick={() => go("vouchergift")}>
-                <i className="fas fa-gift" aria-hidden="true" /> {t("Voucher Gift")}
-              </button>
-            )}
-
-            {show.scheduledreports && (
-              <button className={page === "scheduledreports" ? "active" : ""} onClick={() => go("scheduledreports")}>
-                <i className="fas fa-calendar-days" aria-hidden="true" /> {t("Scheduled Reports")}
+            {show.inspection && (
+              <button className={page === "inspection" ? "active" : ""} onClick={() => go("inspection")}>
+                <i className="fas fa-clipboard-check" aria-hidden="true" /> {t("Inspection")}
               </button>
             )}
 
@@ -793,9 +751,39 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               </button>
             )}
 
-            {show.inspection && (
-              <button className={page === "inspection" ? "active" : ""} onClick={() => go("inspection")}>
-                <i className="fas fa-clipboard-check" aria-hidden="true" /> {t("Inspection")}
+            {show.jobhistory && (
+              <button className={page === "jobhistory" ? "active" : ""} onClick={() => go("jobhistory")}>
+                <i className="fas fa-clock-rotate-left" aria-hidden="true" /> {t("Job History")}
+              </button>
+            )}
+
+            {show.customers && (
+              <button className={page === "customers" ? "active" : ""} onClick={() => go("customers")}>
+                <i className="fas fa-user" aria-hidden="true" /> {t("Customers")}
+              </button>
+            )}
+
+            {show.vehicles && (
+              <button className={page === "vehicles" ? "active" : ""} onClick={() => go("vehicles")}>
+                <i className="fas fa-car" aria-hidden="true" /> {t("Vehicles")}
+              </button>
+            )}
+
+            {show.vouchergift && (
+              <button className={page === "vouchergift" ? "active" : ""} onClick={() => go("vouchergift")}>
+                <i className="fas fa-gift" aria-hidden="true" /> {t("Voucher Gift")}
+              </button>
+            )}
+
+            {show.quotation && (
+              <button className={page === "quotation" ? "active" : ""} onClick={() => go("quotation")}>
+                <i className="fas fa-file-lines" aria-hidden="true" /> {t("Quotations")}
+              </button>
+            )}
+
+            {show.scheduledreports && (
+              <button className={page === "scheduledreports" ? "active" : ""} onClick={() => go("scheduledreports")}>
+                <i className="fas fa-calendar-days" aria-hidden="true" /> {t("Scheduled Reports")}
               </button>
             )}
 
@@ -844,9 +832,20 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               </button>
             )}
 
-            {(showAdmin.users || showAdmin.departments || showAdmin.rolespolicies || showAdmin.dbcleanup) && (
+            {(show.servicecreation || show.servicetech || showAdmin.users || showAdmin.departments || showAdmin.rolespolicies || showAdmin.campaignaudience || showAdmin.dbcleanup) && (
               <div className="drawer-section">
                 <div className="drawer-section-label">{t("Admin")}</div>
+
+                {show.servicecreation && (
+                  <button className={page === "servicecreation" ? "active" : ""} onClick={() => go("servicecreation")}>
+                    <i className="fas fa-square-plus" aria-hidden="true" /> {t("Service Creation")}
+                  </button>
+                )}
+                {show.servicetech && (
+                  <button className={page === "servicetech" ? "active" : ""} onClick={() => go("servicetech")}>
+                    <i className="fas fa-user-cog" aria-hidden="true" /> {t("Service Technicians")}
+                  </button>
+                )}
 
                 {showAdmin.users && (
                   <button className={page === "users" ? "active" : ""} onClick={() => go("users")}>
