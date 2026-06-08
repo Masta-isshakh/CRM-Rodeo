@@ -866,6 +866,42 @@
   background: #f4f7ff;
 }
 
+.service-execution-wrapper .pim-detail-card .tech-option-group {
+  border-radius: 8px;
+}
+
+.service-execution-wrapper .pim-detail-card .tech-service-assignment-box {
+  margin: 4px 8px 8px;
+  border: 1px dashed #d7e3fa;
+  border-radius: 8px;
+  background: #f8fbff;
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+}
+
+.service-execution-wrapper .pim-detail-card .tech-service-assignment-title {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #7f8fb6;
+}
+
+.service-execution-wrapper .pim-detail-card .tech-service-assignment-empty {
+  font-size: 0.8rem;
+  color: #7f8fb6;
+  font-weight: 600;
+}
+
+.service-execution-wrapper .pim-detail-card .tech-service-option {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: #0f2a66;
+}
+
 .service-execution-wrapper .pim-detail-card .assigned-tech-section {
   margin-top: 14px;
   border-top: 1px solid #e3eaf6;

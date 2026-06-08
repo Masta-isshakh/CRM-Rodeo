@@ -632,18 +632,6 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
           <div className="dep-modal-card">
             <div className="dep-modal-head">
               <h3>{t("Edit Role")}</h3>
-              <button
-                type="button"
-                className="dep-modal-close"
-                onClick={() => {
-                  if (loading) return;
-                  setShowEditRoleModal(false);
-                  setEditRoleDept(null);
-                  setEditRoleId("");
-                }}
-              >
-                ×
-              </button>
             </div>
 
             <p className="dep-modal-subtitle">{t("Department:")} <strong>{editRoleDept.name}</strong></p>

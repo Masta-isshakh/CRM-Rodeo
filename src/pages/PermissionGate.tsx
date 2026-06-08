@@ -266,7 +266,7 @@ export function resolvePolicyAndOp(moduleId: string, optionId: string): Resolved
       return { policyKey: "JOB_CARDS", op: "canRead" };
     }
 
-    if (o === "exitpermit_create" || o === "exitpermit_cancelorder") {
+    if (o === "exitpermit_create" || o === "exitpermit_bypass" || o === "exitpermit_cancelorder") {
       return { policyKey: "JOB_CARDS", op: "canUpdate" };
     }
 
@@ -341,6 +341,31 @@ export function resolvePolicyAndOp(moduleId: string, optionId: string): Resolved
       o === "serviceexec_cancel"
     ) {
       return { policyKey: "JOB_CARDS", op: "canUpdate" };
+    }
+
+    return null;
+  }
+
+  // SERVICE TECHNICIANS
+  if (m === "servicetech" || m === "servicetechnicians") {
+    if (
+      o === "servicetech_list" ||
+      o === "servicetech_search" ||
+      o === "servicetech_refresh"
+    ) {
+      return { policyKey: "JOB_CARDS", op: "canRead" };
+    }
+
+    if (o === "servicetech_add" || o === "servicetech_create") {
+      return { policyKey: "JOB_CARDS", op: "canCreate", fallbackOps: ["canUpdate"] };
+    }
+
+    if (o === "servicetech_edit" || o === "servicetech_update") {
+      return { policyKey: "JOB_CARDS", op: "canUpdate" };
+    }
+
+    if (o === "servicetech_delete") {
+      return { policyKey: "JOB_CARDS", op: "canDelete", fallbackOps: ["canUpdate"] };
     }
 
     return null;

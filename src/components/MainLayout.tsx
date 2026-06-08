@@ -12,6 +12,7 @@ const loadActivityLog = () => import("../pages/ActivityLogs");
 
 const loadJobCards = () => import("../pages/JobCards");
 const loadServiceCreation = () => import("../pages/ServiceCreation");
+const loadServiceTechnicians = () => import("../pages/ServiceTechnicians");
 const loadServiceExecution = () => import("../pages/ServiceExecutionModule");
 const loadUsers = () => import("../pages/UserAdmin");
 const loadDepartmentsAdmin = () => import("../pages/DepartmentsAdmin");
@@ -43,6 +44,7 @@ const ActivityLog = lazy(loadActivityLog);
 
 const JobCards = lazy(loadJobCards);
 const ServiceCreation = lazy(loadServiceCreation);
+const ServiceTechnicians = lazy(loadServiceTechnicians);
 const ServiceExecution = lazy(loadServiceExecution);
 const Users = lazy(loadUsers);
 const DepartmentsAdmin = lazy(loadDepartmentsAdmin);
@@ -84,6 +86,7 @@ type Page =
   | "activitylog"
   | "jobcards"
   | "servicecreation"
+  | "servicetech"
   | "jobhistory"
   | "quotation"
   | "vouchergift"
@@ -113,6 +116,7 @@ const PAGE_LOADERS: Record<Page, () => Promise<unknown>> = {
   activitylog: loadActivityLog,
   jobcards: loadJobCards,
   servicecreation: loadServiceCreation,
+  servicetech: loadServiceTechnicians,
   jobhistory: loadJobOrderHistory,
   quotation: loadQuotationPage,
   vouchergift: loadVoucherGiftPage,
@@ -300,6 +304,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       // Job ecosystem (policy JOB_CARDS)
       jobcards: jobCardsRead && listOn("joborder", "joborder_list"),
       servicecreation: jobCardsRead && listOn("joborder", "joborder_list"),
+      servicetech: jobCardsRead && listOn("servicetech", "servicetech_list"),
       jobhistory: jobCardsRead && listOn("jobhistory", "jobhistory_list"),
       quotation: jobCardsRead && listOn("quotation", "quotation_list"),
       vouchergift: jobCardsRead && listOn("vouchergift", "vouchergift_list"),
@@ -342,6 +347,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.vehicles) pages.push("vehicles");
     if (show.jobcards) pages.push("jobcards");
     if (show.servicecreation) pages.push("servicecreation");
+    if (show.servicetech) pages.push("servicetech");
     if (show.jobhistory) pages.push("jobhistory");
     if (show.quotation) pages.push("quotation");
     if (show.vouchergift) pages.push("vouchergift");
@@ -421,6 +427,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !showAdmin.campaignaudience &&
     !show.jobcards &&
     !show.servicecreation &&
+    !show.servicetech &&
     !show.jobhistory &&
     !show.quotation &&
     !show.vouchergift &&
@@ -446,6 +453,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.vehicles) allowedPages.push("vehicles");
     if (show.jobcards) allowedPages.push("jobcards");
     if (show.servicecreation) allowedPages.push("servicecreation");
+    if (show.servicetech) allowedPages.push("servicetech");
     if (show.jobhistory) allowedPages.push("jobhistory");
     if (show.quotation) allowedPages.push("quotation");
     if (show.vouchergift) allowedPages.push("vouchergift");
@@ -476,6 +484,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       (page === "vehicles" && show.vehicles) ||
       (page === "jobcards" && show.jobcards) ||
       (page === "servicecreation" && show.servicecreation) ||
+      (page === "servicetech" && show.servicetech) ||
       (page === "jobhistory" && show.jobhistory) ||
       (page === "quotation" && show.quotation) ||
       (page === "vouchergift" && show.vouchergift) ||
@@ -730,6 +739,12 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               </button>
             )}
 
+            {show.servicetech && (
+              <button className={page === "servicetech" ? "active" : ""} onClick={() => go("servicetech")}>
+                <i className="fas fa-user-cog" aria-hidden="true" /> {t("Service Technicians")}
+              </button>
+            )}
+
             {show.jobhistory && (
               <button className={page === "jobhistory" ? "active" : ""} onClick={() => go("jobhistory")}>
                 <i className="fas fa-clock-rotate-left" aria-hidden="true" /> {t("Job History")}
@@ -981,6 +996,11 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             {page === "servicecreation" && show.servicecreation && (
               <PermissionGate moduleId="joborder" optionId="joborder_list">
                 <ServiceCreation />
+              </PermissionGate>
+            )}
+            {page === "servicetech" && show.servicetech && (
+              <PermissionGate moduleId="servicetech" optionId="servicetech_list">
+                <ServiceTechnicians permissions={canAny("JOB_CARDS")} />
               </PermissionGate>
             )}
             {page === "jobhistory" && show.jobhistory && (

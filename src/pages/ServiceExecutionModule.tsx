@@ -276,6 +276,19 @@ function normalizeServices(orderNumber: string, services: any[]) {
       status: String(s?.status ?? "Pending"),
       assignedTo: s?.assignedTo ?? null,
       technicians: Array.isArray(s?.technicians) ? s.technicians : [],
+      technicianServiceAssignments:
+        s?.technicianServiceAssignments && typeof s.technicianServiceAssignments === "object"
+          ? Object.entries(s.technicianServiceAssignments as Record<string, unknown>).reduce<Record<string, string[]>>(
+              (acc, [key, values]) => {
+                if (!Array.isArray(values)) return acc;
+                const normalizedKey = normalizeIdentity(key);
+                if (!normalizedKey) return acc;
+                acc[normalizedKey] = values.map((value) => String(value ?? "").trim()).filter(Boolean);
+                return acc;
+              },
+              {}
+            )
+          : {},
 
       startTime,
       endTime,
@@ -1138,6 +1151,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
       status: "Pending",
       assignedTo: resolveActorEmail(currentUser) || currentUser?.name || null,
       technicians: [],
+      technicianServiceAssignments: {},
       startTime: null,
       endTime: null,
       notes: "Added from Service Execution module",

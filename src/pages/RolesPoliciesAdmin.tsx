@@ -325,6 +325,21 @@ const MODULE_DEFINITIONS = [
   },
 
   {
+    id: "servicetech",
+    title: "Service Technicians",
+    icon: "fas fa-user-cog",
+    category: "core",
+    options: [
+      { id: "servicetech_list", label: "Show Service Technicians page in sidebar", prefix: "-" },
+      { id: "servicetech_search", label: "Search & Filter", prefix: "a." },
+      { id: "servicetech_refresh", label: "Refresh", prefix: "b." },
+      { id: "servicetech_add", label: "Create Service Technician", prefix: "c." },
+      { id: "servicetech_edit", label: "Edit Service Technician", prefix: "d." },
+      { id: "servicetech_delete", label: "Delete Service Technician", prefix: "e." },
+    ],
+  },
+
+  {
     id: "inspection",
     title: "Inspection",
     icon: "fas fa-magnifying-glass",
@@ -421,6 +436,7 @@ const MODULE_DEFINITIONS = [
       { id: "exitpermit_documents", label: "Documents", prefix: "-" },
       { id: "exitpermit_download", label: "Download", prefix: "-" },
       { id: "exitpermit_create", label: "Create Exit Permit", prefix: "-" },
+      { id: "exitpermit_bypass", label: "Bypass Exit Permit", prefix: "-" },
       { id: "exitpermit_cancelorder", label: "Cancel Order", prefix: "-" },
     ],
   },

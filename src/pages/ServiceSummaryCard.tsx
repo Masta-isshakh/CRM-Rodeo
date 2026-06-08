@@ -33,6 +33,11 @@ import PermissionGate from "./PermissionGate";
 import { dedupeTextOptions, dedupeUserOptions } from "../utils/userOptionDedupe";
 import { useApprovalRequests } from "./ApprovalRequestsContext";
 import { listServiceCatalog, resolveServicePriceForVehicleType, type ServiceCatalogItem } from "./serviceCatalogRepo";
+import {
+  getServiceTechnicianCatalogChangeEventName,
+  listServiceTechnicianCatalog,
+  type ServiceTechnicianItem,
+} from "./serviceTechnicianCatalogRepo";
 
 type ServiceStatus =
   | "Pending"
@@ -53,6 +58,7 @@ export type Service = {
 
   assignedTo: string | null;
   technicians: string[];
+  technicianServiceAssignments?: Record<string, string[]>;
 
   startTime: string | null;
   endTime: string | null;
@@ -235,6 +241,19 @@ function normalizeServices(jobId: string, services: unknown[]): Service[] {
       status,
       assignedTo: (raw?.assignedTo ?? null) as string | null,
       technicians: Array.isArray(raw?.technicians) ? (raw.technicians as string[]) : [],
+      technicianServiceAssignments:
+        raw?.technicianServiceAssignments && typeof raw.technicianServiceAssignments === "object"
+          ? Object.entries(raw.technicianServiceAssignments as Record<string, unknown>).reduce<Record<string, string[]>>(
+              (acc, [key, values]) => {
+                if (!Array.isArray(values)) return acc;
+                const normalizedKey = normalizeIdentity(key);
+                if (!normalizedKey) return acc;
+                acc[normalizedKey] = values.map((value) => String(value ?? "").trim()).filter(Boolean);
+                return acc;
+              },
+              {}
+            )
+          : {},
 
       startTime,
       endTime,
@@ -260,6 +279,7 @@ function ServiceItem({
   jobOrderBackendId,
   orderNumber,
   canAssign,
+  technicianServices,
   dragHandleAttributes,
   dragHandleListeners,
 }: {
@@ -271,6 +291,7 @@ function ServiceItem({
   jobOrderBackendId?: string;
   orderNumber?: string;
   canAssign: boolean;
+  technicianServices: ServiceTechnicianItem[];
   dragHandleAttributes?: Record<string, any>;
   dragHandleListeners?: Record<string, any>;
 }) {
@@ -320,6 +341,26 @@ function ServiceItem({
     return dedupeTextOptions(availableTechs || []);
   }, [availableTechs]);
 
+  const technicianServicesById = useMemo(() => {
+    const map = new Map<string, ServiceTechnicianItem>();
+    for (const item of technicianServices || []) {
+      map.set(String(item.id), item);
+    }
+    return map;
+  }, [technicianServices]);
+
+  const technicianAssignments = useMemo(() => {
+    const raw = service.technicianServiceAssignments;
+    if (!raw || typeof raw !== "object") return {} as Record<string, string[]>;
+    const out: Record<string, string[]> = {};
+    for (const [key, values] of Object.entries(raw)) {
+      const normalizedKey = normalizeIdentity(key);
+      if (!normalizedKey || !Array.isArray(values)) continue;
+      out[normalizedKey] = values.map((value) => String(value ?? "").trim()).filter(Boolean);
+    }
+    return out;
+  }, [service.technicianServiceAssignments]);
+
   const assigneeLabelByValue = useMemo(() => {
     const map = new Map<string, string>();
     for (const option of normalizedAssigneeOptions) {
@@ -350,7 +391,25 @@ function ServiceItem({
     const updated = new Set(service.technicians || []);
     if (checked) updated.add(techName);
     else updated.delete(techName);
-    onUpdate(service.id, { technicians: Array.from(updated) });
+
+    const normalizedTech = normalizeIdentity(techName);
+    const nextAssignments = { ...technicianAssignments };
+    if (!checked && normalizedTech) delete nextAssignments[normalizedTech];
+
+    onUpdate(service.id, { technicians: Array.from(updated), technicianServiceAssignments: nextAssignments });
+  };
+
+  const handleTechServiceChange = (techName: string, technicianServiceId: string, checked: boolean) => {
+    const normalizedTech = normalizeIdentity(techName);
+    if (!normalizedTech) return;
+
+    const nextAssignments = { ...technicianAssignments };
+    const selected = new Set(nextAssignments[normalizedTech] || []);
+    if (checked) selected.add(technicianServiceId);
+    else selected.delete(technicianServiceId);
+    nextAssignments[normalizedTech] = Array.from(selected);
+
+    onUpdate(service.id, { technicianServiceAssignments: nextAssignments });
   };
 
   const handleAssignedToChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -499,15 +558,44 @@ function ServiceItem({
                 {techDropdownOpen && (
                   <div className="tech-dropdown-content show">
                     {normalizedTechOptions.map((tech, idx) => (
-                      <div key={normalizeIdentity(tech)} className="tech-option">
-                        <input
-                          type="checkbox"
-                          id={`tech-${service.id}-${idx}`}
-                          value={tech}
-                          checked={service.technicians?.includes(tech) || false}
-                          onChange={(e) => handleTechChange(tech, e.target.checked)}
-                        />
-                        <label htmlFor={`tech-${service.id}-${idx}`}>{tech}</label>
+                      <div key={normalizeIdentity(tech)} className="tech-option-group">
+                        <div className="tech-option">
+                          <input
+                            type="checkbox"
+                            id={`tech-${service.id}-${idx}`}
+                            value={tech}
+                            checked={service.technicians?.includes(tech) || false}
+                            onChange={(e) => handleTechChange(tech, e.target.checked)}
+                          />
+                          <label htmlFor={`tech-${service.id}-${idx}`}>{tech}</label>
+                        </div>
+
+                        {service.technicians?.includes(tech) ? (
+                          <div className="tech-service-assignment-box">
+                            <div className="tech-service-assignment-title">Service responsibilities</div>
+                            {technicianServices.length === 0 ? (
+                              <div className="tech-service-assignment-empty">No services found in Service Technicians page.</div>
+                            ) : (
+                              technicianServices.map((serviceItem) => {
+                                const label = toBilingualName(serviceItem.nameEn, serviceItem.nameAr, serviceItem.serviceId);
+                                const checked = (technicianAssignments[normalizeIdentity(tech)] || []).includes(serviceItem.id);
+                                return (
+                                  <div key={`${service.id}-${tech}-${serviceItem.id}`} className="tech-service-option">
+                                    <input
+                                      type="checkbox"
+                                      id={`tech-service-${service.id}-${normalizeIdentity(tech)}-${serviceItem.id}`}
+                                      checked={checked}
+                                      onChange={(e) => handleTechServiceChange(tech, serviceItem.id, e.target.checked)}
+                                    />
+                                    <label htmlFor={`tech-service-${service.id}-${normalizeIdentity(tech)}-${serviceItem.id}`}>
+                                      {label} ({serviceItem.serviceId})
+                                    </label>
+                                  </div>
+                                );
+                              })
+                            )}
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                   </div>
@@ -535,11 +623,19 @@ function ServiceItem({
         </div>
         <div className="tech-badge-list">
           {service.technicians?.length ? (
-            service.technicians.map((tech) => (
-              <span key={tech} className="tech-badge">
-                {tech}
-              </span>
-            ))
+            service.technicians.map((tech) => {
+              const serviceLabels = (technicianAssignments[normalizeIdentity(tech)] || [])
+                .map((technicianServiceId) => technicianServicesById.get(technicianServiceId))
+                .filter(Boolean)
+                .map((item) => toBilingualName(item?.nameEn, item?.nameAr, item?.serviceId));
+
+              return (
+                <span key={tech} className="tech-badge">
+                  {tech}
+                  {serviceLabels.length ? ` (${serviceLabels.join(", ")})` : ""}
+                </span>
+              );
+            })
           ) : (
             <span style={{ color: "var(--dark-gray)" }}>No technicians assigned</span>
           )}
@@ -606,6 +702,7 @@ export default function ServiceSummaryCard({
   const [addBusy, setAddBusy] = useState(false);
   const [addError, setAddError] = useState<string | null>(null);
   const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
+  const [technicianServices, setTechnicianServices] = useState<ServiceTechnicianItem[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
   const [addSelectedCatalogId, setAddSelectedCatalogId] = useState("");
   const [semFilterCategory, setSemFilterCategory] = useState("all");
@@ -627,6 +724,24 @@ export default function ServiceSummaryCard({
 
     return () => {
       cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const reload = () => setTechnicianServices(listServiceTechnicianCatalog());
+    reload();
+
+    const changeEvent = getServiceTechnicianCatalogChangeEventName();
+    const storageHandler = (event: StorageEvent) => {
+      if (event.key && event.key !== "crm.serviceTechnicians.catalog.v1") return;
+      reload();
+    };
+
+    window.addEventListener(changeEvent, reload as EventListener);
+    window.addEventListener("storage", storageHandler);
+    return () => {
+      window.removeEventListener(changeEvent, reload as EventListener);
+      window.removeEventListener("storage", storageHandler);
     };
   }, []);
 
@@ -830,6 +945,7 @@ export default function ServiceSummaryCard({
                         jobOrderBackendId={jobOrderBackendId}
                         orderNumber={orderNumber}
                         canAssign={isAdmin}
+                        technicianServices={technicianServices}
                       />
                     ))}
                   </React.Fragment>
@@ -861,6 +977,7 @@ export default function ServiceSummaryCard({
                       jobOrderBackendId={jobOrderBackendId}
                       orderNumber={orderNumber}
                       canAssign={isAdmin}
+                      technicianServices={technicianServices}
                     />
                   ))}
                 </React.Fragment>

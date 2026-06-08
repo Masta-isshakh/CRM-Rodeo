@@ -99,6 +99,9 @@ function generateExitPermitHTML(input: {
   nextServiceDate?: string;
   createdBy: string;
   createdAtIso: string;
+  permitMode?: string;
+  bypassReason?: string;
+  bypassNote?: string;
 }) {
   const createdAt = new Date(input.createdAtIso);
   const createdAtText = createdAt.toLocaleString("en-GB", {
@@ -160,6 +163,9 @@ function generateExitPermitHTML(input: {
     <div class="grid">
       <div><span class="lbl">Collected By</span><span class="val">${input.collectedBy}</span></div>
       <div><span class="lbl">Collection Mobile</span><span class="val">${input.collectedMobile}</span></div>
+      <div><span class="lbl">Permit Mode</span><span class="val">${input.permitMode || "STANDARD"}</span></div>
+      <div><span class="lbl">Bypass Reason</span><span class="val">${input.bypassReason || "N/A"}</span></div>
+      <div><span class="lbl">Bypass Note</span><span class="val">${input.bypassNote || "N/A"}</span></div>
     </div>
   </div>
 </body>
@@ -304,15 +310,27 @@ function getPermitHeaderBadgeClass(status: any) {
   return "permit-not-required";
 }
 
-function isEligibleForExitPermit(workStatus: string, paymentStatus: string, created: boolean) {
+function isEligibleForStandardExitPermit(workStatus: string, paymentStatus: string, created: boolean) {
   if (created) return false;
-
   const w = safeLower(workStatus);
   const p = safeLower(paymentStatus);
-
   const readyOk = w === "ready" && p === "fully paid";
   const cancelledOk = w === "cancelled" && (p === "unpaid" || p.includes("refund"));
   return readyOk || cancelledOk;
+}
+
+function isEligibleForBypassExitPermit(workStatus: string, paymentStatus: string, created: boolean) {
+  if (created) return false;
+  const w = safeLower(workStatus);
+  const p = safeLower(paymentStatus);
+  return w === "ready" && p === "unpaid";
+}
+
+function isEligibleForExitPermitQueue(workStatus: string, paymentStatus: string, created: boolean) {
+  return (
+    isEligibleForStandardExitPermit(workStatus, paymentStatus, created) ||
+    isEligibleForBypassExitPermit(workStatus, paymentStatus, created)
+  );
 }
 
 // --------- Documents: resolve storage path to URL (safe / no build-break) ----------
@@ -414,6 +432,14 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
     mobileNumber: "",
     nextServiceDate: "",
   });
+  const [showBypassModal, setShowBypassModal] = useState(false);
+  const [currentOrderForBypass, setCurrentOrderForBypass] = useState<any | null>(null);
+  const [bypassForm, setBypassForm] = useState({
+    collectedBy: "",
+    mobileNumber: "",
+    bypassReason: "",
+    bypassNote: "",
+  });
 
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
@@ -476,7 +502,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
 
             const exitPermitStatus = deriveExitPermitStatusLabel(row, parsed);
             const created = ["completed", "created"].includes(String(exitPermitStatus).toLowerCase()) || isExitPermitCreatedFromRowOrParsed(row, parsed);
-            const eligible = isEligibleForExitPermit(workStatus, paymentStatus, created);
+            const eligible = isEligibleForExitPermitQueue(workStatus, paymentStatus, created);
             if (!eligible) return null;
 
             const createDate =
@@ -672,8 +698,8 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
       const created = isExitPermitCreatedFromOrder(order);
       if (created) throw new Error(t("Exit permit already exists for this order."));
 
-      const eligible = isEligibleForExitPermit(order.workStatus, order.paymentStatus, false);
-      if (!eligible) throw new Error(t("This order is not eligible for Exit Permit."));
+      const eligible = isEligibleForStandardExitPermit(order.workStatus, order.paymentStatus, false);
+      if (!eligible) throw new Error(t("This order is not eligible for standard Exit Permit."));
 
       const nextServiceDate = new Date();
       nextServiceDate.setMonth(nextServiceDate.getMonth() + 3);
@@ -699,6 +725,49 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
     setShowExitPermitModal(false);
     setCurrentOrderForPermit(null);
     setExitPermitForm({ collectedBy: "", mobileNumber: "", nextServiceDate: "" });
+  };
+
+  const openBypassModal = async (orderId: string) => {
+    flushSync(() => {
+      setCurrentOrderForBypass({ id: orderId, _loading: true });
+      setBypassForm({ collectedBy: "", mobileNumber: "", bypassReason: "", bypassNote: "" });
+      setShowBypassModal(true);
+    });
+
+    setLoading(true);
+    try {
+      const order = await getJobOrderByOrderNumber(orderId);
+      if (!order) throw new Error(t("Order not found"));
+
+      order.paymentStatus = derivePaymentStatusFromUiOrder(order);
+
+      const created = isExitPermitCreatedFromOrder(order);
+      if (created) throw new Error(t("Exit permit already exists for this order."));
+
+      const eligible = isEligibleForBypassExitPermit(order.workStatus, order.paymentStatus, false);
+      if (!eligible) throw new Error(t("Bypass is allowed only for Ready + Unpaid orders."));
+
+      setCurrentOrderForBypass(order);
+      setBypassForm({
+        collectedBy: order.customerName || "",
+        mobileNumber: order.mobile || "",
+        bypassReason: "",
+        bypassNote: "",
+      });
+    } catch (e) {
+      setErrorMessage(errMsg(e));
+      setShowErrorPopup(true);
+      setShowBypassModal(false);
+      setCurrentOrderForBypass(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const closeBypassModal = () => {
+    setShowBypassModal(false);
+    setCurrentOrderForBypass(null);
+    setBypassForm({ collectedBy: "", mobileNumber: "", bypassReason: "", bypassNote: "" });
   };
 
   const handleCancelOrder = async () => {
@@ -781,6 +850,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
         nextServiceDate: safeLower(currentOrderForPermit.workStatus) === "cancelled" ? undefined : nextServiceDate,
         createdBy: actor,
         createdAtIso,
+        permitMode: "STANDARD",
       });
 
       const permitDocPath = `job-orders/${orderNumber}/exit-permits/ExitPermit_${safeFileName(String(res.permitId))}_${Date.now()}.html`;
@@ -836,6 +906,70 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
           // background sync failure should not block successful permit creation UX
         }
       })();
+    } catch (e2) {
+      setErrorMessage(errMsg(e2));
+      setShowErrorPopup(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleCreateBypass = async (e: any) => {
+    e.preventDefault();
+    if (!currentOrderForBypass) {
+      setErrorMessage(t("No order selected for bypass."));
+      setShowErrorPopup(true);
+      return;
+    }
+
+    const { collectedBy, mobileNumber, bypassReason, bypassNote } = bypassForm;
+    if (!collectedBy.trim() || !bypassReason.trim()) {
+      setErrorMessage(t("Please fill required bypass fields."));
+      setShowErrorPopup(true);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const orderNumber = String(currentOrderForBypass.id);
+      const actor = resolveActorName(currentUser);
+      const createdAtIso = new Date().toISOString();
+
+      const res = await createExitPermitForOrderNumber({
+        orderNumber,
+        collectedBy,
+        mobileNumber,
+        actor,
+        mode: "BYPASS",
+        bypassReason,
+        bypassNote,
+      });
+
+      const permitDocHtml = generateExitPermitHTML({
+        permitId: String(res.permitId),
+        orderNumber,
+        customerName: String(currentOrderForBypass.customerName || ""),
+        mobile: String(currentOrderForBypass.mobile || ""),
+        vehiclePlate: String(currentOrderForBypass.vehiclePlate || ""),
+        workStatus: String(currentOrderForBypass.workStatus || ""),
+        paymentStatus: String(currentOrderForBypass.paymentStatus || ""),
+        collectedBy,
+        collectedMobile: mobileNumber,
+        createdBy: actor,
+        createdAtIso,
+        permitMode: "BYPASS",
+        bypassReason,
+        bypassNote,
+      });
+
+      const permitDocPath = `job-orders/${orderNumber}/exit-permits/ExitPermit_${safeFileName(String(res.permitId))}_${Date.now()}.html`;
+      const permitDocBlob = new Blob([permitDocHtml], { type: "text/html" });
+      await uploadData({ path: permitDocPath, data: permitDocBlob, options: { contentType: "text/html" } }).result;
+
+      setSuccessPermitId(res.permitId);
+      setSuccessOrderId(res.orderNumber);
+      setShowExitPermitSuccessPopup(true);
+      closeBypassModal();
     } catch (e2) {
       setErrorMessage(errMsg(e2));
       setShowErrorPopup(true);
@@ -1173,6 +1307,85 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
           )
         : null}
 
+      {/* Bypass Modal */}
+      {showBypassModal && typeof document !== "undefined"
+        ? createPortal(
+            <div className="epm-exit-permit-modal" onMouseDown={closeBypassModal}>
+              <div className="epm-exit-permit-modal-content" onMouseDown={(e) => e.stopPropagation()}>
+                <h3>
+                  <i className="fas fa-forward"></i> {t("Bypass Exit Permit")}
+                </h3>
+                <form onSubmit={handleCreateBypass}>
+                  <div className="epm-form-group">
+                    <label>{t("Customer")}</label>
+                    <input type="text" value={String(currentOrderForBypass?.customerName || "")} readOnly />
+                  </div>
+                  <div className="epm-form-group">
+                    <label>{t("Vehicle Plate")}</label>
+                    <input type="text" value={String(currentOrderForBypass?.vehiclePlate || "")} readOnly />
+                  </div>
+                  <div className="epm-form-group">
+                    <label>{t("Bypassed By")}</label>
+                    <input type="text" value={resolveActorName(currentUser)} readOnly />
+                  </div>
+                  <div className="epm-form-group">
+                    <label>
+                      {t("Person Collecting the Car")} <span className="epm-required">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={bypassForm.collectedBy}
+                      onChange={(e) => setBypassForm({ ...bypassForm, collectedBy: e.target.value })}
+                      placeholder={t("Enter collector name")}
+                      required
+                    />
+                  </div>
+                  <div className="epm-form-group">
+                    <label>{t("Collector Mobile")}</label>
+                    <input
+                      type="tel"
+                      value={bypassForm.mobileNumber}
+                      onChange={(e) => setBypassForm({ ...bypassForm, mobileNumber: e.target.value })}
+                      placeholder={t("Enter collector mobile")}
+                    />
+                  </div>
+                  <div className="epm-form-group">
+                    <label>
+                      {t("Bypass Reason")} <span className="epm-required">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={bypassForm.bypassReason}
+                      onChange={(e) => setBypassForm({ ...bypassForm, bypassReason: e.target.value })}
+                      placeholder={t("Why is this order bypassed?")}
+                      required
+                    />
+                  </div>
+                  <div className="epm-form-group">
+                    <label>{t("Bypass Note")}</label>
+                    <textarea
+                      value={bypassForm.bypassNote}
+                      onChange={(e) => setBypassForm({ ...bypassForm, bypassNote: e.target.value })}
+                      placeholder={t("Add optional note")}
+                      rows={3}
+                    />
+                  </div>
+
+                  <div className="epm-exit-permit-modal-actions">
+                    <button type="button" className="epm-btn-cancel-permit" onClick={closeBypassModal} disabled={loading}>
+                      {t("Cancel")}
+                    </button>
+                    <button type="submit" className="epm-btn-create-permit" disabled={loading}>
+                      <i className="fas fa-check-circle"></i> {loading ? t("Creating...") : t("Create Bypass")}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+
       {/* Action Dropdown Menu Portal */}
       {typeof document !== "undefined" &&
         createPortal(
@@ -1215,6 +1428,25 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
                   disabled={loading}
                 >
                   <i className="fas fa-id-card"></i> {t("Create Exit Permit")}
+                </button>
+              </>
+            </PermissionGate>
+
+            <PermissionGate moduleId="exitpermit" optionId="exitpermit_bypass">
+              <>
+                <div className="dropdown-divider"></div>
+                <button
+                  className="dropdown-item create-permit"
+                  type="button"
+                  onClick={() => {
+                    if (!activeDropdown) return;
+                    void openBypassModal(activeDropdown);
+                    activeDropdownRef.current = null;
+                    setActiveDropdown(null);
+                  }}
+                  disabled={loading}
+                >
+                  <i className="fas fa-forward"></i> {t("Bypass")}
                 </button>
               </>
             </PermissionGate>
@@ -1505,6 +1737,10 @@ const ExitPermitCard = ({ order }: any) => {
   );
   const collectedBy = firstNonEmpty(permit?.collectedBy, permitInfo?.collectedBy) || "—";
   const collectedByMobile = firstNonEmpty(permit?.collectedByMobile, permitInfo?.collectedByMobile, permitInfo?.mobileNumber) || "—";
+  const permitMode = firstNonEmpty(permit?.mode, permitInfo?.mode) || "STANDARD";
+  const bypassReason = firstNonEmpty(permit?.bypassReason, permitInfo?.bypassReason) || "—";
+  const bypassNote = firstNonEmpty(permit?.bypassNote, permitInfo?.bypassNote) || "—";
+  const bypassedBy = normalizeActorDisplay(firstNonEmpty(permit?.bypassedBy, permitInfo?.bypassedBy), "—");
   const status = mapExitPermitStatusToUi(
     order?.exitPermitStatus ?? permit?.status ?? permitInfo?.status,
     Boolean(firstNonEmpty(permit?.permitId, permitInfo?.permitId))
@@ -1548,6 +1784,26 @@ const ExitPermitCard = ({ order }: any) => {
           <span className="epm-info-label pim-info-label">{t("Mobile Number")}</span>
           <span className="epm-info-value pim-info-value">{collectedByMobile}</span>
         </div>
+        <div className="epm-info-item pim-info-item">
+          <span className="epm-info-label pim-info-label">{t("Permit Mode")}</span>
+          <span className="epm-info-value pim-info-value">{permitMode}</span>
+        </div>
+        {safeLower(permitMode) === "bypass" && (
+          <>
+            <div className="epm-info-item pim-info-item">
+              <span className="epm-info-label pim-info-label">{t("Bypassed By")}</span>
+              <span className="epm-info-value pim-info-value">{bypassedBy}</span>
+            </div>
+            <div className="epm-info-item pim-info-item">
+              <span className="epm-info-label pim-info-label">{t("Bypass Reason")}</span>
+              <span className="epm-info-value pim-info-value">{bypassReason}</span>
+            </div>
+            <div className="epm-info-item pim-info-item">
+              <span className="epm-info-label pim-info-label">{t("Bypass Note")}</span>
+              <span className="epm-info-value pim-info-value">{bypassNote}</span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

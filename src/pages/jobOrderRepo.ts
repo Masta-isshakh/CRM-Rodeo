@@ -1935,7 +1935,7 @@ export async function listJobOrdersForExitPermit(): Promise<any[]> {
 
     if (permit === "APPROVED") return false;
 
-    const readyOk = work === "ready" && pay === "fully paid";
+    const readyOk = work === "ready" && (pay === "fully paid" || pay === "unpaid");
     const cancelledOk = work === "cancelled" && (pay === "unpaid" || pay.includes("refund"));
 
     return readyOk || cancelledOk;
@@ -1948,6 +1948,9 @@ export async function createExitPermitForOrderNumber(input: {
   mobileNumber: string;
   nextServiceDate?: string; // yyyy-mm-dd
   actor?: string;
+  mode?: "STANDARD" | "BYPASS";
+  bypassReason?: string;
+  bypassNote?: string;
 }): Promise<{ permitId: string; orderNumber: string }> {
   const order = await getJobOrderByOrderNumber(input.orderNumber);
   if (!order) throw new Error("Order not found.");
@@ -1959,20 +1962,28 @@ export async function createExitPermitForOrderNumber(input: {
 
   const work = String(order.workStatus ?? "").trim().toLowerCase();
   const pay = String(order.paymentStatus ?? "").trim().toLowerCase();
+  const mode = String(input.mode ?? "STANDARD").trim().toUpperCase();
+  const isBypass = mode === "BYPASS";
 
   const eligibleReady = work === "ready" && pay === "fully paid";
+  const eligibleReadyBypass = isBypass && work === "ready" && pay === "unpaid";
   const eligibleCancelled = work === "cancelled" && (pay === "unpaid" || pay.includes("refund"));
 
-  if (!eligibleReady && !eligibleCancelled) {
+  if (!eligibleReady && !eligibleReadyBypass && !eligibleCancelled) {
     throw new Error("This order is not eligible for Exit Permit.");
   }
 
   const collectedBy = String(input.collectedBy ?? "").trim();
   const mobileNumber = String(input.mobileNumber ?? "").trim();
-  if (!collectedBy || !mobileNumber) throw new Error("Collected By and Mobile Number are required.");
+  if (!collectedBy) throw new Error("Collected By is required.");
+  if (!isBypass && !mobileNumber) throw new Error("Mobile Number is required.");
 
-  if (work !== "cancelled" && !String(input.nextServiceDate ?? "").trim()) {
+  if (!isBypass && work !== "cancelled" && !String(input.nextServiceDate ?? "").trim()) {
     throw new Error("Next Service Date is required for non-cancelled orders.");
+  }
+
+  if (isBypass && !String(input.bypassReason ?? "").trim()) {
+    throw new Error("Bypass reason is required.");
   }
 
   const permitId = `PERMIT-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
@@ -1980,7 +1991,7 @@ export async function createExitPermitForOrderNumber(input: {
   const actor = String(input.actor ?? "system");
 
   const nextServiceDateDisplay =
-    work === "cancelled"
+    work === "cancelled" || isBypass
       ? "N/A"
       : (() => {
           const d = new Date(String(input.nextServiceDate));
@@ -2011,7 +2022,7 @@ export async function createExitPermitForOrderNumber(input: {
     : [
         ...updatedRoadmap,
         {
-          step: "Exit Permit Issued",
+          step: isBypass ? "Exit Permit Bypass Issued" : "Exit Permit Issued",
           stepStatus: "completed",
           startTimestamp: createDate,
           endTimestamp: createDate,
@@ -2020,7 +2031,7 @@ export async function createExitPermitForOrderNumber(input: {
         },
       ];
 
-  if (work === "ready") {
+  if (work === "ready" && !isBypass) {
     order.workStatus = "Completed";
     order.workStatusLabel = "Completed";
   }
@@ -2030,11 +2041,15 @@ export async function createExitPermitForOrderNumber(input: {
     ...(order.exitPermitInfo ?? {}),
     required: true,
     status: "APPROVED",
+    mode: isBypass ? "BYPASS" : "STANDARD",
     date: new Date().toISOString(),
-    nextServiceDate: work === "cancelled" ? undefined : String(input.nextServiceDate ?? "").trim() || undefined,
+    nextServiceDate: work === "cancelled" || isBypass ? undefined : String(input.nextServiceDate ?? "").trim() || undefined,
     permitId,
     collectedBy,
     mobileNumber,
+    bypassReason: isBypass ? String(input.bypassReason ?? "").trim() : undefined,
+    bypassNote: isBypass ? String(input.bypassNote ?? "").trim() || undefined : undefined,
+    bypassedBy: isBypass ? actor : undefined,
     createdBy: actor,
   };
   order.exitPermit = {
@@ -2044,6 +2059,10 @@ export async function createExitPermitForOrderNumber(input: {
     createdBy: actor,
     collectedBy,
     collectedByMobile: mobileNumber,
+    mode: isBypass ? "BYPASS" : "STANDARD",
+    bypassReason: isBypass ? String(input.bypassReason ?? "").trim() : undefined,
+    bypassNote: isBypass ? String(input.bypassNote ?? "").trim() || undefined : undefined,
+    bypassedBy: isBypass ? actor : undefined,
   };
 
   order.roadmap = finalRoadmap;

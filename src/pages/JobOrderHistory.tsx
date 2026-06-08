@@ -138,7 +138,8 @@ function includeInJobHistory(workStatus: string, paymentStatus: string, exitPerm
   const hasCreatedExitPermit = permit === "created" || permit === "approved" || permit === "completed";
   const isCancelledAndUnpaid = work === "cancelled" && payment === "unpaid";
   const isCompletedAndFullyPaid = work === "completed" && payment === "fully paid";
-  return hasCreatedExitPermit || isCancelledAndUnpaid || isCompletedAndFullyPaid;
+  const hasCreatedExitPermitAndSettled = hasCreatedExitPermit && (payment === "fully paid" || work === "cancelled");
+  return hasCreatedExitPermitAndSettled || isCancelledAndUnpaid || isCompletedAndFullyPaid;
 }
 
 type ListRow = {
@@ -794,7 +795,7 @@ export default function JobOrderHistory({
       .observeQuery({
         limit: 500,
         filter: {
-          or: [{ status: { eq: "COMPLETED" } }, { status: { eq: "CANCELLED" } }],
+          or: [{ status: { eq: "COMPLETED" } }, { status: { eq: "CANCELLED" } }, { status: { eq: "READY" } }],
         } as any,
       })
       .subscribe(({ items }: any) => {
