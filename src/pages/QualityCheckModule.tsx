@@ -666,11 +666,19 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
     const qcDoc = await qcDocPromise;
     const updatedDocs = qcDoc ? [...docsWithoutOld, qcDoc] : docsWithoutOld;
 
+    const normalizedNextWorkStatus = safeLower(nextWorkStatusLabel);
+    const nextBackendStatus = isServiceOperationLabel(nextWorkStatusLabel)
+      ? "IN_PROGRESS"
+      : normalizedNextWorkStatus === "ready"
+        ? "READY"
+        : String((detailed as any)?.status ?? "IN_PROGRESS");
+
     // build updated order for jobOrderSave lambda (via repo)
     const updatedOrder = {
       ...detailed,
       _backendId: detailed._backendId,
       id: detailed.id, // orderNumber
+      status: nextBackendStatus,
       workStatus: nextWorkStatusLabel,
       workStatusLabel: nextWorkStatusLabel,
       updatedBy: actor,
@@ -712,8 +720,13 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
     if (!canRejectQCAction || qcSubmittingAction) return;
     setQcSubmittingAction("reject");
     try {
+      const orderNumber = String(selectedOrder?.id ?? "").trim();
       await persistQcResultsToOrder("Service_Operation");
-      setPopupMessage(t("Quality Check Rejected! Order returned to Service Execution (Service_Operation)."));
+      setPopupMessage(
+        orderNumber
+          ? `${t("Returned to Service Execution")}: ${orderNumber}`
+          : t("Returned to Service Execution")
+      );
       setShowPopup(true);
       setShowQCConfirmation(false);
       closeDetailView(true);

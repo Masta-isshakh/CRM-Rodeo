@@ -499,6 +499,7 @@
 .service-execution-wrapper .jh-summary-card,
 .service-execution-wrapper .cv-unified-card,
 .service-execution-wrapper .ex-unified-card {
+  position: relative;
   background: #ffffff;
   border: 1px solid #e2eaf7;
   border-radius: 12px;
@@ -669,11 +670,18 @@
 }
 
 .service-execution-wrapper .pim-detail-card .service-item {
+  position: relative;
+  z-index: 1;
+  overflow: visible;
   min-height: 114px;
   border: 1px solid #e3eaf6;
   border-radius: 10px;
   background: linear-gradient(180deg, #ffffff 0%, #fbfdff 100%);
   padding: 20px 18px 18px;
+}
+
+.service-execution-wrapper .pim-detail-card .service-item:focus-within {
+  z-index: 30;
 }
 
 .service-execution-wrapper .pim-detail-card .service-header {
@@ -829,6 +837,7 @@
 
 .service-execution-wrapper .pim-detail-card .tech-dropdown {
   position: relative;
+  z-index: 20;
 }
 
 .service-execution-wrapper .pim-detail-card .tech-dropdown-btn {
@@ -844,7 +853,7 @@
   top: calc(100% + 6px);
   left: 0;
   right: 0;
-  z-index: 12;
+  z-index: 2200;
   border: 1px solid #dde7f6;
   border-radius: 10px;
   background: #ffffff;

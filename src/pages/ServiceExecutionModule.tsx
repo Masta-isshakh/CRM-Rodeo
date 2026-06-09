@@ -402,6 +402,53 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     [activeSystemUsers, activeActorLabelMap, currentUser, cachedRootAdminEmail]
   );
 
+  const operationAssigneeOptions = useMemo<AssigneeOption[]>(() => {
+    const opsRegex = /(^|[^a-z])operations?([^a-z]|$)/i;
+    const isOperationsDept = (deptKey: string, deptName: string) =>
+      opsRegex.test(String(deptKey ?? "").toLowerCase()) || opsRegex.test(String(deptName ?? "").toLowerCase());
+
+    const operationIdentities = new Set<string>();
+    const addIdentity = (value: any) => {
+      const key = normalizeIdentity(value);
+      if (key) operationIdentities.add(key);
+    };
+
+    for (const user of activeSystemUsers || []) {
+      const email = pickEmailLike(user?.email, user?.attributes?.email, user?.username);
+      const emailKey = normalizeIdentity(email);
+
+      const directDeptKey = String(user?.departmentKey ?? user?.attributes?.departmentKey ?? user?.attributes?.["custom:departmentKey"] ?? "").trim();
+      const directDeptName = String(user?.departmentName ?? user?.attributes?.departmentName ?? user?.attributes?.department ?? user?.attributes?.["custom:departmentName"] ?? "").trim();
+
+      let inOperations = isOperationsDept(directDeptKey, directDeptName);
+      if (!inOperations && emailKey) {
+        const prof = profileDeptByEmail[emailKey];
+        if (prof) inOperations = isOperationsDept(prof.departmentKey, prof.departmentName);
+      }
+
+      if (!inOperations) continue;
+
+      addIdentity(email);
+      addIdentity(user?.name);
+      addIdentity(user?.fullName);
+      addIdentity(user?.displayName);
+      if (emailKey) addIdentity(actorLabelMap[emailKey]);
+    }
+
+    for (const [email, dept] of Object.entries(profileDeptByEmail)) {
+      if (activeProfileByEmail[email] === false) continue;
+      if (!isOperationsDept(dept.departmentKey, dept.departmentName)) continue;
+      addIdentity(email);
+      addIdentity(actorLabelMap[email]);
+    }
+
+    return assigneeOptions.filter((opt) => {
+      const valueKey = normalizeIdentity(opt.value);
+      const labelKey = normalizeIdentity(opt.label);
+      return operationIdentities.has(valueKey) || operationIdentities.has(labelKey);
+    });
+  }, [assigneeOptions, activeSystemUsers, profileDeptByEmail, activeProfileByEmail, actorLabelMap]);
+
   const technicianNames = useMemo(() => {
     const opsRegex = /(^|[^a-z])operations?([^a-z]|$)/i;
     const out = new Map<string, string>();
@@ -684,7 +731,6 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     const sub = (client.models.JobOrder as any)
       .observeQuery({
         limit: 500,
-        filter: { status: { eq: "IN_PROGRESS" } } as any,
       })
       .subscribe(({ items }: any) => {
         const mapped = (items ?? []).map((row: any) => {
@@ -1325,7 +1371,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                   editMode={detailsEditMode}
                   setEditMode={setDetailsEditMode}
                   availableTechs={technicianNames}
-                  availableAssignees={assigneeOptions}
+                  availableAssignees={operationAssigneeOptions}
                   isAdmin={canAssignService}
                   isAddingService={isAddingService}
                 />
