@@ -142,6 +142,11 @@ type DocItem = {
   url?: string;
 };
 
+type CompletedQcService = {
+  service: any;
+  idx: number;
+};
+
 /* -------------------- component -------------------- */
 export default function QualityCheckModule({ currentUser }: { currentUser: any }) {
   const client = useMemo(() => getDataClient(), []);
@@ -456,6 +461,14 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
     return parsedServices.length ? parsedServices : detailedServices;
   }, [selectedOrder]);
 
+  const completedServicesForQc = useMemo<CompletedQcService[]>(
+    () =>
+      servicesForQc
+        .map((service: any, idx: number) => ({ service, idx }))
+        .filter((item: CompletedQcService) => safeLower(item.service?.status) === "completed"),
+    [servicesForQc]
+  );
+
   const handleServiceQCChange = (serviceIndex: number, qcResult: any) => {
     setServiceQCResults((prev) => ({
       ...prev,
@@ -464,15 +477,17 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   };
 
   const allServicesEvaluated = () => {
-    if (!servicesForQc || servicesForQc.length === 0) return false;
-    return servicesForQc.every((_: any, idx: number) => Boolean(serviceQCResults[idx]));
+    if (!completedServicesForQc || completedServicesForQc.length === 0) return false;
+    return completedServicesForQc.every((item: CompletedQcService) => Boolean(serviceQCResults[item.idx]));
   };
 
   const calculateOverallStatus = () => {
-    const results = Object.values(serviceQCResults);
+    const results = completedServicesForQc
+      .map((item: CompletedQcService) => serviceQCResults[item.idx])
+      .filter(Boolean);
     if (!results.length) return "N/A";
-    if (results.some((r) => r === "Failed")) return "Failed";
-    if (results.some((r) => r === "Acceptable")) return "Acceptable";
+    if (results.some((r: any) => r === "Failed")) return "Failed";
+    if (results.some((r: any) => r === "Acceptable")) return "Acceptable";
     return "Pass";
   };
 
@@ -480,11 +495,12 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
   const generateReportHtml = (orderNumber: string, overallStatus: string) => {
     const now = new Date();
 
-    const services = servicesForQc || [];
+    const services = completedServicesForQc || [];
     const serviceRows = services
-      .map((s: any, idx: number) => {
-        const name = String(s?.name ?? s ?? `Service ${idx + 1}`);
-        const r = String(serviceQCResults[idx] ?? "Not Evaluated");
+      .map((item: CompletedQcService, viewIdx: number) => {
+        const s = item.service;
+        const name = String(s?.name ?? s ?? `Service ${viewIdx + 1}`);
+        const r = String(serviceQCResults[item.idx] ?? "Not Evaluated");
         const cls =
           r === "Pass" ? "qc-pass" : r === "Failed" ? "qc-failed" : r === "Acceptable" ? "qc-acceptable" : "qc-na";
         return `<tr><td>${name}</td><td class="${cls}">${r}</td></tr>`;
@@ -591,10 +607,13 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
     const parsed = safeJsonParse<any>((selectedOrder as any)?._parsed ?? (selectedOrder as any)?.dataJson, {});
     const parsedServices = Array.isArray(parsed?.services) ? parsed.services : [];
 
+    const completedIndexSet = new Set(completedServicesForQc.map((item: CompletedQcService) => item.idx));
     const nextServices = (parsedServices.length ? parsedServices : Array.isArray(detailed?.services) ? detailed.services : []).map(
       (s: any, idx: number) => {
         // keep existing fields, only set QC result
-        const qc = serviceQCResults[idx] || undefined;
+        const qc = completedIndexSet.has(idx)
+          ? serviceQCResults[idx] || undefined
+          : s?.qualityCheckResult ?? s?.qcResult ?? undefined;
         return { ...s, qualityCheckResult: qc };
       }
     );
@@ -1082,15 +1101,24 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                 <div className="qc-detail-card qc-quality-card pim-detail-card">
                   <div className="qc-quality-head">
                     <h3>
-                      <i className="fas fa-clipboard-check"></i> {t("Quality Check List")}
+                        <i className="fas fa-clipboard-check"></i> {t("Quality Check List")} ({completedServicesForQc.length})
                     </h3>
+                    <span className="qc-quality-head-note" role="note">
+                      <i className="fas fa-info-circle" aria-hidden="true"></i>
+                      {t("Only completed services are shown")}
+                    </span>
                   </div>
 
                   <div className="qc-checklist-items">
-                    {servicesForQc.length > 0 ? (
-                      servicesForQc.map((service: any, idx: number) => (
-                        <div key={idx} className="qc-checklist-item">
-                          <span className="qc-checklist-service-name">{String(service?.name ?? service ?? `Service ${idx + 1}`)}</span>
+                      {completedServicesForQc.length > 0 ? (
+                        completedServicesForQc.map((item: CompletedQcService) => (
+                          <div key={`qc-${item.idx}`} className="qc-checklist-item">
+                            {(() => {
+                              const service = item.service;
+                              const idx = item.idx;
+                              return (
+                                <>
+                            <span className="qc-checklist-service-name">{String(service?.name ?? service ?? `Service ${idx + 1}`)}</span>
 
                           <div className="qc-checklist-actions">
                             <select
@@ -1110,10 +1138,13 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                               </span>
                             ) : null}
                           </div>
+                              </>
+                            );
+                          })()}
                         </div>
                       ))
                     ) : (
-                      <div className="qc-empty-inline">{t("No services to evaluate")}</div>
+                      <div className="qc-empty-inline">{t("No completed services to evaluate")}</div>
                     )}
                   </div>
 
@@ -1123,7 +1154,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                         className="qc-btn-finish"
                         type="button"
                         onClick={handleFinishQC}
-                        disabled={!allServicesEvaluated() || loading || Boolean(qcSubmittingAction)}
+                        disabled={completedServicesForQc.length === 0 || !allServicesEvaluated() || loading || Boolean(qcSubmittingAction)}
                       >
                         <i className="fas fa-flag-checkered"></i> {loading || qcSubmittingAction ? t("Saving...") : t("Finish")}
                       </button>
@@ -1190,7 +1221,7 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                   open={showQCConfirmation}
                   message={t("Quality Check Evaluation Complete. Please select an action:")}
                   confirmText={canApproveQCAction ? t("Approve Quality Check") : t("Close")}
-                  cancelText={canRejectQCAction ? t("Reject Quality Check") : t("Cancel")}
+                  cancelText={t("Close")}
                   loading={Boolean(qcSubmittingAction)}
                   loadingText={
                     qcSubmittingAction === "approve"
@@ -1208,12 +1239,22 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
                     }
                   }}
                   onCancel={() => {
-                    if (canRejectQCAction && !qcSubmittingAction) {
-                      void handleRejectQC();
-                    } else {
-                      setShowQCConfirmation(false);
-                    }
+                    setShowQCConfirmation(false);
                   }}
+                  footerNote={
+                    canRejectQCAction ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!qcSubmittingAction) void handleRejectQC();
+                        }}
+                        disabled={Boolean(qcSubmittingAction)}
+                        style={{ border: "none", background: "transparent", color: "#B91C1C", fontWeight: 800, cursor: qcSubmittingAction ? "not-allowed" : "pointer", textDecoration: "underline" }}
+                      >
+                        {t("Reject Quality Check")}
+                      </button>
+                    ) : null
+                  }
                 />
               )}
 

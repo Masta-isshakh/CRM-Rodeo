@@ -38,6 +38,7 @@ import {
   listServiceTechnicianCatalog,
   type ServiceTechnicianItem,
 } from "./serviceTechnicianCatalogRepo";
+import { getUrl, uploadData } from "aws-amplify/storage";
 
 type ServiceStatus =
   | "Pending"
@@ -70,6 +71,7 @@ export type Service = {
   approvalStatus?: "pending" | "approved" | "rejected" | string | null;
 
   notes?: string;
+  images?: Array<{ name: string; path: string; uploadedAt?: string }>;
 
   [k: string]: unknown;
 };
@@ -160,6 +162,16 @@ function getServiceSpecificationLabel(service: any) {
 function getServiceSpecificationColor(service: any) {
   return String(service?.specificationColorHex ?? "").trim();
 }
+
+function safeFileName(name: string) {
+  return String(name || "file")
+    .trim()
+    .replace(/\s+/g, "_")
+    .replace(/[^a-zA-Z0-9._-]/g, "");
+}
+
+const MAX_SERVICE_IMAGE_SIZE_MB = 8;
+const MAX_SERVICE_IMAGE_COUNT = 10;
 
 // -------------------------
 // ErrorBoundary (prevents “blank page”)
@@ -263,6 +275,15 @@ function normalizeServices(jobId: string, services: unknown[]): Service[] {
       requestedAction: raw?.requestedAction ?? null,
       approvalStatus: raw?.approvalStatus ?? null,
       notes: raw?.notes ?? "",
+      images: Array.isArray(raw?.images)
+        ? raw.images
+            .map((img: any) => ({
+              name: String(img?.name ?? "image"),
+              path: String(img?.path ?? "").trim(),
+              uploadedAt: String(img?.uploadedAt ?? "").trim() || undefined,
+            }))
+            .filter((img: any) => img.path)
+        : [],
     };
   });
 }
@@ -298,6 +319,12 @@ function ServiceItem({
   const approval = useApprovalRequests();
 
   const [techDropdownOpen, setTechDropdownOpen] = useState(false);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [isUploadingImages, setIsUploadingImages] = useState(false);
+  const [imageError, setImageError] = useState<string>("");
+  const [imagePreviewUrls, setImagePreviewUrls] = useState<Record<string, string>>({});
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -387,6 +414,76 @@ function ServiceItem({
     return assigneeLabelByValue.get(assigned) ?? String(service.assignedTo);
   }, [service.assignedTo, assigneeLabelByValue]);
 
+  const serviceImages = useMemo(() => {
+    if (!Array.isArray(service.images)) return [] as Array<{ name: string; path: string; uploadedAt?: string }>;
+    return service.images.filter((img) => String(img?.path ?? "").trim());
+  }, [service.images]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const resolvePreviewUrls = async () => {
+      setPreviewLoading(true);
+      const entries = await Promise.all(
+        serviceImages.map(async (img) => {
+          const path = String(img?.path ?? "").trim();
+          if (!path) return null;
+          if (path.startsWith("http://") || path.startsWith("https://")) {
+            return [path, path] as const;
+          }
+          try {
+            const out = await getUrl({ path });
+            return [path, out.url.toString()] as const;
+          } catch {
+            return null;
+          }
+        })
+      );
+
+      if (!cancelled) {
+        const next: Record<string, string> = {};
+        for (const item of entries) {
+          if (!item) continue;
+          next[item[0]] = item[1];
+        }
+        setImagePreviewUrls(next);
+        setPreviewLoading(false);
+      }
+    };
+
+    void resolvePreviewUrls();
+    return () => {
+      cancelled = true;
+    };
+  }, [serviceImages]);
+
+  useEffect(() => {
+    setSelectedFiles([]);
+    setImageError("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  }, [service.id]);
+
+  const onSelectFiles = (files: File[]) => {
+    const imageOnly = files.filter((file) => String(file.type || "").startsWith("image/"));
+    const oversize = imageOnly.filter((file) => file.size > MAX_SERVICE_IMAGE_SIZE_MB * 1024 * 1024);
+    const valid = imageOnly.filter((file) => file.size <= MAX_SERVICE_IMAGE_SIZE_MB * 1024 * 1024);
+
+    const roomLeft = Math.max(0, MAX_SERVICE_IMAGE_COUNT - serviceImages.length);
+    const limited = valid.slice(0, roomLeft);
+
+    if (imageOnly.length !== files.length) {
+      setImageError("Only image files are allowed.");
+    } else if (oversize.length) {
+      setImageError(`Some files exceed ${MAX_SERVICE_IMAGE_SIZE_MB}MB and were skipped.`);
+    } else if (valid.length > roomLeft) {
+      setImageError(`Only ${roomLeft} more image(s) can be uploaded for this service.`);
+    } else {
+      setImageError("");
+    }
+
+    setSelectedFiles(limited);
+  };
+
   const handleTechChange = (techName: string, checked: boolean) => {
     const updated = new Set(service.technicians || []);
     if (checked) updated.add(techName);
@@ -462,6 +559,64 @@ function ServiceItem({
     onUpdate(service.id, updates);
   };
 
+  const openImage = async (path: string) => {
+    const normalizedPath = String(path || "").trim();
+    if (!normalizedPath) return;
+    const previewUrl = imagePreviewUrls[normalizedPath];
+    if (previewUrl) {
+      window.open(previewUrl, "_blank", "noopener,noreferrer");
+      return;
+    }
+    if (normalizedPath.startsWith("http://") || normalizedPath.startsWith("https://")) {
+      window.open(normalizedPath, "_blank", "noopener,noreferrer");
+      return;
+    }
+    try {
+      const out = await getUrl({ path: normalizedPath });
+      window.open(out.url.toString(), "_blank", "noopener,noreferrer");
+    } catch {
+      setImageError("Failed to open image.");
+    }
+  };
+
+  const handleUploadImages = async () => {
+    if (!selectedFiles.length || isUploadingImages) return;
+    const orderKey = String(orderNumber || jobOrderBackendId || "unknown-order").trim();
+    const serviceKey = String(service.id || "service").trim();
+
+    setIsUploadingImages(true);
+    setImageError("");
+    try {
+      const uploaded = await Promise.all(
+        selectedFiles.map(async (file) => {
+          const fileName = safeFileName(file.name || `image-${Date.now()}.png`);
+          const path = `job-orders/${orderKey}/services/${serviceKey}/images/${Date.now()}-${fileName}`;
+          await uploadData({ path, data: file, options: { contentType: file.type || "application/octet-stream" } }).result;
+          return {
+            name: file.name || fileName,
+            path,
+            uploadedAt: new Date().toISOString(),
+          };
+        })
+      );
+
+      onUpdate(service.id, { images: [...serviceImages, ...uploaded] });
+      setSelectedFiles([]);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    } catch {
+      setImageError("Failed to upload one or more images.");
+    } finally {
+      setIsUploadingImages(false);
+    }
+  };
+
+  const removeImage = (path: string) => {
+    const normalizedPath = String(path || "").trim();
+    onUpdate(service.id, {
+      images: serviceImages.filter((img) => String(img.path || "").trim() !== normalizedPath),
+    });
+  };
+
   return (
     <div className="service-item">
       <div className="service-header">
@@ -530,7 +685,7 @@ function ServiceItem({
 
       {editMode && (
         <PermissionGate moduleId="serviceexec" optionId="serviceexec_edit">
-          <div className="assign-controls edit-controls">
+          <div className="assign-controls edit-controls" style={{ display: "grid", gap: 12 }}>
             <div className="control-group">
               <span className="control-label">
                 <FaUserTie /> Assigned to
@@ -612,6 +767,110 @@ function ServiceItem({
                 <option value="Cancelled">Cancelled</option>
                 <option value="Completed">Completed</option>
               </select>
+            </div>
+
+            <div className="control-group" style={{ gridColumn: "1 / -1" }}>
+              <span className="control-label">Notes</span>
+              <textarea
+                value={String(service.notes ?? "")}
+                onChange={(e) => onUpdate(service.id, { notes: e.target.value })}
+                rows={3}
+                placeholder="Enter notes for this service"
+                style={{ width: "100%", border: "1px solid #d7e1f0", borderRadius: 8, padding: "8px 10px", resize: "vertical", font: "inherit" }}
+              />
+            </div>
+
+            <div className="control-group" style={{ gridColumn: "1 / -1" }}>
+              <span className="control-label">Upload images</span>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center" }}>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={(e) => onSelectFiles(Array.from(e.target.files ?? []))}
+                />
+                <button
+                  type="button"
+                  onClick={() => void handleUploadImages()}
+                  disabled={isUploadingImages || selectedFiles.length === 0}
+                  style={{ border: "none", borderRadius: 8, background: "#2B7FFF", color: "#fff", padding: "7px 10px", cursor: isUploadingImages || selectedFiles.length === 0 ? "not-allowed" : "pointer", fontWeight: 700 }}
+                >
+                  {isUploadingImages ? "Uploading..." : `Upload${selectedFiles.length ? ` (${selectedFiles.length})` : ""}`}
+                </button>
+                {selectedFiles.length ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedFiles([]);
+                      setImageError("");
+                      if (fileInputRef.current) fileInputRef.current.value = "";
+                    }}
+                    disabled={isUploadingImages}
+                    style={{ border: "1px solid #c8d5ee", borderRadius: 8, background: "#fff", color: "#5D54FF", padding: "7px 10px", cursor: isUploadingImages ? "not-allowed" : "pointer", fontWeight: 700 }}
+                  >
+                    Clear selection
+                  </button>
+                ) : null}
+              </div>
+
+              {selectedFiles.length ? (
+                <div style={{ marginTop: 6, fontSize: 12, color: "#55617a" }}>
+                  Selected: {selectedFiles.map((f) => f.name).join(", ")}
+                </div>
+              ) : null}
+
+              <div style={{ marginTop: 6, fontSize: 12, color: "#7f8c8d" }}>
+                Max {MAX_SERVICE_IMAGE_COUNT} images per service, up to {MAX_SERVICE_IMAGE_SIZE_MB}MB each.
+              </div>
+
+              {imageError ? <div style={{ color: "#D14343", fontWeight: 700, fontSize: 12, marginTop: 6 }}>{imageError}</div> : null}
+
+              {serviceImages.length ? (
+                <div style={{ display: "grid", gap: 10, marginTop: 8 }}>
+                  {serviceImages.map((img, idx) => (
+                    <div key={`${img.path}-${idx}`} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", border: "1px solid #e3eaf7", borderRadius: 10, padding: "8px 10px", background: "#fbfdff" }}>
+                      <button
+                        type="button"
+                        onClick={() => void openImage(img.path)}
+                        style={{ border: "none", background: "transparent", cursor: "pointer", padding: 0, display: "inline-flex" }}
+                        title="Open image"
+                      >
+                        {imagePreviewUrls[String(img.path || "").trim()] ? (
+                          <img
+                            src={imagePreviewUrls[String(img.path || "").trim()]}
+                            alt={img.name || `Image ${idx + 1}`}
+                            style={{ width: 74, height: 74, borderRadius: 8, objectFit: "cover", border: "1px solid #d7e1f0" }}
+                          />
+                        ) : (
+                          <div style={{ width: 74, height: 74, borderRadius: 8, border: "1px dashed #c9d8ef", color: "#7f8c8d", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 11, padding: 6, textAlign: "center" }}>
+                            {previewLoading ? "Preview loading" : "No preview"}
+                          </div>
+                        )}
+                      </button>
+
+                      <div style={{ display: "grid", gap: 6 }}>
+                        <button
+                          type="button"
+                          onClick={() => void openImage(img.path)}
+                          style={{ border: "none", background: "transparent", color: "#2B7FFF", textDecoration: "underline", cursor: "pointer", padding: 0, textAlign: "left" }}
+                        >
+                          {img.name || `Image ${idx + 1}`}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => removeImage(img.path)}
+                          style={{ border: "none", background: "transparent", color: "#D14343", cursor: "pointer", padding: 0, fontWeight: 700, textAlign: "left" }}
+                        >
+                          Remove
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div style={{ color: "#7f8c8d", fontSize: 12, marginTop: 6 }}>No images uploaded.</div>
+              )}
             </div>
           </div>
         </PermissionGate>

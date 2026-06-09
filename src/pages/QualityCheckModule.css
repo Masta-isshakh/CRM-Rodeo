@@ -710,6 +710,42 @@
   font-size: 14px;
 }
 
+.quality-check-module .qc-quality-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-bottom: 10px;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #E7EEFC;
+}
+
+.quality-check-module .qc-quality-head h3 {
+  margin: 0;
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.quality-check-module .qc-quality-head-note {
+  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid #DDE7F6;
+  background: #F7FAFF;
+  color: var(--qc-muted-text);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.quality-check-module .qc-quality-head-note i {
+  font-size: 10px;
+  color: #7A89B8;
+}
+
 .quality-check-module .pim-services-list,
 .quality-check-module .qc-checklist-items,
 .quality-check-module .pim-docs {
@@ -912,6 +948,12 @@
 
   .quality-check-module .section-header h2 {
     font-size: 13px;
+  }
+
+  .quality-check-module .qc-quality-head-note {
+    font-size: 10px;
+    width: 100%;
+    justify-content: center;
   }
 
   .quality-check-module .table-wrapper {

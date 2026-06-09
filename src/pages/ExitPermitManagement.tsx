@@ -970,6 +970,51 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
       setSuccessOrderId(res.orderNumber);
       setShowExitPermitSuccessPopup(true);
       closeBypassModal();
+
+      void (async () => {
+        try {
+          const latestOrder = await getJobOrderByOrderNumber(orderNumber);
+          if (!latestOrder) return;
+
+          const parsed = safeJsonParse<any>(latestOrder?._parsed ?? latestOrder?.dataJson, {});
+          const existingDocs = Array.isArray(latestOrder?.documents)
+            ? latestOrder.documents
+            : Array.isArray(parsed?.documents)
+              ? parsed.documents
+              : [];
+
+          const newPermitDoc = {
+            id: `DOC-EXIT-${Date.now()}`,
+            name: `ExitPermit_${String(res.permitId)}.html`,
+            type: "Exit Permit",
+            category: "Permit",
+            addedAt: createdAtIso,
+            uploadedBy: actor,
+            storagePath: permitDocPath,
+            permitReference: String(res.permitId),
+            orderReference: orderNumber,
+          };
+
+          const updatedDocs = [...existingDocs, newPermitDoc];
+          const mergedOrder = {
+            ...latestOrder,
+            documents: updatedDocs,
+            dataJson: JSON.stringify({
+              ...parsed,
+              documents: updatedDocs,
+            }),
+          };
+
+          await upsertJobOrder(mergedOrder);
+
+          if (selectedOrder?.id === orderNumber) {
+            mergedOrder.paymentStatus = derivePaymentStatusFromUiOrder(mergedOrder);
+            setSelectedOrder(mergedOrder);
+          }
+        } catch {
+          // background sync failure should not block successful bypass creation UX
+        }
+      })();
     } catch (e2) {
       setErrorMessage(errMsg(e2));
       setShowErrorPopup(true);
