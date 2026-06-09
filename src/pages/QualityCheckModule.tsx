@@ -608,15 +608,63 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
     const parsedServices = Array.isArray(parsed?.services) ? parsed.services : [];
 
     const completedIndexSet = new Set(completedServicesForQc.map((item: CompletedQcService) => item.idx));
-    const nextServices = (parsedServices.length ? parsedServices : Array.isArray(detailed?.services) ? detailed.services : []).map(
-      (s: any, idx: number) => {
-        // keep existing fields, only set QC result
-        const qc = completedIndexSet.has(idx)
-          ? serviceQCResults[idx] || undefined
-          : s?.qualityCheckResult ?? s?.qcResult ?? undefined;
-        return { ...s, qualityCheckResult: qc };
+    const sourceServices = parsedServices.length ? parsedServices : Array.isArray(detailed?.services) ? detailed.services : [];
+
+    const nextServices = sourceServices.map((s: any, idx: number) => {
+      // keep existing fields, only set QC result
+      const qc = completedIndexSet.has(idx)
+        ? serviceQCResults[idx] || undefined
+        : s?.qualityCheckResult ?? s?.qcResult ?? undefined;
+      return { ...s, qualityCheckResult: qc };
+    });
+
+    // If QC is rejected and every service remains terminal, reopen one service for rework.
+    if (isServiceOperationLabel(nextWorkStatusLabel) && nextServices.length > 0) {
+      const hasActiveService = nextServices.some((svc: any) => {
+        const status = safeLower(svc?.status);
+        return status !== "completed" && status !== "cancelled" && status !== "postponed";
+      });
+
+      if (!hasActiveService) {
+        const hasAssignee = (svc: any) => Boolean(String(svc?.assignedTo ?? "").trim());
+
+        const failedOrAcceptableAssigned = completedServicesForQc.find((item: CompletedQcService) => {
+          const qc = serviceQCResults[item.idx];
+          return (qc === "Failed" || qc === "Acceptable") && hasAssignee(nextServices[item.idx]);
+        });
+
+        const failedOrAcceptableAny = completedServicesForQc.find((item: CompletedQcService) => {
+          const qc = serviceQCResults[item.idx];
+          return qc === "Failed" || qc === "Acceptable";
+        });
+
+        const completedAssigned = completedServicesForQc.find((item: CompletedQcService) => hasAssignee(nextServices[item.idx]));
+
+        const fallbackAssignee = nextServices
+          .map((svc: any) => String(svc?.assignedTo ?? "").trim().toLowerCase())
+          .find((assigned: string) => Boolean(assigned));
+
+        const reopenIdx =
+          failedOrAcceptableAssigned?.idx ??
+          failedOrAcceptableAny?.idx ??
+          completedAssigned?.idx ??
+          completedServicesForQc[0]?.idx ??
+          0;
+        const target = nextServices[reopenIdx];
+        if (target) {
+          const targetAssignedTo = String(target?.assignedTo ?? "").trim().toLowerCase();
+          nextServices[reopenIdx] = {
+            ...target,
+            status: "Inprogress",
+            assignedTo: targetAssignedTo || fallbackAssignee || target?.assignedTo || null,
+            endTime: null,
+            ended: "Not completed",
+            requestedAction: null,
+            approvalStatus: null,
+          };
+        }
       }
-    );
+    }
 
     // upload QC report (replace old QC report docs)
     const docs: DocItem[] = Array.isArray(parsed?.documents)
