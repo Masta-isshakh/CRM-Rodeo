@@ -288,10 +288,17 @@
 }
 
 .service-execution-wrapper .job-order-table {
-  width: max-content;
+  width: 100%;
+  max-width: 100%;
   border-collapse: collapse;
-  min-width: 1240px;
+  min-width: 0;
   table-layout: auto;
+}
+
+.service-execution-wrapper .job-order-table th:last-child,
+.service-execution-wrapper .job-order-table td:last-child {
+  width: 1%;
+  white-space: nowrap;
 }
 
 .service-execution-wrapper .job-order-table thead th {
@@ -304,7 +311,9 @@
   border-bottom: 1px solid #d9e5fa;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  white-space: nowrap;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .service-execution-wrapper .job-order-table tbody td {
@@ -316,9 +325,9 @@
   letter-spacing: 0.01em;
   color: #0f2a66;
   vertical-align: middle;
-  white-space: nowrap;
-  word-break: normal;
-  overflow-wrap: normal;
+  white-space: normal;
+  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .service-execution-wrapper .job-order-table tbody tr:nth-child(odd) {

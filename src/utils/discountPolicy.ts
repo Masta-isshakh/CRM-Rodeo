@@ -54,7 +54,10 @@ export function computeCumulativeDiscountAllowance(input: DiscountAllowanceInput
 
   const policyCapAmount = (normalizedBaseAmount * normalizedMaxPercent) / 100;
   const maxAllowedTotalDiscountAmount = Math.max(policyCapAmount, baselineDiscountAmount);
-  const maxAdditionalDiscountAmount = Math.max(0, maxAllowedTotalDiscountAmount - baselineDiscountAmount);
+  const maxAdditionalDiscountAmount = Math.max(
+    0,
+    Math.min(normalizedBaseAmount - baselineDiscountAmount, maxAllowedTotalDiscountAmount - baselineDiscountAmount)
+  );
   const remainingPercentOfBase =
     normalizedBaseAmount > 0 ? (maxAdditionalDiscountAmount / normalizedBaseAmount) * 100 : 0;
 

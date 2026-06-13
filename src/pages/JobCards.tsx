@@ -3,6 +3,7 @@
 
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
+import { jsPDF } from "jspdf";
 import "./JobCards.css";
 import { getUrl } from "aws-amplify/storage";
 import { normalizeActorIdentity, resolveActorDisplay, resolveActorUsername } from "../utils/actorIdentity";
@@ -39,7 +40,6 @@ import { formatCustomerDisplayId } from "../utils/customerId";
 import { usePermissions } from "../lib/userPermissions";
 import { useLanguage } from "../i18n/LanguageContext";
 import {
-  clampTotalDiscountAmount,
   computeCumulativeDiscountAllowance,
   resolveCentralDiscountPercent,
   toCurrencyNumber,
@@ -655,149 +655,147 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
   const [actorIdentityMap, setActorIdentityMap] = useState<Record<string, string>>({});
   const detailsViewCacheRef = useRef<Map<string, any>>(new Map());
 
-  const printCreatedReceipt = () => {
+  const printCreatedReceipt = async () => {
     if (!lastCreatedOrderSnapshot) return;
     const order = lastCreatedOrderSnapshot;
+    const safeText = (value: unknown) => String(value ?? "-").trim() || "-";
+    const customer = safeText(order?.customerName ?? order?.customer?.fullName ?? order?.customer?.name);
+    const mobile = safeText(order?.customerMobile ?? order?.mobile ?? order?.customer?.mobile);
+    const plate = safeText(order?.vehiclePlate ?? order?.vehicle?.plateNumber);
+    const jobId = safeText(order?.id ?? submittedOrderId);
+    const createDate = safeText(order?.createDate ?? order?.createdAt ?? order?.createdAtDisplay);
     const services = Array.isArray(order?.services)
       ? order.services
       : Array.isArray(order?.selectedServices)
         ? order.selectedServices
         : [];
 
-    const serviceRows = services
-      .map((item: any, idx: number) => {
-        const name = String(item?.name ?? item?.serviceName ?? item?.title ?? "Service").trim();
-        const price = Number(item?.price ?? item?.unitPrice ?? item?.amount ?? 0);
-        return `<tr><td class=\"cell center\">${idx + 1}</td><td class=\"cell\">${name || "Service"}</td><td class=\"cell right\">QAR ${price.toFixed(2)}</td></tr>`;
-      })
-      .join("");
+    const rows: Array<{ index: number; name: string; price: number }> = services.map((item: any, idx: number) => ({
+      index: idx + 1,
+      name: safeText(item?.name ?? item?.serviceName ?? item?.title ?? item?.description ?? "Service"),
+      price: Number(item?.price ?? item?.unitPrice ?? item?.amount ?? 0),
+    }));
 
     const subtotal = Number(order?.subtotal ?? order?.totalAmount ?? 0);
     const discount = Number(order?.discount ?? 0);
     const net = Number(order?.netAmount ?? Math.max(0, subtotal - discount));
     const paid = Number(order?.amountPaid ?? 0);
     const balance = Number(order?.balanceDue ?? Math.max(0, net - paid));
-    const customer = String(order?.customerName ?? order?.customer?.fullName ?? "-").trim();
-    const mobile = String(order?.customerMobile ?? order?.mobile ?? order?.customer?.mobile ?? "-").trim();
-    const plate = String(order?.vehiclePlate ?? order?.vehicle?.plateNumber ?? "-").trim();
 
-    const receiptHtml = `<!doctype html>
-<html>
-<head>
-  <meta charset=\"utf-8\" />
-  <title>Job Order Receipt</title>
-  <style>
-    @page { size: A4; margin: 16mm 14mm 18mm; }
-    * { box-sizing: border-box; }
-    body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: #0f172a; background: #fff; }
-    .header, .footer { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 14px; }
-    .header { border-bottom: 2px solid #1f2a44; padding-bottom: 10px; margin-bottom: 14px; }
-    .footer { border-top: 2px solid #1f2a44; padding-top: 10px; margin-top: 18px; }
-    .brand-title { font-size: 15px; font-weight: 800; letter-spacing: 0.04em; }
-    .brand-sub { font-size: 11px; color: #475569; }
-    .logo { width: 64px; height: 64px; border-radius: 50%; border: 1px solid #dbe3f0; object-fit: cover; }
-    .rtl { text-align: right; font-weight: 700; }
-    .title { display: flex; justify-content: space-between; align-items: end; margin-bottom: 10px; }
-    .title h1 { margin: 0; font-size: 18px; letter-spacing: 0.04em; }
-    .meta { font-size: 12px; color: #334155; }
-    .info-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; margin-bottom: 12px; }
-    .box { border: 1px solid #dbe3f0; border-radius: 10px; padding: 8px 10px; background: #f8fbff; }
-    .box-label { font-size: 11px; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
-    .box-value { margin-top: 2px; font-size: 13px; font-weight: 700; }
-    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-    thead th { background: #1f2a44; color: #fff; font-size: 12px; font-weight: 700; padding: 8px; text-align: left; }
-    .cell { border-bottom: 1px solid #dbe3f0; padding: 7px 8px; font-size: 12px; vertical-align: top; }
-    .center { text-align: center; width: 52px; }
-    .right { text-align: right; }
-    .totals { margin-left: auto; width: 300px; border: 1px solid #dbe3f0; border-radius: 10px; padding: 8px 10px; margin-top: 12px; }
-    .totals-row { display: flex; justify-content: space-between; gap: 12px; padding: 4px 0; font-size: 12px; }
-    .totals-row.total { border-top: 1px solid #c9d8ef; margin-top: 4px; padding-top: 8px; font-weight: 800; }
-    .signatures { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 16px; margin-top: 24px; }
-    .sig-box { border: 1px solid #dbe3f0; border-radius: 10px; min-height: 90px; padding: 10px; break-inside: avoid; }
-    .sig-label { font-size: 12px; font-weight: 700; color: #334155; margin-bottom: 48px; }
-    .sig-line { border-top: 1px solid #1e293b; font-size: 11px; color: #64748b; padding-top: 6px; }
-    .note { margin-top: 10px; font-size: 11px; color: #64748b; }
-    @media print {
-      tr { break-inside: avoid; }
-      .signatures { page-break-inside: avoid; }
+    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 16;
+    const rightX = pageWidth - margin;
+    const contentWidth = rightX - margin;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(14);
+    doc.setTextColor("#1f2a44");
+    doc.text("RODEO DRIVE", margin, 20);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text("Gloss Perfected", margin, 26);
+    doc.text("Block 2, Shop SYS 066, Doha", margin, 31);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(20);
+    doc.setTextColor("#4e40f8");
+    doc.text("JOB ORDER RECEIPT", rightX, 20, { align: "right" });
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.setTextColor("#475569");
+    doc.text(`Order # ${jobId}`, rightX, 26, { align: "right" });
+    doc.text(`Created: ${createDate}`, rightX, 31, { align: "right" });
+
+    doc.setDrawColor("#cbd5e1");
+    doc.setLineWidth(0.5);
+    doc.line(margin, 35, rightX, 35);
+
+    const boxWidth = (contentWidth - 10) / 3;
+    const boxTop = 42;
+    const boxHeight = 20;
+
+    const drawBox = (x: number, y: number, label: string, value: string) => {
+      doc.setFillColor("#f8fbff");
+      doc.roundedRect(x, y, boxWidth, boxHeight, 3, 3, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor("#64748b");
+      doc.text(label.toUpperCase(), x + 2, y + 6);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(11);
+      doc.setTextColor("#0f172a");
+      doc.text(doc.splitTextToSize(value, boxWidth - 4), x + 2, y + 14);
+    };
+
+    drawBox(margin, boxTop, "Customer", customer);
+    drawBox(margin + boxWidth + 5, boxTop, "Mobile", mobile);
+    drawBox(margin + (boxWidth + 5) * 2, boxTop, "Vehicle Plate", plate);
+
+    const tableTop = boxTop + boxHeight + 16;
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.setTextColor("#1f2a44");
+    doc.text("#", margin + 2, tableTop);
+    doc.text("Service", margin + 14, tableTop);
+    doc.text("Price", rightX, tableTop, { align: "right" });
+    doc.setLineWidth(0.4);
+    doc.line(margin, tableTop + 2, rightX, tableTop + 2);
+
+    let rowY = tableTop + 8;
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    rows.forEach((row) => {
+      if (rowY > pageHeight - 80) {
+        doc.addPage();
+        rowY = 20;
+      }
+      doc.text(String(row.index), margin + 2, rowY);
+      doc.text(doc.splitTextToSize(row.name, contentWidth - 80), margin + 14, rowY);
+      doc.text(`QAR ${row.price.toFixed(2)}`, rightX, rowY, { align: "right" });
+      rowY += 8;
+    });
+
+    if (!rows.length) {
+      doc.setFontSize(10);
+      doc.setTextColor("#475569");
+      doc.text("No services listed", margin + 14, rowY);
+      rowY += 8;
     }
-  </style>
-</head>
-<body>
-  <div class=\"header\">
-    <div>
-      <div class=\"brand-title\">RODEO DRIVE</div>
-      <div class=\"brand-sub\">Gloss Perfected</div>
-      <div class=\"brand-sub\">Block 2, Shop SYS 066, Doha</div>
-    </div>
-    <img class=\"logo\" src=\"/vite.png\" alt=\"Rodeo Drive\" />
-    <div class=\"rtl\">
-      <div>روديو درايف</div>
-      <div class=\"brand-sub\">اللمعان المثالي</div>
-      <div class=\"brand-sub\">الدوحة، قطر</div>
-    </div>
-  </div>
 
-  <div class=\"title\">
-    <h1>JOB ORDER RECEIPT</h1>
-    <div class=\"meta\">Order # ${String(order?.id ?? submittedOrderId ?? "-")}</div>
-  </div>
+    const totalsTop = Math.max(rowY + 14, 180);
+    const drawTotalLine = (label: string, amount: string, isBold = false, yOffset = 0) => {
+      doc.setFont("helvetica", isBold ? "bold" : "normal");
+      doc.setTextColor("#1f2a44");
+      doc.text(label, rightX - 70, totalsTop + yOffset);
+      doc.text(amount, rightX, totalsTop + yOffset, { align: "right" });
+    };
 
-  <div class=\"info-grid\">
-    <div class=\"box\"><div class=\"box-label\">Customer</div><div class=\"box-value\">${customer || "-"}</div></div>
-    <div class=\"box\"><div class=\"box-label\">Mobile</div><div class=\"box-value\">${mobile || "-"}</div></div>
-    <div class=\"box\"><div class=\"box-label\">Vehicle Plate</div><div class=\"box-value\">${plate || "-"}</div></div>
-  </div>
+    drawTotalLine("Subtotal", `QAR ${subtotal.toFixed(2)}`);
+    drawTotalLine("Discount", `QAR ${discount.toFixed(2)}`);
+    drawTotalLine("Net", `QAR ${net.toFixed(2)}`);
+    drawTotalLine("Paid", `QAR ${paid.toFixed(2)}`);
+    drawTotalLine("Balance Due", `QAR ${balance.toFixed(2)}`, true, 8);
 
-  <table>
-    <thead>
-      <tr><th style=\"width:52px;\">#</th><th>Service</th><th style=\"width:180px;text-align:right;\">Price</th></tr>
-    </thead>
-    <tbody>
-      ${serviceRows || "<tr><td class=\"cell center\">-</td><td class=\"cell\">No services listed</td><td class=\"cell right\">-</td></tr>"}
-    </tbody>
-  </table>
+    const signatureY = totalsTop + 32;
+    const signatureWidth = (contentWidth - 12) / 2;
+    doc.roundedRect(margin, signatureY, signatureWidth, 35, 3, 3);
+    doc.roundedRect(margin + signatureWidth + 12, signatureY, signatureWidth, 35, 3, 3);
+    doc.setFontSize(9);
+    doc.setTextColor("#64748b");
+    doc.text("Employee Signature", margin + 2, signatureY + 8);
+    doc.text("Name & Signature", margin + 2, signatureY + 24);
+    doc.text("Customer Signature", margin + signatureWidth + 14, signatureY + 8);
+    doc.text("Name & Signature", margin + signatureWidth + 14, signatureY + 24);
 
-  <div class=\"totals\">
-    <div class=\"totals-row\"><span>Subtotal</span><strong>QAR ${subtotal.toFixed(2)}</strong></div>
-    <div class=\"totals-row\"><span>Discount</span><strong>QAR ${discount.toFixed(2)}</strong></div>
-    <div class=\"totals-row\"><span>Net</span><strong>QAR ${net.toFixed(2)}</strong></div>
-    <div class=\"totals-row\"><span>Paid</span><strong>QAR ${paid.toFixed(2)}</strong></div>
-    <div class=\"totals-row total\"><span>Balance Due</span><strong>QAR ${balance.toFixed(2)}</strong></div>
-  </div>
-
-  <div class=\"signatures\">
-    <div class=\"sig-box\">
-      <div class=\"sig-label\">Employee Signature</div>
-      <div class=\"sig-line\">Name & Signature</div>
-    </div>
-    <div class=\"sig-box\">
-      <div class=\"sig-label\">Customer Signature</div>
-      <div class=\"sig-line\">Name & Signature</div>
-    </div>
-  </div>
-
-  <div class=\"note\">This printout is generated directly from the job order record. Save as PDF from the print dialog if needed.</div>
-
-  <div class=\"footer\">
-    <div>
-      <div class=\"brand-sub\">RODEO DRIVE TRADING & SERVICES</div>
-      <div class=\"brand-sub\">T: +974 44311871 | M: +974 3320 2409</div>
-    </div>
-    <div class=\"brand-sub\">www.rodeodrive.qa</div>
-    <div class=\"rtl\">روديو درايف للتجارة والخدمات</div>
-  </div>
-
-  <script>window.print();</script>
-</body>
-</html>`;
-
-    const w = window.open("", "_blank", "noopener,noreferrer,width=900,height=800");
-    if (!w) return;
-    w.document.open();
-    w.document.write(receiptHtml);
-    w.document.close();
+    doc.setFontSize(9);
+    doc.setTextColor("#64748b");
+    doc.text("Generated from Rodeo Drive billing system.", margin, pageHeight - 14);
+    const fileName = `job-order-receipt-${jobId.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
+    doc.save(fileName);
   };
+
 
   useEffect(() => {
     let cancelled = false;
@@ -942,10 +940,15 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
       existingDiscountAmount: existingDiscount,
     });
 
-    const requestedAdditionalDiscount = Math.max(0, Math.min(subtotal, (subtotal * Number(discountPercent || 0)) / 100));
-    const requestedTotalDiscount = existingDiscount + requestedAdditionalDiscount;
-    const safeTotalDiscount = clampTotalDiscountAmount(requestedTotalDiscount, discountAllowance);
-    const discount = Math.max(0, Math.min(subtotal, safeTotalDiscount - existingDiscount));
+    const requestedAdditionalDiscount = Math.max(
+      0,
+      Math.min(subtotal, (subtotal * Number(discountPercent || 0)) / 100)
+    );
+    const maxAdditionalDiscountAmount = Math.max(
+      0,
+      Math.min(subtotal, discountAllowance.maxAdditionalDiscountAmount)
+    );
+    const discount = Math.min(requestedAdditionalDiscount, maxAdditionalDiscountAmount);
     const netAmount = subtotal - discount;
 
     const updatedBilling = {
@@ -3564,7 +3567,7 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
   const maxAdditionalDiscountPercent = subtotal > 0 ? (maxAdditionalDiscountAmount / subtotal) * 100 : 0;
   const noRemainingDiscountAllowance = maxAdditionalDiscountAmount <= 0.00001;
   const effectiveDiscountPercent = Math.max(0, Math.min(maxAdditionalDiscountPercent, Number(discountPercent || 0)));
-  const discount = (subtotal * effectiveDiscountPercent) / 100;
+  const discount = Math.max(0, Math.min(maxAdditionalDiscountAmount, (subtotal * effectiveDiscountPercent) / 100));
   const total = subtotal - discount;
 
   return (

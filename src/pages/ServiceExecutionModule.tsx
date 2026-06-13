@@ -1,4 +1,4 @@
-﻿// src/pages/serviceexecution/ServiceExecutionModule.tsx
+// src/pages/serviceexecution/ServiceExecutionModule.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 import { createPortal, flushSync } from "react-dom";
@@ -177,7 +177,7 @@ function resolveActorName(user: any) {
   return resolveActorUsername(user, "serviceexec");
 }
 
-function normalizeActorDisplay(value: any, fallback = "â€”") {
+function normalizeActorDisplay(value: any, fallback = "-") {
   const raw = String(value ?? "").trim();
   if (!raw) return fallback;
   const normalized = raw.toLowerCase();
@@ -565,8 +565,9 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
   const getAssigneeDisplayName = (assignedTo: any) => {
     const normalized = normalizeIdentity(assignedTo);
-    if (!normalized) return "â€”";
-    return assigneeLabelByValue.get(normalized) ?? String(assignedTo);
+    if (!normalized) return "-";
+    const rawLabel = assigneeLabelByValue.get(normalized) ?? String(assignedTo ?? "").trim();
+    return rawLabel || "-";
   };
 
   // UI state
@@ -956,7 +957,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
                 return {
                   id: invoiceId,
-                  number: String(inv?.number ?? "â€”"),
+                  number: String(inv?.number ?? "—"),
                   amount: toNum(inv?.amount),
                   discount: toNum(inv?.discount),
                   status: String(inv?.status ?? "Unpaid"),
@@ -1020,7 +1021,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
             ? new Date(String(p.paidAt)).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
             : (p?.createdAt
                 ? new Date(String(p.createdAt)).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })
-                : "â€”"),
+                : "-"),
         }));
 
       const totalAmountRaw = toNum(pickBillingFirstValue("totalAmount", detailed, row, parsed));
@@ -1506,7 +1507,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                         : t("No active services");
                       const assignedToDisplay = currentService?.assignedTo
                         ? getAssigneeDisplayName(currentService.assignedTo)
-                        : "â€”";
+                        : "-";
 
                       return (
                         <tr key={job.id}>
@@ -1668,7 +1669,7 @@ function VehicleInfoCard({ order }: any) {
 function JobOrderSummaryCard({ order, identityToUsernameMap }: any) {
   const createdByDisplay = resolveOrderCreatedBy(order, {
     identityToUsernameMap,
-    fallback: "â€”",
+    fallback: "-",
   });
   const normalizedWorkStatus = normalizeWorkStatusLabel(order?.summary?.workStatus || order?.workStatus);
   const normalizedPaymentStatus = normalizePaymentStatusLabel(order?.summary?.paymentStatus || order?.paymentStatus);
@@ -1785,19 +1786,19 @@ function ExitPermitDetailsCard({ order }: any) {
     Boolean(firstNonEmptyText(permit?.permitId, permitInfo?.permitId))
   );
 
-  const permitId = firstNonEmptyText(permit?.permitId, permitInfo?.permitId) || "â€”";
-  const createDate = firstNonEmptyText(permit?.createDate, permitInfo?.createDate, order?.exitPermitDate) || "â€”";
-  const nextServiceDate = firstNonEmptyText(permit?.nextServiceDate, permitInfo?.nextServiceDate, order?.nextServiceDate) || "â€”";
+  const permitId = firstNonEmptyText(permit?.permitId, permitInfo?.permitId) || "-";
+  const createDate = firstNonEmptyText(permit?.createDate, permitInfo?.createDate, order?.exitPermitDate) || "-";
+  const nextServiceDate = firstNonEmptyText(permit?.nextServiceDate, permitInfo?.nextServiceDate, order?.nextServiceDate) || "-";
   const createdBy = normalizeActorDisplay(
     firstNonEmptyText(permit?.createdBy, permitInfo?.createdBy, permitInfo?.actionBy),
-    "â€”"
+    "-"
   );
-  const collectedBy = firstNonEmptyText(permit?.collectedBy, permitInfo?.collectedBy) || "â€”";
+  const collectedBy = firstNonEmptyText(permit?.collectedBy, permitInfo?.collectedBy) || "-";
   const collectedByMobile = firstNonEmptyText(
     permit?.collectedByMobile,
     permitInfo?.collectedByMobile,
     permitInfo?.mobileNumber
-  ) || "â€”";
+  ) || "-";
 
   return (
     <div className="epm-detail-card ex-unified-card">

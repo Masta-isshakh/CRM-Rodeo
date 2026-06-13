@@ -231,11 +231,18 @@
 }
 
 .epm-job-order-table {
-	width: max-content;
-	min-width: 1320px;
+	width: 100%;
+	max-width: 100%;
+	min-width: 0;
 	border-collapse: separate;
 	border-spacing: 0;
 	table-layout: auto;
+}
+
+.epm-job-order-table th:last-child,
+.epm-job-order-table td:last-child {
+	width: 1%;
+	white-space: nowrap;
 }
 
 .epm-job-order-table th {
@@ -247,9 +254,11 @@
 	text-transform: uppercase;
 	letter-spacing: 0.06em;
 	text-align: left;
-	white-space: nowrap;
+	white-space: normal;
 	line-height: 1.2;
 	background: var(--epm-head-bg);
+	word-break: break-word;
+	overflow-wrap: anywhere;
 }
 
 /* Micro-lock #3: table row density */
@@ -260,9 +269,9 @@
 	font-weight: 700;
 	color: var(--epm-secondary-text);
 	line-height: 1.28;
-	white-space: nowrap;
-	word-break: normal;
-	overflow-wrap: normal;
+	white-space: normal;
+	word-break: break-word;
+	overflow-wrap: anywhere;
 	vertical-align: middle;
 }
 

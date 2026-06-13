@@ -1631,7 +1631,7 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
   const maxAdditionalDiscountPercent = subtotal > 0 ? (maxAdditionalDiscountAmount / subtotal) * 100 : 0;
   const noRemainingDiscountAllowance = maxAdditionalDiscountAmount <= 0.00001;
   const effectiveDiscountPercent = Math.max(0, Math.min(maxAdditionalDiscountPercent, Number(discountPercent || 0)));
-  const discount = (subtotal * effectiveDiscountPercent) / 100;
+  const discount = Math.max(0, Math.min(maxAdditionalDiscountAmount, (subtotal * effectiveDiscountPercent) / 100));
   const total = subtotal - discount;
 
   return (
