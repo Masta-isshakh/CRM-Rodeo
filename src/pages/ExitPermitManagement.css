@@ -224,25 +224,47 @@
 	border: 1px solid #DDE7F6;
 	border-radius: 12px;
 	box-shadow: var(--epm-shadow);
-	padding: 10px;
+	padding: 10px 0 10px 10px;
 	overflow-x: auto;
 	overflow-y: hidden;
 	-webkit-overflow-scrolling: touch;
 }
 
 .epm-job-order-table {
-	width: 100%;
-	max-width: 100%;
-	min-width: 0;
+	width: max-content;
+	max-width: none;
+	min-width: 100%;
 	border-collapse: separate;
 	border-spacing: 0;
 	table-layout: auto;
 }
 
+.epm-job-order-table th:nth-child(1),
+.epm-job-order-table td:nth-child(1) { min-width: 132px; }
+.epm-job-order-table th:nth-child(2),
+.epm-job-order-table td:nth-child(2) { min-width: 150px; }
+.epm-job-order-table th:nth-child(3),
+.epm-job-order-table td:nth-child(3) { min-width: 128px; }
+.epm-job-order-table th:nth-child(4),
+.epm-job-order-table td:nth-child(4) { min-width: 170px; }
+.epm-job-order-table th:nth-child(5),
+.epm-job-order-table td:nth-child(5) { min-width: 138px; }
+.epm-job-order-table th:nth-child(6),
+.epm-job-order-table td:nth-child(6) { min-width: 130px; }
+.epm-job-order-table th:nth-child(7),
+.epm-job-order-table td:nth-child(7) { min-width: 140px; }
+.epm-job-order-table th:nth-child(8),
+.epm-job-order-table td:nth-child(8) { min-width: 132px; }
+
 .epm-job-order-table th:last-child,
 .epm-job-order-table td:last-child {
-	width: 1%;
+	width: 120px;
+	min-width: 120px;
+	max-width: 120px;
 	white-space: nowrap;
+	text-align: right;
+	padding-left: 6px;
+	padding-right: 0;
 }
 
 .epm-job-order-table th {
@@ -349,10 +371,10 @@
 	border: 1px solid #FDE68A;
 }
 
-.action-dropdown-container {
+.epm-container .action-dropdown-container {
 	display: inline-flex;
-	justify-content: center;
-	width: 100%;
+	justify-content: flex-end;
+	width: auto;
 }
 
 .epm-container .btn-action-dropdown {
@@ -929,7 +951,7 @@
 
 @media (max-width: 1024px) {
 	.epm-job-order-table {
-		min-width: 1240px;
+		min-width: 100%;
 	}
 }
 
@@ -1028,11 +1050,11 @@
 	}
 
 	.epm-table-wrapper {
-		padding: 6px;
+		padding: 6px 0 6px 6px;
 	}
 
 	.epm-job-order-table {
-		min-width: 1220px;
+		min-width: 100%;
 	}
 
 	.epm-detail-card,

@@ -288,17 +288,37 @@
 }
 
 .service-execution-wrapper .job-order-table {
-  width: 100%;
-  max-width: 100%;
+  width: max-content;
+  max-width: none;
   border-collapse: collapse;
-  min-width: 0;
+  min-width: 100%;
   table-layout: auto;
 }
 
+.service-execution-wrapper .job-order-table th:nth-child(1),
+.service-execution-wrapper .job-order-table td:nth-child(1) { min-width: 132px; }
+.service-execution-wrapper .job-order-table th:nth-child(2),
+.service-execution-wrapper .job-order-table td:nth-child(2) { min-width: 150px; }
+.service-execution-wrapper .job-order-table th:nth-child(3),
+.service-execution-wrapper .job-order-table td:nth-child(3) { min-width: 130px; }
+.service-execution-wrapper .job-order-table th:nth-child(4),
+.service-execution-wrapper .job-order-table td:nth-child(4) { min-width: 170px; }
+.service-execution-wrapper .job-order-table th:nth-child(5),
+.service-execution-wrapper .job-order-table td:nth-child(5) { min-width: 132px; }
+.service-execution-wrapper .job-order-table th:nth-child(6),
+.service-execution-wrapper .job-order-table td:nth-child(6) { min-width: 150px; }
+.service-execution-wrapper .job-order-table th:nth-child(7),
+.service-execution-wrapper .job-order-table td:nth-child(7) { min-width: 210px; }
+
 .service-execution-wrapper .job-order-table th:last-child,
 .service-execution-wrapper .job-order-table td:last-child {
-  width: 1%;
+  width: 108px;
+  min-width: 108px;
+  max-width: 108px;
   white-space: nowrap;
+  text-align: right;
+  padding-left: 6px;
+  padding-right: 0;
 }
 
 .service-execution-wrapper .job-order-table thead th {
@@ -345,7 +365,7 @@
 .service-execution-wrapper .action-dropdown-container {
   display: inline-flex;
   justify-content: flex-end;
-  width: 100%;
+  width: auto;
 }
 
 .service-execution-wrapper .btn-action-dropdown {
@@ -1365,7 +1385,7 @@
 
 @media (max-width: 1100px) {
   .service-execution-wrapper .job-order-table {
-    min-width: 1240px;
+    min-width: 100%;
   }
 }
 
@@ -1412,7 +1432,7 @@
     justify-content: center;
   }
 
-  .service-execution-wrapper .job-order-table { min-width: 1240px; }
+  .service-execution-wrapper .job-order-table { min-width: 100%; }
 
   .service-execution-wrapper .section-header {
     padding: 8px 4px;
@@ -1477,7 +1497,7 @@
 }
 
 @media (max-width: 560px) {
-  .service-execution-wrapper .job-order-table { min-width: 1240px; }
+  .service-execution-wrapper .job-order-table { min-width: 100%; }
 
   .service-execution-wrapper .sem-doc-item,
   .service-execution-wrapper .sem-qc-item {

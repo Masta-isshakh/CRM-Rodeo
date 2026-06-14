@@ -258,16 +258,16 @@
   border: 1px solid #DDE7F6;
   border-radius: 12px;
   box-shadow: var(--qc-shadow-soft);
-  padding: 10px;
+  padding: 10px 0 10px 10px;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
 }
 
 .quality-check-module .job-order-table {
-  width: 100%;
-  max-width: 100%;
-  min-width: 0;
+  width: max-content;
+  max-width: none;
+  min-width: 100%;
   border-collapse: separate;
   border-spacing: 0;
   table-layout: auto;
@@ -275,8 +275,13 @@
 
 .quality-check-module .job-order-table th:last-child,
 .quality-check-module .job-order-table td:last-child {
-  width: 1%;
+  width: 112px;
+  min-width: 112px;
+  max-width: 112px;
   white-space: nowrap;
+  text-align: right;
+  padding-left: 6px;
+  padding-right: 0;
 }
 
 .quality-check-module .job-order-table th:nth-child(1),
@@ -294,7 +299,7 @@
 .quality-check-module .job-order-table th:nth-child(7),
 .quality-check-module .job-order-table td:nth-child(7) { min-width: 140px; }
 .quality-check-module .job-order-table th:nth-child(8),
-.quality-check-module .job-order-table td:nth-child(8) { min-width: 170px; }
+.quality-check-module .job-order-table td:nth-child(8) { min-width: 112px; }
 
 .quality-check-module .job-order-table thead {
   background: var(--qc-head-bg);
@@ -375,15 +380,15 @@
 
 .quality-check-module .action-dropdown-container {
   display: inline-flex;
-  justify-content: center;
-  width: 100%;
+  justify-content: flex-end;
+  width: auto;
   padding-right: 0;
 }
 
 .quality-check-module .job-order-table th:last-child,
 .quality-check-module .job-order-table td:last-child {
-  text-align: center;
-  padding-right: 12px;
+  text-align: right;
+  padding-right: 0;
 }
 
 .quality-check-module .btn-action-dropdown,
@@ -888,11 +893,11 @@
   }
 
   .quality-check-module .table-wrapper {
-    padding: 8px;
+    padding: 8px 0 8px 8px;
   }
 
   .quality-check-module .job-order-table {
-    min-width: 1220px;
+    min-width: 100%;
   }
 
   .quality-check-module .detail-header,
@@ -966,11 +971,11 @@
   }
 
   .quality-check-module .table-wrapper {
-    padding: 6px;
+    padding: 6px 0 6px 6px;
   }
 
   .quality-check-module .job-order-table {
-    min-width: 1220px;
+    min-width: 100%;
   }
 
   .quality-check-module .job-order-table th,

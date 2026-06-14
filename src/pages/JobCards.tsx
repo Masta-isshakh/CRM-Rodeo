@@ -4,6 +4,7 @@
 import { Fragment, memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
 import { jsPDF } from "jspdf";
+import QRCode from "qrcode";
 import "./JobCards.css";
 import { getUrl } from "aws-amplify/storage";
 import { normalizeActorIdentity, resolveActorDisplay, resolveActorUsername } from "../utils/actorIdentity";
@@ -657,143 +658,626 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
 
   const printCreatedReceipt = async () => {
     if (!lastCreatedOrderSnapshot) return;
-    const order = lastCreatedOrderSnapshot;
-    const safeText = (value: unknown) => String(value ?? "-").trim() || "-";
-    const customer = safeText(order?.customerName ?? order?.customer?.fullName ?? order?.customer?.name);
-    const mobile = safeText(order?.customerMobile ?? order?.mobile ?? order?.customer?.mobile);
-    const plate = safeText(order?.vehiclePlate ?? order?.vehicle?.plateNumber);
-    const jobId = safeText(order?.id ?? submittedOrderId);
-    const createDate = safeText(order?.createDate ?? order?.createdAt ?? order?.createdAtDisplay);
-    const services = Array.isArray(order?.services)
-      ? order.services
-      : Array.isArray(order?.selectedServices)
-        ? order.selectedServices
-        : [];
+    try {
+      const order = lastCreatedOrderSnapshot;
+      const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = 210;
+      const pageH = 297;
+      const marginX = 18;
+      const pagePadTop = 8;
+      const pagePadBottom = 8;
+      const contentW = pageW - marginX * 2;
+      const BILL_TITLE_FONT_SIZE = 10;
+      const BILL_BODY_FONT_SIZE = 10;
 
-    const rows: Array<{ index: number; name: string; price: number }> = services.map((item: any, idx: number) => ({
-      index: idx + 1,
-      name: safeText(item?.name ?? item?.serviceName ?? item?.title ?? item?.description ?? "Service"),
-      price: Number(item?.price ?? item?.unitPrice ?? item?.amount ?? 0),
-    }));
+      const text = (value: unknown) => String(value ?? "").replace(/\s+/g, " ").trim();
+      const dash = (value: unknown) => text(value) || "-";
+      const fmtMoney = (value: unknown) => `QAR ${toCurrencyNumber(value).toFixed(2)}`;
+      const cleanFileToken = (value: string) => String(value || "job-order-receipt").replace(/[^a-zA-Z0-9_-]/g, "_");
+      const containsArabic = (value: string) => /[\u0600-\u06FF]/.test(String(value ?? ""));
+      const formatDateOnly = (raw: unknown) => {
+        const value = text(raw);
+        if (!value) return "-";
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return value;
+        return d.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" });
+      };
+      const formatDateTime = (raw: unknown) => {
+        const value = text(raw);
+        if (!value) return "-";
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return value;
+        return d.toLocaleString("en-GB", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        });
+      };
 
-    const subtotal = Number(order?.subtotal ?? order?.totalAmount ?? 0);
-    const discount = Number(order?.discount ?? 0);
-    const net = Number(order?.netAmount ?? Math.max(0, subtotal - discount));
-    const paid = Number(order?.amountPaid ?? 0);
-    const balance = Number(order?.balanceDue ?? Math.max(0, net - paid));
+      const jobId = dash(order?.id ?? submittedOrderId);
+      const createdAt = order?.createdAt || order?.jobOrderSummary?.createDate || order?.createDate;
+      const createdAtDisplay = formatDateTime(createdAt);
+      const expectedDelivery = [
+        text(order?.expectedDeliveryDate),
+        text(order?.expectedDeliveryTime),
+      ].filter(Boolean).join(" ") || text(order?.jobOrderSummary?.expectedDelivery);
+      const createdBy = dash(
+        order?.createdByName ||
+        resolveActorDisplay(order?.createdBy, {
+          fallback: order?.createdBy || "System",
+          identityToUsernameMap: actorIdentityMap,
+        }) ||
+        order?.createdBy
+      );
+      const billing = order?.billing ?? {};
+      const totalAmount = toCurrencyNumber(billing.totalAmount ?? order?.totalAmount);
+      const discount = toCurrencyNumber(billing.discount ?? order?.discountAmount ?? order?.discount);
+      const netAmount = toCurrencyNumber(billing.netAmount ?? order?.netAmount ?? Math.max(0, totalAmount - discount));
+      const amountPaid = toCurrencyNumber(billing.amountPaid ?? order?.amountPaid);
+      const balanceDue = toCurrencyNumber(billing.balanceDue ?? order?.balanceDue ?? Math.max(0, netAmount - amountPaid));
+      const services = Array.isArray(order?.services)
+        ? order.services
+        : Array.isArray(order?.selectedServices)
+          ? order.selectedServices
+          : [];
 
-    const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 16;
-    const rightX = pageWidth - margin;
-    const contentWidth = rightX - margin;
+      const logoDataUrl = await (async () => {
+        try {
+          const logoRes = await fetch("/vite.png");
+          if (!logoRes.ok) return "";
+          const blob = await logoRes.blob();
+          return await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(String(reader.result || ""));
+            reader.onerror = () => reject(new Error("Failed to read logo"));
+            reader.readAsDataURL(blob);
+          });
+        } catch {
+          return "";
+        }
+      })();
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(14);
-    doc.setTextColor("#1f2a44");
-    doc.text("RODEO DRIVE", margin, 20);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.text("Gloss Perfected", margin, 26);
-    doc.text("Block 2, Shop SYS 066, Doha", margin, 31);
+      const roundedLogoDataUrl = await (async () => {
+        if (!logoDataUrl || typeof document === "undefined") return logoDataUrl;
+        try {
+          const sourceImg = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = reject;
+            img.src = logoDataUrl;
+          });
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(20);
-    doc.setTextColor("#4e40f8");
-    doc.text("JOB ORDER RECEIPT", rightX, 20, { align: "right" });
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.setTextColor("#475569");
-    doc.text(`Order # ${jobId}`, rightX, 26, { align: "right" });
-    doc.text(`Created: ${createDate}`, rightX, 31, { align: "right" });
+          const side = Math.max(1, Math.min(sourceImg.naturalWidth || 256, sourceImg.naturalHeight || 256));
+          const sx = Math.max(0, Math.floor(((sourceImg.naturalWidth || side) - side) / 2));
+          const sy = Math.max(0, Math.floor(((sourceImg.naturalHeight || side) - side) / 2));
+          const canvas = document.createElement("canvas");
+          canvas.width = side;
+          canvas.height = side;
+          const ctx = canvas.getContext("2d");
+          if (!ctx) return logoDataUrl;
+          ctx.clearRect(0, 0, side, side);
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(side / 2, side / 2, side / 2, 0, Math.PI * 2);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(sourceImg, sx, sy, side, side, 0, 0, side, side);
+          ctx.restore();
+          return canvas.toDataURL("image/png");
+        } catch {
+          return logoDataUrl;
+        }
+      })();
 
-    doc.setDrawColor("#cbd5e1");
-    doc.setLineWidth(0.5);
-    doc.line(margin, 35, rightX, 35);
+      const qrPayload = [
+        `Receipt: ${jobId}`,
+        `Bill: ${dash(billing.billId)}`,
+        `Customer: ${dash(order?.customerName)}`,
+        `Vehicle: ${dash(order?.vehiclePlate || order?.vehicleDetails?.plateNumber)}`,
+        `Net: ${netAmount.toFixed(2)}`,
+        `Due: ${balanceDue.toFixed(2)}`,
+        `Created: ${createdAtDisplay}`,
+      ].join(" | ");
 
-    const boxWidth = (contentWidth - 10) / 3;
-    const boxTop = 42;
-    const boxHeight = 20;
+      const qrDataUrl = await QRCode.toDataURL(qrPayload, {
+        errorCorrectionLevel: "M",
+        margin: 1,
+        width: 240,
+      });
 
-    const drawBox = (x: number, y: number, label: string, value: string) => {
-      doc.setFillColor("#f8fbff");
-      doc.roundedRect(x, y, boxWidth, boxHeight, 3, 3, "F");
+      const drawArabicLine = (
+        value: string,
+        xRightMm: number,
+        yTopMm: number,
+        maxWidthMm: number,
+        fontPx: number,
+        style: "normal" | "italic" | "bold" | "bolditalic",
+        colorHex = "#181818",
+      ) => {
+        const safeValue = dash(value);
+        if (typeof document === "undefined") {
+          doc.setFont("helvetica", style === "bolditalic" || style === "bold" ? "bold" : "normal");
+          doc.setFontSize(fontPx);
+          doc.text(safeValue, xRightMm, yTopMm + 3.4, { align: "right" });
+          return;
+        }
+
+        const pxPerMm = 96 / 25.4;
+        const scale = 2;
+        const arabicVisualScale = 1.14;
+        const lineH = Math.max(4.4, fontPx * 0.52);
+        const widthPx = Math.max(1, Math.ceil(maxWidthMm * pxPerMm * scale));
+        const heightPx = Math.max(1, Math.ceil(lineH * pxPerMm * scale));
+        const canvas = document.createElement("canvas");
+        canvas.width = widthPx;
+        canvas.height = heightPx;
+
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          doc.setFont("helvetica", style === "bolditalic" || style === "bold" ? "bold" : "normal");
+          doc.setFontSize(fontPx);
+          doc.text(safeValue, xRightMm, yTopMm + 3.4, { align: "right" });
+          return;
+        }
+
+        const fontWeight = style.includes("bold") ? "700" : "400";
+        const fontStyle = style.includes("italic") ? "italic" : "normal";
+        ctx.clearRect(0, 0, widthPx, heightPx);
+        ctx.fillStyle = colorHex;
+        ctx.direction = "rtl";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "middle";
+        ctx.font = `${fontStyle} ${fontWeight} ${Math.round(fontPx * arabicVisualScale * scale)}px Tahoma, Arial, "Segoe UI", sans-serif`;
+        ctx.fillText(safeValue, widthPx - 2, heightPx / 2 + 0.5);
+
+        doc.addImage(canvas.toDataURL("image/png"), "PNG", xRightMm - maxWidthMm, yTopMm, maxWidthMm, lineH);
+      };
+
+      const splitArabicTextToLines = (
+        value: string,
+        maxWidthMm: number,
+        fontPx: number,
+        style: "normal" | "italic" | "bold" | "bolditalic",
+      ) => {
+        const normalized = text(value);
+        if (!normalized) return [""];
+
+        const words = normalized.split(/\s+/).filter(Boolean);
+        if (!words.length) return [normalized];
+
+        if (typeof document === "undefined") {
+          const approxCharsPerLine = Math.max(12, Math.floor(maxWidthMm * 2.2));
+          const lines: string[] = [];
+          let current = "";
+          for (const word of words) {
+            const candidate = current ? `${current} ${word}` : word;
+            if (candidate.length <= approxCharsPerLine) current = candidate;
+            else {
+              if (current) lines.push(current);
+              current = word;
+            }
+          }
+          if (current) lines.push(current);
+          return lines;
+        }
+
+        const pxPerMm = 96 / 25.4;
+        const scale = 2;
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return [normalized];
+
+        const fontWeight = style.includes("bold") ? "700" : "400";
+        const fontStyle = style.includes("italic") ? "italic" : "normal";
+        const arabicVisualScale = 1.14;
+        ctx.font = `${fontStyle} ${fontWeight} ${Math.round(fontPx * arabicVisualScale * scale)}px Tahoma, Arial, "Segoe UI", sans-serif`;
+
+        const maxWidthPx = Math.max(1, maxWidthMm * pxPerMm * scale);
+        const lines: string[] = [];
+        let current = "";
+
+        for (const word of words) {
+          const candidate = current ? `${current} ${word}` : word;
+          if (ctx.measureText(candidate).width <= maxWidthPx) current = candidate;
+          else {
+            if (current) lines.push(current);
+            current = word;
+          }
+        }
+
+        if (current) lines.push(current);
+        return lines.length ? lines : [normalized];
+      };
+
+      const drawSmartPdfLine = (
+        value: string,
+        xLeftMm: number,
+        baselineYMm: number,
+        maxWidthMm: number,
+        style: "normal" | "italic" | "bold" | "bolditalic" = "normal",
+        colorHex = "#111827"
+      ) => {
+        const safeValue = dash(value);
+        if (containsArabic(safeValue)) {
+          drawArabicLine(safeValue, xLeftMm + maxWidthMm, baselineYMm - 3.4, maxWidthMm, BILL_BODY_FONT_SIZE, style, colorHex);
+          return;
+        }
+
+        doc.setFont("helvetica", style === "bolditalic" || style === "bold" ? "bold" : "normal");
+        doc.setFontSize(BILL_BODY_FONT_SIZE);
+        doc.setTextColor(colorHex);
+        const clipped = doc.splitTextToSize(safeValue, maxWidthMm) as string[];
+        doc.text(String(clipped[0] || "-"), xLeftMm, baselineYMm);
+      };
+
+      const clipText = (value: string, maxWidth: number) => {
+        const safeValue = dash(value);
+        if (containsArabic(safeValue)) return safeValue;
+        if (doc.getTextWidth(safeValue) <= maxWidth) return safeValue;
+        let out = safeValue;
+        while (out.length > 1 && doc.getTextWidth(`${out}...`) > maxWidth) out = out.slice(0, -1);
+        return `${out}...`;
+      };
+
+      const mmPerPx = 25.4 / 96;
+      const gridGap = 32 * mmPerPx;
+      const headerLogoW = 140 * mmPerPx;
+      const headerLogoH = 100 * mmPerPx;
+      const footerQrSize = 70 * mmPerPx;
+
+      const sideColW = (contentW - headerLogoW - gridGap * 2) / 2;
+      const leftColX = marginX;
+      const centerColX = leftColX + sideColW + gridGap;
+      const rightColRightX = pageW - marginX;
+
+      const footerSideColW = (contentW - footerQrSize - gridGap * 2) / 2;
+      const footerLeftColX = marginX;
+      const footerCenterColX = footerLeftColX + footerSideColW + gridGap;
+      const footerRightColRightX = pageW - marginX;
+
+      const headerPadY = 2.1;
+      const headerContentTop = pagePadTop + headerPadY;
+      const headerBottom = pagePadTop + headerPadY * 2 + headerLogoH + 1.1;
+
+      const footerPadTop = 3.4;
+      const footerBasePadY = 2.1;
+      const footerTop = pageH - pagePadBottom - (footerPadTop + footerBasePadY + footerQrSize + 11.2);
+      const footerContentTop = footerTop + footerPadTop;
+      const pageContentBottom = footerTop - 7;
+      const footerLineH = Math.max(5.2, BILL_BODY_FONT_SIZE * 0.38);
+
+      const drawLetterhead = () => {
+        doc.setDrawColor(44, 62, 80);
+        doc.setLineWidth(0.53);
+        doc.line(marginX, headerBottom, pageW - marginX, headerBottom);
+        doc.line(marginX, footerTop, pageW - marginX, footerTop);
+
+        doc.setTextColor(24, 24, 24);
+        doc.setFont("helvetica", "bolditalic");
+        doc.setFontSize(BILL_TITLE_FONT_SIZE);
+        doc.text("RODEO DRIVE", leftColX, headerContentTop + 4.8);
+        doc.setFont("helvetica", "italic");
+        doc.setFontSize(BILL_BODY_FONT_SIZE);
+        doc.text("Gloss Perfected", leftColX, headerContentTop + 8.7);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(BILL_BODY_FONT_SIZE);
+        doc.text("Block 2, Shop No. SYS 066, Block 21,", leftColX, headerContentTop + 12.6);
+        doc.text("Near Dragon Mart Al Sayer, Doha.", leftColX, headerContentTop + 16.5);
+
+        if (roundedLogoDataUrl) {
+          const headerLogoSize = Math.min(headerLogoW, headerLogoH);
+          const headerLogoX = centerColX + (headerLogoW - headerLogoSize) / 2;
+          const headerLogoY = headerContentTop + (headerLogoH - headerLogoSize) / 2;
+          doc.addImage(roundedLogoDataUrl, "PNG", headerLogoX, headerLogoY, headerLogoSize, headerLogoSize);
+        }
+
+        drawArabicLine("روديو درايف", rightColRightX, headerContentTop + 2.6, sideColW, BILL_TITLE_FONT_SIZE, "bolditalic");
+        drawArabicLine("اللمعان المثالي", rightColRightX, headerContentTop + 6.8, sideColW, BILL_BODY_FONT_SIZE, "italic");
+        drawArabicLine("مبنى 2 ، محل رقم SYS 066 ، مبنى 21 ،", rightColRightX, headerContentTop + 11.0, sideColW, BILL_BODY_FONT_SIZE, "normal");
+        drawArabicLine("بالقرب من دراجون مارت ال ساير ، الدوحة.", rightColRightX, headerContentTop + 15.2, sideColW, BILL_BODY_FONT_SIZE, "normal");
+
+        doc.setTextColor(24, 24, 24);
+        doc.setFont("helvetica", "bolditalic");
+        doc.setFontSize(BILL_BODY_FONT_SIZE);
+        doc.text("RODEO DRIVE TRADING & SERVICES", footerLeftColX, footerContentTop + footerLineH * 1);
+        doc.text("C.R. No: 122716", footerLeftColX, footerContentTop + footerLineH * 2);
+        doc.text("LLC - capital QAR 200,000", footerLeftColX, footerContentTop + footerLineH * 3);
+        doc.text("T: +974 44311871 | M: +974 3320 2409", footerLeftColX, footerContentTop + footerLineH * 4);
+        doc.text("E: info@rodeodrive.qa | W: www.rodeodrive.qa", footerLeftColX, footerContentTop + footerLineH * 5);
+
+        doc.addImage(qrDataUrl, "PNG", footerCenterColX, footerContentTop, footerQrSize, footerQrSize);
+
+        drawArabicLine("روديو درايف للتجارة والخدمات", footerRightColRightX, footerContentTop + footerLineH * 1 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
+        drawArabicLine("س.ت:122716", footerRightColRightX, footerContentTop + footerLineH * 2 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
+        drawArabicLine("شركة ذات مسؤلية محدودة برأس مال 200,000 رق", footerRightColRightX, footerContentTop + footerLineH * 3 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
+        drawArabicLine("T:+974 44311871 | M:+974 3320 2409", footerRightColRightX, footerContentTop + footerLineH * 4 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
+        drawArabicLine("E: info@rodeodrive.qa W: www.rodeodrive.qa", footerRightColRightX, footerContentTop + footerLineH * 5 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
+      };
+
+      const newContentPage = (title = "JOB ORDER RECEIPT - CONTINUED") => {
+        doc.addPage("a4", "portrait");
+        drawLetterhead();
+        doc.setTextColor(20, 31, 46);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(BILL_TITLE_FONT_SIZE);
+        doc.text(title, marginX, headerBottom + 8);
+        drawArabicLine("متابعة إيصال أمر العمل", pageW - marginX, headerBottom + 4.9, 48, BILL_TITLE_FONT_SIZE, "bolditalic");
+        return headerBottom + 15;
+      };
+
+      const ensureSpace = (currentY: number, needed: number) => (
+        currentY + needed > pageContentBottom ? newContentPage() : currentY
+      );
+
+      const drawInfoBox = (
+        x: number,
+        y: number,
+        w: number,
+        h: number,
+        title: string,
+        titleAr: string,
+        rows: Array<[string, string]>,
+      ) => {
+        doc.setFillColor(248, 250, 253);
+        doc.setDrawColor(220, 226, 234);
+        doc.roundedRect(x, y, w, h, 1.5, 1.5, "FD");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(BILL_TITLE_FONT_SIZE);
+        doc.setTextColor(20, 31, 46);
+        doc.text(title, x + 3, y + 5);
+        drawArabicLine(titleAr, x + w - 3, y + 1.8, 32, BILL_TITLE_FONT_SIZE, "bolditalic");
+
+        let rowY = y + 10.3;
+        rows.forEach(([label, value]) => {
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(6.8);
+          doc.setTextColor(107, 114, 128);
+          doc.text(label, x + 3, rowY);
+          drawSmartPdfLine(value, x + 31, rowY, w - 34, "normal", "#111827");
+          rowY += 4.2;
+        });
+      };
+
+      const serviceRows: Array<{ label: string; amount: number | null; muted?: boolean; bold?: boolean }> = [];
+      const serviceGroups = groupServicesByPackage(services);
+      serviceGroups.forEach((group) => {
+        if (group.packageTitle) {
+          const fallbackTotal = group.items.reduce((sum, item) => sum + toCurrencyNumber(item?.price), 0);
+          serviceRows.push({
+            label: group.packageTitle,
+            amount: group.packagePrice ?? fallbackTotal,
+            bold: true,
+          });
+          group.items.forEach((item) => {
+            const spec = getServiceSpecificationLabel(item);
+            serviceRows.push({
+              label: `- ${getServiceDisplayName(item)}${spec ? ` (${spec})` : ""}`,
+              amount: null,
+              muted: true,
+            });
+          });
+          return;
+        }
+
+        group.items.forEach((item) => {
+          const spec = getServiceSpecificationLabel(item);
+          serviceRows.push({
+            label: `${getServiceDisplayName(item)}${spec ? ` (${spec})` : ""}`,
+            amount: toCurrencyNumber(item?.price),
+          });
+        });
+      });
+
+      drawLetterhead();
+
+      let cursorY = headerBottom + 8;
+      doc.setTextColor(20, 31, 46);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.setTextColor("#64748b");
-      doc.text(label.toUpperCase(), x + 2, y + 6);
+      doc.setFontSize(BILL_TITLE_FONT_SIZE);
+      doc.text("JOB ORDER RECEIPT", marginX, cursorY);
+      drawArabicLine("إيصال أمر العمل", pageW - marginX, cursorY - 3.1, 42, BILL_TITLE_FONT_SIZE, "bolditalic");
+
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(11);
-      doc.setTextColor("#0f172a");
-      doc.text(doc.splitTextToSize(value, boxWidth - 4), x + 2, y + 14);
-    };
+      doc.setFontSize(BILL_BODY_FONT_SIZE);
+      doc.text(`Receipt #: ${jobId}`, marginX, cursorY + 6);
+      doc.text(`Date: ${formatDateOnly(createdAt)}`, marginX + 58, cursorY + 6);
+      drawSmartPdfLine(`Created By: ${createdBy}`, marginX + 104, cursorY + 6, pageW - marginX - (marginX + 104));
+      drawArabicLine(`رقم الإيصال: ${jobId} | التاريخ: ${formatDateOnly(createdAt)}`, pageW - marginX, cursorY + 8.7, 96, BILL_BODY_FONT_SIZE, "normal");
+      drawArabicLine(`أنشأ أمر العمل: ${createdBy}`, pageW - marginX, cursorY + 13.0, 88, BILL_BODY_FONT_SIZE, "normal");
 
-    drawBox(margin, boxTop, "Customer", customer);
-    drawBox(margin + boxWidth + 5, boxTop, "Mobile", mobile);
-    drawBox(margin + (boxWidth + 5) * 2, boxTop, "Vehicle Plate", plate);
+      doc.setDrawColor(188, 196, 206);
+      doc.setLineWidth(0.3);
+      doc.line(marginX, cursorY + 18, pageW - marginX, cursorY + 18);
+      cursorY += 23;
 
-    const tableTop = boxTop + boxHeight + 16;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(10);
-    doc.setTextColor("#1f2a44");
-    doc.text("#", margin + 2, tableTop);
-    doc.text("Service", margin + 14, tableTop);
-    doc.text("Price", rightX, tableTop, { align: "right" });
-    doc.setLineWidth(0.4);
-    doc.line(margin, tableTop + 2, rightX, tableTop + 2);
+      const infoGap = 4;
+      const infoW = (contentW - infoGap) / 2;
+      const infoH = 34;
+      drawInfoBox(marginX, cursorY, infoW, infoH, "CUSTOMER", "العميل", [
+        ["Name", dash(order?.customerName || order?.customerDetails?.name)],
+        ["Mobile", dash(order?.mobile || order?.customerMobile || order?.customerDetails?.mobile)],
+        ["Customer ID", dash(order?.customerDetails?.customerId || order?.customerDetails?.id)],
+        ["Email", dash(order?.customerDetails?.email)],
+        ["Address", dash(order?.customerDetails?.address)],
+      ]);
+      drawInfoBox(marginX + infoW + infoGap, cursorY, infoW, infoH, "VEHICLE", "المركبة", [
+        ["Plate", dash(order?.vehiclePlate || order?.vehicleDetails?.plateNumber)],
+        ["Vehicle", dash(`${dash(order?.vehicleDetails?.make)} ${dash(order?.vehicleDetails?.model)}`.replace(/ -/g, "").replace(/- /g, ""))],
+        ["Year / Type", dash([order?.vehicleDetails?.year, order?.vehicleDetails?.type].filter(Boolean).join(" / "))],
+        ["Color", dash(order?.vehicleDetails?.color)],
+        ["VIN", dash(order?.vehicleDetails?.vin)],
+      ]);
+      cursorY += infoH + 4;
 
-    let rowY = tableTop + 8;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    rows.forEach((row) => {
-      if (rowY > pageHeight - 80) {
-        doc.addPage();
-        rowY = 20;
+      const detailsH = 28;
+      cursorY = ensureSpace(cursorY, detailsH + 4);
+      drawInfoBox(marginX, cursorY, contentW, detailsH, "JOB ORDER DETAILS", "تفاصيل أمر العمل", [
+        ["Order Type", dash(order?.orderType)],
+        ["Work Status", dash(order?.workStatus)],
+        ["Payment Status", dash(order?.paymentStatus)],
+        ["Bill ID", dash(billing.billId)],
+        ["Expected Delivery", dash(expectedDelivery)],
+      ]);
+      cursorY += detailsH + 5;
+
+      const customerNote = dash(order?.customerNotes || order?.notes || order?.orderNotes);
+      if (customerNote !== "-") {
+        const noteLines = containsArabic(customerNote)
+          ? splitArabicTextToLines(customerNote, contentW - 6, BILL_BODY_FONT_SIZE, "normal")
+          : (doc.splitTextToSize(customerNote, contentW - 6) as string[]);
+        const noteH = Math.min(26, Math.max(12, noteLines.length * 4.4 + 8));
+        cursorY = ensureSpace(cursorY, noteH + 5);
+        doc.setFillColor(248, 251, 255);
+        doc.setDrawColor(220, 226, 234);
+        doc.roundedRect(marginX, cursorY, contentW, noteH, 1.5, 1.5, "FD");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(BILL_TITLE_FONT_SIZE);
+        doc.setTextColor(20, 31, 46);
+        doc.text("Customer Note", marginX + 3, cursorY + 5);
+        drawArabicLine("ملاحظة العميل", pageW - marginX - 3, cursorY + 1.8, 32, BILL_TITLE_FONT_SIZE, "bolditalic");
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(BILL_BODY_FONT_SIZE);
+        if (containsArabic(customerNote)) {
+          noteLines.slice(0, 4).forEach((line, idx) => {
+            drawArabicLine(line, pageW - marginX - 3, cursorY + 7.2 + idx * 4.5, contentW - 6, BILL_BODY_FONT_SIZE, "normal");
+          });
+        } else {
+          doc.text(noteLines.slice(0, 4), marginX + 3, cursorY + 10);
+        }
+        cursorY += noteH + 5;
       }
-      doc.text(String(row.index), margin + 2, rowY);
-      doc.text(doc.splitTextToSize(row.name, contentWidth - 80), margin + 14, rowY);
-      doc.text(`QAR ${row.price.toFixed(2)}`, rightX, rowY, { align: "right" });
-      rowY += 8;
-    });
 
-    if (!rows.length) {
-      doc.setFontSize(10);
-      doc.setTextColor("#475569");
-      doc.text("No services listed", margin + 14, rowY);
-      rowY += 8;
+      const tableHeaderH = 9;
+      const rowH = 8.8;
+      const noW = 12;
+      const amountW = 34;
+      const descW = contentW - noW - amountW;
+      const drawServiceHeader = (y: number) => {
+        doc.setFillColor(44, 62, 80);
+        doc.setTextColor(255, 255, 255);
+        doc.rect(marginX, y, contentW, tableHeaderH, "F");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(BILL_BODY_FONT_SIZE);
+        doc.text("No", marginX + noW / 2, y + 6.2, { align: "center" });
+        doc.text("Description", marginX + noW + 2, y + 6.2);
+        doc.text("Amount", pageW - marginX - 2, y + 6.2, { align: "right" });
+        return y + tableHeaderH;
+      };
+
+      cursorY = ensureSpace(cursorY, tableHeaderH + rowH + 4);
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(BILL_TITLE_FONT_SIZE);
+      doc.setTextColor(20, 31, 46);
+      doc.text("REQUESTED SERVICES", marginX, cursorY);
+      drawArabicLine("الخدمات المطلوبة", pageW - marginX, cursorY - 3.1, 42, BILL_TITLE_FONT_SIZE, "bolditalic");
+      cursorY += 4;
+      cursorY = drawServiceHeader(cursorY);
+
+      if (!serviceRows.length) {
+        doc.setDrawColor(220, 226, 234);
+        doc.rect(marginX, cursorY, contentW, rowH);
+        doc.setFont("helvetica", "normal");
+        doc.setTextColor(107, 114, 128);
+        doc.text("No services listed", marginX + noW + 2, cursorY + 6.1);
+        cursorY += rowH;
+      }
+
+      serviceRows.forEach((row, idx) => {
+        if (cursorY + rowH > pageContentBottom) {
+          cursorY = newContentPage("JOB ORDER RECEIPT - SERVICES");
+          cursorY = drawServiceHeader(cursorY);
+        }
+        if (idx % 2 === 0) {
+          doc.setFillColor(250, 252, 255);
+          doc.rect(marginX, cursorY, contentW, rowH, "F");
+        }
+        if (row.muted) {
+          doc.setFillColor(241, 245, 249);
+          doc.rect(marginX + 0.3, cursorY + 0.3, contentW - 0.6, rowH - 0.6, "F");
+        }
+        doc.setDrawColor(220, 226, 234);
+        doc.setLineWidth(0.22);
+        doc.rect(marginX, cursorY, contentW, rowH);
+        doc.setFont("helvetica", row.bold ? "bold" : "normal");
+        doc.setFontSize(BILL_BODY_FONT_SIZE);
+        doc.setTextColor(row.muted ? 113 : 20, row.muted ? 128 : 31, row.muted ? 150 : 46);
+        doc.text(String(idx + 1), marginX + noW / 2, cursorY + 6.1, { align: "center" });
+        const description = clipText(row.label, descW - 4);
+        if (containsArabic(description)) {
+          drawArabicLine(description, marginX + noW + descW - 2, cursorY + 1.1, descW - 4, BILL_BODY_FONT_SIZE, row.bold ? "bold" : "normal", row.muted ? "#718096" : "#111827");
+        } else {
+          doc.text(description, marginX + noW + (row.muted ? 6.5 : 2), cursorY + 6.1);
+        }
+        doc.setTextColor(20, 31, 46);
+        doc.text(row.amount == null ? "" : fmtMoney(row.amount), pageW - marginX - 2, cursorY + 6.1, { align: "right" });
+        cursorY += rowH;
+      });
+      cursorY += 5;
+
+      const summaryH = 24;
+      cursorY = ensureSpace(cursorY, summaryH + 32);
+      doc.setDrawColor(188, 196, 206);
+      doc.setFillColor(246, 249, 252);
+      doc.roundedRect(marginX, cursorY, contentW, summaryH, 1.5, 1.5, "FD");
+      const summaryRows = [
+        ["Total", "الإجمالي", totalAmount],
+        ["Discount", "الخصم", discount],
+        ["Net", "الصافي", netAmount],
+        ["Paid", "المدفوع", amountPaid],
+        ["Balance Due", "المتبقي", balanceDue],
+      ] as const;
+      const summaryColW = contentW / summaryRows.length;
+      summaryRows.forEach(([enLabel, arLabel, value], idx) => {
+        const colLeft = marginX + idx * summaryColW;
+        const colCenter = colLeft + summaryColW / 2;
+        const isBalance = idx === summaryRows.length - 1;
+        if (idx > 0) doc.line(colLeft, cursorY, colLeft, cursorY + summaryH);
+        if (isBalance) {
+          doc.setFillColor(44, 62, 80);
+          doc.rect(colLeft, cursorY, summaryColW, summaryH, "F");
+        }
+        doc.setTextColor(isBalance ? 255 : 20, isBalance ? 255 : 31, isBalance ? 255 : 46);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(6.8);
+        doc.text(enLabel, colCenter, cursorY + 5, { align: "center" });
+        drawArabicLine(arLabel, colLeft + summaryColW - 1.6, cursorY + 6.0, summaryColW - 3.2, 6.3, "normal", isBalance ? "#FFFFFF" : "#181818");
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(8);
+        doc.text(fmtMoney(value), colCenter, cursorY + 16.5, { align: "center" });
+      });
+      cursorY += summaryH + 18;
+
+      cursorY = ensureSpace(cursorY, 38);
+      const signatureW = (contentW - 14) / 2;
+      const signatureY = cursorY + 8;
+      const drawSignature = (x: number, title: string, titleAr: string, name: string) => {
+        doc.setDrawColor(90, 103, 125);
+        doc.setLineWidth(0.35);
+        doc.line(x, signatureY + 12, x + signatureW, signatureY + 12);
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(BILL_BODY_FONT_SIZE);
+        doc.setTextColor(20, 31, 46);
+        doc.text(title, x, signatureY + 17);
+        drawArabicLine(titleAr, x + signatureW, signatureY + 13.6, 42, BILL_BODY_FONT_SIZE, "bolditalic");
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
+        doc.setTextColor(107, 114, 128);
+        drawSmartPdfLine(`Name: ${name}`, x, signatureY + 22, signatureW);
+        doc.text("Date:", x, signatureY + 26);
+      };
+      drawSignature(marginX, "Customer Signature", "توقيع العميل", dash(order?.customerName));
+      drawSignature(marginX + signatureW + 14, "Created By Signature", "توقيع منشئ الطلب", createdBy);
+
+      const fileName = `job-order-receipt-${cleanFileToken(jobId)}.pdf`;
+      doc.save(fileName);
+    } catch (e) {
+      showError({
+        title: t("Receipt generation failed"),
+        message: errMsg(e),
+      });
     }
-
-    const totalsTop = Math.max(rowY + 14, 180);
-    const drawTotalLine = (label: string, amount: string, isBold = false, yOffset = 0) => {
-      doc.setFont("helvetica", isBold ? "bold" : "normal");
-      doc.setTextColor("#1f2a44");
-      doc.text(label, rightX - 70, totalsTop + yOffset);
-      doc.text(amount, rightX, totalsTop + yOffset, { align: "right" });
-    };
-
-    drawTotalLine("Subtotal", `QAR ${subtotal.toFixed(2)}`);
-    drawTotalLine("Discount", `QAR ${discount.toFixed(2)}`);
-    drawTotalLine("Net", `QAR ${net.toFixed(2)}`);
-    drawTotalLine("Paid", `QAR ${paid.toFixed(2)}`);
-    drawTotalLine("Balance Due", `QAR ${balance.toFixed(2)}`, true, 8);
-
-    const signatureY = totalsTop + 32;
-    const signatureWidth = (contentWidth - 12) / 2;
-    doc.roundedRect(margin, signatureY, signatureWidth, 35, 3, 3);
-    doc.roundedRect(margin + signatureWidth + 12, signatureY, signatureWidth, 35, 3, 3);
-    doc.setFontSize(9);
-    doc.setTextColor("#64748b");
-    doc.text("Employee Signature", margin + 2, signatureY + 8);
-    doc.text("Name & Signature", margin + 2, signatureY + 24);
-    doc.text("Customer Signature", margin + signatureWidth + 14, signatureY + 8);
-    doc.text("Name & Signature", margin + signatureWidth + 14, signatureY + 24);
-
-    doc.setFontSize(9);
-    doc.setTextColor("#64748b");
-    doc.text("Generated from Rodeo Drive billing system.", margin, pageHeight - 14);
-    const fileName = `job-order-receipt-${jobId.replace(/[^a-zA-Z0-9_-]/g, "_")}.pdf`;
-    doc.save(fileName);
   };
 
 
@@ -1324,7 +1808,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
               </>
             )
           }
-          autoCloseMs={2200}
+          autoCloseMs={lastAction === "cancel" ? 2200 : undefined}
         />
       )}
 
