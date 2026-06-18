@@ -272,6 +272,103 @@
   font-weight: 500;
 }
 
+.sr-model-picker {
+  position: relative;
+}
+
+.sr-model-trigger {
+  width: 100%;
+  min-height: 38px;
+  border: 1px solid #dde7f6;
+  background: #f7f9ff;
+  color: #0f2a66;
+  border-radius: 9px;
+  padding: 0 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.sr-model-trigger span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: inherit !important;
+  text-transform: none !important;
+  letter-spacing: 0 !important;
+}
+
+.sr-model-menu {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 280px;
+  overflow: auto;
+  border: 1px solid #d7e2f5;
+  border-radius: 12px;
+  background: #ffffff;
+  box-shadow: 0 18px 32px rgba(28, 45, 94, 0.16);
+  padding: 8px;
+}
+
+.sr-model-actions {
+  display: flex;
+  gap: 8px;
+  padding: 4px 4px 8px;
+  border-bottom: 1px solid #eef3fb;
+  margin-bottom: 6px;
+}
+
+.sr-model-actions button {
+  border: 1px solid #d7e2f5;
+  background: #f7f9ff;
+  color: #21406b;
+  border-radius: 8px;
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.sr-model-option {
+  display: flex !important;
+  grid-template-columns: none !important;
+  align-items: center;
+  gap: 8px !important;
+  min-height: 34px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  color: #102a68;
+  cursor: pointer;
+}
+
+.sr-model-option:hover {
+  background: #f4f7fe;
+}
+
+.sr-model-option input {
+  min-height: 0 !important;
+  width: auto !important;
+  accent-color: var(--sr-primary);
+}
+
+.sr-model-option span {
+  color: #102a68 !important;
+  font-size: 0.85rem !important;
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
 .sr-grid select:focus,
 .sr-grid input:focus,
 .sr-schedule-grid select:focus,

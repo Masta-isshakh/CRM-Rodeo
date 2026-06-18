@@ -1266,6 +1266,28 @@ const PHRASES_EN_AR: Array<[string, string]> = [
   ["Invoice No", "رقم الفاتورة"],
 ];
 
+PHRASES_EN_AR.push(
+  ["Create Job Card", "إنشاء بطاقة عمل"],
+  ["Preparing job card...", "جاري تجهيز بطاقة العمل..."],
+  ["Job Order Receipt", "إيصال أمر العمل"],
+  ["All Data Models", "كل نماذج البيانات"],
+  ["Select data models", "اختر نماذج البيانات"],
+  ["Job Orders Only", "أوامر العمل فقط"],
+  ["Data Model", "نموذج البيانات"],
+  ["Job Orders", "أوامر العمل"],
+  ["Service Catalog", "دليل الخدمات"],
+  ["User Profiles", "ملفات المستخدمين"],
+  ["Voucher Gifts", "هدايا القسائم"],
+  ["Quotations", "عروض الأسعار"],
+  ["Inspection finished! Status changed to Service_Operation and PDF report generated.", "تم إنهاء الفحص! تم تغيير الحالة إلى تنفيذ الخدمة وتم إنشاء تقرير PDF."],
+  ["Customer Signature (Required)", "توقيع العميل (مطلوب)"],
+  ["Attention and Failed Findings", "الملاحظات التي تحتاج انتباهاً أو فشلت"],
+  ["No attention or failed findings were recorded. Pass and completed items are excluded from this report.", "لم يتم تسجيل أي ملاحظات تحتاج انتباهاً أو فشلت. يتم استبعاد العناصر الناجحة والمكتملة من هذا التقرير."],
+  ["Attention and failed findings only", "الملاحظات التي تحتاج انتباهاً أو فشلت فقط"],
+  ["PDF report generated", "تم إنشاء تقرير PDF"],
+  ["CRM@roadiodrive.work", "CRM@roadiodrive.work"],
+);
+
 const EN_TO_AR = new Map<string, string>(PHRASES_EN_AR);
 const AR_TO_EN = new Map<string, string>(PHRASES_EN_AR.map(([en, ar]) => [ar, en]));
 

@@ -12,6 +12,7 @@ type WeekdayKey = "SUN" | "MON" | "TUE" | "WED" | "THU" | "FRI" | "SAT";
 
 type SchedulePayload = {
   modelKey?: string;
+  modelKeys?: string[];
   selectedFields?: string[];
   filters?: {
     search?: string;
@@ -29,6 +30,17 @@ type SchedulePayload = {
 const REGION = String(process.env.SES_REGION ?? "eu-west-1").trim() || "eu-west-1";
 const FROM_EMAIL = String(process.env.SES_FROM_EMAIL ?? "").trim();
 const REPORT_MAX_ROWS = Math.max(100, Number(process.env.REPORT_MAX_ROWS ?? "3000") || 3000);
+const MODEL_LABELS: Record<string, string> = {
+  JobOrder: "Job Orders",
+  Customer: "Customers",
+  Vehicle: "Vehicles",
+  Employee: "Employees",
+  ServiceCatalog: "Service Catalog",
+  UserProfile: "User Profiles",
+  Ticket: "Tickets",
+  VoucherGiftHistory: "Voucher Gifts",
+  QuotationHistory: "Quotations",
+};
 
 const ses = new SESv2Client({ region: REGION });
 const WEEKDAY_INDEX: Record<WeekdayKey, number> = {
@@ -130,6 +142,20 @@ function safeFields(fields: unknown, fallback: string[]): string[] {
   if (!Array.isArray(fields)) return fallback;
   const cleaned = fields.map((f) => text(f)).filter(Boolean);
   return cleaned.length > 0 ? cleaned : fallback;
+}
+
+function normalizeModelKeys(payload: SchedulePayload, scheduleModel: unknown): string[] {
+  const supported = new Set(Object.keys(MODEL_LABELS));
+  const raw = Array.isArray(payload.modelKeys) && payload.modelKeys.length > 0
+    ? payload.modelKeys
+    : [payload.modelKey, scheduleModel];
+
+  const cleaned = raw
+    .flatMap((entry) => text(entry).split(","))
+    .map((entry) => text(entry))
+    .filter((entry) => supported.has(entry));
+
+  return Array.from(new Set(cleaned)).length ? Array.from(new Set(cleaned)) : ["JobOrder"];
 }
 
 async function listAll(client: ReturnType<typeof generateClient<Schema>>, modelName: string, limit = 3000) {
@@ -301,6 +327,8 @@ async function loadModelRows(client: ReturnType<typeof generateClient<Schema>>, 
   if (modelKey === "ServiceCatalog") return toRows(await listAll(client, "ServiceCatalog", REPORT_MAX_ROWS));
   if (modelKey === "UserProfile") return toRows(await listAll(client, "UserProfile", REPORT_MAX_ROWS));
   if (modelKey === "Ticket") return toRows(await listAll(client, "Ticket", REPORT_MAX_ROWS));
+  if (modelKey === "VoucherGiftHistory") return toRows(await listAll(client, "VoucherGiftHistory", REPORT_MAX_ROWS));
+  if (modelKey === "QuotationHistory") return toRows(await listAll(client, "QuotationHistory", REPORT_MAX_ROWS));
 
   const [jobOrders, serviceItems] = await Promise.all([
     listAll(client, "JobOrder", REPORT_MAX_ROWS),
@@ -322,6 +350,19 @@ async function loadModelRows(client: ReturnType<typeof generateClient<Schema>>, 
       services: (servicesByOrder.get(text(j.id)) ?? []).join(", "),
     }))
   );
+}
+
+async function loadSelectedModelRows(client: ReturnType<typeof generateClient<Schema>>, modelKeys: string[]): Promise<ModelData> {
+  const chunks = await Promise.all(
+    modelKeys.map(async (modelKey) => {
+      const rows = await loadModelRows(client, modelKey);
+      return rows.map((row) => ({
+        "Data Model": MODEL_LABELS[modelKey] ?? modelKey,
+        ...row,
+      }));
+    })
+  );
+  return chunks.flat();
 }
 
 export const handler = async () => {
@@ -430,9 +471,12 @@ export const handler = async () => {
 
     try {
       const payload = parseFilters(text(schedule.filtersJson));
-      const modelKey = text(payload.modelKey || schedule.reportModel) || "JobOrder";
+      const modelKeys = normalizeModelKeys(payload, schedule.reportModel);
+      const modelLabel = modelKeys.length === Object.keys(MODEL_LABELS).length
+        ? "All Data Models"
+        : modelKeys.map((key) => MODEL_LABELS[key] ?? key).join(", ");
 
-      const rows = applyFilters(await loadModelRows(client, modelKey), payload).slice(0, REPORT_MAX_ROWS);
+      const rows = applyFilters(await loadSelectedModelRows(client, modelKeys), payload).slice(0, REPORT_MAX_ROWS);
       const defaultFields = Object.keys(rows[0] ?? {}).slice(0, 12);
       const fields = safeFields(payload.selectedFields ?? JSON.parse(text(schedule.selectedFieldsJson) || "[]"), defaultFields);
 
@@ -441,8 +485,8 @@ export const handler = async () => {
       await sendEmailWithAttachment({
         from: fromEmail,
         to,
-        subject: `${title} (${modelKey})`,
-        bodyText: `Your scheduled report is attached.\nModel: ${modelKey}\nRows: ${rows.length}\nGenerated: ${new Date().toISOString()}`,
+        subject: `${title} (${modelLabel})`,
+        bodyText: `Your scheduled report is attached.\nModel: ${modelLabel}\nRows: ${rows.length}\nGenerated: ${new Date().toISOString()}`,
         fileName: attachment.fileName,
         contentType: attachment.contentType,
         binaryData: attachment.data,

@@ -76,7 +76,7 @@ export const QATAR_VEHICLE_CATALOG: Record<string, string[]> = {
   Mazda: ["Mazda2", "Mazda3", "Mazda6", "CX-3", "CX-30", "CX-5", "CX-60", "CX-9", "CX-90", "MX-5"],
   Subaru: ["Impreza", "Legacy", "WRX", "Crosstrek", "Forester", "Outback", "Ascent", "BRZ"],
 
-  Ford: ["Figo", "Focus", "Taurus", "Mustang", "Escape", "Edge", "Explorer", "Expedition", "Ranger", "F-150"],
+  Ford: ["Figo", "Focus", "Taurus", "Mustang", "Escape", "Edge", "Explorer", "Expedition", "Ranger", "F-150", "F-150 Raptor", "Raptor"],
   Lincoln: ["Corsair", "Nautilus", "Aviator", "Navigator"],
   Chevrolet: ["Spark", "Aveo", "Malibu", "Camaro", "Trailblazer", "Traverse", "Tahoe", "Suburban", "Captiva", "Silverado"],
   GMC: ["Terrain", "Acadia", "Yukon", "Sierra", "Canyon"],

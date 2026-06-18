@@ -1,6 +1,7 @@
 // src/pages/inspection/InspectionModule.tsx
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal, flushSync } from "react-dom";
+import { jsPDF } from "jspdf";
 import "./InspectionModule.css";
 import "./JobCards.css";
 
@@ -184,6 +185,286 @@ function deriveDetailData(order: AnyObj, row: AnyObj) {
     type: order.vehicleType || order.vehicleDetails?.type || "N/A",
     color: order.color || order.vehicleDetails?.color || "N/A",
     vin: order.vin || order.vehicleDetails?.vin || "N/A",
+  };
+}
+
+type InspectionFinding = {
+  sectionTitle: string;
+  groupTitle: string;
+  itemName: string;
+  status: "attention" | "failed";
+  comment: string;
+  photos: string[];
+};
+
+function displayText(value: any, fallback = "N/A") {
+  const text = String(value ?? "").trim();
+  return text || fallback;
+}
+
+function collectInspectionFindings(inspectionState: AnyObj, sectionConfig: AnyObj): InspectionFinding[] {
+  const findings: InspectionFinding[] = [];
+
+  for (const sectionKey of ["exterior", "interior"]) {
+    const section = sectionConfig?.[sectionKey];
+    if (!section) continue;
+
+    for (const group of section.groups || []) {
+      for (const item of group.items || []) {
+        const state = inspectionState?.[sectionKey]?.items?.[item.id];
+        const status = String(state?.status ?? "").trim().toLowerCase();
+        if (status !== "attention" && status !== "failed") continue;
+
+        findings.push({
+          sectionTitle: String(section.title ?? sectionKey),
+          groupTitle: String(group.title ?? ""),
+          itemName: String(item.name ?? item.id ?? "Inspection item"),
+          status: status as "attention" | "failed",
+          comment: String(state?.comment ?? "").trim(),
+          photos: Array.isArray(state?.photos) ? state.photos.filter(Boolean) : [],
+        });
+      }
+    }
+  }
+
+  return findings;
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error ?? new Error("Unable to read image."));
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function loadImageDataUrl(src: string): Promise<string | null> {
+  const value = String(src ?? "").trim();
+  if (!value) return null;
+  if (value.startsWith("data:image/")) return value;
+
+  try {
+    const response = await fetch(value);
+    if (!response.ok) return null;
+    return await blobToDataUrl(await response.blob());
+  } catch {
+    return null;
+  }
+}
+
+function imageFormatFromDataUrl(dataUrl: string) {
+  const match = dataUrl.match(/^data:image\/([a-zA-Z0-9+.-]+);/);
+  const fmt = String(match?.[1] ?? "jpeg").toUpperCase();
+  if (fmt === "JPG") return "JPEG";
+  if (fmt === "SVG+XML") return "PNG";
+  return fmt;
+}
+
+async function buildInspectionPdfDocument(args: {
+  orderNumber: string;
+  detailData: AnyObj;
+  activeJob: AnyObj;
+  activeOrder: AnyObj;
+  inspectionState: AnyObj;
+  sectionConfig: AnyObj;
+  photoUrlMap: Record<string, string>;
+  actor: string;
+}) {
+  const findings = collectInspectionFindings(args.inspectionState, args.sectionConfig);
+  const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+  const pageW = 210;
+  const pageH = 297;
+  const margin = 14;
+  const contentW = pageW - margin * 2;
+  let y = 16;
+
+  const failedCount = findings.filter((finding) => finding.status === "failed").length;
+  const attentionCount = findings.filter((finding) => finding.status === "attention").length;
+
+  const setFont = (size: number, style: "normal" | "bold" = "normal", color = "#253247") => {
+    doc.setFont("helvetica", style);
+    doc.setFontSize(size);
+    doc.setTextColor(color);
+  };
+
+  const addFooter = () => {
+    const pageCount = doc.getNumberOfPages();
+    for (let pageIndex = 1; pageIndex <= pageCount; pageIndex += 1) {
+      doc.setPage(pageIndex);
+      doc.setDrawColor("#d7e2f0");
+      doc.line(margin, pageH - 12, pageW - margin, pageH - 12);
+      setFont(7, "normal", "#64748b");
+      doc.text(`Inspection Report - ${args.orderNumber}`, margin, pageH - 7);
+      doc.text(`Page ${pageIndex} of ${pageCount}`, pageW - margin, pageH - 7, { align: "right" });
+    }
+  };
+
+  const drawPageHeader = (compact = false) => {
+    doc.setFillColor("#123057");
+    doc.rect(0, 0, pageW, compact ? 8 : 11, "F");
+    y = compact ? 16 : 18;
+    if (!compact) {
+      setFont(18, "bold", "#123057");
+      doc.text("Inspection Report", margin, y);
+      setFont(9, "normal", "#64748b");
+      doc.text("Attention and failed findings only", margin, y + 6);
+
+      setFont(9, "bold", "#123057");
+      doc.text(`Job Card: ${args.orderNumber}`, pageW - margin, y, { align: "right" });
+      setFont(8, "normal", "#64748b");
+      doc.text(`Generated: ${new Date().toLocaleString()}`, pageW - margin, y + 5, { align: "right" });
+      y += 15;
+    } else {
+      setFont(9, "bold", "#123057");
+      doc.text(`Inspection Report - ${args.orderNumber}`, margin, y);
+      y += 7;
+    }
+  };
+
+  const addPage = () => {
+    doc.addPage();
+    drawPageHeader(true);
+  };
+
+  const ensureSpace = (height: number) => {
+    if (y + height > pageH - 18) addPage();
+  };
+
+  const drawLabelValue = (label: string, value: any, x: number, rowY: number, width: number) => {
+    setFont(7, "bold", "#64748b");
+    doc.text(label.toUpperCase(), x, rowY);
+    setFont(8.3, "normal", "#1f2937");
+    const lines = doc.splitTextToSize(displayText(value), width);
+    doc.text(lines.slice(0, 2), x, rowY + 4.6);
+  };
+
+  drawPageHeader();
+
+  doc.setFillColor("#f8fafc");
+  doc.setDrawColor("#dbe7f5");
+  doc.roundedRect(margin, y, contentW, 30, 2.5, 2.5, "FD");
+  const colW = contentW / 3;
+  drawLabelValue("Customer", args.activeJob?.customerName, margin + 5, y + 8, colW - 10);
+  drawLabelValue("Mobile", args.activeJob?.mobile, margin + colW + 5, y + 8, colW - 10);
+  drawLabelValue("Vehicle", args.detailData?.vehicleModel, margin + colW * 2 + 5, y + 8, colW - 10);
+  drawLabelValue("Plate", args.activeJob?.vehiclePlate, margin + 5, y + 21, colW - 10);
+  drawLabelValue("Inspector", args.actor, margin + colW + 5, y + 21, colW - 10);
+  drawLabelValue("Expected Delivery", args.detailData?.expectedDelivery, margin + colW * 2 + 5, y + 21, colW - 10);
+  y += 38;
+
+  doc.setFillColor("#fff7ed");
+  doc.roundedRect(margin, y, (contentW - 6) / 2, 15, 2, 2, "F");
+  doc.setFillColor("#fef2f2");
+  doc.roundedRect(margin + (contentW + 6) / 2, y, (contentW - 6) / 2, 15, 2, 2, "F");
+  setFont(8, "bold", "#b45309");
+  doc.text("Attention", margin + 6, y + 6);
+  setFont(14, "bold", "#b45309");
+  doc.text(String(attentionCount), margin + 6, y + 12);
+  setFont(8, "bold", "#dc2626");
+  doc.text("Failed", margin + (contentW + 6) / 2 + 6, y + 6);
+  setFont(14, "bold", "#dc2626");
+  doc.text(String(failedCount), margin + (contentW + 6) / 2 + 6, y + 12);
+  y += 24;
+
+  if (!findings.length) {
+    ensureSpace(24);
+    doc.setFillColor("#eef6ff");
+    doc.setDrawColor("#cfe3fb");
+    doc.roundedRect(margin, y, contentW, 22, 2, 2, "FD");
+    setFont(9, "bold", "#123057");
+    doc.text("No attention or failed findings were recorded.", margin + 6, y + 9);
+    setFont(8, "normal", "#64748b");
+    doc.text("Pass and completed items are intentionally excluded from this report.", margin + 6, y + 15);
+    y += 30;
+  }
+
+  let lastSection = "";
+  for (const finding of findings) {
+    if (finding.sectionTitle !== lastSection) {
+      ensureSpace(16);
+      lastSection = finding.sectionTitle;
+      setFont(11, "bold", "#123057");
+      doc.text(lastSection, margin, y);
+      doc.setDrawColor("#2d95d7");
+      doc.line(margin, y + 2, margin + contentW, y + 2);
+      y += 8;
+    }
+
+    const commentLines = doc.splitTextToSize(finding.comment || "No comments provided.", contentW - 16);
+    const photoRows = Math.ceil(Math.min(finding.photos.length, 4) / 2);
+    const cardHeight = 24 + Math.min(commentLines.length, 3) * 4.4 + photoRows * 31 + (finding.photos.length > 4 ? 5 : 0);
+    ensureSpace(cardHeight + 4);
+
+    const isFailed = finding.status === "failed";
+    doc.setFillColor(isFailed ? "#fff5f5" : "#fffbeb");
+    doc.setDrawColor(isFailed ? "#fecaca" : "#fde68a");
+    doc.roundedRect(margin, y, contentW, cardHeight, 2.5, 2.5, "FD");
+
+    setFont(9.5, "bold", "#172033");
+    doc.text(finding.itemName, margin + 6, y + 7);
+    setFont(7.3, "bold", isFailed ? "#dc2626" : "#b45309");
+    doc.text(isFailed ? "FAILED" : "ATTENTION", pageW - margin - 6, y + 7, { align: "right" });
+    setFont(7.5, "normal", "#64748b");
+    doc.text(finding.groupTitle || "Inspection item", margin + 6, y + 12.2);
+    setFont(8, "normal", "#334155");
+    doc.text(commentLines.slice(0, 3), margin + 6, y + 18);
+
+    let imageY = y + 18 + Math.min(commentLines.length, 3) * 4.4 + 3;
+    const imageW = 39;
+    const imageH = 25;
+    const imageGap = 5;
+    const maxImages = Math.min(finding.photos.length, 4);
+    for (let idx = 0; idx < maxImages; idx += 1) {
+      const photo = finding.photos[idx];
+      const src = photo.startsWith("data:") ? photo : args.photoUrlMap[photo] || await resolveStorageUrl(photo).catch(() => "");
+      const dataUrl = await loadImageDataUrl(src);
+      const imageX = margin + 6 + (idx % 2) * (imageW + imageGap);
+      if (idx > 0 && idx % 2 === 0) imageY += imageH + 5;
+      doc.setDrawColor("#cbd5e1");
+      doc.roundedRect(imageX, imageY, imageW, imageH, 1.5, 1.5, "S");
+      if (dataUrl) {
+        try {
+          doc.addImage(dataUrl, imageFormatFromDataUrl(dataUrl), imageX + 1, imageY + 1, imageW - 2, imageH - 2);
+        } catch {
+          setFont(6.5, "normal", "#94a3b8");
+          doc.text("Image unavailable", imageX + 3, imageY + 13);
+        }
+      } else {
+        setFont(6.5, "normal", "#94a3b8");
+        doc.text("Image unavailable", imageX + 3, imageY + 13);
+      }
+    }
+
+    if (finding.photos.length > 4) {
+      setFont(7, "normal", "#64748b");
+      doc.text(`+${finding.photos.length - 4} more image(s) saved on the job card`, margin + 6, y + cardHeight - 4);
+    }
+
+    y += cardHeight + 6;
+  }
+
+  ensureSpace(34);
+  doc.setFillColor("#f8fafc");
+  doc.setDrawColor("#dbe7f5");
+  doc.roundedRect(margin, y, contentW, 30, 2.5, 2.5, "FD");
+  setFont(9, "bold", "#123057");
+  doc.text("Customer Signature (Required)", margin + 6, y + 8);
+  setFont(7.8, "normal", "#64748b");
+  doc.text("Customer confirmation is required for the inspection findings above.", margin + 6, y + 13.5);
+  doc.setDrawColor("#94a3b8");
+  doc.line(margin + 6, y + 22, margin + 84, y + 22);
+  doc.line(margin + 104, y + 22, margin + contentW - 6, y + 22);
+  setFont(7.2, "normal", "#64748b");
+  doc.text(`Name: ${displayText(args.activeJob?.customerName, "")}`, margin + 6, y + 26);
+  doc.text("Date:", margin + 104, y + 26);
+
+  addFooter();
+
+  return {
+    doc,
+    blob: doc.output("blob"),
+    findings,
   };
 }
 
@@ -801,6 +1082,7 @@ function InspectionModule({ currentUser }: any) {
             }
           }
 
+          const actorEmail = resolveActorName(currentUser);
           const dd = deriveDetailData(activeOrder, activeRow);
           const html = buildInspectionReportHtml({
             orderNumber: activeRow.id,
@@ -810,21 +1092,29 @@ function InspectionModule({ currentUser }: any) {
             sectionConfig,
             photoUrlMap: photoMap,
           });
+          const { blob: reportPdfBlob } = await buildInspectionPdfDocument({
+            orderNumber: activeRow.id,
+            detailData: dd,
+            activeJob: activeRow,
+            activeOrder,
+            inspectionState,
+            sectionConfig,
+            photoUrlMap: photoMap,
+            actor: actorEmail,
+          });
 
           await saveInspectionReport({
             jobOrderId: activeOrder._backendId,
             orderNumber: activeRow.id,
             html,
-            actor: resolveActorName(currentUser),
+            actor: actorEmail,
           });
 
-          const actorEmail = resolveActorName(currentUser);
-          const reportStoragePath = `job-orders/${activeRow.id}/inspection/Inspection_Report_${safeFileName(activeRow.id)}_${Date.now()}.html`;
-          const reportBlob = new Blob([html], { type: "text/html" });
+          const reportStoragePath = `job-orders/${activeRow.id}/inspection/Inspection_Report_${safeFileName(activeRow.id)}_${Date.now()}.pdf`;
           await uploadData({
             path: reportStoragePath,
-            data: reportBlob,
-            options: { contentType: "text/html" },
+            data: reportPdfBlob,
+            options: { contentType: "application/pdf" },
           }).result;
 
           const existingDocs = Array.isArray(activeOrder?.documents) ? activeOrder.documents : [];
@@ -833,7 +1123,7 @@ function InspectionModule({ currentUser }: any) {
           );
           const inspectionDoc = {
             id: `DOC-INSP-${Date.now()}`,
-            name: `Inspection_Report_${activeRow.id}.html`,
+            name: `Inspection_Report_${activeRow.id}.pdf`,
             type: "Inspection Report",
             category: "Inspection",
             addedAt: new Date().toISOString(),
@@ -871,6 +1161,9 @@ function InspectionModule({ currentUser }: any) {
           const { backendId } = await upsertJobOrder(updated);
           updated._backendId = backendId;
           setActiveOrder(updated);
+          setDetailData(dd);
+          setReportHtml(html);
+          setPhotoUrlCache(photoMap);
 
           await upsertInspectionState({
             jobOrderId: updated._backendId,
@@ -881,12 +1174,17 @@ function InspectionModule({ currentUser }: any) {
           });
 
           void refreshOrders();
+          detailsCacheRef.current.set(String(activeRow.id), {
+            order: updated,
+            detail: dd,
+            state: inspectionState,
+            report: html,
+          });
 
-          setPopupMessage(t("Inspection finished! Status changed to Service_Operation."));
+          setPopupMessage(t("Inspection finished! Status changed to Service_Operation and PDF report generated."));
           setShowPopup(true);
 
           setShowInspectionConfirmation(false);
-          closeDetailView();
         } catch (e) {
           console.error(e);
           setPopupMessage(`${t("Finish failed:")} ${errMsg(e)}`);
@@ -935,12 +1233,29 @@ function InspectionModule({ currentUser }: any) {
     }
   };
 
-  const downloadReport = () => {
-    if (!reportHtml || !activeRow?.id) return;
-    const blob = new Blob([reportHtml], { type: "text/html" });
-    const url = URL.createObjectURL(blob);
-    window.open(url, "_blank", "noopener,noreferrer");
-    window.setTimeout(() => URL.revokeObjectURL(url), 3000);
+  const downloadReport = async () => {
+    if (!activeRow?.id || !activeOrder) return;
+    setLoading(true);
+    try {
+      const dd = detailData || deriveDetailData(activeOrder, activeRow);
+      const { doc } = await buildInspectionPdfDocument({
+        orderNumber: activeRow.id,
+        detailData: dd,
+        activeJob: activeRow,
+        activeOrder,
+        inspectionState,
+        sectionConfig,
+        photoUrlMap: photoUrlCache,
+        actor: resolveActorName(currentUser),
+      });
+      doc.save(`Inspection_Report_${safeFileName(activeRow.id)}.pdf`);
+    } catch (e) {
+      console.error(e);
+      setPopupMessage(`${t("Download failed:")} ${errMsg(e)}`);
+      setShowPopup(true);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const [currentAddServiceOrder, setCurrentAddServiceOrder] = useState<any>(null);
@@ -1171,8 +1486,8 @@ function InspectionModule({ currentUser }: any) {
                   {reportHtml && (
                     <div className="inspection-summary-actions">
                       <PermissionGate moduleId="inspection" optionId="inspection_download">
-                        <button className="btn btn-primary" onClick={downloadReport}>
-                          <i className="fas fa-download"></i> {t("Download Inspection Report")}
+                        <button className="btn btn-primary" onClick={downloadReport} disabled={loading}>
+                          <i className="fas fa-download"></i> {loading ? t("Working...") : t("Download Inspection Report")}
                         </button>
                       </PermissionGate>
                       <div style={{ marginTop: 8, fontSize: 12, opacity: 0.85 }}>

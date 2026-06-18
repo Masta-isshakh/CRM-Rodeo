@@ -663,6 +663,23 @@ body.lang-ar .drawer.open {
   box-shadow: 0 4px 10px rgba(225, 29, 72, 0.35);
 }
 
+.drawer-count-badge {
+  margin-left: auto;
+  min-width: 24px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #e7f2ff;
+  color: #0b4ea3;
+  border: 1px solid #c8def8;
+  font-size: 11px;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(47, 125, 225, 0.14);
+}
+
 body.lang-ar .drawer-nav button {
   text-align: right;
 }
@@ -3601,6 +3618,23 @@ body.lang-ar .layout-root.mobile-sidebar .drawer {
   background: #4318FF !important;
   color: #FFFFFF !important;
   box-shadow: 0 2px 8px rgba(67,24,255,0.30) !important;
+}
+
+.drawer-count-badge {
+  margin-left: auto !important;
+  min-width: 24px !important;
+  height: 22px !important;
+  padding: 0 8px !important;
+  border-radius: 999px !important;
+  background: #E8F4FF !important;
+  color: #0B4EA3 !important;
+  border: 1px solid #C8DEF8 !important;
+  font-size: 11px !important;
+  font-weight: 900 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  box-shadow: 0 2px 8px rgba(47,125,225,0.18) !important;
 }
 
 /* Sidebar footer */

@@ -198,12 +198,17 @@ export default function InternalChat({ permissions }: PageProps) {
         if (UserModel) {
           const res = await withLoading(UserModel.list({ limit: 1000 }), "Loading users...");
           const rows = ((res as any)?.data ?? []) as Array<Record<string, any>>;
-          const directory = rows
-            .map((r) => ({
-              email: normalizeEmail(String(r?.email ?? "")),
-              fullName: String(r?.fullName ?? r?.email ?? "").trim(),
-            }))
-            .filter((u) => !!u.email)
+          const uniqueUsers = new Map<string, ChatUser>();
+          for (const row of rows) {
+            const userEmail = normalizeEmail(String(row?.email ?? ""));
+            if (!userEmail) continue;
+            const fullName = String(row?.fullName ?? row?.email ?? "").trim() || userEmail;
+            const existing = uniqueUsers.get(userEmail);
+            if (!existing || existing.fullName === existing.email) {
+              uniqueUsers.set(userEmail, { email: userEmail, fullName });
+            }
+          }
+          const directory = Array.from(uniqueUsers.values())
             .sort((a, b) => a.fullName.localeCompare(b.fullName));
           if (!mounted) return;
           setUsers(directory);

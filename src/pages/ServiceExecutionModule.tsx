@@ -1333,28 +1333,6 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
           <div className="service-details-body">
             <div className="service-details-grid">
-              <PermissionGate moduleId="serviceexec" optionId="serviceexec_summary">
-                <JobOrderSummaryCard order={currentDetailsJob} identityToUsernameMap={actorLabelMap} />
-              </PermissionGate>
-
-              <PermissionGate moduleId="serviceexec" optionId="serviceexec_roadmap">
-                <div className="jh-card jh-span-2">
-                  {roadmap.length === 0 ? (
-                    <div className="jh-empty-inline">{t("No roadmap data.")}</div>
-                  ) : (
-                    <UnifiedJobOrderRoadmap order={{ ...currentDetailsJob, roadmap }} />
-                  )}
-                </div>
-              </PermissionGate>
-
-              <PermissionGate moduleId="serviceexec" optionId="serviceexec_customer">
-                <CustomerInfoCard order={currentDetailsJob} />
-              </PermissionGate>
-
-              <PermissionGate moduleId="serviceexec" optionId="serviceexec_vehicle">
-                <VehicleInfoCard order={currentDetailsJob} />
-              </PermissionGate>
-
               <PermissionGate moduleId="serviceexec" optionId="serviceexec_services">
                 <ServiceSummaryCard
                   jobId={currentDetailsJob.id}
@@ -1376,6 +1354,28 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                   isAdmin={canAssignService}
                   isAddingService={isAddingService}
                 />
+              </PermissionGate>
+
+              <PermissionGate moduleId="serviceexec" optionId="serviceexec_summary">
+                <JobOrderSummaryCard order={currentDetailsJob} identityToUsernameMap={actorLabelMap} />
+              </PermissionGate>
+
+              <PermissionGate moduleId="serviceexec" optionId="serviceexec_roadmap">
+                <div className="jh-card jh-span-2">
+                  {roadmap.length === 0 ? (
+                    <div className="jh-empty-inline">{t("No roadmap data.")}</div>
+                  ) : (
+                    <UnifiedJobOrderRoadmap order={{ ...currentDetailsJob, roadmap }} />
+                  )}
+                </div>
+              </PermissionGate>
+
+              <PermissionGate moduleId="serviceexec" optionId="serviceexec_customer">
+                <CustomerInfoCard order={currentDetailsJob} />
+              </PermissionGate>
+
+              <PermissionGate moduleId="serviceexec" optionId="serviceexec_vehicle">
+                <VehicleInfoCard order={currentDetailsJob} />
               </PermissionGate>
 
               {currentDetailsJob.customerNotes && (

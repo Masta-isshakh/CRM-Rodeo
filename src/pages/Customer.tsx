@@ -557,10 +557,12 @@ function CustomersTable(props: {
   onViewDetails: (id: string) => void;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  onCreateJobCard?: (id: string) => void;
   searchQuery: string;
   canViewDetails: boolean;
   canUpdate: boolean;
   canDelete: boolean;
+  canCreateJobCard?: boolean;
   canShowActions: boolean;
 }) {
   const { t } = useLanguage();
@@ -571,10 +573,12 @@ function CustomersTable(props: {
     onViewDetails,
     onEdit,
     onDelete,
+    onCreateJobCard,
     searchQuery,
     canViewDetails,
     canUpdate,
     canDelete,
+    canCreateJobCard,
     canShowActions,
   } = props;
 
@@ -676,7 +680,7 @@ function CustomersTable(props: {
     );
   }
 
-  const showAnyRowAction = canShowActions && (canViewDetails || canUpdate || canDelete);
+  const showAnyRowAction = canShowActions && (canViewDetails || canUpdate || canDelete || (canCreateJobCard && onCreateJobCard));
   const tableTitleStyle: React.CSSProperties = {
     color: "#111827",
     fontSize: 10.8,
@@ -889,7 +893,38 @@ function CustomersTable(props: {
               </button>
             )}
 
-                            {canViewDetails && (canUpdate || canDelete) && <div className="dropdown-divider" style={{ height: 1, background: "#E6ECF8", margin: "4px 6px" }}></div>}
+            {canViewDetails && (canUpdate || canDelete || (canCreateJobCard && onCreateJobCard)) && <div className="dropdown-divider" style={{ height: 1, background: "#E6ECF8", margin: "4px 6px" }}></div>}
+
+            {canCreateJobCard && onCreateJobCard && (
+              <>
+                <button
+                  className="dropdown-item create-job-card"
+                  type="button"
+                  onClick={() => {
+                    if (activeDropdown) onCreateJobCard(activeDropdown);
+                    setActiveDropdown(null);
+                  }}
+                  style={{
+                    width: "100%",
+                    border: "none",
+                    background: "transparent",
+                    color: "#2A3B66",
+                    fontSize: "0.84rem",
+                    fontWeight: 600,
+                    padding: "9px 10px",
+                    borderRadius: 8,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 8,
+                    cursor: "pointer",
+                    textAlign: "left",
+                  }}
+                >
+                  <i className="fas fa-rectangle-list" /> {t("Create Job Card")}
+                </button>
+                {(canUpdate || canDelete) && <div className="dropdown-divider" style={{ height: 1, background: "#E6ECF8", margin: "4px 6px" }}></div>}
+              </>
+            )}
 
             {canUpdate && (
               <>
@@ -1823,7 +1858,7 @@ function DetailsView(props: {
 // -----------------------------
 // Main Page
 // -----------------------------
-export default function Customers({ permissions }: PageProps) {
+export default function Customers({ permissions, onCreateJobCard }: PageProps & { onCreateJobCard?: (customerData: any) => void }) {
   const { t } = useLanguage();
   const { withLoading } = useGlobalLoading();
   const {
@@ -2206,6 +2241,68 @@ export default function Customers({ permissions }: PageProps) {
   const openDeleteConfirm = (id: string) => {
     if (!canCustomersDelete) return;
     setDeleteCustomerId(id);
+  };
+
+  const createJobCardForCustomer = async (id: string) => {
+    if (!onCreateJobCard) return;
+    const c = customers.find((x) => x.id === id);
+    if (!c) return;
+
+    let customerVehicles = relationsCacheRef.current.get(id)?.vehicles ?? [];
+    if (!customerVehicles.length) {
+      try {
+        const res = await client.models.Vehicle.list({
+          filter: { customerId: { eq: id } } as any,
+          limit: 2000,
+        } as any);
+        customerVehicles = (res.data ?? []) as VehicleRow[];
+        relationsCacheRef.current.set(id, {
+          ...(relationsCacheRef.current.get(id) ?? {}),
+          vehicles: customerVehicles,
+        });
+      } catch {
+        customerVehicles = [];
+      }
+    }
+
+    const fullName = `${String(c.name ?? "").trim()} ${String(c.lastname ?? "").trim()}`.trim();
+    onCreateJobCard({
+      id: c.id,
+      name: fullName || String(c.name ?? "").trim(),
+      fullName: fullName || String(c.name ?? "").trim(),
+      firstName: c.name,
+      lastName: c.lastname,
+      mobile: c.phone,
+      phone: c.phone,
+      email: c.email,
+      company: c.company,
+      address: String((c as any).address ?? "").trim() || null,
+      notes: c.notes,
+      heardFrom: (c as any).heardFrom,
+      referralPersonName: (c as any).referralPersonName,
+      referralPersonMobile: (c as any).referralPersonMobile,
+      socialPlatform: (c as any).socialPlatform,
+      heardFromOtherNote: (c as any).heardFromOtherNote,
+      registeredVehiclesCount: customerVehicles.length,
+      vehicles: customerVehicles.map((vehicle: any) => ({
+        id: vehicle.id,
+        vehicleId: vehicle.vehicleId,
+        make: vehicle.make,
+        factory: vehicle.make,
+        model: vehicle.model,
+        year: vehicle.year,
+        vehicleType: vehicle.vehicleType,
+        carType: vehicle.vehicleType,
+        color: vehicle.color,
+        plateNumber: vehicle.plateNumber,
+        license: vehicle.plateNumber,
+        vin: vehicle.vin,
+        registrationDate: vehicle.createdAt,
+      })),
+      customerSince: c.createdAt
+        ? new Date(String(c.createdAt)).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })
+        : "",
+    });
   };
 
   const openDetailsView = async (id: string) => {
@@ -2931,10 +3028,12 @@ export default function Customers({ permissions }: PageProps) {
             onViewDetails={(id) => void withLoading(openDetailsView(id), t("Loading customer details..."))}
             onEdit={openEditModal}
             onDelete={openDeleteConfirm}
+            onCreateJobCard={(id) => void withLoading(createJobCardForCustomer(id), t("Preparing job card..."))}
             searchQuery={canCustomersSearch ? searchQuery : ""}
             canViewDetails={canCustomersViewDetails}
             canUpdate={canCustomersEdit}
             canDelete={canCustomersDelete}
+            canCreateJobCard={Boolean(onCreateJobCard)}
             canShowActions={canCustomersActions}
           />
 

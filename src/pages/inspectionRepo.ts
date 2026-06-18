@@ -239,6 +239,125 @@ export function buildInspectionReportHtml(args: {
   photoUrlMap: Record<string, string>;
 }): string {
   const { orderNumber, detailData, activeJob, inspectionState, sectionConfig, photoUrlMap } = args;
+  const safe = (value: any, fallback = "N/A") => {
+    const text = String(value ?? "").trim();
+    return text || fallback;
+  };
+
+  const findings: string[] = [];
+  for (const sectionKey of ["exterior", "interior"]) {
+    const section = sectionConfig?.[sectionKey];
+    if (!section) continue;
+
+    let sectionBody = "";
+    for (const group of section.groups || []) {
+      let groupBody = "";
+      for (const item of group.items || []) {
+        const st = inspectionState?.[sectionKey]?.items?.[item.id];
+        const status = String(st?.status ?? "").trim().toLowerCase();
+        if (status !== "attention" && status !== "failed") continue;
+
+        const comment = String(st?.comment || "").trim();
+        const photos: string[] = Array.isArray(st?.photos) ? st.photos : [];
+        const cls = status === "failed" ? "fail" : "attn";
+        const label = status === "failed" ? "Failed" : "Attention";
+        const images = photos
+          .map((p) => {
+            const url = photoUrlMap[p] || "";
+            return url ? `<img src="${url}" alt="Inspection photo" />` : "";
+          })
+          .join("");
+
+        groupBody += `
+          <div class="finding">
+            <div class="finding-head">
+              <strong>${safe(item.name, "Inspection item")}</strong>
+              <span class="pill ${cls}">${label}</span>
+            </div>
+            <div class="comment">${comment || "No comments provided."}</div>
+            ${images ? `<div class="photos">${images}</div>` : ""}
+          </div>
+        `;
+      }
+
+      if (groupBody) {
+        sectionBody += `<h3>${safe(group.title, "Inspection Group")}</h3>${groupBody}`;
+      }
+    }
+
+    if (sectionBody) {
+      findings.push(`<section class="card"><h2>${safe(section.title, "Inspection Section")}</h2>${sectionBody}</section>`);
+    }
+  }
+
+  const findingsHtml = findings.length
+    ? findings.join("")
+    : `<section class="card"><p>No attention or failed findings were recorded. Pass and completed items are excluded from this report.</p></section>`;
+
+  return `
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta charset="UTF-8" />
+        <title>Inspection_Report_${orderNumber}</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 0; padding: 20mm; background: #f4f7fb; color: #172033; }
+          * { box-sizing: border-box; }
+          .header { background: #123057; color: #fff; padding: 18px; border-radius: 10px; margin-bottom: 14px; }
+          .header h1 { margin: 0 0 6px; font-size: 24px; }
+          .header p { margin: 0; opacity: .9; font-size: 12px; }
+          .card { background: #fff; border: 1px solid #dbe7f5; border-radius: 10px; padding: 14px; margin-bottom: 12px; }
+          .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px 14px; font-size: 12px; }
+          .label { display: block; color: #64748b; font-weight: 700; margin-bottom: 3px; text-transform: uppercase; font-size: 10px; }
+          h2 { margin: 0 0 10px; font-size: 16px; color: #123057; }
+          h3 { margin: 12px 0 8px; font-size: 13px; color: #475569; }
+          .finding { border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; margin-bottom: 8px; }
+          .finding-head { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+          .pill { border-radius: 999px; padding: 4px 9px; font-weight: 800; font-size: 11px; }
+          .attn { background: #fff3cd; color: #b36b00; }
+          .fail { background: #fdeaea; color: #c0392b; }
+          .comment { margin-top: 6px; color: #475569; font-size: 12px; }
+          .photos { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
+          .photos img { width: 100%; height: 95px; object-fit: cover; border-radius: 6px; border: 1px solid #e2e8f0; }
+          .signature { height: 80px; }
+          .line { border-top: 1px solid #94a3b8; margin-top: 34px; padding-top: 6px; color: #64748b; font-size: 12px; }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1>Inspection Report</h1>
+          <p>Attention and failed findings only - Job Order ${orderNumber} - Generated ${new Date().toLocaleString()}</p>
+        </div>
+        <section class="card">
+          <h2>Order Summary</h2>
+          <div class="grid">
+            <div><span class="label">Customer</span>${safe(activeJob?.customerName)}</div>
+            <div><span class="label">Mobile</span>${safe(activeJob?.mobile)}</div>
+            <div><span class="label">Vehicle</span>${safe(detailData?.vehicleModel)}</div>
+            <div><span class="label">Plate</span>${safe(activeJob?.vehiclePlate)}</div>
+            <div><span class="label">Created By</span>${safe(detailData?.createdBy, "-")}</div>
+            <div><span class="label">Expected Delivery</span>${safe(detailData?.expectedDelivery)}</div>
+          </div>
+        </section>
+        ${findingsHtml}
+        <section class="card signature">
+          <h2>Customer Signature (Required)</h2>
+          <div class="line">Name: ${safe(activeJob?.customerName, "")}</div>
+        </section>
+      </body>
+    </html>
+  `;
+}
+
+export function buildInspectionReportHtmlLegacy(args: {
+  orderNumber: string;
+  detailData: any;
+  activeJob: any;
+  inspectionState: any;
+  sectionConfig: any;
+  photoUrlMap: Record<string, string>;
+}): string {
+  const { orderNumber, detailData, activeJob, inspectionState, sectionConfig, photoUrlMap } = args;
 
   const statusLabels: Record<string, string> = {
     pass: "Pass",

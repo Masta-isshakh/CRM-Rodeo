@@ -1,226 +1,1495 @@
 # Missing Arabic Translation Audit
 
-- Files scanned: 34
-- Missing candidate strings: 160
+- Files scanned: 58
+- Missing candidate strings: 1348
 
 Note: This report is static and conservative; it focuses on UI strings likely visible to users.
 
-## src/components/UnifiedCustomerVehicleCards.tsx
+## src/App.tsx
 
-- src/components/UnifiedCustomerVehicleCards.tsx:198 [jsx-text] `Heard of Us From`
-- src/components/UnifiedCustomerVehicleCards.tsx:221 [jsx-text] `Heard From Other Note`
+- src/App.tsx:119 [jsx-text] `Application Error`
+- src/App.tsx:122 [jsx-text] `A runtime error interrupted rendering. You can retry without reloading first.`
+- src/App.tsx:140 [jsx-text] `Retry Render`
+- src/App.tsx:154 [jsx-text] `Reload Page`
 
-## src/components/UnifiedJobOrderSummaryCard.tsx
+## src/components/MainLayout.tsx
 
-- src/components/UnifiedJobOrderSummaryCard.tsx:84 [jsx-text] `Job Order Summary`
-- src/components/UnifiedJobOrderSummaryCard.tsx:88 [jsx-text] `Job Order ID`
-- src/components/UnifiedJobOrderSummaryCard.tsx:110 [jsx-text] `Service Progress`
-- src/components/UnifiedJobOrderSummaryCard.tsx:124 [jsx-text] `Created On`
-- src/components/UnifiedJobOrderSummaryCard.tsx:136 [jsx-text] `Expected Delivery`
-- src/components/UnifiedJobOrderSummaryCard.tsx:143 [jsx-text] `Time Estimate`
-- src/components/UnifiedJobOrderSummaryCard.tsx:144 [jsx-text] `Est:`
+- src/components/MainLayout.tsx:1059 [t-call] `Inventory`
+- src/components/MainLayout.tsx:1074 [t-call] `Service Technicians`
+- src/components/MainLayout.tsx:1100 [t-call] `Database Cleanup`
+- src/components/MainLayout.tsx:1132 [t-call] `Current date and time`
+- src/components/MainLayout.tsx:1133 [t-call] `Language`
+- src/components/MainLayout.tsx:1134 [t-call] `Language`
+- src/components/MainLayout.tsx:1135 [t-call] `Language switch`
+- src/components/MainLayout.tsx:1299 [t-call] `Internal Chat is temporarily unavailable.`
+- src/components/MainLayout.tsx:1381 [t-call] `CRM Rodeo Premium Workspace`
+- src/components/MainLayout.tsx:1383 [t-call] `All rights reserved`
+
+## src/components/UnifiedBillingInvoicesCard.tsx
+
+- src/components/UnifiedBillingInvoicesCard.tsx:55 [t-call] `Total Amount`
+- src/components/UnifiedBillingInvoicesCard.tsx:57 [t-call] `Net Amount`
+- src/components/UnifiedBillingInvoicesCard.tsx:75 [t-call] `invoice(s)`
+
+## src/components/UnifiedCustomerDetailsCard.tsx
+
+- src/components/UnifiedCustomerDetailsCard.tsx:191 [t-call] `Customer Details`
+- src/components/UnifiedCustomerDetailsCard.tsx:200 [t-call] `Full Name`
+- src/components/UnifiedCustomerDetailsCard.tsx:204 [t-call] `Heard From`
+- src/components/UnifiedCustomerDetailsCard.tsx:205 [t-call] `Referral Name`
+- src/components/UnifiedCustomerDetailsCard.tsx:206 [t-call] `Referral Mobile`
+- src/components/UnifiedCustomerDetailsCard.tsx:207 [t-call] `Platform`
+- src/components/UnifiedCustomerDetailsCard.tsx:208 [t-call] `Source Note`
+- src/components/UnifiedCustomerDetailsCard.tsx:231 [t-call] `Jobs Done`
+
+## src/components/UnifiedDeliveryTimeTrackingCard.tsx
+
+- src/components/UnifiedDeliveryTimeTrackingCard.tsx:44 [t-call] `Overdue`
+- src/components/UnifiedDeliveryTimeTrackingCard.tsx:73 [t-call] `Schedule & completion times`
+- src/components/UnifiedDeliveryTimeTrackingCard.tsx:89 [t-call] `Expected Delivery`
+- src/components/UnifiedDeliveryTimeTrackingCard.tsx:93 [t-call] `Expected`
+- src/components/UnifiedDeliveryTimeTrackingCard.tsx:95 [t-call] `Date`
+- src/components/UnifiedDeliveryTimeTrackingCard.tsx:96 [t-call] `Time`
+- src/components/UnifiedDeliveryTimeTrackingCard.tsx:99 [t-call] `Est. Duration`
+- src/components/UnifiedDeliveryTimeTrackingCard.tsx:108 [t-call] `Actual Delivery`
+- src/components/UnifiedDeliveryTimeTrackingCard.tsx:111 [t-call] `Date`
+- src/components/UnifiedDeliveryTimeTrackingCard.tsx:112 [t-call] `Time`
+- src/components/UnifiedDeliveryTimeTrackingCard.tsx:113 [t-call] `Duration`
+- src/components/UnifiedDeliveryTimeTrackingCard.tsx:114 [t-call] `Delivered By`
+
+## src/components/UnifiedDocumentsCard.tsx
+
+- src/components/UnifiedDocumentsCard.tsx:75 [t-call] `file(s)`
+- src/components/UnifiedDocumentsCard.tsx:132 [t-call] `No file available`
+- src/components/UnifiedDocumentsCard.tsx:149 [t-call] `No documents available`
+- src/components/UnifiedDocumentsCard.tsx:150 [t-call] `Documents will appear here once uploaded`
+
+## src/components/UnifiedJobOrderRoadmapCard.tsx
+
+- src/components/UnifiedJobOrderRoadmapCard.tsx:106 [t-call] `steps completed`
+- src/components/UnifiedJobOrderRoadmapCard.tsx:136 [t-call] `Service Operation`
+- src/components/UnifiedJobOrderRoadmapCard.tsx:184 [t-call] `Action By`
+
+## src/components/UnifiedJobSummaryCard.tsx
+
+- src/components/UnifiedJobSummaryCard.tsx:100 [t-call] `Job Summary`
+- src/components/UnifiedJobSummaryCard.tsx:121 [t-call] `Expected Delivery`
+- src/components/UnifiedJobSummaryCard.tsx:122 [t-call] `Assigned Technician`
+- src/components/UnifiedJobSummaryCard.tsx:124 [t-call] `Total Amount`
+
+## src/components/UnifiedQualityChecklistCard.tsx
+
+- src/components/UnifiedQualityChecklistCard.tsx:68 [t-call] `evaluated`
+- src/components/UnifiedQualityChecklistCard.tsx:74 [t-call] `Pass`
+- src/components/UnifiedQualityChecklistCard.tsx:78 [t-call] `Failed`
+- src/components/UnifiedQualityChecklistCard.tsx:110 [t-call] `Technician`
+- src/components/UnifiedQualityChecklistCard.tsx:131 [t-call] `Quality checks will appear here once services are completed`
+
+## src/components/UnifiedRequestedServicesCard.tsx
+
+- src/components/UnifiedRequestedServicesCard.tsx:130 [t-call] `Requested Services & Tasks`
+- src/components/UnifiedRequestedServicesCard.tsx:131 [t-call] `service(s)`
+- src/components/UnifiedRequestedServicesCard.tsx:155 [t-call] `done`
+- src/components/UnifiedRequestedServicesCard.tsx:202 [t-call] `Technician`
+- src/components/UnifiedRequestedServicesCard.tsx:206 [t-call] `Duration`
+- src/components/UnifiedRequestedServicesCard.tsx:217 [t-call] `Ended`
+- src/components/UnifiedRequestedServicesCard.tsx:240 [t-call] `Use Add Service to append tasks to this job card`
+
+## src/components/UnifiedVehicleInformationCard.tsx
+
+- src/components/UnifiedVehicleInformationCard.tsx:69 [t-call] `Make / Model`
+- src/components/UnifiedVehicleInformationCard.tsx:85 [t-call] `Registration Date`
 
 ## src/pages/ActivityLogs.tsx
 
-- src/pages/ActivityLogs.tsx:51 [jsx-text] `No logs yet.`
+- src/pages/ActivityLogs.tsx:76 [jsx-text] `You don't have access to this page.`
+- src/pages/ActivityLogs.tsx:81 [attr:aria-label] `Refresh logs`
+- src/pages/ActivityLogs.tsx:89 [jsx-text] `Retry`
+- src/pages/ActivityLogs.tsx:97 [jsx-text] `Loading activity logs\u2026`
+- src/pages/ActivityLogs.tsx:110 [jsx-text] `\u2022`
+- src/pages/ActivityLogs.tsx:115 [jsx-text] `No logs yet.`
 
-## src/pages/CallTracking.tsx
+## src/pages/CampaignAudienceAdmin.tsx
 
-- src/pages/CallTracking.tsx:213 [jsx-text] `Edit call record`
-- src/pages/CallTracking.tsx:245 [jsx-text] `Recent calls`
-- src/pages/CallTracking.tsx:255 [jsx-text] `Outcome:`
-- src/pages/CallTracking.tsx:261 [jsx-text] `Follow-up:`
-- src/pages/CallTracking.tsx:283 [jsx-text] `No call records yet.`
-
-## src/pages/ConfirmationPopup.tsx
-
-- src/pages/ConfirmationPopup.tsx:125 [jsx-text] `Processing...`
+- src/pages/CampaignAudienceAdmin.tsx:1237 [t-call] `Copy mobile numbers`
+- src/pages/CampaignAudienceAdmin.tsx:1238 [t-call] `Clipboard access is not available in this browser.`
+- src/pages/CampaignAudienceAdmin.tsx:1245 [t-call] `Copy mobile numbers`
+- src/pages/CampaignAudienceAdmin.tsx:1246 [t-call] `Filtered values copied to the clipboard.`
+- src/pages/CampaignAudienceAdmin.tsx:1287 [t-call] `Upload a large Excel file once, keep the imported dataset in the database, and filter it safely for WhatsApp campaigns.`
+- src/pages/CampaignAudienceAdmin.tsx:1298 [t-call] `Imported rows`
+- src/pages/CampaignAudienceAdmin.tsx:1302 [t-call] `Unique mobiles`
+- src/pages/CampaignAudienceAdmin.tsx:1306 [t-call] `Last import`
+- src/pages/CampaignAudienceAdmin.tsx:1340 [t-call] `Excel Import`
+- src/pages/CampaignAudienceAdmin.tsx:1341 [t-call] `Preview the workbook and upload all records into the campaign audience database table.`
+- src/pages/CampaignAudienceAdmin.tsx:1348 [t-call] `Reading file...`
+- src/pages/CampaignAudienceAdmin.tsx:1348 [t-call] `Choose Excel file`
+- src/pages/CampaignAudienceAdmin.tsx:1351 [t-call] `No file selected`
+- src/pages/CampaignAudienceAdmin.tsx:1352 [t-call] `rows`
+- src/pages/CampaignAudienceAdmin.tsx:1352 [t-call] `Select a workbook to begin`
+- src/pages/CampaignAudienceAdmin.tsx:1360 [t-call] `Sheet`
+- src/pages/CampaignAudienceAdmin.tsx:1374 [t-call] `Replace current campaign dataset before import`
+- src/pages/CampaignAudienceAdmin.tsx:1380 [t-call] `Preview`
+- src/pages/CampaignAudienceAdmin.tsx:1382 [t-call] `Rows are paginated in groups of 30`
+- src/pages/CampaignAudienceAdmin.tsx:1382 [t-call] `Visible columns`
+- src/pages/CampaignAudienceAdmin.tsx:1382 [t-call] `Removed empty`
+- src/pages/CampaignAudienceAdmin.tsx:1386 [t-call] `Removed empty means columns with no values in all rows.`
+- src/pages/CampaignAudienceAdmin.tsx:1387 [t-call] `Removed empty means columns with no values in all rows.`
+- src/pages/CampaignAudienceAdmin.tsx:1399 [t-call] `Table`
+- src/pages/CampaignAudienceAdmin.tsx:1406 [t-call] `Cards`
+- src/pages/CampaignAudienceAdmin.tsx:1411 [t-call] `Scroll horizontally to view all columns`
+- src/pages/CampaignAudienceAdmin.tsx:1434 [t-call] `No rows found in this sheet.`
+- src/pages/CampaignAudienceAdmin.tsx:1445 [t-call] `Row`
+- src/pages/CampaignAudienceAdmin.tsx:1459 [t-call] `No rows found in this sheet.`
+- src/pages/CampaignAudienceAdmin.tsx:1470 [t-call] `First page`
+- src/pages/CampaignAudienceAdmin.tsx:1479 [t-call] `Previous page`
+- src/pages/CampaignAudienceAdmin.tsx:1483 [t-call] `Page`
+- src/pages/CampaignAudienceAdmin.tsx:1483 [t-call] `Rows`
+- src/pages/CampaignAudienceAdmin.tsx:1489 [t-call] `Next page`
+- src/pages/CampaignAudienceAdmin.tsx:1498 [t-call] `Last page`
+- src/pages/CampaignAudienceAdmin.tsx:1503 [t-call] `Jump to page`
+- src/pages/CampaignAudienceAdmin.tsx:1520 [t-call] `Go`
+- src/pages/CampaignAudienceAdmin.tsx:1530 [t-call] `Importing...`
+- src/pages/CampaignAudienceAdmin.tsx:1530 [t-call] `Import into database`
+- src/pages/CampaignAudienceAdmin.tsx:1540 [t-call] `Total rows`
+- src/pages/CampaignAudienceAdmin.tsx:1541 [t-call] `Valid rows`
+- src/pages/CampaignAudienceAdmin.tsx:1542 [t-call] `Imported rows`
+- src/pages/CampaignAudienceAdmin.tsx:1543 [t-call] `Skipped rows`
+- src/pages/CampaignAudienceAdmin.tsx:1544 [t-call] `Duplicates`
+- src/pages/CampaignAudienceAdmin.tsx:1560 [t-call] `Campaign Filters`
+- src/pages/CampaignAudienceAdmin.tsx:1561 [t-call] `Filter by service date, service name, customer name, phone number, batch, and export the audience list for WhatsApp.`
+- src/pages/CampaignAudienceAdmin.tsx:1565 [t-call] `Copy mobile numbers`
+- src/pages/CampaignAudienceAdmin.tsx:1579 [t-call] `Table view`
+- src/pages/CampaignAudienceAdmin.tsx:1586 [t-call] `Card view`
+- src/pages/CampaignAudienceAdmin.tsx:1591 [t-call] `Loading campaign audience data...`
+- src/pages/CampaignAudienceAdmin.tsx:1598 [t-call] `Result column`
+- src/pages/CampaignAudienceAdmin.tsx:1600 [t-call] `Select column`
+- src/pages/CampaignAudienceAdmin.tsx:1607 [t-call] `Service contains`
+- src/pages/CampaignAudienceAdmin.tsx:1611 [t-call] `e.g. polish, full ppf`
+- src/pages/CampaignAudienceAdmin.tsx:1615 [t-call] `Service age`
+- src/pages/CampaignAudienceAdmin.tsx:1618 [t-call] `Any`
+- src/pages/CampaignAudienceAdmin.tsx:1619 [t-call] `Older than`
+- src/pages/CampaignAudienceAdmin.tsx:1620 [t-call] `Newer than`
+- src/pages/CampaignAudienceAdmin.tsx:1621 [t-call] `Date range`
+- src/pages/CampaignAudienceAdmin.tsx:1629 [t-call] `month`
+- src/pages/CampaignAudienceAdmin.tsx:1629 [t-call] `months`
+- src/pages/CampaignAudienceAdmin.tsx:1638 [t-call] `Service date from`
+- src/pages/CampaignAudienceAdmin.tsx:1644 [t-call] `Service date to`
+- src/pages/CampaignAudienceAdmin.tsx:1655 [t-call] `Selected column values`
+- src/pages/CampaignAudienceAdmin.tsx:1656 [t-call] `unique values`
+- src/pages/CampaignAudienceAdmin.tsx:1662 [t-call] `No values match the current real-time filters.`
+- src/pages/CampaignAudienceAdmin.tsx:1694 [t-call] `Show unique mobile numbers only`
+- src/pages/CampaignAudienceAdmin.tsx:1705 [t-call] `Filtered rows`
+- src/pages/CampaignAudienceAdmin.tsx:1706 [t-call] `Unique mobiles`
+- src/pages/CampaignAudienceAdmin.tsx:1707 [t-call] `Pages`
+- src/pages/CampaignAudienceAdmin.tsx:1708 [t-call] `Selected batch`
+- src/pages/CampaignAudienceAdmin.tsx:1739 [t-call] `No rows match the current filters.`
+- src/pages/CampaignAudienceAdmin.tsx:1782 [t-call] `No rows match the current filters.`
+- src/pages/CampaignAudienceAdmin.tsx:1790 [t-call] `Page`
 
 ## src/pages/Customer.tsx
 
-- src/pages/Customer.tsx:1494 [jsx-text] `(Filtered by: "`
-- src/pages/Customer.tsx:1494 [jsx-text] `")`
+- src/pages/Customer.tsx:629 [t-call] `Loading Customers`
+- src/pages/Customer.tsx:630 [t-call] `Please wait while we fetch your data`
+- src/pages/Customer.tsx:757 [t-call] `Contact Info`
+- src/pages/Customer.tsx:758 [t-call] `Vehicle Make/Model`
+- src/pages/Customer.tsx:759 [t-call] `Recent Service`
+- src/pages/Customer.tsx:760 [t-call] `Total Spent`
+- src/pages/Customer.tsx:777 [t-call] `Contact Info`
+- src/pages/Customer.tsx:780 [t-call] `Vehicle Make/Model`
+- src/pages/Customer.tsx:783 [t-call] `Recent Service`
+- src/pages/Customer.tsx:785 [t-call] `service records`
+- src/pages/Customer.tsx:788 [t-call] `Total Spent`
+- src/pages/Customer.tsx:789 [t-call] `Not available`
+- src/pages/Customer.tsx:1266 [t-call] `Total Vehicles`
+- src/pages/Customer.tsx:1319 [t-call] `Job`
+- src/pages/Customer.tsx:1350 [t-call] `Deal`
+- src/pages/Customer.tsx:1381 [t-call] `Contact`
+- src/pages/Customer.tsx:1401 [t-call] `No recent activity available.`
+- src/pages/Customer.tsx:1504 [t-call] `Back to Customers`
+- src/pages/Customer.tsx:1541 [t-call] `Elegant Glass`
+- src/pages/Customer.tsx:1541 [t-call] `Executive Minimal`
+- src/pages/Customer.tsx:1577 [t-call] `Pixel Pass: List View`
+- src/pages/Customer.tsx:1577 [t-call] `Pixel Pass: Detail View`
+- src/pages/Customer.tsx:1645 [t-call] `Customer Details`
+- src/pages/Customer.tsx:1678 [t-call] `Contact Information`
+- src/pages/Customer.tsx:1682 [t-call] `Associated Vehicles`
+- src/pages/Customer.tsx:1689 [t-call] `Loading vehicles…`
+- src/pages/Customer.tsx:1695 [t-call] `Associated Vehicles`
+- src/pages/Customer.tsx:1702 [t-call] `Associated Vehicles`
+- src/pages/Customer.tsx:1720 [t-call] `Job History / Recent Activity`
+- src/pages/Customer.tsx:1739 [t-call] `Related Job Orders`
+- src/pages/Customer.tsx:1769 [t-call] `No related job orders found for this customer.`
+- src/pages/Customer.tsx:1818 [t-call] `No completed services found for this customer.`
+- src/pages/Customer.tsx:1831 [t-call] `Customer Details`
+- src/pages/Customer.tsx:1837 [t-call] `Permission`
+- src/pages/Customer.tsx:1846 [t-call] `Associated Vehicles`
+- src/pages/Customer.tsx:2926 [t-call] `Elegant Glass`
+- src/pages/Customer.tsx:2926 [t-call] `Executive Minimal`
+- src/pages/Customer.tsx:2934 [t-call] `Pixel Pass: List View`
+- src/pages/Customer.tsx:2934 [t-call] `Pixel Pass: Detail View`
+- src/pages/Customer.tsx:3001 [t-call] `Filtered by:`
+- src/pages/Customer.tsx:3028 [t-call] `Loading customer details...`
+- src/pages/Customer.tsx:3092 [t-call] `Saving customer...`
+- src/pages/Customer.tsx:3256 [t-call] `Saving customer changes...`
+- src/pages/Customer.tsx:3436 [t-call] `Deleting customer...`
+
+## src/pages/DailyReport.tsx
+
+- src/pages/DailyReport.tsx:501 [t-call] `Period From`
+- src/pages/DailyReport.tsx:502 [t-call] `Period To`
+- src/pages/DailyReport.tsx:503 [t-call] `Generated (Qatar)`
+- src/pages/DailyReport.tsx:504 [t-call] `Rows`
+- src/pages/DailyReport.tsx:522 [t-call] `Date`
+- src/pages/DailyReport.tsx:551 [t-call] `You don't have access to this page.`
+- src/pages/DailyReport.tsx:565 [t-call] `From`
+- src/pages/DailyReport.tsx:574 [t-call] `To`
+- src/pages/DailyReport.tsx:607 [t-call] `Daily KPIs`
+- src/pages/DailyReport.tsx:803 [t-call] `Net Amount`
+- src/pages/DailyReport.tsx:805 [t-call] `Date`
+
+## src/pages/Dashboard.tsx
+
+- src/pages/Dashboard.tsx:293 [jsx-text] `You don't have access to this page.`
+- src/pages/Dashboard.tsx:373 [jsx-text] `Filters`
+- src/pages/Dashboard.tsx:387 [jsx-text] `Total Jobs`
+- src/pages/Dashboard.tsx:392 [jsx-text] `&nbsp;`
+- src/pages/Dashboard.tsx:393 [jsx-text] `all time`
+- src/pages/Dashboard.tsx:401 [jsx-text] `Completed Jobs`
+- src/pages/Dashboard.tsx:406 [jsx-text] `&nbsp;`
+- src/pages/Dashboard.tsx:407 [jsx-text] `all time`
+- src/pages/Dashboard.tsx:415 [jsx-text] `Revenue (QAR)`
+- src/pages/Dashboard.tsx:420 [jsx-text] `&nbsp;`
+- src/pages/Dashboard.tsx:421 [jsx-text] `collected`
+- src/pages/Dashboard.tsx:429 [jsx-text] `Customer Satisfaction`
+- src/pages/Dashboard.tsx:432 [jsx-text] `4.8&nbsp;`
+- src/pages/Dashboard.tsx:436 [jsx-text] `6.2%&nbsp;`
+- src/pages/Dashboard.tsx:437 [jsx-text] `vs last 7 days`
+- src/pages/Dashboard.tsx:449 [jsx-text] `&nbsp;`
+- src/pages/Dashboard.tsx:450 [jsx-text] `history count`
+- src/pages/Dashboard.tsx:462 [jsx-text] `&nbsp;`
+- src/pages/Dashboard.tsx:463 [jsx-text] `history count`
+- src/pages/Dashboard.tsx:474 [jsx-text] `Job Status Overview`
+- src/pages/Dashboard.tsx:475 [jsx-text] `View all`
+- src/pages/Dashboard.tsx:495 [jsx-text] `Total Jobs`
+- src/pages/Dashboard.tsx:514 [jsx-text] `Jobs Over Time`
+- src/pages/Dashboard.tsx:515 [jsx-text] `Daily`
+- src/pages/Dashboard.tsx:523 [jsx-text] `Last Week`
+- src/pages/Dashboard.tsx:546 [jsx-text] `Top Service Categories`
+- src/pages/Dashboard.tsx:547 [jsx-text] `View all`
+- src/pages/Dashboard.tsx:571 [jsx-text] `New Requests`
+- src/pages/Dashboard.tsx:575 [jsx-text] `↑ 14.6%`
+- src/pages/Dashboard.tsx:576 [jsx-text] `vs last 7 days`
+- src/pages/Dashboard.tsx:583 [jsx-text] `In Progress`
+- src/pages/Dashboard.tsx:587 [jsx-text] `↑ 10.1%`
+- src/pages/Dashboard.tsx:588 [jsx-text] `vs last 7 days`
+- src/pages/Dashboard.tsx:595 [jsx-text] `Upcoming Deliveries`
+- src/pages/Dashboard.tsx:599 [jsx-text] `↑ 8.3%`
+- src/pages/Dashboard.tsx:600 [jsx-text] `vs last 7 days`
+- src/pages/Dashboard.tsx:607 [jsx-text] `Avg. Turnaround Time`
+- src/pages/Dashboard.tsx:610 [jsx-text] `2.6&nbsp;`
+- src/pages/Dashboard.tsx:611 [jsx-text] `Days`
+- src/pages/Dashboard.tsx:613 [jsx-text] `↓ 12.4%`
+- src/pages/Dashboard.tsx:614 [jsx-text] `vs last 7 days`
+
+## src/pages/DatabaseCleanupAdmin.tsx
+
+- src/pages/DatabaseCleanupAdmin.tsx:149 [jsx-text] `Database Cleanup`
+- src/pages/DatabaseCleanupAdmin.tsx:152 [jsx-text] `This will permanently delete`
+- src/pages/DatabaseCleanupAdmin.tsx:153 [jsx-text] `all records`
+- src/pages/DatabaseCleanupAdmin.tsx:153 [jsx-text] `from the database, except user profiles. Roles, departments, job orders, customers, vehicles, services, and all other data will be erased. This action`
+- src/pages/DatabaseCleanupAdmin.tsx:155 [jsx-text] `cannot be undone`
+- src/pages/DatabaseCleanupAdmin.tsx:167 [jsx-text] `Models that will be wiped:`
+- src/pages/DatabaseCleanupAdmin.tsx:190 [jsx-text] `to unlock:`
+- src/pages/DatabaseCleanupAdmin.tsx:260 [jsx-text] `Cleanup complete.`
+- src/pages/DatabaseCleanupAdmin.tsx:260 [jsx-text] `Total deleted:`
+- src/pages/DatabaseCleanupAdmin.tsx:260 [jsx-text] `records.`
+- src/pages/DatabaseCleanupAdmin.tsx:262 [jsx-text] `Errors:`
+- src/pages/DatabaseCleanupAdmin.tsx:262 [jsx-text] `(check console for details).`
 
 ## src/pages/DepartmentsAdmin.tsx
 
-- src/pages/DepartmentsAdmin.tsx:389 [jsx-text] `Department &amp; Role Management`
-- src/pages/DepartmentsAdmin.tsx:390 [jsx-text] `Create departments, add roles, and manage your organizational structure with full-width department and role cards.`
-- src/pages/DepartmentsAdmin.tsx:395 [jsx-text] `Departments &amp; Roles`
-- src/pages/DepartmentsAdmin.tsx:404 [jsx-text] `Add New Department`
-- src/pages/DepartmentsAdmin.tsx:437 [jsx-text] `Total Roles`
-- src/pages/DepartmentsAdmin.tsx:441 [jsx-text] `Avg Roles/Dept`
-- src/pages/DepartmentsAdmin.tsx:469 [jsx-text] `Add Role`
-- src/pages/DepartmentsAdmin.tsx:496 [jsx-text] `Department key:`
-- src/pages/DepartmentsAdmin.tsx:497 [jsx-text] `. Users in this department:`
-- src/pages/DepartmentsAdmin.tsx:502 [jsx-text] `Department Roles (`
-- src/pages/DepartmentsAdmin.tsx:537 [jsx-text] `No roles assigned yet.`
-- src/pages/DepartmentsAdmin.tsx:545 [jsx-text] `No departments yet.`
-- src/pages/DepartmentsAdmin.tsx:550 [attr:aria-label] `Create role`
-- src/pages/DepartmentsAdmin.tsx:553 [jsx-text] `Create Role`
-- src/pages/DepartmentsAdmin.tsx:567 [jsx-text] `Department:`
-- src/pages/DepartmentsAdmin.tsx:599 [jsx-text] `Create & Add`
-- src/pages/DepartmentsAdmin.tsx:608 [attr:aria-label] `Edit role`
-- src/pages/DepartmentsAdmin.tsx:611 [jsx-text] `Edit Role`
-- src/pages/DepartmentsAdmin.tsx:626 [jsx-text] `Department:`
-- src/pages/DepartmentsAdmin.tsx:668 [attr:aria-label] `Edit department`
-- src/pages/DepartmentsAdmin.tsx:671 [jsx-text] `Edit Department`
-- src/pages/DepartmentsAdmin.tsx:681 [jsx-text] `Department key:`
-- src/pages/DepartmentsAdmin.tsx:715 [attr:title] `Delete Department`
-- src/pages/DepartmentsAdmin.tsx:718 [jsx-text] `Are you sure you want to delete`
-- src/pages/DepartmentsAdmin.tsx:720 [jsx-text] `This department must have no users before deletion.`
+- src/pages/DepartmentsAdmin.tsx:165 [t-call] `Department name required`
+- src/pages/DepartmentsAdmin.tsx:172 [t-call] `Create failed`
+- src/pages/DepartmentsAdmin.tsx:185 [t-call] `Select old and enter new name`
+- src/pages/DepartmentsAdmin.tsx:190 [t-call] `Rename failed`
+- src/pages/DepartmentsAdmin.tsx:250 [t-call] `Role creation failed.`
+- src/pages/DepartmentsAdmin.tsx:270 [t-call] `Add role failed`
+- src/pages/DepartmentsAdmin.tsx:333 [t-call] `Role name already exists.`
+- src/pages/DepartmentsAdmin.tsx:350 [t-call] `Role update failed`
+- src/pages/DepartmentsAdmin.tsx:403 [t-call] `Department & Role Management`
+- src/pages/DepartmentsAdmin.tsx:414 [t-call] `Add New Department`
+- src/pages/DepartmentsAdmin.tsx:422 [t-call] `Create departments, add roles, and manage your organizational structure with full-width department and role cards.`
+- src/pages/DepartmentsAdmin.tsx:429 [t-call] `Departments & Roles`
+- src/pages/DepartmentsAdmin.tsx:436 [t-call] `Department name`
+- src/pages/DepartmentsAdmin.tsx:460 [t-call] `Total Roles`
+- src/pages/DepartmentsAdmin.tsx:464 [t-call] `Avg Roles/Dept`
+- src/pages/DepartmentsAdmin.tsx:492 [t-call] `Add Role`
+- src/pages/DepartmentsAdmin.tsx:520 [t-call] `Department key:`
+- src/pages/DepartmentsAdmin.tsx:520 [t-call] `Users in this department:`
+- src/pages/DepartmentsAdmin.tsx:525 [t-call] `Department Roles`
+- src/pages/DepartmentsAdmin.tsx:534 [t-call] `Role assigned to this department`
+- src/pages/DepartmentsAdmin.tsx:560 [t-call] `No roles assigned yet.`
+- src/pages/DepartmentsAdmin.tsx:568 [t-call] `No departments yet.`
+- src/pages/DepartmentsAdmin.tsx:573 [attr:aria-label] `Create role`
+- src/pages/DepartmentsAdmin.tsx:576 [t-call] `Create Role`
+- src/pages/DepartmentsAdmin.tsx:590 [t-call] `Department:`
+- src/pages/DepartmentsAdmin.tsx:594 [t-call] `Role name`
+- src/pages/DepartmentsAdmin.tsx:599 [t-call] `Role description (optional)`
+- src/pages/DepartmentsAdmin.tsx:623 [t-call] `Create & Add`
+- src/pages/DepartmentsAdmin.tsx:631 [attr:aria-label] `Edit role`
+- src/pages/DepartmentsAdmin.tsx:634 [t-call] `Edit Role`
+- src/pages/DepartmentsAdmin.tsx:637 [t-call] `Department:`
+- src/pages/DepartmentsAdmin.tsx:641 [t-call] `Role name`
+- src/pages/DepartmentsAdmin.tsx:646 [t-call] `Role description (optional)`
+- src/pages/DepartmentsAdmin.tsx:679 [attr:aria-label] `Edit department`
+- src/pages/DepartmentsAdmin.tsx:682 [t-call] `Edit Department`
+- src/pages/DepartmentsAdmin.tsx:693 [t-call] `Department key:`
+- src/pages/DepartmentsAdmin.tsx:698 [t-call] `Department name`
+- src/pages/DepartmentsAdmin.tsx:727 [t-call] `Delete Department`
+- src/pages/DepartmentsAdmin.tsx:730 [t-call] `Are you sure you want to delete`
+- src/pages/DepartmentsAdmin.tsx:732 [t-call] `This department must have no users before deletion.`
+- src/pages/DepartmentsAdmin.tsx:735 [t-call] `Delete Department`
+- src/pages/DepartmentsAdmin.tsx:736 [t-call] `Keep Department`
+
+## src/pages/editors/DocsEditor.tsx
+
+- src/pages/editors/DocsEditor.tsx:125 [jsx-text] `Loading document...`
+- src/pages/editors/DocsEditor.tsx:134 [attr:title] `Close editor`
+- src/pages/editors/DocsEditor.tsx:141 [attr:placeholder] `Untitled Document`
+- src/pages/editors/DocsEditor.tsx:148 [jsx-text] `Saved at`
+- src/pages/editors/DocsEditor.tsx:157 [attr:title] `Bold`
+- src/pages/editors/DocsEditor.tsx:160 [attr:title] `Italic`
+- src/pages/editors/DocsEditor.tsx:163 [attr:title] `Underline`
+- src/pages/editors/DocsEditor.tsx:169 [attr:title] `Bullet list`
+- src/pages/editors/DocsEditor.tsx:172 [attr:title] `Numbered list`
+- src/pages/editors/DocsEditor.tsx:178 [attr:title] `Insert link`
+- src/pages/editors/DocsEditor.tsx:181 [attr:title] `Insert image`
+- src/pages/editors/DocsEditor.tsx:190 [attr:placeholder] `Start typing... Your document will auto-save every 2 seconds.`
+- src/pages/editors/DocsEditor.tsx:196 [jsx-text] `Document (Doc)`
+- src/pages/editors/DocsEditor.tsx:197 [jsx-text] `words`
+
+## src/pages/editors/EditorPage.tsx
+
+- src/pages/editors/EditorPage.tsx:48 [jsx-text] `Unknown editor type`
+- src/pages/editors/EditorPage.tsx:52 [jsx-text] `Loading editor...`
+
+## src/pages/editors/FormsEditor.tsx
+
+- src/pages/editors/FormsEditor.tsx:144 [jsx-text] `Loading form...`
+- src/pages/editors/FormsEditor.tsx:153 [attr:title] `Close editor`
+- src/pages/editors/FormsEditor.tsx:160 [attr:placeholder] `Untitled Form`
+- src/pages/editors/FormsEditor.tsx:167 [jsx-text] `Saved at`
+- src/pages/editors/FormsEditor.tsx:180 [attr:placeholder] `Form description (optional)`
+- src/pages/editors/FormsEditor.tsx:190 [jsx-text] `Add questions to your form`
+- src/pages/editors/FormsEditor.tsx:200 [attr:placeholder] `Question`
+- src/pages/editors/FormsEditor.tsx:211 [jsx-text] `Short text`
+- src/pages/editors/FormsEditor.tsx:213 [jsx-text] `Long text`
+- src/pages/editors/FormsEditor.tsx:214 [jsx-text] `Checkboxes`
+- src/pages/editors/FormsEditor.tsx:215 [jsx-text] `Multiple choice`
+- src/pages/editors/FormsEditor.tsx:216 [jsx-text] `Dropdown`
+- src/pages/editors/FormsEditor.tsx:223 [jsx-text] `Required`
+- src/pages/editors/FormsEditor.tsx:228 [attr:title] `Delete field`
+- src/pages/editors/FormsEditor.tsx:271 [jsx-text] `Add option`
+- src/pages/editors/FormsEditor.tsx:282 [attr:title] `Add text field`
+- src/pages/editors/FormsEditor.tsx:283 [jsx-text] `Text`
+- src/pages/editors/FormsEditor.tsx:285 [attr:title] `Add email field`
+- src/pages/editors/FormsEditor.tsx:288 [attr:title] `Add textarea`
+- src/pages/editors/FormsEditor.tsx:289 [jsx-text] `Long text`
+- src/pages/editors/FormsEditor.tsx:291 [attr:title] `Add checkboxes`
+- src/pages/editors/FormsEditor.tsx:292 [jsx-text] `Checkboxes`
+- src/pages/editors/FormsEditor.tsx:294 [attr:title] `Add multiple choice`
+- src/pages/editors/FormsEditor.tsx:295 [jsx-text] `Multiple choice`
+- src/pages/editors/FormsEditor.tsx:297 [attr:title] `Add dropdown`
+- src/pages/editors/FormsEditor.tsx:298 [jsx-text] `Dropdown`
+- src/pages/editors/FormsEditor.tsx:314 [attr:placeholder] `Answer`
+- src/pages/editors/FormsEditor.tsx:317 [attr:placeholder] `your@email.com`
+- src/pages/editors/FormsEditor.tsx:320 [attr:placeholder] `Answer`
+- src/pages/editors/FormsEditor.tsx:334 [jsx-text] `Choose from list`
+- src/pages/editors/FormsEditor.tsx:342 [jsx-text] `Submit`
+- src/pages/editors/FormsEditor.tsx:349 [jsx-text] `Form`
+- src/pages/editors/FormsEditor.tsx:350 [jsx-text] `questions`
+
+## src/pages/editors/SheetsEditor.tsx
+
+- src/pages/editors/SheetsEditor.tsx:162 [jsx-text] `Loading spreadsheet...`
+- src/pages/editors/SheetsEditor.tsx:171 [attr:title] `Close editor`
+- src/pages/editors/SheetsEditor.tsx:178 [attr:placeholder] `Untitled Spreadsheet`
+- src/pages/editors/SheetsEditor.tsx:185 [jsx-text] `Saved at`
+- src/pages/editors/SheetsEditor.tsx:194 [attr:title] `Bold`
+- src/pages/editors/SheetsEditor.tsx:197 [attr:title] `Italic`
+- src/pages/editors/SheetsEditor.tsx:200 [attr:title] `Sum`
+- src/pages/editors/SheetsEditor.tsx:206 [attr:title] `Increase decimal`
+- src/pages/editors/SheetsEditor.tsx:209 [attr:title] `Decrease decimal`
+- src/pages/editors/SheetsEditor.tsx:268 [jsx-text] `Spreadsheet (Sheet)`
+
+## src/pages/editors/SlidesEditor.tsx
+
+- src/pages/editors/SlidesEditor.tsx:155 [jsx-text] `Loading presentation...`
+- src/pages/editors/SlidesEditor.tsx:164 [attr:title] `Close editor`
+- src/pages/editors/SlidesEditor.tsx:171 [attr:placeholder] `Untitled Presentation`
+- src/pages/editors/SlidesEditor.tsx:178 [jsx-text] `Saved at`
+- src/pages/editors/SlidesEditor.tsx:188 [attr:title] `Add new slide`
+- src/pages/editors/SlidesEditor.tsx:189 [jsx-text] `New Slide`
+- src/pages/editors/SlidesEditor.tsx:210 [attr:title] `Duplicate slide`
+- src/pages/editors/SlidesEditor.tsx:220 [attr:title] `Delete slide`
+- src/pages/editors/SlidesEditor.tsx:236 [attr:placeholder] `Slide Title`
+- src/pages/editors/SlidesEditor.tsx:242 [attr:placeholder] `Add content here`
+- src/pages/editors/SlidesEditor.tsx:248 [jsx-text] `Slide`
+- src/pages/editors/SlidesEditor.tsx:272 [jsx-text] `Presentation (Slides)`
+- src/pages/editors/SlidesEditor.tsx:273 [jsx-text] `slides`
 
 ## src/pages/Employees.tsx
 
-- src/pages/Employees.tsx:150 [jsx-text] `Add Employee`
-- src/pages/Employees.tsx:199 [jsx-text] `Phone:`
-- src/pages/Employees.tsx:200 [jsx-text] `Salary:`
-- src/pages/Employees.tsx:218 [jsx-text] `No employees yet.`
+- src/pages/Employees.tsx:82 [t-call] `First name is required.`
+- src/pages/Employees.tsx:83 [t-call] `Last name is required.`
+- src/pages/Employees.tsx:86 [t-call] `Enter a valid email address.`
+- src/pages/Employees.tsx:89 [t-call] `Salary must be a positive number.`
+- src/pages/Employees.tsx:208 [t-call] `You don't have access to this page.`
+- src/pages/Employees.tsx:219 [t-call] `Manage team profiles with Customer-style visual parity`
+- src/pages/Employees.tsx:228 [t-call] `Search employees`
+- src/pages/Employees.tsx:234 [t-call] `Refreshing...`
+- src/pages/Employees.tsx:257 [t-call] `Workforce`
+- src/pages/Employees.tsx:258 [t-call] `Employee Directory`
+- src/pages/Employees.tsx:260 [t-call] `records`
+- src/pages/Employees.tsx:279 [t-call] `Loading employees...`
+- src/pages/Employees.tsx:286 [t-call] `No employees found.`
+- src/pages/Employees.tsx:422 [t-call] `Delete Employee`
+- src/pages/Employees.tsx:433 [t-call] `Deleting...`
 
-## src/pages/InspectionApprovals.tsx
+## src/pages/ExitPermitManagement.tsx
 
-- src/pages/InspectionApprovals.tsx:210 [jsx-text] `Edit call record`
-- src/pages/InspectionApprovals.tsx:240 [jsx-text] `Recent calls`
-- src/pages/InspectionApprovals.tsx:248 [jsx-text] `Outcome:`
-- src/pages/InspectionApprovals.tsx:254 [jsx-text] `Follow-up:`
-- src/pages/InspectionApprovals.tsx:268 [jsx-text] `No call records yet.`
+- src/pages/ExitPermitManagement.tsx:664 [t-call] `Order not found`
+- src/pages/ExitPermitManagement.tsx:693 [t-call] `Order not found`
+- src/pages/ExitPermitManagement.tsx:702 [t-call] `This order is not eligible for standard Exit Permit.`
+- src/pages/ExitPermitManagement.tsx:740 [t-call] `Order not found`
+- src/pages/ExitPermitManagement.tsx:748 [t-call] `Bypass is allowed only for Ready + Unpaid orders.`
+- src/pages/ExitPermitManagement.tsx:920 [t-call] `No order selected for bypass.`
+- src/pages/ExitPermitManagement.tsx:927 [t-call] `Please fill required bypass fields.`
+- src/pages/ExitPermitManagement.tsx:1072 [t-call] `per page`
+- src/pages/ExitPermitManagement.tsx:1073 [t-call] `per page`
+- src/pages/ExitPermitManagement.tsx:1074 [t-call] `per page`
+- src/pages/ExitPermitManagement.tsx:1361 [t-call] `Bypass Exit Permit`
+- src/pages/ExitPermitManagement.tsx:1373 [t-call] `Bypassed By`
+- src/pages/ExitPermitManagement.tsx:1378 [t-call] `Person Collecting the Car`
+- src/pages/ExitPermitManagement.tsx:1384 [t-call] `Enter collector name`
+- src/pages/ExitPermitManagement.tsx:1389 [t-call] `Collector Mobile`
+- src/pages/ExitPermitManagement.tsx:1394 [t-call] `Enter collector mobile`
+- src/pages/ExitPermitManagement.tsx:1399 [t-call] `Bypass Reason`
+- src/pages/ExitPermitManagement.tsx:1405 [t-call] `Why is this order bypassed?`
+- src/pages/ExitPermitManagement.tsx:1410 [t-call] `Bypass Note`
+- src/pages/ExitPermitManagement.tsx:1414 [t-call] `Add optional note`
+- src/pages/ExitPermitManagement.tsx:1424 [t-call] `Create Bypass`
+- src/pages/ExitPermitManagement.tsx:1494 [t-call] `Bypass`
+- src/pages/ExitPermitManagement.tsx:1641 [t-call] `Document`
+- src/pages/ExitPermitManagement.tsx:1676 [t-call] `Services Summary`
+- src/pages/ExitPermitManagement.tsx:1833 [t-call] `Permit Mode`
+- src/pages/ExitPermitManagement.tsx:1839 [t-call] `Bypassed By`
+- src/pages/ExitPermitManagement.tsx:1843 [t-call] `Bypass Reason`
+- src/pages/ExitPermitManagement.tsx:1847 [t-call] `Bypass Note`
+
+## src/pages/FileSharing.tsx
+
+- src/pages/FileSharing.tsx:725 [t-call] `Migrated legacy department drives:`
+- src/pages/FileSharing.tsx:766 [t-call] `Failed to load drive data.`
+- src/pages/FileSharing.tsx:858 [t-call] `Unlimited`
+- src/pages/FileSharing.tsx:968 [t-call] `Managers`
+- src/pages/FileSharing.tsx:973 [t-call] `This action requires a department drive manager approval.`
+- src/pages/FileSharing.tsx:1023 [t-call] `Request submitted to managers.`
+- src/pages/FileSharing.tsx:1025 [t-call] `Failed to submit approval request.`
+- src/pages/FileSharing.tsx:1062 [t-call] `Cannot execute move. The original file(s) could not be found.`
+- src/pages/FileSharing.tsx:1085 [t-call] `Cannot execute delete. The target file no longer exists.`
+- src/pages/FileSharing.tsx:1117 [t-call] `Cannot execute folder creation. Folder name is missing.`
+- src/pages/FileSharing.tsx:1154 [t-call] `Upload approvals cannot be auto-executed because file data is not stored in the request.`
+- src/pages/FileSharing.tsx:1157 [t-call] `Unsupported approval action.`
+- src/pages/FileSharing.tsx:1183 [t-call] `Approval saved, but execution failed. See row badge for details.`
+- src/pages/FileSharing.tsx:1183 [t-call] `Approved request executed successfully.`
+- src/pages/FileSharing.tsx:1185 [t-call] `Approval queue updated.`
+- src/pages/FileSharing.tsx:1188 [t-call] `Failed to update approval request.`
+- src/pages/FileSharing.tsx:1362 [t-call] `Root`
+- src/pages/FileSharing.tsx:1542 [t-call] `Upload and create`
+- src/pages/FileSharing.tsx:1543 [t-call] `Sharing and links`
+- src/pages/FileSharing.tsx:1544 [t-call] `Version history`
+- src/pages/FileSharing.tsx:1545 [t-call] `Quota governance`
+- src/pages/FileSharing.tsx:1546 [t-call] `Analytics and oversight`
+- src/pages/FileSharing.tsx:1547 [t-call] `Cross-department access`
+- src/pages/FileSharing.tsx:1555 [t-call] `Upload`
+- src/pages/FileSharing.tsx:1556 [t-call] `Move`
+- src/pages/FileSharing.tsx:1558 [t-call] `Create Folder`
+- src/pages/FileSharing.tsx:1559 [t-call] `Unknown`
+- src/pages/FileSharing.tsx:1571 [t-call] `Failed`
+- src/pages/FileSharing.tsx:1574 [t-call] `Executed`
+- src/pages/FileSharing.tsx:1574 [t-call] `Action completed successfully`
+- src/pages/FileSharing.tsx:1576 [t-call] `Rejected`
+- src/pages/FileSharing.tsx:1576 [t-call] `Rejected by manager`
+- src/pages/FileSharing.tsx:1577 [t-call] `Cancelled by requester`
+- src/pages/FileSharing.tsx:1578 [t-call] `Unknown`
+- src/pages/FileSharing.tsx:1663 [t-call] `You do not have write permission in the target folder.`
+- src/pages/FileSharing.tsx:1668 [t-call] `One or more selected items cannot be moved due to permission restrictions.`
+- src/pages/FileSharing.tsx:1738 [t-call] `You do not have permission to upload files.`
+- src/pages/FileSharing.tsx:1745 [t-call] `You do not have permission to upload files.`
+- src/pages/FileSharing.tsx:1760 [t-call] `You do not have permission to create folders.`
+- src/pages/FileSharing.tsx:1769 [t-call] `You do not have permission to upload files.`
+- src/pages/FileSharing.tsx:1773 [t-call] `You do not have write permission in this folder.`
+- src/pages/FileSharing.tsx:1788 [t-call] `You do not have permission to create folders.`
+- src/pages/FileSharing.tsx:1792 [t-call] `You do not have write permission in this folder.`
+- src/pages/FileSharing.tsx:1803 [t-call] `You do not have permission to create folders.`
+- src/pages/FileSharing.tsx:1804 [t-call] `You do not have write permission in this folder.`
+- src/pages/FileSharing.tsx:1806 [t-call] `Please enter a valid folder name.`
+- src/pages/FileSharing.tsx:1847 [t-call] `Failed to create folder.`
+- src/pages/FileSharing.tsx:1852 [t-call] `You do not have permission to upload files.`
+- src/pages/FileSharing.tsx:1853 [t-call] `You do not have write permission in this folder.`
+- src/pages/FileSharing.tsx:1854 [t-call] `Please select a file first.`
+- src/pages/FileSharing.tsx:1855 [t-call] `Your upload permission is blocked by drive administrator.`
+- src/pages/FileSharing.tsx:1858 [t-call] `Max upload size is`
+- src/pages/FileSharing.tsx:1863 [t-call] `Upload exceeds your allocated storage quota.`
+- src/pages/FileSharing.tsx:1937 [t-call] `Failed to upload file.`
+- src/pages/FileSharing.tsx:1946 [t-call] `Upload completed.`
+- src/pages/FileSharing.tsx:2001 [t-call] `Failed to convert this file to a native Office format.`
+- src/pages/FileSharing.tsx:2019 [t-call] `Unable to launch desktop Office app for this file.`
+- src/pages/FileSharing.tsx:2051 [t-call] `You do not have permission to create files.`
+- src/pages/FileSharing.tsx:2056 [t-call] `You do not have write permission in this folder.`
+- src/pages/FileSharing.tsx:2061 [t-call] `Your upload permission is blocked by drive administrator.`
+- src/pages/FileSharing.tsx:2152 [t-call] `Failed to create file.`
+- src/pages/FileSharing.tsx:2190 [t-call] `You do not have permission to upload a new version for this file.`
+- src/pages/FileSharing.tsx:2217 [t-call] `Failed to upload new version.`
+- src/pages/FileSharing.tsx:2224 [t-call] `You do not have permission to restore versions.`
+- src/pages/FileSharing.tsx:2238 [t-call] `Failed to restore selected version.`
+- src/pages/FileSharing.tsx:2243 [t-call] `You do not have permission to create shared links.`
+- src/pages/FileSharing.tsx:2244 [t-call] `Shared links are supported for files only.`
+- src/pages/FileSharing.tsx:2269 [t-call] `Shared link created, but resolver URL is missing.`
+- src/pages/FileSharing.tsx:2269 [t-call] `Shared link created.`
+- src/pages/FileSharing.tsx:2271 [t-call] `Failed to create shared link.`
+- src/pages/FileSharing.tsx:2276 [t-call] `You do not have permission to revoke shared links.`
+- src/pages/FileSharing.tsx:2282 [t-call] `Failed to revoke shared link.`
+- src/pages/FileSharing.tsx:2294 [t-call] `Preview is not available for this file.`
+- src/pages/FileSharing.tsx:2312 [t-call] `Failed to download file.`
+- src/pages/FileSharing.tsx:2317 [t-call] `You do not have permission to move files.`
+- src/pages/FileSharing.tsx:2318 [t-call] `You do not have update permission for this item.`
+- src/pages/FileSharing.tsx:2319 [t-call] `Move to folder path (empty for root):`
+- src/pages/FileSharing.tsx:2320 [t-call] `You do not have write permission in the target folder.`
+- src/pages/FileSharing.tsx:2324 [t-call] `Failed to move file.`
+- src/pages/FileSharing.tsx:2337 [t-call] `You do not have permission to delete this item.`
+- src/pages/FileSharing.tsx:2399 [t-call] `Failed to delete item.`
+- src/pages/FileSharing.tsx:2404 [t-call] `You do not have permission to restore files.`
+- src/pages/FileSharing.tsx:2410 [t-call] `Failed to restore file.`
+- src/pages/FileSharing.tsx:2415 [t-call] `You do not have permission to manage storage quotas.`
+- src/pages/FileSharing.tsx:2423 [t-call] `Please choose a user.`
+- src/pages/FileSharing.tsx:2451 [t-call] `Quota write verification failed. Please retry.`
+- src/pages/FileSharing.tsx:2457 [t-call] `Storage quota updated.`
+- src/pages/FileSharing.tsx:2459 [t-call] `Failed to update storage quota.`
+- src/pages/FileSharing.tsx:2464 [t-call] `You do not have permission to manage department drives.`
+- src/pages/FileSharing.tsx:2466 [t-call] `Please choose a department.`
+- src/pages/FileSharing.tsx:2550 [t-call] `Department drive saved.`
+- src/pages/FileSharing.tsx:2552 [t-call] `Failed to save department drive.`
+- src/pages/FileSharing.tsx:2587 [t-call] `Selected user was not found in the directory.`
+- src/pages/FileSharing.tsx:2600 [t-call] `You do not have permission to share this item.`
+- src/pages/FileSharing.tsx:2604 [t-call] `You do not have permission to update sharing on this item.`
+- src/pages/FileSharing.tsx:2639 [t-call] `Sharing permissions updated.`
+- src/pages/FileSharing.tsx:2641 [t-call] `Failed to update sharing permissions.`
+- src/pages/FileSharing.tsx:2701 [t-call] `You do not have permission to rename this item.`
+- src/pages/FileSharing.tsx:2712 [t-call] `Please enter a valid file or folder name.`
+- src/pages/FileSharing.tsx:2727 [t-call] `Failed to rename item.`
+- src/pages/FileSharing.tsx:2745 [t-call] `You do not have permission to move files.`
+- src/pages/FileSharing.tsx:2746 [t-call] `Move selected items to folder path (empty for root):`
+- src/pages/FileSharing.tsx:2750 [t-call] `Failed to move selected items.`
+- src/pages/FileSharing.tsx:2774 [t-call] `Failed to move dragged items.`
+- src/pages/FileSharing.tsx:2796 [t-call] `Failed to reorder dragged items.`
+- src/pages/FileSharing.tsx:2803 [t-call] `You do not have permission to delete selected items.`
+- src/pages/FileSharing.tsx:2855 [t-call] `Failed to delete selected items.`
+- src/pages/FileSharing.tsx:2879 [t-call] `Failed to update starred items.`
+- src/pages/FileSharing.tsx:2885 [t-call] `You do not have permission to create shared links.`
+- src/pages/FileSharing.tsx:2887 [t-call] `Select at least one file to create shared links.`
+- src/pages/FileSharing.tsx:2920 [t-call] `Shared links created and copied.`
+- src/pages/FileSharing.tsx:2920 [t-call] `Shared links created.`
+- src/pages/FileSharing.tsx:2922 [t-call] `Failed to create shared links for selected files.`
+- src/pages/FileSharing.tsx:2966 [t-call] `No access`
+- src/pages/FileSharing.tsx:2978 [jsx-text] `&#x2715;`
+- src/pages/FileSharing.tsx:3001 [t-call] `Opening in Microsoft Word`
+- src/pages/FileSharing.tsx:3001 [t-call] `Opening in Microsoft Excel`
+- src/pages/FileSharing.tsx:3006 [t-call] `This document will open in Microsoft Word on your computer.`
+- src/pages/FileSharing.tsx:3007 [t-call] `This spreadsheet will open in Microsoft Excel on your computer.`
+- src/pages/FileSharing.tsx:3019 [t-call] `Open in Word`
+- src/pages/FileSharing.tsx:3019 [t-call] `Open in Excel`
+- src/pages/FileSharing.tsx:3046 [t-call] `Share`
+- src/pages/FileSharing.tsx:3046 [t-call] `Untitled`
+- src/pages/FileSharing.tsx:3052 [t-call] `Add people, groups, spaces`
+- src/pages/FileSharing.tsx:3062 [t-call] `People with access`
+- src/pages/FileSharing.tsx:3064 [t-call] `No explicit users yet. Add users above.`
+- src/pages/FileSharing.tsx:3074 [t-call] `Read`
+- src/pages/FileSharing.tsx:3075 [t-call] `Write`
+- src/pages/FileSharing.tsx:3078 [t-call] `Remove`
+- src/pages/FileSharing.tsx:3085 [t-call] `General access`
+- src/pages/FileSharing.tsx:3088 [t-call] `Restricted`
+- src/pages/FileSharing.tsx:3089 [t-call] `Department`
+- src/pages/FileSharing.tsx:3090 [t-call] `Organization`
+- src/pages/FileSharing.tsx:3112 [t-call] `Saving sharing permissions...`
+- src/pages/FileSharing.tsx:3154 [t-call] `Search in Drive`
+- src/pages/FileSharing.tsx:3174 [t-call] `Upload`
+- src/pages/FileSharing.tsx:3184 [t-call] `Folder`
+- src/pages/FileSharing.tsx:3194 [t-call] `Admin console`
+- src/pages/FileSharing.tsx:3206 [t-call] `Upload, organize, share, and govern files from one workspace while keeping quota and permission control in admin hands.`
+- src/pages/FileSharing.tsx:3214 [t-call] `items`
+- src/pages/FileSharing.tsx:3214 [t-call] `active links`
+- src/pages/FileSharing.tsx:3222 [t-call] `Grid`
+- src/pages/FileSharing.tsx:3222 [t-call] `List`
+- src/pages/FileSharing.tsx:3229 [t-call] `Custom order`
+- src/pages/FileSharing.tsx:3230 [t-call] `Last modified`
+- src/pages/FileSharing.tsx:3231 [t-call] `Name`
+- src/pages/FileSharing.tsx:3232 [t-call] `Size`
+- src/pages/FileSharing.tsx:3242 [t-call] `My storage`
+- src/pages/FileSharing.tsx:3243 [t-call] `Unlimited`
+- src/pages/FileSharing.tsx:3250 [t-call] `Uploads are currently blocked for your account.`
+- src/pages/FileSharing.tsx:3255 [t-call] `New`
+- src/pages/FileSharing.tsx:3259 [t-call] `New folder`
+- src/pages/FileSharing.tsx:3260 [t-call] `File upload`
+- src/pages/FileSharing.tsx:3261 [t-call] `Folder upload`
+- src/pages/FileSharing.tsx:3263 [t-call] `Docs`
+- src/pages/FileSharing.tsx:3264 [t-call] `Sheets`
+- src/pages/FileSharing.tsx:3265 [t-call] `Slides`
+- src/pages/FileSharing.tsx:3266 [t-call] `Forms`
+- src/pages/FileSharing.tsx:3271 [t-call] `Home`
+- src/pages/FileSharing.tsx:3272 [t-call] `My Drive`
+- src/pages/FileSharing.tsx:3273 [t-call] `Shared with me`
+- src/pages/FileSharing.tsx:3274 [t-call] `Recent`
+- src/pages/FileSharing.tsx:3275 [t-call] `Starred`
+- src/pages/FileSharing.tsx:3276 [t-call] `Department`
+- src/pages/FileSharing.tsx:3277 [t-call] `Organization`
+- src/pages/FileSharing.tsx:3278 [t-call] `Trash`
+- src/pages/FileSharing.tsx:3279 [t-call] `Drive Admin`
+- src/pages/FileSharing.tsx:3283 [t-call] `Workspaces`
+- src/pages/FileSharing.tsx:3298 [t-call] `Department Drive`
+- src/pages/FileSharing.tsx:3302 [t-call] `Folders`
+- src/pages/FileSharing.tsx:3311 [t-call] `Root`
+- src/pages/FileSharing.tsx:3346 [t-call] `Drive Admin`
+- src/pages/FileSharing.tsx:3346 [t-call] `Drive Workspace`
+- src/pages/FileSharing.tsx:3350 [t-call] `Upload`
+- src/pages/FileSharing.tsx:3355 [t-call] `Folder`
+- src/pages/FileSharing.tsx:3367 [t-call] `Welcome to Drive`
+- src/pages/FileSharing.tsx:3367 [t-call] `Drive Workspace`
+- src/pages/FileSharing.tsx:3368 [t-call] `Find your recent and suggested content quickly.`
+- src/pages/FileSharing.tsx:3368 [t-call] `Files, folders, sharing, versioning, and governance in one place.`
+- src/pages/FileSharing.tsx:3371 [t-call] `Active items`
+- src/pages/FileSharing.tsx:3372 [t-call] `My usage`
+- src/pages/FileSharing.tsx:3373 [t-call] `My quota`
+- src/pages/FileSharing.tsx:3379 [t-call] `Quick access`
+- src/pages/FileSharing.tsx:3381 [t-call] `Recent files and folders ready to open`
+- src/pages/FileSharing.tsx:3384 [t-call] `Shared with me`
+- src/pages/FileSharing.tsx:3386 [t-call] `Items from other users you can open now`
+- src/pages/FileSharing.tsx:3389 [t-call] `Department spaces`
+- src/pages/FileSharing.tsx:3391 [t-call] `Shared team areas available in your workspace`
+- src/pages/FileSharing.tsx:3394 [t-call] `Active links`
+- src/pages/FileSharing.tsx:3396 [t-call] `External shares currently live`
+- src/pages/FileSharing.tsx:3420 [t-call] `Moving selected items...`
+- src/pages/FileSharing.tsx:3420 [t-call] `Move`
+- src/pages/FileSharing.tsx:3421 [t-call] `Sharing selected items...`
+- src/pages/FileSharing.tsx:3421 [t-call] `Share`
+- src/pages/FileSharing.tsx:3422 [t-call] `Updating stars...`
+- src/pages/FileSharing.tsx:3422 [t-call] `Star`
+- src/pages/FileSharing.tsx:3423 [t-call] `Deleting selected items...`
+- src/pages/FileSharing.tsx:3431 [t-call] `Create folder`
+- src/pages/FileSharing.tsx:3431 [t-call] `Upload to Drive`
+- src/pages/FileSharing.tsx:3436 [t-call] `Drop files here or click to upload`
+- src/pages/FileSharing.tsx:3437 [t-call] `Max`
+- src/pages/FileSharing.tsx:3437 [t-call] `per file`
+- src/pages/FileSharing.tsx:3441 [t-call] `Display name (optional)`
+- src/pages/FileSharing.tsx:3442 [t-call] `Description (optional)`
+- src/pages/FileSharing.tsx:3445 [t-call] `Private`
+- src/pages/FileSharing.tsx:3446 [t-call] `Department`
+- src/pages/FileSharing.tsx:3447 [t-call] `Selected users`
+- src/pages/FileSharing.tsx:3448 [t-call] `Selected departments`
+- src/pages/FileSharing.tsx:3449 [t-call] `Organization`
+- src/pages/FileSharing.tsx:3458 [t-call] `New folder name`
+- src/pages/FileSharing.tsx:3459 [t-call] `Create folder`
+- src/pages/FileSharing.tsx:3501 [t-call] `Add files`
+- src/pages/FileSharing.tsx:3502 [t-call] `Add folder`
+- src/pages/FileSharing.tsx:3503 [t-call] `Uploading...`
+- src/pages/FileSharing.tsx:3503 [t-call] `Upload`
+- src/pages/FileSharing.tsx:3513 [t-call] `Quick access`
+- src/pages/FileSharing.tsx:3520 [t-call] `Untitled`
+- src/pages/FileSharing.tsx:3525 [t-call] `No quick access items yet`
+- src/pages/FileSharing.tsx:3530 [t-call] `Suggested folders`
+- src/pages/FileSharing.tsx:3537 [t-call] `Untitled`
+- src/pages/FileSharing.tsx:3542 [t-call] `No folders to suggest yet`
+- src/pages/FileSharing.tsx:3547 [t-call] `Suggested files`
+- src/pages/FileSharing.tsx:3553 [t-call] `Untitled`
+- src/pages/FileSharing.tsx:3558 [t-call] `No recent files yet`
+- src/pages/FileSharing.tsx:3563 [t-call] `Department spaces`
+- src/pages/FileSharing.tsx:3569 [t-call] `folders`
+- src/pages/FileSharing.tsx:3572 [t-call] `files`
+- src/pages/FileSharing.tsx:3575 [t-call] `Open workspace`
+- src/pages/FileSharing.tsx:3577 [t-call] `No department spaces available yet`
+- src/pages/FileSharing.tsx:3584 [t-call] `Drive items`
+- src/pages/FileSharing.tsx:3585 [t-call] `No items found`
+- src/pages/FileSharing.tsx:3589 [t-call] `Name`
+- src/pages/FileSharing.tsx:3590 [t-call] `Owner / visibility`
+- src/pages/FileSharing.tsx:3591 [t-call] `Size`
+- src/pages/FileSharing.tsx:3647 [t-call] `Untitled`
+- src/pages/FileSharing.tsx:3649 [t-call] `No department`
+- src/pages/FileSharing.tsx:3654 [t-call] `Folder`
+- src/pages/FileSharing.tsx:3697 [t-call] `Star`
+- src/pages/FileSharing.tsx:3698 [t-call] `Open`
+- src/pages/FileSharing.tsx:3700 [t-call] `Open`
+- src/pages/FileSharing.tsx:3706 [t-call] `More actions`
+- src/pages/FileSharing.tsx:3720 [t-call] `More`
+- src/pages/FileSharing.tsx:3724 [t-call] `Folder download can be exported from admin tools.`
+- src/pages/FileSharing.tsx:3725 [t-call] `Open folder`
+- src/pages/FileSharing.tsx:3726 [t-call] `Upload in folder`
+- src/pages/FileSharing.tsx:3727 [t-call] `Create subfolder`
+- src/pages/FileSharing.tsx:3728 [t-call] `Rename`
+- src/pages/FileSharing.tsx:3729 [t-call] `Share`
+- src/pages/FileSharing.tsx:3730 [t-call] `Organize`
+- src/pages/FileSharing.tsx:3731 [t-call] `Folder information`
+- src/pages/FileSharing.tsx:3732 [t-call] `Ask Gemini integration will be enabled for this workspace.`
+- src/pages/FileSharing.tsx:3732 [t-call] `Ask Gemini`
+- src/pages/FileSharing.tsx:3733 [t-call] `Links`
+- src/pages/FileSharing.tsx:3734 [t-call] `Versions`
+- src/pages/FileSharing.tsx:3735 [t-call] `Upload version`
+- src/pages/FileSharing.tsx:3736 [t-call] `Restore`
+- src/pages/FileSharing.tsx:3737 [t-call] `Delete folder`
+- src/pages/FileSharing.tsx:3737 [t-call] `Move to trash`
+- src/pages/FileSharing.tsx:3745 [t-call] `Shared links`
+- src/pages/FileSharing.tsx:3747 [t-call] `Expiry hours`
+- src/pages/FileSharing.tsx:3748 [t-call] `Max downloads (optional)`
+- src/pages/FileSharing.tsx:3749 [t-call] `Generate`
+- src/pages/FileSharing.tsx:3757 [t-call] `Revoked`
+- src/pages/FileSharing.tsx:3757 [t-call] `Expired`
+- src/pages/FileSharing.tsx:3758 [t-call] `Expires`
+- src/pages/FileSharing.tsx:3768 [t-call] `Link copied`
+- src/pages/FileSharing.tsx:3770 [t-call] `Unable to copy this shared link.`
+- src/pages/FileSharing.tsx:3774 [t-call] `Copy`
+- src/pages/FileSharing.tsx:3776 [t-call] `Revoke`
+- src/pages/FileSharing.tsx:3786 [t-call] `Version history`
+- src/pages/FileSharing.tsx:3793 [t-call] `Restore`
+- src/pages/FileSharing.tsx:3796 [t-call] `No saved versions yet`
+- src/pages/FileSharing.tsx:3811 [t-call] `Total storage`
+- src/pages/FileSharing.tsx:3813 [t-call] `Across all visible owners`
+- src/pages/FileSharing.tsx:3816 [t-call] `Users near quota`
+- src/pages/FileSharing.tsx:3818 [t-call] `Above 85% of their allocation`
+- src/pages/FileSharing.tsx:3821 [t-call] `Blocked uploads`
+- src/pages/FileSharing.tsx:3823 [t-call] `Accounts currently prevented from uploading`
+- src/pages/FileSharing.tsx:3826 [t-call] `Pending approvals`
+- src/pages/FileSharing.tsx:3828 [t-call] `Manager decisions waiting in queue`
+- src/pages/FileSharing.tsx:3831 [t-call] `Live shared links`
+- src/pages/FileSharing.tsx:3833 [t-call] `External sharing links still active`
+- src/pages/FileSharing.tsx:3839 [t-call] `Storage governance`
+- src/pages/FileSharing.tsx:3840 [t-call] `Allocate storage, block uploads, and watch usage before departments hit capacity.`
+- src/pages/FileSharing.tsx:3841 [t-call] `Quota target`
+- src/pages/FileSharing.tsx:3855 [t-call] `Default policy`
+- src/pages/FileSharing.tsx:3858 [t-call] `Department`
+- src/pages/FileSharing.tsx:3862 [t-call] `Quota GB`
+- src/pages/FileSharing.tsx:3865 [t-call] `Block uploads`
+- src/pages/FileSharing.tsx:3866 [t-call] `Admin notes`
+- src/pages/FileSharing.tsx:3869 [t-call] `Save quota policy`
+- src/pages/FileSharing.tsx:3870 [t-call] `Hide advanced`
+- src/pages/FileSharing.tsx:3870 [t-call] `Show advanced`
+- src/pages/FileSharing.tsx:3872 [t-call] `Advanced controls are hidden to keep this page easy to manage. Use Show advanced when needed.`
+- src/pages/FileSharing.tsx:3875 [t-call] `Department drives`
+- src/pages/FileSharing.tsx:3893 [t-call] `Select department`
+- src/pages/FileSharing.tsx:3896 [t-call] `Drive name`
+- src/pages/FileSharing.tsx:3899 [t-call] `Drive description`
+- src/pages/FileSharing.tsx:3910 [t-call] `Add manager`
+- src/pages/FileSharing.tsx:3920 [t-call] `Upload bypass MB`
+- src/pages/FileSharing.tsx:3933 [t-call] `Require manager approval for uploads`
+- src/pages/FileSharing.tsx:3934 [t-call] `Require manager approval for moves`
+- src/pages/FileSharing.tsx:3937 [t-call] `Require manager approval for deletes`
+- src/pages/FileSharing.tsx:3938 [t-call] `Require manager approval for folder creation`
+- src/pages/FileSharing.tsx:3941 [t-call] `Save department drive`
+- src/pages/FileSharing.tsx:3943 [t-call] `Admin capabilities`
+- src/pages/FileSharing.tsx:3948 [t-call] `Enabled`
+- src/pages/FileSharing.tsx:3948 [t-call] `Disabled`
+- src/pages/FileSharing.tsx:3952 [t-call] `Detailed role permissions remain controlled from Roles & Policies Admin, while this console focuses on storage governance and operational oversight.`
+- src/pages/FileSharing.tsx:3958 [t-call] `Usage matrix`
+- src/pages/FileSharing.tsx:3978 [t-call] `Usage trends (14 days)`
+- src/pages/FileSharing.tsx:3983 [t-call] `Uploads`
+- src/pages/FileSharing.tsx:3984 [t-call] `Downloads`
+- src/pages/FileSharing.tsx:3985 [t-call] `Deletes`
+- src/pages/FileSharing.tsx:3988 [t-call] `No file activity in the last 14 days`
+- src/pages/FileSharing.tsx:3991 [t-call] `Alert center`
+- src/pages/FileSharing.tsx:3996 [t-call] `Approval queue and execution status`
+- src/pages/FileSharing.tsx:4026 [t-call] `Approving and executing request...`
+- src/pages/FileSharing.tsx:4026 [t-call] `Approve & Execute`
+- src/pages/FileSharing.tsx:4027 [t-call] `Approving request...`
+- src/pages/FileSharing.tsx:4027 [t-call] `Approve`
+- src/pages/FileSharing.tsx:4028 [t-call] `Rejecting request...`
+- src/pages/FileSharing.tsx:4028 [t-call] `Reject`
+- src/pages/FileSharing.tsx:4032 [t-call] `Cancelling request...`
+- src/pages/FileSharing.tsx:4038 [t-call] `No approval requests yet`
+- src/pages/FileSharing.tsx:4041 [t-call] `Department quotas`
+- src/pages/FileSharing.tsx:4058 [t-call] `User quota overrides`
+- src/pages/FileSharing.tsx:4068 [t-call] `Override`
+- src/pages/FileSharing.tsx:4068 [t-call] `Set`
+- src/pages/FileSharing.tsx:4076 [t-call] `Active shared links`
+- src/pages/FileSharing.tsx:4080 [t-call] `Untitled`
+- src/pages/FileSharing.tsx:4081 [t-call] `Expires`
+- src/pages/FileSharing.tsx:4082 [t-call] `Downloads`
+- src/pages/FileSharing.tsx:4085 [t-call] `No active shared links right now`
+- src/pages/FileSharing.tsx:4107 [t-call] `Open`
+- src/pages/FileSharing.tsx:4107 [t-call] `Open / Preview`
+- src/pages/FileSharing.tsx:4108 [t-call] `Folder download can be exported from admin tools.`
+- src/pages/FileSharing.tsx:4109 [t-call] `Rename`
+- src/pages/FileSharing.tsx:4110 [t-call] `Share`
+- src/pages/FileSharing.tsx:4111 [t-call] `Organize`
+- src/pages/FileSharing.tsx:4112 [t-call] `Folder information`
+- src/pages/FileSharing.tsx:4113 [t-call] `Ask Gemini integration will be enabled for this workspace.`
+- src/pages/FileSharing.tsx:4113 [t-call] `Ask Gemini`
+- src/pages/FileSharing.tsx:4114 [t-call] `Create link`
+- src/pages/FileSharing.tsx:4115 [t-call] `Star`
+- src/pages/FileSharing.tsx:4116 [t-call] `Move to trash`
 
 ## src/pages/InspectionConfigAdmin.tsx
 
-- src/pages/InspectionConfigAdmin.tsx:88 [jsx-text] `Config saved successfully`
-- src/pages/InspectionConfigAdmin.tsx:90 [jsx-text] `Key:`
-- src/pages/InspectionConfigAdmin.tsx:90 [jsx-text] `default`
-- src/pages/InspectionConfigAdmin.tsx:91 [jsx-text] `Version:`
-- src/pages/InspectionConfigAdmin.tsx:110 [jsx-text] `Inspection Config Admin`
-- src/pages/InspectionConfigAdmin.tsx:117 [jsx-text] `Validate JSON`
-- src/pages/InspectionConfigAdmin.tsx:126 [jsx-text] `Active record:`
-- src/pages/InspectionConfigAdmin.tsx:130 [jsx-text] `Updated By:`
-- src/pages/InspectionConfigAdmin.tsx:130 [jsx-text] `• Updated At:`
-- src/pages/InspectionConfigAdmin.tsx:135 [jsx-text] `JSON Error:`
+- src/pages/InspectionConfigAdmin.tsx:90 [jsx-text] `Config saved successfully`
+- src/pages/InspectionConfigAdmin.tsx:92 [jsx-text] `Key:`
+- src/pages/InspectionConfigAdmin.tsx:92 [jsx-text] `default`
+- src/pages/InspectionConfigAdmin.tsx:93 [jsx-text] `Version:`
+- src/pages/InspectionConfigAdmin.tsx:112 [jsx-text] `Inspection Config Admin`
+- src/pages/InspectionConfigAdmin.tsx:119 [jsx-text] `Validate JSON`
+- src/pages/InspectionConfigAdmin.tsx:128 [jsx-text] `Active record:`
+- src/pages/InspectionConfigAdmin.tsx:132 [jsx-text] `Updated By:`
+- src/pages/InspectionConfigAdmin.tsx:132 [jsx-text] `• Updated At:`
+- src/pages/InspectionConfigAdmin.tsx:137 [jsx-text] `JSON Error:`
 
 ## src/pages/InspectionModule.tsx
 
-- src/pages/InspectionModule.tsx:821 [jsx-text] `Order Cancelled Successfully`
-- src/pages/InspectionModule.tsx:868 [jsx-text] `Inspection Module`
-- src/pages/InspectionModule.tsx:901 [jsx-text] `Inspection Jobs Records`
-- src/pages/InspectionModule.tsx:975 [jsx-text] `No inspection jobs found`
-- src/pages/InspectionModule.tsx:1010 [jsx-text] `Service Management System © 2023 \| Inspection Module`
-- src/pages/InspectionModule.tsx:1024 [jsx-text] `Inspection Details - Job Order #`
-- src/pages/InspectionModule.tsx:1114 [jsx-text] `Inspection List`
-- src/pages/InspectionModule.tsx:1143 [jsx-text] `In Progress`
-- src/pages/InspectionModule.tsx:1145 [jsx-text] `Paused`
-- src/pages/InspectionModule.tsx:1161 [jsx-text] `Save & Pause`
-- src/pages/InspectionModule.tsx:1168 [jsx-text] `Resume`
-- src/pages/InspectionModule.tsx:1176 [jsx-text] `Complete Inspection`
-- src/pages/InspectionModule.tsx:1184 [jsx-text] `Not Required`
-- src/pages/InspectionModule.tsx:1193 [jsx-text] `Progress:`
-- src/pages/InspectionModule.tsx:1226 [jsx-text] `Pass`
-- src/pages/InspectionModule.tsx:1234 [jsx-text] `Failed`
-- src/pages/InspectionModule.tsx:1241 [attr:placeholder] `Add comments...`
+- src/pages/InspectionModule.tsx:988 [t-call] `Exterior`
+- src/pages/InspectionModule.tsx:988 [t-call] `Interior`
+- src/pages/InspectionModule.tsx:1007 [t-call] `Exterior`
+- src/pages/InspectionModule.tsx:1007 [t-call] `Interior`
+- src/pages/InspectionModule.tsx:1017 [t-call] `Exterior`
+- src/pages/InspectionModule.tsx:1017 [t-call] `Interior`
+- src/pages/InspectionModule.tsx:1033 [t-call] `Exterior`
+- src/pages/InspectionModule.tsx:1033 [t-call] `Interior`
+- src/pages/InspectionModule.tsx:1035 [t-call] `Complete Inspection`
+- src/pages/InspectionModule.tsx:1056 [t-call] `Finish Inspection`
+- src/pages/InspectionModule.tsx:1254 [t-call] `Download failed:`
+- src/pages/InspectionModule.tsx:1302 [t-call] `Search by any inspection details`
+- src/pages/InspectionModule.tsx:1322 [t-call] `Track incoming inspections, move active vehicles forward, and keep the queue review-ready.`
+- src/pages/InspectionModule.tsx:1490 [t-call] `Working...`
+- src/pages/InspectionModule.tsx:1526 [t-call] `Services Summary`
+- src/pages/InspectionModule.tsx:1563 [t-call] `Document`
+- src/pages/InspectionModule.tsx:1628 [t-call] `In Progress`
+- src/pages/InspectionModule.tsx:1630 [t-call] `Paused`
+- src/pages/InspectionModule.tsx:1646 [t-call] `Save & Pause`
+- src/pages/InspectionModule.tsx:1653 [t-call] `Resume`
+- src/pages/InspectionModule.tsx:1661 [t-call] `Complete Inspection`
+- src/pages/InspectionModule.tsx:1669 [t-call] `Not Required`
+- src/pages/InspectionModule.tsx:1678 [t-call] `Progress:`
+- src/pages/InspectionModule.tsx:1718 [t-call] `Pass`
+- src/pages/InspectionModule.tsx:1726 [t-call] `Failed`
+- src/pages/InspectionModule.tsx:1784 [t-call] `Working...`
+- src/pages/InspectionModule.tsx:1784 [t-call] `Finish Inspection`
+- src/pages/InspectionModule.tsx:1811 [t-call] `Working...`
+
+## src/pages/InternalChat.tsx
+
+- src/pages/InternalChat.tsx:494 [t-call] `Sending message...`
+- src/pages/InternalChat.tsx:497 [t-call] `Refreshing conversation...`
+- src/pages/InternalChat.tsx:565 [jsx-text] `&nbsp;`
+
+## src/pages/InventoryManagement.tsx
+
+- src/pages/InventoryManagement.tsx:572 [t-call] `Enter a valid serial range. Start and end serials must share the same prefix and differ only in the last three digits.`
+- src/pages/InventoryManagement.tsx:653 [t-call] `Added serial range`
+- src/pages/InventoryManagement.tsx:653 [t-call] `for`
+- src/pages/InventoryManagement.tsx:802 [t-call] `Quick add failed`
+- src/pages/InventoryManagement.tsx:918 [t-call] `Quantity must be at least 1.`
+- src/pages/InventoryManagement.tsx:988 [t-call] `Inventory Management`
+- src/pages/InventoryManagement.tsx:989 [t-call] `Manage inventory structure, stock, and checkout with Customer-style visual parity`
+- src/pages/InventoryManagement.tsx:1064 [t-call] `Click "Add Category" to create your first category.`
+- src/pages/InventoryManagement.tsx:1140 [jsx-text] `Inventory`
+- src/pages/InventoryManagement.tsx:1180 [t-call] `Click "Add Subcategory" to create one.`
+- src/pages/InventoryManagement.tsx:1289 [jsx-text] `Inventory`
+- src/pages/InventoryManagement.tsx:1359 [t-call] `Click "Add Products" to add stock.`
+- src/pages/InventoryManagement.tsx:1439 [t-call] `Quantity`
+- src/pages/InventoryManagement.tsx:1440 [t-call] `By`
+- src/pages/InventoryManagement.tsx:1441 [t-call] `Date`
+- src/pages/InventoryManagement.tsx:1454 [t-call] `Checkout`
+- src/pages/InventoryManagement.tsx:1458 [t-call] `Quantity`
+- src/pages/InventoryManagement.tsx:1459 [t-call] `By`
+- src/pages/InventoryManagement.tsx:1460 [t-call] `Date`
+- src/pages/InventoryManagement.tsx:1639 [t-call] `Checkout`
+- src/pages/InventoryManagement.tsx:1669 [t-call] `Date`
+- src/pages/InventoryManagement.tsx:1678 [t-call] `Checkout`
+- src/pages/InventoryManagement.tsx:1683 [t-call] `Date`
+- src/pages/InventoryManagement.tsx:1718 [t-call] `Description`
+- src/pages/InventoryManagement.tsx:1744 [t-call] `Edit Subcategory`
+- src/pages/InventoryManagement.tsx:1762 [t-call] `Description`
+- src/pages/InventoryManagement.tsx:1779 [t-call] `Create Subcategory`
+- src/pages/InventoryManagement.tsx:1804 [t-call] `Click "Add Field" to add your first custom field.`
+- src/pages/InventoryManagement.tsx:1823 [t-call] `Number`
+- src/pages/InventoryManagement.tsx:1825 [t-call] `Date`
+- src/pages/InventoryManagement.tsx:1834 [t-call] `Required`
+- src/pages/InventoryManagement.tsx:1932 [t-call] `Product name`
+- src/pages/InventoryManagement.tsx:1936 [jsx-text] `Quantity to Add`
+- src/pages/InventoryManagement.tsx:1946 [t-call] `Quantity is automatically calculated from the serial range.`
+- src/pages/InventoryManagement.tsx:1947 [t-call] `You can add multiple units at once (e.g. 100).`
+- src/pages/InventoryManagement.tsx:1954 [t-call] `First Serial Number`
+- src/pages/InventoryManagement.tsx:1958 [t-call] `Optional serial or range start`
+- src/pages/InventoryManagement.tsx:1962 [t-call] `Last Serial Number`
+- src/pages/InventoryManagement.tsx:1966 [t-call] `Optional range end`
+- src/pages/InventoryManagement.tsx:1973 [t-call] `Barcode / QR`
+- src/pages/InventoryManagement.tsx:1982 [t-call] `Range rule`
+- src/pages/InventoryManagement.tsx:1984 [t-call] `If you enter both first and last serials, products will be created by incrementing the last three digits.`
+- src/pages/InventoryManagement.tsx:2008 [jsx-text] `— Select —`
+- src/pages/InventoryManagement.tsx:2009 [jsx-text] `Yes`
+- src/pages/InventoryManagement.tsx:2010 [jsx-text] `No`
+- src/pages/InventoryManagement.tsx:2030 [attr:placeholder] `Any additional notes…`
+- src/pages/InventoryManagement.tsx:2043 [jsx-text] `Scan or Enter Serial / Barcode`
+- src/pages/InventoryManagement.tsx:2044 [jsx-text] `Use a USB barcode scanner or type the code manually. Press Enter to add each item.`
+- src/pages/InventoryManagement.tsx:2052 [attr:placeholder] `Scan or type serial / barcode…`
+- src/pages/InventoryManagement.tsx:2071 [jsx-text] `item`
+- src/pages/InventoryManagement.tsx:2071 [jsx-text] `scanned — add a product name (optional):`
+- src/pages/InventoryManagement.tsx:2079 [attr:placeholder] `Product name (optional)`
+- src/pages/InventoryManagement.tsx:2088 [attr:title] `Remove`
+- src/pages/InventoryManagement.tsx:2113 [jsx-text] `Adding…`
+- src/pages/InventoryManagement.tsx:2114 [jsx-text] `Unit`
+- src/pages/InventoryManagement.tsx:2124 [jsx-text] `Processing…`
+- src/pages/InventoryManagement.tsx:2125 [jsx-text] `Scanned Item`
+- src/pages/InventoryManagement.tsx:2138 [jsx-text] `Are you sure you want to delete`
 
 ## src/pages/JobCards.tsx
 
-- src/pages/JobCards.tsx:964 [jsx-text] `Try adjusting your search terms or click "New Job Order" to create one`
-- src/pages/JobCards.tsx:3287 [jsx-text] `Click "Add Service" to add services to this job order`
+- src/pages/JobCards.tsx:1272 [t-call] `Receipt generation failed`
+- src/pages/JobCards.tsx:1288 [t-call] `Receipt generation failed`
+- src/pages/JobCards.tsx:1365 [t-call] `Loading job cards...`
+- src/pages/JobCards.tsx:1504 [t-call] `Saving services...`
+- src/pages/JobCards.tsx:1523 [t-call] `Add services failed`
+- src/pages/JobCards.tsx:1547 [t-call] `Cancel failed`
+- src/pages/JobCards.tsx:1548 [t-call] `Order not found in the current list. Please refresh and try again.`
+- src/pages/JobCards.tsx:1556 [t-call] `Already cancelled`
+- src/pages/JobCards.tsx:1557 [t-call] `Job Order`
+- src/pages/JobCards.tsx:1557 [t-call] `is already cancelled.`
+- src/pages/JobCards.tsx:1576 [t-call] `Cancel failed`
+- src/pages/JobCards.tsx:1726 [t-call] `Create job order failed`
+- src/pages/JobCards.tsx:1772 [t-call] `Order Created`
+- src/pages/JobCards.tsx:1773 [t-call] `Your action was successful`
+- src/pages/JobCards.tsx:1773 [t-call] `Your job order has been created successfully`
+- src/pages/JobCards.tsx:1784 [t-call] `Order Marked as Cancelled`
+- src/pages/JobCards.tsx:1789 [t-call] `Job Order ID`
+- src/pages/JobCards.tsx:1806 [t-call] `Successfully Created`
+- src/pages/JobCards.tsx:1811 [t-call] `Job Order ID`
+- src/pages/JobCards.tsx:1818 [t-call] `Your order has been added to the system and is ready for processing.`
+- src/pages/JobCards.tsx:1822 [t-call] `Print Receipt`
+- src/pages/JobCards.tsx:1838 [t-call] `Services Added`
+- src/pages/JobCards.tsx:1839 [t-call] `Services have been added to the job order`
+- src/pages/JobCards.tsx:1849 [t-call] `Services Added Successfully`
+- src/pages/JobCards.tsx:1855 [t-call] `Order ID`
+- src/pages/JobCards.tsx:1863 [t-call] `Invoice ID`
+- src/pages/JobCards.tsx:1882 [t-call] `Unknown error`
+- src/pages/JobCards.tsx:1942 [t-call] `Try adjusting your search terms or click "New Job Order" to create one`
+- src/pages/JobCards.tsx:2095 [t-call] `Elegant Glass`
+- src/pages/JobCards.tsx:2103 [t-call] `Search by any job order details`
+- src/pages/JobCards.tsx:2116 [t-call] `Add New Job Order`
+- src/pages/JobCards.tsx:2131 [t-call] `Loading job orders...`
+- src/pages/JobCards.tsx:2138 [t-call] `Filtered by:`
+- src/pages/JobCards.tsx:2270 [t-call] `Back to Job Cards`
+- src/pages/JobCards.tsx:2290 [t-call] `Print`
+- src/pages/JobCards.tsx:2366 [t-call] `Document`
+- src/pages/JobCards.tsx:2370 [t-call] `Generated`
+- src/pages/JobCards.tsx:2391 [t-call] `Print`
+- src/pages/JobCards.tsx:2642 [t-call] `Creating Job Order`
+- src/pages/JobCards.tsx:2649 [t-call] `Please wait while we process your order`
+- src/pages/JobCards.tsx:2845 [t-call] `Full Name`
+- src/pages/JobCards.tsx:2877 [t-call] `Select...`
+- src/pages/JobCards.tsx:2902 [t-call] `Platform`
+- src/pages/JobCards.tsx:2904 [t-call] `Select...`
+- src/pages/JobCards.tsx:2935 [t-call] `Save Customer`
+- src/pages/JobCards.tsx:3047 [t-call] `Platform`
+- src/pages/JobCards.tsx:3325 [t-call] `License Plate`
+- src/pages/JobCards.tsx:3392 [t-call] `License Plate`
+- src/pages/JobCards.tsx:3677 [t-call] `Select from previously completed services for this vehicle`
+- src/pages/JobCards.tsx:3682 [t-call] `Completed Job Orders for this Vehicle`
+- src/pages/JobCards.tsx:3706 [t-call] `Services from the selected completed order are included for free (QAR 0)`
+- src/pages/JobCards.tsx:3756 [jsx-text] `Specification required`
+- src/pages/JobCards.tsx:3762 [jsx-text] `Previously completed`
+- src/pages/JobCards.tsx:3765 [jsx-text] `QAR 0`
+- src/pages/JobCards.tsx:3775 [t-call] `Add Other Paid Services`
+- src/pages/JobCards.tsx:3975 [t-call] `Packages & Services:`
+- src/pages/JobCards.tsx:4150 [t-call] `Back to Job Order`
+- src/pages/JobCards.tsx:4155 [t-call] `Elegant Glass`
+- src/pages/JobCards.tsx:4275 [t-call] `Packages & Services:`
+- src/pages/JobCards.tsx:4692 [t-call] `Submit Order`
+- src/pages/JobCards.tsx:4797 [t-call] `Services Summary`
+- src/pages/JobCards.tsx:4848 [t-call] `Technician`
+- src/pages/JobCards.tsx:4859 [t-call] `Ended`
+- src/pages/JobCards.tsx:4864 [t-call] `Duration`
+- src/pages/JobCards.tsx:4884 [t-call] `Click "Add Service" to add services to this job order`
+- src/pages/JobCards.tsx:4896 [t-call] `Total Amount`
+- src/pages/JobCards.tsx:4898 [t-call] `Net Amount`
+- src/pages/JobCards.tsx:4975 [t-call] `Document`
+- src/pages/JobCards.tsx:4983 [t-call] `Generated`
+- src/pages/JobCards.tsx:4987 [t-call] `Action`
+- src/pages/JobCards.tsx:5037 [t-call] `Pass`
+- src/pages/JobCards.tsx:5040 [t-call] `Failed`
+- src/pages/JobCards.tsx:5043 [t-call] `Acceptable`
+- src/pages/JobCards.tsx:5077 [t-call] `Result`
+- src/pages/JobCards.tsx:5086 [t-call] `Technician`
+- src/pages/JobCards.tsx:5114 [t-call] `Expected Date`
+- src/pages/JobCards.tsx:5119 [t-call] `Expected Time`
+- src/pages/JobCards.tsx:5124 [t-call] `Estimated Duration`
+- src/pages/JobCards.tsx:5261 [t-call] `Step`
+
+## src/pages/JobOrderHistory.tsx
+
+- src/pages/JobOrderHistory.tsx:1653 [t-call] `History Details`
+- src/pages/JobOrderHistory.tsx:1704 [t-call] `Services Summary`
+
+## src/pages/PaymentInvoiceManagment.tsx
+
+- src/pages/PaymentInvoiceManagment.tsx:583 [jsx-text] `One-time Package Repair Completed`
+- src/pages/PaymentInvoiceManagment.tsx:584 [jsx-text] `Scanned`
+- src/pages/PaymentInvoiceManagment.tsx:585 [jsx-text] `records. Repaired`
+- src/pages/PaymentInvoiceManagment.tsx:585 [jsx-text] `. Failed`
+- src/pages/PaymentInvoiceManagment.tsx:1050 [t-call] `Loading payment details...`
+- src/pages/PaymentInvoiceManagment.tsx:1452 [t-call] `Saving payment...`
+- src/pages/PaymentInvoiceManagment.tsx:1538 [t-call] `Please enter a valid refund amount.`
+- src/pages/PaymentInvoiceManagment.tsx:1592 [t-call] `Refund could not be fully applied (insufficient payments).`
+
+## src/pages/PushNotifications.tsx
+
+- src/pages/PushNotifications.tsx:738 [t-call] `batches`
+- src/pages/PushNotifications.tsx:741 [t-call] `Max batch:`
+- src/pages/PushNotifications.tsx:883 [jsx-text] `📥`
+- src/pages/PushNotifications.tsx:884 [jsx-text] `📤`
+- src/pages/PushNotifications.tsx:885 [jsx-text] `📬`
+- src/pages/PushNotifications.tsx:929 [t-call] `Confirm SMS send`
+- src/pages/PushNotifications.tsx:931 [t-call] `Retry Failed SMS`
+- src/pages/PushNotifications.tsx:931 [t-call] `Confirm SMS Send`
+- src/pages/PushNotifications.tsx:937 [t-call] `recipient(s)`
+- src/pages/PushNotifications.tsx:949 [t-call] `Retry now`
+- src/pages/PushNotifications.tsx:949 [t-call] `Send now`
+
+## src/pages/QualityCheckModule.tsx
+
+- src/pages/QualityCheckModule.tsx:441 [t-call] `Job Order`
+- src/pages/QualityCheckModule.tsx:591 [t-call] `You don’t have permission to approve or reject Quality Check.`
+- src/pages/QualityCheckModule.tsx:775 [t-call] `Returned to Service Execution`
+- src/pages/QualityCheckModule.tsx:776 [t-call] `Returned to Service Execution`
+- src/pages/QualityCheckModule.tsx:822 [t-call] `quality check jobs`
+- src/pages/QualityCheckModule.tsx:1069 [t-call] `Quality Check Details`
+- src/pages/QualityCheckModule.tsx:1069 [t-call] `Job Order`
+- src/pages/QualityCheckModule.tsx:1115 [t-call] `Services Summary`
+- src/pages/QualityCheckModule.tsx:1169 [t-call] `Only completed services are shown`
+- src/pages/QualityCheckModule.tsx:1191 [t-call] `Pass`
+- src/pages/QualityCheckModule.tsx:1192 [t-call] `Failed`
+- src/pages/QualityCheckModule.tsx:1193 [t-call] `Acceptable`
+- src/pages/QualityCheckModule.tsx:1208 [t-call] `No completed services to evaluate`
+- src/pages/QualityCheckModule.tsx:1220 [t-call] `Finish`
+- src/pages/QualityCheckModule.tsx:1283 [t-call] `Quality Check Evaluation Complete. Please select an action:`
+- src/pages/QualityCheckModule.tsx:1284 [t-call] `Approve Quality Check`
+- src/pages/QualityCheckModule.tsx:1289 [t-call] `Approving quality check...`
+- src/pages/QualityCheckModule.tsx:1291 [t-call] `Rejecting quality check...`
+- src/pages/QualityCheckModule.tsx:1292 [t-call] `Processing...`
+- src/pages/QualityCheckModule.tsx:1315 [t-call] `Reject Quality Check`
+
+## src/pages/QuotationPage.tsx
+
+- src/pages/QuotationPage.tsx:628 [t-call] `Loading quotation services...`
+- src/pages/QuotationPage.tsx:1123 [t-call] `Failed to open quotation from history.`
+- src/pages/QuotationPage.tsx:1140 [t-call] `Failed to download quotation from history.`
+- src/pages/QuotationPage.tsx:1145 [t-call] `Delete this quotation history entry?`
+- src/pages/QuotationPage.tsx:1151 [t-call] `Quotation history entry deleted.`
+- src/pages/QuotationPage.tsx:1154 [t-call] `Failed to delete quotation history entry.`
+- src/pages/QuotationPage.tsx:1533 [t-call] `Quotation generated but history record failed to save.`
+- src/pages/QuotationPage.tsx:1539 [t-call] `Quotation generated but history record failed to save.`
+- src/pages/QuotationPage.tsx:1585 [t-call] `View Quotation History`
+- src/pages/QuotationPage.tsx:1611 [t-call] `Quotation History`
+- src/pages/QuotationPage.tsx:1620 [t-call] `Search quotations...`
+- src/pages/QuotationPage.tsx:1629 [t-call] `Date from`
+- src/pages/QuotationPage.tsx:1636 [t-call] `Date to`
+- src/pages/QuotationPage.tsx:1640 [t-call] `Loading quotation history...`
+- src/pages/QuotationPage.tsx:1642 [t-call] `No quotations found yet.`
+- src/pages/QuotationPage.tsx:1668 [t-call] `Click to open quotation`
+- src/pages/QuotationPage.tsx:1852 [t-call] `Service Category`
+- src/pages/QuotationPage.tsx:1861 [t-call] `Search Services`
+- src/pages/QuotationPage.tsx:1867 [t-call] `Type service name or code`
+- src/pages/QuotationPage.tsx:1875 [t-call] `Clear search`
+- src/pages/QuotationPage.tsx:1876 [t-call] `Clear search`
+- src/pages/QuotationPage.tsx:1886 [t-call] `No services match this filter/search.`
+- src/pages/QuotationPage.tsx:1917 [t-call] `Discount Amount`
+- src/pages/QuotationPage.tsx:1955 [t-call] `Service / Package`
+- src/pages/QuotationPage.tsx:1963 [t-call] `Included services are listed below without prices.`
+- src/pages/QuotationPage.tsx:1988 [t-call] `Generating PDF…`
 
 ## src/pages/RolesPoliciesAdmin.tsx
 
-- src/pages/RolesPoliciesAdmin.tsx:1171 [jsx-text] `Role Access Control`
-- src/pages/RolesPoliciesAdmin.tsx:1172 [jsx-text] `Manage option-level permissions stored in backend (RoleOptionToggle / RoleOptionNumber)`
-- src/pages/RolesPoliciesAdmin.tsx:1179 [jsx-text] `Select Role to Modify:`
-- src/pages/RolesPoliciesAdmin.tsx:1195 [jsx-text] `Currently editing:`
-- src/pages/RolesPoliciesAdmin.tsx:1205 [attr:placeholder] `Search permissions... (discount, view details, create, cancel...)`
-- src/pages/RolesPoliciesAdmin.tsx:1258 [jsx-text] `Enable/Disable`
-- src/pages/RolesPoliciesAdmin.tsx:1294 [jsx-text] `Reset (delete backend rows)`
-- src/pages/RolesPoliciesAdmin.tsx:1306 [jsx-text] `Saving changes... (`
-- src/pages/RolesPoliciesAdmin.tsx:1349 [jsx-text] `Create New Role`
-- src/pages/RolesPoliciesAdmin.tsx:1367 [jsx-text] `Role Name *`
-- src/pages/RolesPoliciesAdmin.tsx:1370 [attr:placeholder] `e.g. Cashier`
-- src/pages/RolesPoliciesAdmin.tsx:1384 [jsx-text] `Description`
+- src/pages/RolesPoliciesAdmin.tsx:756 [t-call] `Create New Role`
+- src/pages/RolesPoliciesAdmin.tsx:1313 [t-call] `Policies saved successfully`
+- src/pages/RolesPoliciesAdmin.tsx:1462 [jsx-text] `Roles:`
+- src/pages/RolesPoliciesAdmin.tsx:1463 [jsx-text] `Modules:`
+- src/pages/RolesPoliciesAdmin.tsx:1464 [jsx-text] `Active:`
+- src/pages/RolesPoliciesAdmin.tsx:1498 [jsx-text] `modules ·`
+- src/pages/RolesPoliciesAdmin.tsx:1498 [jsx-text] `options`
+- src/pages/RolesPoliciesAdmin.tsx:1532 [jsx-text] `options`
+- src/pages/RolesPoliciesAdmin.tsx:1576 [t-call] `Resetting changes...`
+- src/pages/RolesPoliciesAdmin.tsx:1581 [t-call] `Saving role policies...`
+- src/pages/RolesPoliciesAdmin.tsx:1611 [t-call] `Create New Role`
+- src/pages/RolesPoliciesAdmin.tsx:1640 [t-call] `Creating role...`
 
-## src/pages/ServiceApprovalHistory.tsx
+## src/pages/ScheduledReportsPage.tsx
 
-- src/pages/ServiceApprovalHistory.tsx:473 [jsx-text] `Pending`
+- src/pages/ScheduledReportsPage.tsx:353 [t-call] `Only admins can run the processor manually.`
+- src/pages/ScheduledReportsPage.tsx:358 [t-call] `Manual trigger is not available yet. Please deploy backend changes.`
+- src/pages/ScheduledReportsPage.tsx:377 [t-call] `Processor run completed.`
+- src/pages/ScheduledReportsPage.tsx:377 [t-call] `Due`
+- src/pages/ScheduledReportsPage.tsx:377 [t-call] `Failed`
+- src/pages/ScheduledReportsPage.tsx:377 [t-call] `Errors`
+- src/pages/ScheduledReportsPage.tsx:382 [t-call] `Failed to run processor manually.`
+- src/pages/ScheduledReportsPage.tsx:531 [t-call] `Scheduled Report`
+- src/pages/ScheduledReportsPage.tsx:535 [t-call] `Generated at`
+- src/pages/ScheduledReportsPage.tsx:729 [t-call] `You do not have access to view this page.`
+- src/pages/ScheduledReportsPage.tsx:746 [t-call] `Reports & Delivery`
+- src/pages/ScheduledReportsPage.tsx:747 [t-call] `Build a report, keep the filters simple, and send it by email on a schedule.`
+- src/pages/ScheduledReportsPage.tsx:752 [t-call] `Scheduled`
+- src/pages/ScheduledReportsPage.tsx:759 [t-call] `Manage report filters, exports, and scheduled email delivery in one place.`
+- src/pages/ScheduledReportsPage.tsx:765 [t-call] `Start with the model, then use the optional filters if you need to narrow the report further.`
+- src/pages/ScheduledReportsPage.tsx:821 [t-call] `Advanced filters`
+- src/pages/ScheduledReportsPage.tsx:822 [t-call] `Use these only when the simple search and date range are not enough.`
+- src/pages/ScheduledReportsPage.tsx:870 [t-call] `Choose columns`
+- src/pages/ScheduledReportsPage.tsx:873 [t-call] `Search columns`
+- src/pages/ScheduledReportsPage.tsx:877 [t-call] `Type to filter columns`
+- src/pages/ScheduledReportsPage.tsx:881 [t-call] `Clear visible`
+- src/pages/ScheduledReportsPage.tsx:881 [t-call] `Select all visible`
+- src/pages/ScheduledReportsPage.tsx:905 [t-call] `No columns match your search.`
+- src/pages/ScheduledReportsPage.tsx:912 [t-call] `Generate PDF`
+- src/pages/ScheduledReportsPage.tsx:919 [t-call] `The sender must be a verified SES identity in eu-west-1.`
+- src/pages/ScheduledReportsPage.tsx:926 [t-call] `Sender Email`
+- src/pages/ScheduledReportsPage.tsx:927 [t-call] `Verified SES identity`
+- src/pages/ScheduledReportsPage.tsx:930 [t-call] `Recipient Email`
+- src/pages/ScheduledReportsPage.tsx:941 [t-call] `Format`
+- src/pages/ScheduledReportsPage.tsx:944 [jsx-text] `Excel`
+- src/pages/ScheduledReportsPage.tsx:948 [t-call] `Days of Week`
+- src/pages/ScheduledReportsPage.tsx:1017 [t-call] `Last manual run at`
+- src/pages/ScheduledReportsPage.tsx:1018 [t-call] `Last manual run at`
+- src/pages/ScheduledReportsPage.tsx:1027 [t-call] `Run scheduled processor once now`
+- src/pages/ScheduledReportsPage.tsx:1029 [t-call] `Running...`
+- src/pages/ScheduledReportsPage.tsx:1029 [t-call] `Run Processor Now`
+- src/pages/ScheduledReportsPage.tsx:1040 [t-call] `Format`
+- src/pages/ScheduledReportsPage.tsx:1041 [t-call] `Days`
+- src/pages/ScheduledReportsPage.tsx:1046 [t-call] `Action`
+- src/pages/ScheduledReportsPage.tsx:1058 [t-call] `Format`
+- src/pages/ScheduledReportsPage.tsx:1059 [t-call] `Days`
+- src/pages/ScheduledReportsPage.tsx:1064 [t-call] `Action`
 
 ## src/pages/ServiceCreation.tsx
 
-- src/pages/ServiceCreation.tsx:237 [attr:placeholder] `Search by code, name, type or price (supports !term and field:value)`
-- src/pages/ServiceCreation.tsx:244 [jsx-text] `10 / page`
-- src/pages/ServiceCreation.tsx:245 [jsx-text] `20 / page`
-- src/pages/ServiceCreation.tsx:246 [jsx-text] `50 / page`
-- src/pages/ServiceCreation.tsx:284 [jsx-text] `Name`
-- src/pages/ServiceCreation.tsx:372 [jsx-text] `Service ID *`
-- src/pages/ServiceCreation.tsx:373 [attr:placeholder] `SVC001 / PKG001`
-- src/pages/ServiceCreation.tsx:377 [jsx-text] `Name *`
-- src/pages/ServiceCreation.tsx:378 [attr:placeholder] `Service or package name`
-- src/pages/ServiceCreation.tsx:382 [jsx-text] `SUV Price *`
-- src/pages/ServiceCreation.tsx:387 [jsx-text] `Sedan Price *`
-- src/pages/ServiceCreation.tsx:394 [jsx-text] `Select Services for Package *`
-- src/pages/ServiceCreation.tsx:442 [jsx-text] `Service ID:`
-- src/pages/ServiceCreation.tsx:445 [jsx-text] `SUV Price:`
-- src/pages/ServiceCreation.tsx:446 [jsx-text] `Sedan Price:`
+- src/pages/ServiceCreation.tsx:313 [t-call] `Failed to load service data`
+- src/pages/ServiceCreation.tsx:504 [t-call] `English category name is required.`
+- src/pages/ServiceCreation.tsx:505 [t-call] `Arabic category name is required.`
+- src/pages/ServiceCreation.tsx:510 [t-call] `Please select a category.`
+- src/pages/ServiceCreation.tsx:511 [t-call] `Service ID is required.`
+- src/pages/ServiceCreation.tsx:512 [t-call] `English service name is required.`
+- src/pages/ServiceCreation.tsx:513 [t-call] `Arabic service name is required.`
+- src/pages/ServiceCreation.tsx:514 [t-call] `SUV price is required and must be valid.`
+- src/pages/ServiceCreation.tsx:515 [t-call] `Sedan price is required and must be valid.`
+- src/pages/ServiceCreation.tsx:520 [t-call] `Package ID is required.`
+- src/pages/ServiceCreation.tsx:521 [t-call] `English package name is required.`
+- src/pages/ServiceCreation.tsx:522 [t-call] `Arabic package name is required.`
+- src/pages/ServiceCreation.tsx:523 [t-call] `SUV price is required and must be valid.`
+- src/pages/ServiceCreation.tsx:524 [t-call] `Sedan price is required and must be valid.`
+- src/pages/ServiceCreation.tsx:525 [t-call] `Please include at least one service in the package.`
+- src/pages/ServiceCreation.tsx:551 [t-call] `Category Updated`
+- src/pages/ServiceCreation.tsx:556 [t-call] `Category Created`
+- src/pages/ServiceCreation.tsx:579 [t-call] `Selected category does not exist.`
+- src/pages/ServiceCreation.tsx:637 [t-call] `Service Updated`
+- src/pages/ServiceCreation.tsx:642 [t-call] `Service Created Successfully`
+- src/pages/ServiceCreation.tsx:643 [t-call] `The service has been added to the catalog.`
+- src/pages/ServiceCreation.tsx:692 [t-call] `Package Updated`
+- src/pages/ServiceCreation.tsx:697 [t-call] `Package Created Successfully`
+- src/pages/ServiceCreation.tsx:698 [t-call] `The package has been added to the catalog.`
+- src/pages/ServiceCreation.tsx:720 [t-call] `Cannot delete category that still has services. Move or delete services first.`
+- src/pages/ServiceCreation.tsx:733 [t-call] `Cannot delete a brand specification that is still assigned to services.`
+- src/pages/ServiceCreation.tsx:767 [t-call] `Brand name is required.`
+- src/pages/ServiceCreation.tsx:771 [t-call] `Brand must include at least one product.`
+- src/pages/ServiceCreation.tsx:779 [t-call] `Each product must include at least one measurement.`
+- src/pages/ServiceCreation.tsx:806 [t-call] `Specification Updated`
+- src/pages/ServiceCreation.tsx:806 [t-call] `Specification Created Successfully`
+- src/pages/ServiceCreation.tsx:822 [t-call] `Sedan:`
+- src/pages/ServiceCreation.tsx:823 [t-call] `Hatchback:`
+- src/pages/ServiceCreation.tsx:824 [t-call] `Truck:`
+- src/pages/ServiceCreation.tsx:825 [t-call] `Coupe:`
+- src/pages/ServiceCreation.tsx:826 [t-call] `Other:`
+- src/pages/ServiceCreation.tsx:847 [t-call] `Loading service catalog...`
+- src/pages/ServiceCreation.tsx:872 [t-call] `Services by Category`
+- src/pages/ServiceCreation.tsx:888 [t-call] `Categories`
+- src/pages/ServiceCreation.tsx:889 [t-call] `Total Services`
+- src/pages/ServiceCreation.tsx:890 [t-call] `Avg Services/Cat`
+- src/pages/ServiceCreation.tsx:893 [t-call] `Loading services...`
+- src/pages/ServiceCreation.tsx:894 [t-call] `No service categories found.`
+- src/pages/ServiceCreation.tsx:978 [t-call] `Service Packages`
+- src/pages/ServiceCreation.tsx:981 [t-call] `Add Package`
+- src/pages/ServiceCreation.tsx:987 [t-call] `Total Packages`
+- src/pages/ServiceCreation.tsx:988 [t-call] `Avg SUV Price`
+- src/pages/ServiceCreation.tsx:989 [t-call] `Avg Sedan Price`
+- src/pages/ServiceCreation.tsx:992 [t-call] `Loading packages...`
+- src/pages/ServiceCreation.tsx:993 [t-call] `No packages found.`
+- src/pages/ServiceCreation.tsx:1037 [t-call] `Brand & Product Specifications`
+- src/pages/ServiceCreation.tsx:1040 [t-call] `Add New Brand`
+- src/pages/ServiceCreation.tsx:1046 [t-call] `Brands`
+- src/pages/ServiceCreation.tsx:1047 [t-call] `Services with Specs`
+- src/pages/ServiceCreation.tsx:1050 [t-call] `Loading specifications...`
+- src/pages/ServiceCreation.tsx:1051 [t-call] `No brand specifications available yet.`
+- src/pages/ServiceCreation.tsx:1075 [t-call] `Products & Sizes`
+- src/pages/ServiceCreation.tsx:1094 [t-call] `No products configured for this brand yet.`
+- src/pages/ServiceCreation.tsx:1114 [t-call] `English Name *`
+- src/pages/ServiceCreation.tsx:1122 [t-call] `English Description`
+- src/pages/ServiceCreation.tsx:1143 [t-call] `Service Category *`
+- src/pages/ServiceCreation.tsx:1156 [t-call] `Service ID *`
+- src/pages/ServiceCreation.tsx:1158 [t-call] `Auto-generated if left empty`
+- src/pages/ServiceCreation.tsx:1162 [t-call] `Brand Specifications`
+- src/pages/ServiceCreation.tsx:1164 [t-call] `No brand specifications available.`
+- src/pages/ServiceCreation.tsx:1194 [t-call] `English Name *`
+- src/pages/ServiceCreation.tsx:1202 [t-call] `English Description`
+- src/pages/ServiceCreation.tsx:1211 [t-call] `Pricing by Vehicle Type`
+- src/pages/ServiceCreation.tsx:1213 [t-call] `SUV Price (QAR) *`
+- src/pages/ServiceCreation.tsx:1214 [t-call] `Sedan Price (QAR) *`
+- src/pages/ServiceCreation.tsx:1215 [t-call] `Hatchback Price (QAR)`
+- src/pages/ServiceCreation.tsx:1216 [t-call] `Truck Price (QAR)`
+- src/pages/ServiceCreation.tsx:1217 [t-call] `Coupe Price (QAR)`
+- src/pages/ServiceCreation.tsx:1218 [t-call] `Other Price (QAR)`
+- src/pages/ServiceCreation.tsx:1233 [t-call] `English Name *`
+- src/pages/ServiceCreation.tsx:1241 [t-call] `English Description`
+- src/pages/ServiceCreation.tsx:1252 [t-call] `Package ID *`
+- src/pages/ServiceCreation.tsx:1257 [t-call] `Package Pricing`
+- src/pages/ServiceCreation.tsx:1259 [t-call] `SUV Price (QAR) *`
+- src/pages/ServiceCreation.tsx:1260 [t-call] `Sedan Price (QAR) *`
+- src/pages/ServiceCreation.tsx:1261 [t-call] `Hatchback Price (QAR)`
+- src/pages/ServiceCreation.tsx:1262 [t-call] `Truck Price (QAR)`
+- src/pages/ServiceCreation.tsx:1263 [t-call] `Coupe Price (QAR)`
+- src/pages/ServiceCreation.tsx:1264 [t-call] `Other Price (QAR)`
+- src/pages/ServiceCreation.tsx:1267 [t-call] `Select Services to Include *`
+- src/pages/ServiceCreation.tsx:1287 [jsx-text] `(SUV:`
+- src/pages/ServiceCreation.tsx:1287 [jsx-text] `\| Sedan:`
+- src/pages/ServiceCreation.tsx:1307 [t-call] `Brand Name`
+- src/pages/ServiceCreation.tsx:1311 [t-call] `Brand Color`
+- src/pages/ServiceCreation.tsx:1323 [t-call] `Products & Measurements`
+- src/pages/ServiceCreation.tsx:1363 [t-call] `Product Name (e.g., Ceramic Coating)`
+- src/pages/ServiceCreation.tsx:1383 [t-call] `Remove`
+- src/pages/ServiceCreation.tsx:1413 [t-call] `Standard`
+- src/pages/ServiceCreation.tsx:1413 [t-call] `Size/Measure`
+- src/pages/ServiceCreation.tsx:1440 [t-call] `Remove`
+- src/pages/ServiceCreation.tsx:1466 [t-call] `Add Size/Measure`
+- src/pages/ServiceCreation.tsx:1479 [t-call] `Saving category...`
+- src/pages/ServiceCreation.tsx:1479 [t-call] `Update Category`
+- src/pages/ServiceCreation.tsx:1480 [t-call] `Saving service...`
+- src/pages/ServiceCreation.tsx:1480 [t-call] `Update Service`
+- src/pages/ServiceCreation.tsx:1481 [t-call] `Saving package...`
+- src/pages/ServiceCreation.tsx:1481 [t-call] `Update Package`
+- src/pages/ServiceCreation.tsx:1481 [t-call] `Add Package`
+- src/pages/ServiceCreation.tsx:1484 [t-call] `Saving specification brands...`
+- src/pages/ServiceCreation.tsx:1484 [t-call] `Save Brand`
+- src/pages/ServiceCreation.tsx:1530 [t-call] `Deleting item...`
+- src/pages/ServiceCreation.tsx:1531 [t-call] `Deleting...`
 
 ## src/pages/ServiceExecutionModule.tsx
 
-- src/pages/ServiceExecutionModule.tsx:1203 [jsx-text] `Services & Work Management`
-- src/pages/ServiceExecutionModule.tsx:1210 [jsx-text] `Assign to me (`
-- src/pages/ServiceExecutionModule.tsx:1214 [jsx-text] `Unassigned tasks (`
-- src/pages/ServiceExecutionModule.tsx:1219 [jsx-text] `Team tasks (`
-- src/pages/ServiceExecutionModule.tsx:1229 [attr:placeholder] `Search by Job ID, Customer, Plate...`
-- src/pages/ServiceExecutionModule.tsx:1273 [jsx-text] `Assigned Service`
-- src/pages/ServiceExecutionModule.tsx:1395 [jsx-text] `Service Management System © 2023 \| Service Execution Module`
+- src/pages/ServiceExecutionModule.tsx:1070 [t-call] `Loading service details...`
+- src/pages/ServiceExecutionModule.tsx:1118 [t-call] `Save failed:`
+- src/pages/ServiceExecutionModule.tsx:1223 [t-call] `Saving services...`
+- src/pages/ServiceExecutionModule.tsx:1226 [t-call] `Added successfully`
+- src/pages/ServiceExecutionModule.tsx:1277 [t-call] `Work finished! Status changed to Quality Check.`
+- src/pages/ServiceExecutionModule.tsx:1320 [t-call] `History Details`
+- src/pages/ServiceExecutionModule.tsx:1413 [t-call] `Unassigned tasks`
+- src/pages/ServiceExecutionModule.tsx:1413 [t-call] `Team tasks`
+- src/pages/ServiceExecutionModule.tsx:1413 [t-call] `Assigned to me`
+- src/pages/ServiceExecutionModule.tsx:1427 [t-call] `Services & Work Management`
+- src/pages/ServiceExecutionModule.tsx:1429 [t-call] `Track assignments, execution progress, and service operations in one place.`
+- src/pages/ServiceExecutionModule.tsx:1438 [t-call] `Search by Job ID, Customer, Plate...`
+- src/pages/ServiceExecutionModule.tsx:1448 [t-call] `Assign to me`
+- src/pages/ServiceExecutionModule.tsx:1452 [t-call] `Unassigned tasks`
+- src/pages/ServiceExecutionModule.tsx:1457 [t-call] `Team tasks`
+- src/pages/ServiceExecutionModule.tsx:1484 [t-call] `No tasks in this view`
+- src/pages/ServiceExecutionModule.tsx:1498 [t-call] `Assigned Service`
+- src/pages/ServiceExecutionModule.tsx:1507 [t-call] `No active services`
 
 ## src/pages/ServiceSummaryCard.tsx
 
-- src/pages/ServiceSummaryCard.tsx:152 [jsx-text] `Service Summary crashed`
-- src/pages/ServiceSummaryCard.tsx:154 [jsx-text] `Open DevTools Console to see the full stack.`
-- src/pages/ServiceSummaryCard.tsx:396 [jsx-text] `Start time`
-- src/pages/ServiceSummaryCard.tsx:400 [jsx-text] `End time`
-- src/pages/ServiceSummaryCard.tsx:410 [jsx-text] `Assigned to`
-- src/pages/ServiceSummaryCard.tsx:420 [jsx-text] `Assigned to`
-- src/pages/ServiceSummaryCard.tsx:423 [jsx-text] `— assign —`
-- src/pages/ServiceSummaryCard.tsx:434 [jsx-text] `Technicians`
-- src/pages/ServiceSummaryCard.tsx:462 [jsx-text] `Service work status`
-- src/pages/ServiceSummaryCard.tsx:464 [jsx-text] `Pending`
-- src/pages/ServiceSummaryCard.tsx:465 [jsx-text] `Service_Operation`
-- src/pages/ServiceSummaryCard.tsx:466 [jsx-text] `Postponed`
-- src/pages/ServiceSummaryCard.tsx:477 [jsx-text] `Assigned Technicians`
-- src/pages/ServiceSummaryCard.tsx:487 [jsx-text] `No technicians assigned`
-- src/pages/ServiceSummaryCard.tsx:721 [jsx-text] `Finish Work`
-- src/pages/ServiceSummaryCard.tsx:727 [jsx-text] `Add service`
-- src/pages/ServiceSummaryCard.tsx:796 [jsx-text] `No services assigned yet`
-- src/pages/ServiceSummaryCard.tsx:804 [jsx-text] `Saved successfully`
-- src/pages/ServiceSummaryCard.tsx:838 [jsx-text] `Service name`
-- src/pages/ServiceSummaryCard.tsx:839 [attr:placeholder] `e.g. Wheel Protection`
-- src/pages/ServiceSummaryCard.tsx:844 [jsx-text] `Price (QAR)`
+- src/pages/ServiceSummaryCard.tsx:194 [jsx-text] `Service Summary crashed`
+- src/pages/ServiceSummaryCard.tsx:196 [jsx-text] `Open DevTools Console to see the full stack.`
+- src/pages/ServiceSummaryCard.tsx:643 [jsx-text] `Start time`
+- src/pages/ServiceSummaryCard.tsx:647 [jsx-text] `End time`
+- src/pages/ServiceSummaryCard.tsx:657 [jsx-text] `Assigned to`
+- src/pages/ServiceSummaryCard.tsx:691 [jsx-text] `Assigned to`
+- src/pages/ServiceSummaryCard.tsx:694 [jsx-text] `— assign —`
+- src/pages/ServiceSummaryCard.tsx:705 [jsx-text] `Technicians`
+- src/pages/ServiceSummaryCard.tsx:730 [jsx-text] `Service responsibilities`
+- src/pages/ServiceSummaryCard.tsx:732 [jsx-text] `No services found in Service Technicians page.`
+- src/pages/ServiceSummaryCard.tsx:762 [jsx-text] `Service work status`
+- src/pages/ServiceSummaryCard.tsx:765 [jsx-text] `Service_Operation`
+- src/pages/ServiceSummaryCard.tsx:766 [jsx-text] `Postponed`
+- src/pages/ServiceSummaryCard.tsx:777 [attr:placeholder] `Enter notes for this service`
+- src/pages/ServiceSummaryCard.tsx:784 [jsx-text] `Upload images`
+- src/pages/ServiceSummaryCard.tsx:811 [jsx-text] `Clear selection`
+- src/pages/ServiceSummaryCard.tsx:818 [jsx-text] `Selected:`
+- src/pages/ServiceSummaryCard.tsx:823 [jsx-text] `Max`
+- src/pages/ServiceSummaryCard.tsx:824 [jsx-text] `images per service, up to`
+- src/pages/ServiceSummaryCard.tsx:824 [jsx-text] `MB each.`
+- src/pages/ServiceSummaryCard.tsx:836 [attr:title] `Open image`
+- src/pages/ServiceSummaryCard.tsx:864 [jsx-text] `Remove`
+- src/pages/ServiceSummaryCard.tsx:872 [jsx-text] `No images uploaded.`
+- src/pages/ServiceSummaryCard.tsx:881 [jsx-text] `Assigned Technicians`
+- src/pages/ServiceSummaryCard.tsx:899 [jsx-text] `No technicians assigned`
+- src/pages/ServiceSummaryCard.tsx:1174 [jsx-text] `Add service`
+- src/pages/ServiceSummaryCard.tsx:1245 [jsx-text] `No services assigned yet`
+- src/pages/ServiceSummaryCard.tsx:1269 [jsx-text] `Saved successfully`
+- src/pages/ServiceSummaryCard.tsx:1367 [jsx-text] `No services match the selected filters.`
+- src/pages/ServiceSummaryCard.tsx:1370 [jsx-text] `Service name`
+- src/pages/ServiceSummaryCard.tsx:1371 [attr:placeholder] `e.g. Wheel Protection`
+- src/pages/ServiceSummaryCard.tsx:1376 [jsx-text] `Price (QAR)`
+
+## src/pages/ServiceTechnicians.tsx
+
+- src/pages/ServiceTechnicians.tsx:55 [t-call] `You don't have access to this page.`
+- src/pages/ServiceTechnicians.tsx:128 [t-call] `You have unsaved changes. Switch rows and discard current edits?`
+- src/pages/ServiceTechnicians.tsx:184 [t-call] `Service Technicians`
+- src/pages/ServiceTechnicians.tsx:194 [t-call] `Search services`
+- src/pages/ServiceTechnicians.tsx:218 [t-call] `Add Service Technicians`
+- src/pages/ServiceTechnicians.tsx:227 [t-call] `Create and manage technician service capabilities in Arabic and English.`
+- src/pages/ServiceTechnicians.tsx:234 [t-call] `Unsaved changes`
+- src/pages/ServiceTechnicians.tsx:255 [t-call] `Service Name (English)`
+- src/pages/ServiceTechnicians.tsx:256 [t-call] `Service Name (Arabic)`
+- src/pages/ServiceTechnicians.tsx:264 [t-call] `No service technicians found.`
+- src/pages/ServiceTechnicians.tsx:390 [t-call] `Add Service Technicians`
+- src/pages/ServiceTechnicians.tsx:405 [t-call] `Enter service ID`
+- src/pages/ServiceTechnicians.tsx:409 [t-call] `Service Name (English)`
+- src/pages/ServiceTechnicians.tsx:410 [t-call] `Enter service name in English`
+- src/pages/ServiceTechnicians.tsx:414 [t-call] `Service Name (Arabic)`
+- src/pages/ServiceTechnicians.tsx:415 [t-call] `Enter service name in Arabic`
+- src/pages/ServiceTechnicians.tsx:420 [t-call] `Enter service description`
+- src/pages/ServiceTechnicians.tsx:434 [t-call] `Create Service`
 
 ## src/pages/SetPassword.tsx
 
-- src/pages/SetPassword.tsx:116 [jsx-text] `Set your password`
-- src/pages/SetPassword.tsx:129 [jsx-text] `First-time setup (temp password)`
-- src/pages/SetPassword.tsx:143 [jsx-text] `Reset password (code)`
-- src/pages/SetPassword.tsx:150 [jsx-text] `Username`
-- src/pages/SetPassword.tsx:159 [jsx-text] `Temporary password (from email)`
-- src/pages/SetPassword.tsx:168 [jsx-text] `New password`
-- src/pages/SetPassword.tsx:178 [jsx-text] `Confirm new password`
-- src/pages/SetPassword.tsx:190 [jsx-text] `Email / Username`
-- src/pages/SetPassword.tsx:215 [jsx-text] `Send reset code`
-- src/pages/SetPassword.tsx:220 [jsx-text] `Verification code`
-- src/pages/SetPassword.tsx:229 [jsx-text] `New password`
-- src/pages/SetPassword.tsx:239 [jsx-text] `Confirm new password`
+- src/pages/SetPassword.tsx:120 [jsx-text] `Set your password`
+- src/pages/SetPassword.tsx:133 [jsx-text] `First-time setup (temp password)`
+- src/pages/SetPassword.tsx:147 [jsx-text] `Reset password (code)`
+- src/pages/SetPassword.tsx:154 [jsx-text] `Username`
+- src/pages/SetPassword.tsx:163 [jsx-text] `Temporary password (from email)`
+- src/pages/SetPassword.tsx:172 [jsx-text] `New password`
+- src/pages/SetPassword.tsx:182 [jsx-text] `Confirm new password`
+- src/pages/SetPassword.tsx:194 [jsx-text] `Email / Username`
+- src/pages/SetPassword.tsx:219 [jsx-text] `Send reset code`
+- src/pages/SetPassword.tsx:224 [jsx-text] `Verification code`
+- src/pages/SetPassword.tsx:233 [jsx-text] `New password`
+- src/pages/SetPassword.tsx:243 [jsx-text] `Confirm new password`
 
 ## src/pages/Tickets.tsx
 
-- src/pages/Tickets.tsx:149 [jsx-text] `Support Tickets`
-- src/pages/Tickets.tsx:160 [jsx-text] `Create ticket`
-- src/pages/Tickets.tsx:226 [jsx-text] `No tickets yet.`
+- src/pages/Tickets.tsx:83 [t-call] `Loading tickets...`
+- src/pages/Tickets.tsx:155 [t-call] `Customer is required.`
+- src/pages/Tickets.tsx:169 [t-call] `Ticket created successfully.`
+- src/pages/Tickets.tsx:203 [t-call] `Customer is required.`
+- src/pages/Tickets.tsx:217 [t-call] `Ticket updated successfully.`
+- src/pages/Tickets.tsx:220 [t-call] `Failed to update ticket.`
+- src/pages/Tickets.tsx:233 [t-call] `Ticket deleted successfully.`
+- src/pages/Tickets.tsx:253 [t-call] `Ticket Management`
+- src/pages/Tickets.tsx:254 [t-call] `Manage customer support tickets, ownership, priorities, and lifecycle status.`
+- src/pages/Tickets.tsx:263 [t-call] `Total Tickets`
+- src/pages/Tickets.tsx:264 [t-call] `Open`
+- src/pages/Tickets.tsx:265 [t-call] `In Progress`
+- src/pages/Tickets.tsx:266 [t-call] `Resolved / Closed`
+- src/pages/Tickets.tsx:279 [t-call] `Create Ticket`
+- src/pages/Tickets.tsx:280 [t-call] `Use this form to register a new customer support case.`
+- src/pages/Tickets.tsx:287 [t-call] `Select customer`
+- src/pages/Tickets.tsx:296 [t-call] `Technician or owner`
+- src/pages/Tickets.tsx:301 [t-call] `Short summary of the issue`
+- src/pages/Tickets.tsx:312 [t-call] `Priority`
+- src/pages/Tickets.tsx:319 [t-call] `Description`
+- src/pages/Tickets.tsx:320 [t-call] `Describe the customer issue, expected action, and context`
+- src/pages/Tickets.tsx:325 [t-call] `Create Ticket`
+- src/pages/Tickets.tsx:333 [t-call] `Ticket Records`
+- src/pages/Tickets.tsx:335 [t-call] `Search tickets...`
+- src/pages/Tickets.tsx:337 [t-call] `All statuses`
+- src/pages/Tickets.tsx:348 [t-call] `Loading tickets...`
+- src/pages/Tickets.tsx:348 [t-call] `No tickets found.`
+- src/pages/Tickets.tsx:361 [t-call] `Select customer`
+- src/pages/Tickets.tsx:382 [t-call] `Priority`
+- src/pages/Tickets.tsx:388 [t-call] `Description`
+- src/pages/Tickets.tsx:417 [t-call] `No description provided.`
 
 ## src/pages/UserAdmin.tsx
 
-- src/pages/UserAdmin.tsx:1103 [jsx-text] `🗑`
-- src/pages/UserAdmin.tsx:1216 [jsx-text] `Department`
-- src/pages/UserAdmin.tsx:1243 [jsx-text] `Role`
-- src/pages/UserAdmin.tsx:1352 [jsx-text] `Reset Password`
-- src/pages/UserAdmin.tsx:1479 [jsx-text] `Department`
-- src/pages/UserAdmin.tsx:1480 [jsx-text] `Role`
-- src/pages/UserAdmin.tsx:1630 [jsx-text] `Department`
-- src/pages/UserAdmin.tsx:1651 [jsx-text] `Role`
+- src/pages/UserAdmin.tsx:801 [t-call] `passwordMustBeAtLeast8Characters`
+- src/pages/UserAdmin.tsx:802 [t-call] `passwordConfirmationDoesNotMatch`
+- src/pages/UserAdmin.tsx:972 [t-call] `Please enter a valid email address.`
+- src/pages/UserAdmin.tsx:983 [t-call] `A user with this email already exists.`
+- src/pages/UserAdmin.tsx:1286 [t-call] `passwordMustBeAtLeast8Characters`
+- src/pages/UserAdmin.tsx:1290 [t-call] `passwordConfirmationDoesNotMatch`
+- src/pages/UserAdmin.tsx:1362 [t-call] `settingPrimaryPassword`
+- src/pages/UserAdmin.tsx:1389 [t-call] `failedToSetPrimaryPassword`
+- src/pages/UserAdmin.tsx:1396 [t-call] `primaryPasswordUpdatedSuccessfully`
+- src/pages/UserAdmin.tsx:1401 [t-call] `failedToSetPrimaryPassword`
+- src/pages/UserAdmin.tsx:1496 [jsx-text] `≡ƒùæ`
+- src/pages/UserAdmin.tsx:1597 [t-call] `edit`
+- src/pages/UserAdmin.tsx:1623 [attr:placeholder] `user@example.com`
+- src/pages/UserAdmin.tsx:1808 [t-call] `Sending reset password...`
+- src/pages/UserAdmin.tsx:1819 [t-call] `changePrimaryPasswordForThisUser`
+- src/pages/UserAdmin.tsx:1827 [t-call] `newPassword`
+- src/pages/UserAdmin.tsx:1848 [t-call] `confirmNewPassword`
+- src/pages/UserAdmin.tsx:1866 [t-call] `Updating password...`
+- src/pages/UserAdmin.tsx:1881 [t-call] `updatePrimaryPassword`
+- src/pages/UserAdmin.tsx:1895 [t-call] `Saving user changes...`
+- src/pages/UserAdmin.tsx:1966 [jsx-text] `Γëí`
+- src/pages/UserAdmin.tsx:2111 [jsx-text] `Γ£ò`
+- src/pages/UserAdmin.tsx:2278 [t-call] `confirmNewPassword`
+- src/pages/UserAdmin.tsx:2331 [t-call] `Create User`
+
+## src/pages/Vehicule.tsx
+
+- src/pages/Vehicule.tsx:660 [t-call] `Loading Vehicles`
+- src/pages/Vehicule.tsx:661 [t-call] `Please wait while we fetch your data`
+- src/pages/Vehicule.tsx:995 [t-call] `You don't have access to this page.`
+- src/pages/Vehicule.tsx:1369 [t-call] `Missing Customer ID`
+- src/pages/Vehicule.tsx:1369 [t-call] `Please enter a customer ID before verifying.`
+- src/pages/Vehicule.tsx:2021 [t-call] `Loading Vehicle`
+- src/pages/Vehicule.tsx:2024 [t-call] `Please wait while we fetch your data`
+- src/pages/Vehicule.tsx:2146 [t-call] `Back to Vehicles`
+- src/pages/Vehicule.tsx:2185 [t-call] `Elegant Glass`
+- src/pages/Vehicule.tsx:2185 [t-call] `Executive Minimal`
+- src/pages/Vehicule.tsx:2336 [t-call] `Related Job Orders`
+- src/pages/Vehicule.tsx:2424 [t-call] `No related job orders found for this vehicle.`
+- src/pages/Vehicule.tsx:2447 [t-call] `Related Services`
+- src/pages/Vehicule.tsx:2473 [t-call] `No services found for this vehicle.`
+- src/pages/Vehicule.tsx:2547 [t-call] `Saving vehicle changes...`
+- src/pages/Vehicule.tsx:2786 [t-call] `Elegant Glass`
+- src/pages/Vehicule.tsx:2786 [t-call] `Executive Minimal`
+- src/pages/Vehicule.tsx:2849 [t-call] `Manage vehicle information, ownership, and completed services.`
+- src/pages/Vehicule.tsx:2865 [t-call] `Filtered by:`
+- src/pages/Vehicule.tsx:2908 [t-call] `Loading vehicle details...`
+- src/pages/Vehicule.tsx:2982 [t-call] `Saving vehicle changes...`
+- src/pages/Vehicule.tsx:3134 [t-call] `Creating vehicle...`
+- src/pages/Vehicule.tsx:3305 [t-call] `Deleting vehicle...`
+
+## src/pages/VoucherGiftPage.tsx
+
+- src/pages/VoucherGiftPage.tsx:635 [t-call] `Loading quotation services...`
+- src/pages/VoucherGiftPage.tsx:1091 [t-call] `Failed to open voucher from history.`
+- src/pages/VoucherGiftPage.tsx:1108 [t-call] `Failed to download voucher from history.`
+- src/pages/VoucherGiftPage.tsx:1113 [t-call] `Delete this voucher history entry?`
+- src/pages/VoucherGiftPage.tsx:1119 [t-call] `Voucher history entry deleted.`
+- src/pages/VoucherGiftPage.tsx:1122 [t-call] `Failed to delete voucher history entry.`
+- src/pages/VoucherGiftPage.tsx:1510 [t-call] `Voucher generated but history record failed to save.`
+- src/pages/VoucherGiftPage.tsx:1516 [t-call] `Voucher generated but history record failed to save.`
+- src/pages/VoucherGiftPage.tsx:1565 [t-call] `View Voucher History`
+- src/pages/VoucherGiftPage.tsx:1591 [t-call] `Voucher History`
+- src/pages/VoucherGiftPage.tsx:1600 [t-call] `Search vouchers...`
+- src/pages/VoucherGiftPage.tsx:1609 [t-call] `Date from`
+- src/pages/VoucherGiftPage.tsx:1616 [t-call] `Date to`
+- src/pages/VoucherGiftPage.tsx:1620 [t-call] `Loading voucher history...`
+- src/pages/VoucherGiftPage.tsx:1622 [t-call] `No vouchers found yet.`
+- src/pages/VoucherGiftPage.tsx:1631 [t-call] `Voucher #`
+- src/pages/VoucherGiftPage.tsx:1638 [t-call] `Payment Info`
+- src/pages/VoucherGiftPage.tsx:1651 [t-call] `Click to open voucher`
+- src/pages/VoucherGiftPage.tsx:1662 [t-call] `Yes`
+- src/pages/VoucherGiftPage.tsx:1662 [t-call] `No`
+- src/pages/VoucherGiftPage.tsx:1840 [t-call] `Service Category`
+- src/pages/VoucherGiftPage.tsx:1849 [t-call] `Search Services`
+- src/pages/VoucherGiftPage.tsx:1855 [t-call] `Type service name or code`
+- src/pages/VoucherGiftPage.tsx:1863 [t-call] `Clear search`
+- src/pages/VoucherGiftPage.tsx:1864 [t-call] `Clear search`
+- src/pages/VoucherGiftPage.tsx:1874 [t-call] `No services match this filter/search.`
+- src/pages/VoucherGiftPage.tsx:1905 [t-call] `Discount Amount`
+- src/pages/VoucherGiftPage.tsx:1956 [t-call] `Service / Package`
+- src/pages/VoucherGiftPage.tsx:1964 [t-call] `Included services are listed below without prices.`
+- src/pages/VoucherGiftPage.tsx:1990 [t-call] `Generating PDF…`
+- src/pages/VoucherGiftPage.tsx:2000 [t-call] `Generating PDF…`

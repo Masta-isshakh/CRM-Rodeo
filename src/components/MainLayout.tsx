@@ -193,6 +193,161 @@ function mergePerms(...items: CrudPerm[]): CrudPerm {
   };
 }
 
+function parseJsonObject(raw: unknown): Record<string, any> {
+  try {
+    if (!raw) return {};
+    if (typeof raw === "string") {
+      const text = raw.trim();
+      if (!text) return {};
+      const parsed = JSON.parse(text);
+      return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    }
+    return typeof raw === "object" && !Array.isArray(raw) ? (raw as Record<string, any>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function firstText(...values: any[]) {
+  for (const value of values) {
+    const text = String(value ?? "").trim();
+    if (text) return text;
+  }
+  return "";
+}
+
+function identityText(value: any) {
+  return String(value ?? "").trim().toLowerCase().replace(/[_-]+/g, " ").replace(/\s+/g, " ");
+}
+
+function compactText(value: any) {
+  return identityText(value).replace(/[^a-z0-9]/g, "");
+}
+
+function numberFirst(...values: any[]) {
+  for (const value of values) {
+    if (value === null || value === undefined || value === "") continue;
+    const n = Number(value);
+    if (Number.isFinite(n)) return n;
+  }
+  return 0;
+}
+
+async function listModelRows(model: any, max = 3000) {
+  const rows: any[] = [];
+  let nextToken: string | null | undefined;
+  while (rows.length < max) {
+    const res = await model.list({ limit: Math.min(1000, max - rows.length), nextToken });
+    rows.push(...((res?.data ?? []) as any[]));
+    nextToken = res?.nextToken;
+    if (!nextToken) break;
+  }
+  return rows;
+}
+
+function getCountWorkStatus(row: any, parsed: Record<string, any>) {
+  const raw = firstText(
+    row?.workStatusLabel,
+    parsed?.workStatusLabel,
+    parsed?.workStatus,
+    row?.workStatus,
+    row?.status,
+    parsed?.status
+  );
+  const key = compactText(raw);
+  if (key === "open") return "newrequest";
+  if (key === "inprogress") return "serviceoperation";
+  if (key === "serviceoperation") return "serviceoperation";
+  return key;
+}
+
+function getCountPaymentStatus(row: any, parsed: Record<string, any>) {
+  const raw = firstText(
+    row?.paymentStatusLabel,
+    parsed?.paymentStatusLabel,
+    parsed?.billing?.paymentStatusLabel,
+    row?.paymentStatus,
+    parsed?.paymentStatus,
+    parsed?.billing?.paymentStatus
+  );
+  const key = compactText(raw);
+  if (key === "paid" || key === "fullypaid") return "fullypaid";
+  if (key === "partial" || key === "partiallypaid") return "partiallypaid";
+  if (key === "unpaid" || key === "pending") return "unpaid";
+
+  const total = numberFirst(row?.totalAmount, parsed?.totalAmount, parsed?.billing?.totalAmount, parsed?.billing?.netAmount);
+  const net = numberFirst(row?.netAmount, parsed?.netAmount, parsed?.billing?.netAmount, total);
+  const paid = numberFirst(row?.amountPaid, parsed?.amountPaid, parsed?.billing?.amountPaid);
+  const balance = numberFirst(row?.balanceDue, parsed?.balanceDue, parsed?.billing?.balanceDue, Math.max(net - paid, 0));
+  if (net > 0 && balance <= 0.00001) return "fullypaid";
+  if (paid > 0) return "partiallypaid";
+  return "unpaid";
+}
+
+function hasCreatedExitPermit(row: any, parsed: Record<string, any>) {
+  const status = compactText(firstText(
+    row?.exitPermitStatus,
+    parsed?.exitPermitStatus,
+    parsed?.exitPermit?.status,
+    parsed?.exitPermitInfo?.status
+  ));
+  const permitId = firstText(
+    parsed?.exitPermit?.permitId,
+    parsed?.exitPermitInfo?.permitId,
+    row?.exitPermit?.permitId,
+    row?.exitPermitInfo?.permitId
+  );
+  return Boolean(permitId) || ["approved", "created", "completed"].includes(status);
+}
+
+function computeSidebarCountsFromRows(jobRows: any[], customerRows: any[]) {
+  const counts: Partial<Record<Page, number>> = {
+    jobcards: jobRows.length,
+    customers: customerRows.length,
+    inspection: 0,
+    serviceexecution: 0,
+    paymentinvoices: 0,
+    qualitycheck: 0,
+    exitpermit: 0,
+    jobhistory: 0,
+  };
+
+  for (const row of jobRows) {
+    const parsed = parseJsonObject(row?.dataJson);
+    const work = getCountWorkStatus(row, parsed);
+    const payment = getCountPaymentStatus(row, parsed);
+    const createdPermit = hasCreatedExitPermit(row, parsed);
+    const isCancelled = work === "cancelled" || compactText(row?.status) === "cancelled";
+
+    if (work === "newrequest" || work === "inspection") counts.inspection = (counts.inspection ?? 0) + 1;
+    if (work === "serviceoperation" || work === "inprogress") counts.serviceexecution = (counts.serviceexecution ?? 0) + 1;
+    if (work === "qualitycheck") counts.qualitycheck = (counts.qualitycheck ?? 0) + 1;
+
+    const paidAmount = numberFirst(row?.amountPaid, parsed?.amountPaid, parsed?.billing?.amountPaid);
+    const balance = numberFirst(row?.balanceDue, parsed?.balanceDue, parsed?.billing?.balanceDue);
+    const hasPaymentBalanceSignal = paidAmount > 0 || balance > 0;
+    const isPaymentQueue =
+      isCancelled
+        ? paidAmount > 0
+        : payment === "unpaid" || payment === "partiallypaid" || (hasPaymentBalanceSignal && balance > 0.00001);
+    if (isPaymentQueue) counts.paymentinvoices = (counts.paymentinvoices ?? 0) + 1;
+
+    const exitEligible =
+      !createdPermit &&
+      ((work === "ready" && (payment === "fullypaid" || payment === "unpaid")) ||
+        (isCancelled && (payment === "unpaid" || identityText(payment).includes("refund"))));
+    if (exitEligible) counts.exitpermit = (counts.exitpermit ?? 0) + 1;
+
+    const isHistory =
+      (createdPermit && (payment === "fullypaid" || isCancelled)) ||
+      (isCancelled && payment === "unpaid") ||
+      (work === "completed" && payment === "fullypaid");
+    if (isHistory) counts.jobhistory = (counts.jobhistory ?? 0) + 1;
+  }
+
+  return counts;
+}
+
 export default function MainLayout({ signOut }: { signOut: () => void }) {
   const DESKTOP_BREAKPOINT = 1100;
   const detectDesktop = () =>
@@ -212,6 +367,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
   const [sidebarOpen, setSidebarOpen] = useState<boolean>(detectDesktop);
   const [themeMode] = useState<ThemeMode>(resolveInitialTheme);
   const [unreadChatCount, setUnreadChatCount] = useState(0);
+  const [sidebarCounts, setSidebarCounts] = useState<Partial<Record<Page, number>>>({});
   const [now, setNow] = useState<Date>(() => new Date());
   const prefetchedPagesRef = useRef<Set<Page>>(new Set());
 
@@ -241,6 +397,8 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
 
       if (normalized === "job order management" || normalized === "jobcards") {
         targetPage = "jobcards";
+      } else if (normalized === "customers" || normalized === "customer management") {
+        targetPage = "customers";
       } else if (normalized === "vehicles management" || normalized === "vehicles") {
         targetPage = "vehicles";
       }
@@ -265,6 +423,13 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
         setNavigationData(returnId ? { openDetails: true, vehicleId: returnId } : null);
         setPage("vehicles");
         try { window.sessionStorage.setItem("crm.activePage", "vehicles"); } catch { /* ignore */ }
+        if (!isDesktop) setSidebarOpen(false);
+        return;
+      }
+      if (normalized === "customers" || normalized === "customer management") {
+        setNavigationData(null);
+        setPage("customers");
+        try { window.sessionStorage.setItem("crm.activePage", "customers"); } catch { /* ignore */ }
         if (!isDesktop) setSidebarOpen(false);
         return;
       }
@@ -371,6 +536,61 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (showAdmin.dbcleanup) pages.push("dbcleanup");
     return pages;
   }, [show, showAdmin]);
+
+  const refreshSidebarCounts = useCallback(async () => {
+    try {
+      const client = getDataClient();
+      const [jobRows, customerRows] = await Promise.all([
+        client?.models?.JobOrder ? listModelRows(client.models.JobOrder) : Promise.resolve([]),
+        client?.models?.Customer ? listModelRows(client.models.Customer) : Promise.resolve([]),
+      ]);
+      setSidebarCounts(computeSidebarCountsFromRows(jobRows, customerRows));
+    } catch (error) {
+      console.warn("[sidebar-counts]", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    const needsCounts =
+      show.jobcards ||
+      show.inspection ||
+      show.serviceexecution ||
+      show.paymentinvoices ||
+      show.qualitycheck ||
+      show.exitpermit ||
+      show.jobhistory ||
+      show.customers;
+    if (!needsCounts) return;
+
+    void refreshSidebarCounts();
+    const intervalId = window.setInterval(() => {
+      void refreshSidebarCounts();
+    }, 60_000);
+
+    return () => window.clearInterval(intervalId);
+  }, [
+    loading,
+    refreshSidebarCounts,
+    show.customers,
+    show.exitpermit,
+    show.inspection,
+    show.jobcards,
+    show.jobhistory,
+    show.paymentinvoices,
+    show.qualitycheck,
+    show.serviceexecution,
+  ]);
+
+  const renderNavCount = (target: Page) => {
+    const count = sidebarCounts[target];
+    if (typeof count !== "number") return null;
+    return (
+      <span className="drawer-count-badge" aria-label={`${count} ${target} records`}>
+        {count > 999 ? "999+" : count}
+      </span>
+    );
+  };
 
   const prefetchPage = useCallback((target: Page) => {
     if (prefetchedPagesRef.current.has(target)) return;
@@ -718,48 +938,56 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             {show.jobcards && (
               <button className={page === "jobcards" ? "active" : ""} onClick={() => go("jobcards")}>
                 <i className="fas fa-rectangle-list" aria-hidden="true" /> {t("Job Cards")}
+                {renderNavCount("jobcards")}
               </button>
             )}
 
             {show.inspection && (
               <button className={page === "inspection" ? "active" : ""} onClick={() => go("inspection")}>
                 <i className="fas fa-clipboard-check" aria-hidden="true" /> {t("Inspection")}
+                {renderNavCount("inspection")}
               </button>
             )}
 
             {show.serviceexecution && (
               <button className={page === "serviceexecution" ? "active" : ""} onClick={() => go("serviceexecution")}>
                 <i className="fas fa-gears" aria-hidden="true" /> {t("Service Execution")}
+                {renderNavCount("serviceexecution")}
               </button>
             )}
 
             {show.paymentinvoices && (
               <button className={page === "paymentinvoices" ? "active" : ""} onClick={() => go("paymentinvoices")}>
                 <i className="fas fa-credit-card" aria-hidden="true" /> {t("Payment & Invoices")}
+                {renderNavCount("paymentinvoices")}
               </button>
             )}
 
             {show.qualitycheck && (
               <button className={page === "qualitycheck" ? "active" : ""} onClick={() => go("qualitycheck")}>
                 <i className="fas fa-shield-halved" aria-hidden="true" /> {t("Quality Check")}
+                {renderNavCount("qualitycheck")}
               </button>
             )}
 
             {show.exitpermit && (
               <button className={page === "exitpermit" ? "active" : ""} onClick={() => go("exitpermit")}>
                 <i className="fas fa-file-circle-check" aria-hidden="true" /> {t("Exit Permit")}
+                {renderNavCount("exitpermit")}
               </button>
             )}
 
             {show.jobhistory && (
               <button className={page === "jobhistory" ? "active" : ""} onClick={() => go("jobhistory")}>
                 <i className="fas fa-clock-rotate-left" aria-hidden="true" /> {t("Job History")}
+                {renderNavCount("jobhistory")}
               </button>
             )}
 
             {show.customers && (
               <button className={page === "customers" ? "active" : ""} onClick={() => go("customers")}>
                 <i className="fas fa-user" aria-hidden="true" /> {t("Customers")}
+                {renderNavCount("customers")}
               </button>
             )}
 
@@ -965,7 +1193,17 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             {/* ✅ Customers uses normalized customer perms */}
             {page === "customers" && show.customers && (
               <PermissionGate moduleId="customers" optionId="customers_list">
-                <Customers permissions={customerPerms} />
+                <Customers
+                  permissions={customerPerms}
+                  onCreateJobCard={(customerData: any) => {
+                    handleModuleNavigate("jobcards", {
+                      openNewJob: true,
+                      startStep: 2,
+                      source: "customers",
+                      customerData,
+                    });
+                  }}
+                />
               </PermissionGate>
             )}
 

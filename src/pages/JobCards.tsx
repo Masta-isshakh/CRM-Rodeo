@@ -656,19 +656,16 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
   const [actorIdentityMap, setActorIdentityMap] = useState<Record<string, string>>({});
   const detailsViewCacheRef = useRef<Map<string, any>>(new Map());
 
-  const printCreatedReceipt = async () => {
-    if (!lastCreatedOrderSnapshot) return;
-    try {
-      const order = lastCreatedOrderSnapshot;
+  const buildReceiptDocument = async (order: any, fallbackJobId?: string) => {
       const doc = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
       const pageW = 210;
       const pageH = 297;
-      const marginX = 18;
-      const pagePadTop = 8;
-      const pagePadBottom = 8;
+      const marginX = 12;
+      const pagePadTop = 5;
+      const pagePadBottom = 5;
       const contentW = pageW - marginX * 2;
-      const BILL_TITLE_FONT_SIZE = 10;
-      const BILL_BODY_FONT_SIZE = 10;
+      const BILL_TITLE_FONT_SIZE = 8.6;
+      const BILL_BODY_FONT_SIZE = 7.1;
 
       const text = (value: unknown) => String(value ?? "").replace(/\s+/g, " ").trim();
       const dash = (value: unknown) => text(value) || "-";
@@ -696,7 +693,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         });
       };
 
-      const jobId = dash(order?.id ?? submittedOrderId);
+      const jobId = dash(order?.id ?? fallbackJobId);
       const createdAt = order?.createdAt || order?.jobOrderSummary?.createDate || order?.createDate;
       const createdAtDisplay = formatDateTime(createdAt);
       const expectedDelivery = [
@@ -922,10 +919,10 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
       };
 
       const mmPerPx = 25.4 / 96;
-      const gridGap = 32 * mmPerPx;
-      const headerLogoW = 140 * mmPerPx;
-      const headerLogoH = 100 * mmPerPx;
-      const footerQrSize = 70 * mmPerPx;
+      const gridGap = 14 * mmPerPx;
+      const headerLogoW = 58 * mmPerPx;
+      const headerLogoH = 58 * mmPerPx;
+      const footerQrSize = 42 * mmPerPx;
 
       const sideColW = (contentW - headerLogoW - gridGap * 2) / 2;
       const leftColX = marginX;
@@ -937,16 +934,16 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
       const footerCenterColX = footerLeftColX + footerSideColW + gridGap;
       const footerRightColRightX = pageW - marginX;
 
-      const headerPadY = 2.1;
+      const headerPadY = 1.4;
       const headerContentTop = pagePadTop + headerPadY;
-      const headerBottom = pagePadTop + headerPadY * 2 + headerLogoH + 1.1;
+      const headerBottom = pagePadTop + headerPadY * 2 + headerLogoH + 0.8;
 
-      const footerPadTop = 3.4;
-      const footerBasePadY = 2.1;
-      const footerTop = pageH - pagePadBottom - (footerPadTop + footerBasePadY + footerQrSize + 11.2);
+      const footerPadTop = 2;
+      const footerBasePadY = 1.5;
+      const footerTop = pageH - pagePadBottom - (footerPadTop + footerBasePadY + footerQrSize + 4.8);
       const footerContentTop = footerTop + footerPadTop;
-      const pageContentBottom = footerTop - 7;
-      const footerLineH = Math.max(5.2, BILL_BODY_FONT_SIZE * 0.38);
+      const pageContentBottom = footerTop - 4;
+      const footerLineH = Math.max(3.6, BILL_BODY_FONT_SIZE * 0.42);
 
       const drawLetterhead = () => {
         doc.setDrawColor(44, 62, 80);
@@ -963,8 +960,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         doc.text("Gloss Perfected", leftColX, headerContentTop + 8.7);
         doc.setFont("helvetica", "normal");
         doc.setFontSize(BILL_BODY_FONT_SIZE);
-        doc.text("Block 2, Shop No. SYS 066, Block 21,", leftColX, headerContentTop + 12.6);
-        doc.text("Near Dragon Mart Al Sayer, Doha.", leftColX, headerContentTop + 16.5);
+        doc.text("Doha, Qatar", leftColX, headerContentTop + 12.4);
 
         if (roundedLogoDataUrl) {
           const headerLogoSize = Math.min(headerLogoW, headerLogoH);
@@ -975,40 +971,22 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
 
         drawArabicLine("روديو درايف", rightColRightX, headerContentTop + 2.6, sideColW, BILL_TITLE_FONT_SIZE, "bolditalic");
         drawArabicLine("اللمعان المثالي", rightColRightX, headerContentTop + 6.8, sideColW, BILL_BODY_FONT_SIZE, "italic");
-        drawArabicLine("مبنى 2 ، محل رقم SYS 066 ، مبنى 21 ،", rightColRightX, headerContentTop + 11.0, sideColW, BILL_BODY_FONT_SIZE, "normal");
-        drawArabicLine("بالقرب من دراجون مارت ال ساير ، الدوحة.", rightColRightX, headerContentTop + 15.2, sideColW, BILL_BODY_FONT_SIZE, "normal");
+        drawArabicLine("الدوحة، قطر", rightColRightX, headerContentTop + 11.0, sideColW, BILL_BODY_FONT_SIZE, "normal");
 
         doc.setTextColor(24, 24, 24);
-        doc.setFont("helvetica", "bolditalic");
+        doc.setFont("helvetica", "normal");
         doc.setFontSize(BILL_BODY_FONT_SIZE);
-        doc.text("RODEO DRIVE TRADING & SERVICES", footerLeftColX, footerContentTop + footerLineH * 1);
-        doc.text("C.R. No: 122716", footerLeftColX, footerContentTop + footerLineH * 2);
-        doc.text("LLC - capital QAR 200,000", footerLeftColX, footerContentTop + footerLineH * 3);
-        doc.text("T: +974 44311871 | M: +974 3320 2409", footerLeftColX, footerContentTop + footerLineH * 4);
-        doc.text("E: info@rodeodrive.qa | W: www.rodeodrive.qa", footerLeftColX, footerContentTop + footerLineH * 5);
+        doc.text("info@rodeodrive.qa", footerLeftColX, footerContentTop + footerLineH * 1.4);
+        doc.text("www.rodeodrive.qa", footerLeftColX, footerContentTop + footerLineH * 2.5);
 
         doc.addImage(qrDataUrl, "PNG", footerCenterColX, footerContentTop, footerQrSize, footerQrSize);
 
-        drawArabicLine("روديو درايف للتجارة والخدمات", footerRightColRightX, footerContentTop + footerLineH * 1 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
-        drawArabicLine("س.ت:122716", footerRightColRightX, footerContentTop + footerLineH * 2 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
-        drawArabicLine("شركة ذات مسؤلية محدودة برأس مال 200,000 رق", footerRightColRightX, footerContentTop + footerLineH * 3 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
-        drawArabicLine("T:+974 44311871 | M:+974 3320 2409", footerRightColRightX, footerContentTop + footerLineH * 4 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
-        drawArabicLine("E: info@rodeodrive.qa W: www.rodeodrive.qa", footerRightColRightX, footerContentTop + footerLineH * 5 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
-      };
-
-      const newContentPage = (title = "JOB ORDER RECEIPT - CONTINUED") => {
-        doc.addPage("a4", "portrait");
-        drawLetterhead();
-        doc.setTextColor(20, 31, 46);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(BILL_TITLE_FONT_SIZE);
-        doc.text(title, marginX, headerBottom + 8);
-        drawArabicLine("متابعة إيصال أمر العمل", pageW - marginX, headerBottom + 4.9, 48, BILL_TITLE_FONT_SIZE, "bolditalic");
-        return headerBottom + 15;
+        drawArabicLine("info@rodeodrive.qa", footerRightColRightX, footerContentTop + footerLineH * 1.4 - 2.8, footerSideColW, BILL_BODY_FONT_SIZE, "normal");
+        drawArabicLine("www.rodeodrive.qa", footerRightColRightX, footerContentTop + footerLineH * 2.5 - 2.8, footerSideColW, BILL_BODY_FONT_SIZE, "normal");
       };
 
       const ensureSpace = (currentY: number, needed: number) => (
-        currentY + needed > pageContentBottom ? newContentPage() : currentY
+        currentY + needed > pageContentBottom ? currentY : currentY
       );
 
       const drawInfoBox = (
@@ -1032,11 +1010,11 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         let rowY = y + 10.3;
         rows.forEach(([label, value]) => {
           doc.setFont("helvetica", "bold");
-          doc.setFontSize(6.8);
+          doc.setFontSize(6.2);
           doc.setTextColor(107, 114, 128);
           doc.text(label, x + 3, rowY);
           drawSmartPdfLine(value, x + 31, rowY, w - 34, "normal", "#111827");
-          rowY += 4.2;
+          rowY += 3.75;
         });
       };
 
@@ -1072,7 +1050,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
 
       drawLetterhead();
 
-      let cursorY = headerBottom + 8;
+      let cursorY = headerBottom + 5.5;
       doc.setTextColor(20, 31, 46);
       doc.setFont("helvetica", "bold");
       doc.setFontSize(BILL_TITLE_FONT_SIZE);
@@ -1081,20 +1059,19 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(BILL_BODY_FONT_SIZE);
-      doc.text(`Receipt #: ${jobId}`, marginX, cursorY + 6);
-      doc.text(`Date: ${formatDateOnly(createdAt)}`, marginX + 58, cursorY + 6);
-      drawSmartPdfLine(`Created By: ${createdBy}`, marginX + 104, cursorY + 6, pageW - marginX - (marginX + 104));
-      drawArabicLine(`رقم الإيصال: ${jobId} | التاريخ: ${formatDateOnly(createdAt)}`, pageW - marginX, cursorY + 8.7, 96, BILL_BODY_FONT_SIZE, "normal");
-      drawArabicLine(`أنشأ أمر العمل: ${createdBy}`, pageW - marginX, cursorY + 13.0, 88, BILL_BODY_FONT_SIZE, "normal");
+      doc.text(`Receipt #: ${jobId}`, marginX, cursorY + 4.8);
+      doc.text(`Date: ${formatDateOnly(createdAt)}`, marginX + 55, cursorY + 4.8);
+      drawSmartPdfLine(`Created By: ${createdBy}`, marginX + 100, cursorY + 4.8, pageW - marginX - (marginX + 100));
+      drawArabicLine(`رقم الإيصال: ${jobId} | التاريخ: ${formatDateOnly(createdAt)}`, pageW - marginX, cursorY + 6.9, 96, BILL_BODY_FONT_SIZE, "normal");
 
       doc.setDrawColor(188, 196, 206);
       doc.setLineWidth(0.3);
-      doc.line(marginX, cursorY + 18, pageW - marginX, cursorY + 18);
-      cursorY += 23;
+      doc.line(marginX, cursorY + 12.2, pageW - marginX, cursorY + 12.2);
+      cursorY += 15.5;
 
       const infoGap = 4;
       const infoW = (contentW - infoGap) / 2;
-      const infoH = 34;
+      const infoH = 26;
       drawInfoBox(marginX, cursorY, infoW, infoH, "CUSTOMER", "العميل", [
         ["Name", dash(order?.customerName || order?.customerDetails?.name)],
         ["Mobile", dash(order?.mobile || order?.customerMobile || order?.customerDetails?.mobile)],
@@ -1111,7 +1088,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
       ]);
       cursorY += infoH + 4;
 
-      const detailsH = 28;
+      const detailsH = 19;
       cursorY = ensureSpace(cursorY, detailsH + 4);
       drawInfoBox(marginX, cursorY, contentW, detailsH, "JOB ORDER DETAILS", "تفاصيل أمر العمل", [
         ["Order Type", dash(order?.orderType)],
@@ -1127,7 +1104,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         const noteLines = containsArabic(customerNote)
           ? splitArabicTextToLines(customerNote, contentW - 6, BILL_BODY_FONT_SIZE, "normal")
           : (doc.splitTextToSize(customerNote, contentW - 6) as string[]);
-        const noteH = Math.min(26, Math.max(12, noteLines.length * 4.4 + 8));
+        const noteH = Math.min(14, Math.max(10, noteLines.length * 3.4 + 6));
         cursorY = ensureSpace(cursorY, noteH + 5);
         doc.setFillColor(248, 251, 255);
         doc.setDrawColor(220, 226, 234);
@@ -1141,7 +1118,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         doc.setFontSize(BILL_BODY_FONT_SIZE);
         if (containsArabic(customerNote)) {
           noteLines.slice(0, 4).forEach((line, idx) => {
-            drawArabicLine(line, pageW - marginX - 3, cursorY + 7.2 + idx * 4.5, contentW - 6, BILL_BODY_FONT_SIZE, "normal");
+            drawArabicLine(line, pageW - marginX - 3, cursorY + 7.2 + idx * 3.6, contentW - 6, BILL_BODY_FONT_SIZE, "normal");
           });
         } else {
           doc.text(noteLines.slice(0, 4), marginX + 3, cursorY + 10);
@@ -1149,10 +1126,10 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         cursorY += noteH + 5;
       }
 
-      const tableHeaderH = 9;
-      const rowH = 8.8;
-      const noW = 12;
-      const amountW = 34;
+      const tableHeaderH = 6.4;
+      const rowH = 5.8;
+      const noW = 10;
+      const amountW = 28;
       const descW = contentW - noW - amountW;
       const drawServiceHeader = (y: number) => {
         doc.setFillColor(44, 62, 80);
@@ -1160,9 +1137,9 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         doc.rect(marginX, y, contentW, tableHeaderH, "F");
         doc.setFont("helvetica", "bold");
         doc.setFontSize(BILL_BODY_FONT_SIZE);
-        doc.text("No", marginX + noW / 2, y + 6.2, { align: "center" });
-        doc.text("Description", marginX + noW + 2, y + 6.2);
-        doc.text("Amount", pageW - marginX - 2, y + 6.2, { align: "right" });
+        doc.text("No", marginX + noW / 2, y + 4.4, { align: "center" });
+        doc.text("Description", marginX + noW + 2, y + 4.4);
+        doc.text("Amount", pageW - marginX - 2, y + 4.4, { align: "right" });
         return y + tableHeaderH;
       };
 
@@ -1180,15 +1157,27 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         doc.rect(marginX, cursorY, contentW, rowH);
         doc.setFont("helvetica", "normal");
         doc.setTextColor(107, 114, 128);
-        doc.text("No services listed", marginX + noW + 2, cursorY + 6.1);
+        doc.text("No services listed", marginX + noW + 2, cursorY + 4.1);
         cursorY += rowH;
       }
 
-      serviceRows.forEach((row, idx) => {
-        if (cursorY + rowH > pageContentBottom) {
-          cursorY = newContentPage("JOB ORDER RECEIPT - SERVICES");
-          cursorY = drawServiceHeader(cursorY);
-        }
+      const reservedAfterServices = 58;
+      const maxServiceRows = Math.max(1, Math.floor((pageContentBottom - cursorY - reservedAfterServices) / rowH));
+      const visibleServiceRows =
+        serviceRows.length > maxServiceRows
+          ? [
+              ...serviceRows.slice(0, Math.max(0, maxServiceRows - 1)),
+              {
+                label: `+${serviceRows.length - Math.max(0, maxServiceRows - 1)} more services on job card`,
+                amount: null,
+                muted: true,
+                bold: true,
+              },
+            ]
+          : serviceRows;
+
+      visibleServiceRows.forEach((row, idx) => {
+        if (cursorY + rowH > pageContentBottom - reservedAfterServices) return;
         if (idx % 2 === 0) {
           doc.setFillColor(250, 252, 255);
           doc.rect(marginX, cursorY, contentW, rowH, "F");
@@ -1203,21 +1192,21 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         doc.setFont("helvetica", row.bold ? "bold" : "normal");
         doc.setFontSize(BILL_BODY_FONT_SIZE);
         doc.setTextColor(row.muted ? 113 : 20, row.muted ? 128 : 31, row.muted ? 150 : 46);
-        doc.text(String(idx + 1), marginX + noW / 2, cursorY + 6.1, { align: "center" });
+        doc.text(String(idx + 1), marginX + noW / 2, cursorY + 4.1, { align: "center" });
         const description = clipText(row.label, descW - 4);
         if (containsArabic(description)) {
           drawArabicLine(description, marginX + noW + descW - 2, cursorY + 1.1, descW - 4, BILL_BODY_FONT_SIZE, row.bold ? "bold" : "normal", row.muted ? "#718096" : "#111827");
         } else {
-          doc.text(description, marginX + noW + (row.muted ? 6.5 : 2), cursorY + 6.1);
+          doc.text(description, marginX + noW + (row.muted ? 5 : 2), cursorY + 4.1);
         }
         doc.setTextColor(20, 31, 46);
-        doc.text(row.amount == null ? "" : fmtMoney(row.amount), pageW - marginX - 2, cursorY + 6.1, { align: "right" });
+        doc.text(row.amount == null ? "" : fmtMoney(row.amount), pageW - marginX - 2, cursorY + 4.1, { align: "right" });
         cursorY += rowH;
       });
-      cursorY += 5;
+      cursorY += 3;
 
-      const summaryH = 24;
-      cursorY = ensureSpace(cursorY, summaryH + 32);
+      const summaryH = 17;
+      cursorY = ensureSpace(cursorY, summaryH + 26);
       doc.setDrawColor(188, 196, 206);
       doc.setFillColor(246, 249, 252);
       doc.roundedRect(marginX, cursorY, contentW, summaryH, 1.5, 1.5, "FD");
@@ -1240,37 +1229,43 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         }
         doc.setTextColor(isBalance ? 255 : 20, isBalance ? 255 : 31, isBalance ? 255 : 46);
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(6.8);
-        doc.text(enLabel, colCenter, cursorY + 5, { align: "center" });
-        drawArabicLine(arLabel, colLeft + summaryColW - 1.6, cursorY + 6.0, summaryColW - 3.2, 6.3, "normal", isBalance ? "#FFFFFF" : "#181818");
+        doc.setFontSize(6);
+        doc.text(enLabel, colCenter, cursorY + 4.1, { align: "center" });
+        drawArabicLine(arLabel, colLeft + summaryColW - 1.6, cursorY + 4.9, summaryColW - 3.2, 5.8, "normal", isBalance ? "#FFFFFF" : "#181818");
         doc.setFont("helvetica", "bold");
-        doc.setFontSize(8);
-        doc.text(fmtMoney(value), colCenter, cursorY + 16.5, { align: "center" });
+        doc.setFontSize(6.8);
+        doc.text(fmtMoney(value), colCenter, cursorY + 12.1, { align: "center" });
       });
-      cursorY += summaryH + 18;
+      cursorY += summaryH + 10;
 
-      cursorY = ensureSpace(cursorY, 38);
+      cursorY = ensureSpace(cursorY, 27);
       const signatureW = (contentW - 14) / 2;
       const signatureY = cursorY + 8;
       const drawSignature = (x: number, title: string, titleAr: string, name: string) => {
         doc.setDrawColor(90, 103, 125);
         doc.setLineWidth(0.35);
-        doc.line(x, signatureY + 12, x + signatureW, signatureY + 12);
+        doc.line(x, signatureY + 8.5, x + signatureW, signatureY + 8.5);
         doc.setFont("helvetica", "bold");
         doc.setFontSize(BILL_BODY_FONT_SIZE);
         doc.setTextColor(20, 31, 46);
-        doc.text(title, x, signatureY + 17);
-        drawArabicLine(titleAr, x + signatureW, signatureY + 13.6, 42, BILL_BODY_FONT_SIZE, "bolditalic");
+        doc.text(title, x, signatureY + 12.8);
+        drawArabicLine(titleAr, x + signatureW, signatureY + 9.5, 42, BILL_BODY_FONT_SIZE, "bolditalic");
         doc.setFont("helvetica", "normal");
         doc.setFontSize(7.5);
         doc.setTextColor(107, 114, 128);
-        drawSmartPdfLine(`Name: ${name}`, x, signatureY + 22, signatureW);
-        doc.text("Date:", x, signatureY + 26);
+        drawSmartPdfLine(`Name: ${name}`, x, signatureY + 17, signatureW);
+        doc.text("Date:", x, signatureY + 20.8);
       };
       drawSignature(marginX, "Customer Signature", "توقيع العميل", dash(order?.customerName));
-      drawSignature(marginX + signatureW + 14, "Created By Signature", "توقيع منشئ الطلب", createdBy);
+      drawSignature(marginX + signatureW + 14, "Created By Signature", "توقيع العميل", createdBy);
 
       const fileName = `job-order-receipt-${cleanFileToken(jobId)}.pdf`;
+      return { doc, fileName };
+  };
+
+  const downloadReceiptForOrder = async (order: any, fallbackJobId?: string) => {
+    try {
+      const { doc, fileName } = await buildReceiptDocument(order, fallbackJobId);
       doc.save(fileName);
     } catch (e) {
       showError({
@@ -1278,6 +1273,27 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         message: errMsg(e),
       });
     }
+  };
+
+  const printReceiptForOrder = async (order: any, fallbackJobId?: string) => {
+    try {
+      const { doc } = await buildReceiptDocument(order, fallbackJobId);
+      (doc as any).autoPrint?.();
+      const blob = doc.output("blob");
+      const blobUrl = URL.createObjectURL(blob);
+      window.open(blobUrl, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(blobUrl), 30000);
+    } catch (e) {
+      showError({
+        title: t("Receipt generation failed"),
+        message: errMsg(e),
+      });
+    }
+  };
+
+  const printCreatedReceipt = async () => {
+    if (!lastCreatedOrderSnapshot) return;
+    await printReceiptForOrder(lastCreatedOrderSnapshot, submittedOrderId);
   };
 
 
@@ -1655,6 +1671,8 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
           order={currentDetailsOrder}
           currentUser={currentUser}
           actorMap={actorIdentityMap}
+          onDownloadReceipt={(orderForReceipt: any) => void downloadReceiptForOrder(orderForReceipt, String(orderForReceipt?.id ?? ""))}
+          onPrintReceipt={(orderForReceipt: any) => void printReceiptForOrder(orderForReceipt, String(orderForReceipt?.id ?? ""))}
           onClose={() => setScreenState("main")}
           onAddService={() => {
             setCurrentAddServiceOrder(currentDetailsOrder);
@@ -2228,7 +2246,7 @@ function MainScreen({
 // ============================================
 // DETAILS SCREEN
 // ============================================
-function DetailsScreen({ order, onClose, onAddService, currentUser: _currentUser, actorMap }: any) {
+function DetailsScreen({ order, onClose, onAddService, currentUser: _currentUser, actorMap, onDownloadReceipt, onPrintReceipt }: any) {
   const { t } = useLanguage();
   const displayOrderId = joFirst(order?.id, order?.orderNumber, order?.jobOrderId, "JO-000000");
   const displayWorkStatus = displayWorkStatusLabel(order?.workStatus);
@@ -2298,6 +2316,11 @@ function DetailsScreen({ order, onClose, onAddService, currentUser: _currentUser
           </PermissionGate>
 
           <UnifiedBillingInvoicesCard order={order} />
+          <JobOrderReceiptDocumentCard
+            order={order}
+            onDownloadReceipt={onDownloadReceipt}
+            onPrintReceipt={onPrintReceipt}
+          />
           <UnifiedDocumentsCard order={order} />
           <UnifiedQualityChecklistCard order={order} actorMap={actorMap} />
           <UnifiedDeliveryTimeTrackingCard order={order} />
@@ -2316,6 +2339,59 @@ function DetailsScreen({ order, onClose, onAddService, currentUser: _currentUser
             <RoadmapCard order={order} actorMap={actorMap} className="" />
           </>
         )}
+      </div>
+    </div>
+  );
+}
+
+function JobOrderReceiptDocumentCard({ order, onDownloadReceipt, onPrintReceipt }: any) {
+  const { t } = useLanguage();
+  const receiptId = joFirst(order?.id, order?.orderNumber, order?.jobOrderId, "Job Order");
+  const createdAt = joFirst(order?.createdAt, order?.createDate, order?.jobOrderSummary?.createDate, "N/A");
+
+  return (
+    <div className="customer-details-card customer-details-card--wide bg-white rounded-2xl border-none shadow-[0_8px_24px_rgba(112,144,176,0.12)] p-6">
+      <div className="mb-6 flex items-center justify-between gap-3" style={{ flexWrap: "wrap" }}>
+        <div className="flex items-center gap-2">
+          <i className="fas fa-receipt text-[#2B3674]"></i>
+          <h3 className="customer-details-card-title text-lg font-bold text-[#2B3674]">{t("Job Order Receipt")}</h3>
+        </div>
+        <span className="status-badge status-new-request" style={{ fontSize: "0.72rem" }}>
+          PDF
+        </span>
+      </div>
+
+      <div className="customer-details-info-row rounded-xl border border-[#F1F4FA] p-4">
+        <div className="border-b border-[#F1F4FA] pb-3">
+          <span className="customer-details-info-label">{t("Document")}</span>
+          <span className="customer-details-info-value">{t("Job Order Receipt")} - {receiptId}</span>
+        </div>
+        <div className="mt-3 border-b border-[#F1F4FA] pb-3">
+          <span className="customer-details-info-label">{t("Generated")}</span>
+          <span className="customer-details-info-value">{createdAt}</span>
+        </div>
+        <div className="mt-3" style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+          <PermissionGate moduleId="joborder" optionId="joborder_download">
+            <button
+              type="button"
+              onClick={() => onDownloadReceipt?.(order)}
+              className="rounded-xl bg-[#4318FF] px-5 py-3 text-sm font-bold text-white transition-all hover:bg-[#3A14DF] shadow-[0_8px_22px_rgba(67,24,255,0.25)]"
+            >
+              <i className="fas fa-download mr-2" />
+              {t("Download")}
+            </button>
+          </PermissionGate>
+          <PermissionGate moduleId="joborder" optionId="joborder_print">
+            <button
+              type="button"
+              onClick={() => onPrintReceipt?.(order)}
+              className="rounded-xl border border-[#DDE7F6] bg-[#F7F9FF] px-5 py-3 text-sm font-bold text-[#5D54FF] transition-all hover:bg-[#EEF3FF]"
+            >
+              <i className="fas fa-print mr-2" />
+              {t("Print")}
+            </button>
+          </PermissionGate>
+        </div>
       </div>
     </div>
   );
@@ -2604,7 +2680,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
   const [pendingCustomer, setPendingCustomer] = useState<any>(null);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
+  const clearCustomerSelection = () => {
     setCustomerData(null);
     setSmartSearch("");
     setSearchResults([]);
@@ -2615,6 +2691,14 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
     setReferralPersonMobile("");
     setSocialPlatform("");
     setHeardFromOtherNote("");
+  };
+
+  useEffect(() => {
+    if (customerData) {
+      setVerifiedCustomer(customerData);
+      return;
+    }
+    clearCustomerSelection();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [customerType]);
 
@@ -2746,10 +2830,10 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
       </div>
       <div className="form-card-content">
         <div className="option-selector grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-          <div className={`option-btn rounded-xl border px-4 py-3 font-bold transition-all cursor-pointer ${customerType === "new" ? "bg-[#4318FF] text-white border-[#4318FF]" : "bg-[#F4F7FE] text-[#A3AED0] border-[#E7EDF8]"}`} onClick={() => setCustomerType("new")}>
+          <div className={`option-btn rounded-xl border px-4 py-3 font-bold transition-all cursor-pointer ${customerType === "new" ? "bg-[#4318FF] text-white border-[#4318FF]" : "bg-[#F4F7FE] text-[#A3AED0] border-[#E7EDF8]"}`} onClick={() => { clearCustomerSelection(); setCustomerType("new"); }}>
             {t("New Customer")}
           </div>
-          <div className={`option-btn rounded-xl border px-4 py-3 font-bold transition-all cursor-pointer ${customerType === "existing" ? "bg-[#4318FF] text-white border-[#4318FF]" : "bg-[#F4F7FE] text-[#A3AED0] border-[#E7EDF8]"}`} onClick={() => setCustomerType("existing")}>
+          <div className={`option-btn rounded-xl border px-4 py-3 font-bold transition-all cursor-pointer ${customerType === "existing" ? "bg-[#4318FF] text-white border-[#4318FF]" : "bg-[#F4F7FE] text-[#A3AED0] border-[#E7EDF8]"}`} onClick={() => { clearCustomerSelection(); setCustomerType("existing"); }}>
             {t("Existing Customer")}
           </div>
         </div>

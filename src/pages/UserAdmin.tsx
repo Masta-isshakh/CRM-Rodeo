@@ -20,6 +20,7 @@ import "./UserAdmin.css";
 type Dept = { key: string; name: string };
 type FailedLoginTracker = Record<string, { count: number; lockedUntil: number }>;
 const FAILED_LOGIN_TRACKER_KEY = "crm.failedLoginTracker";
+const EMPTY_DISPLAY = "-";
 
 function safeJsonParse<T>(raw: unknown): T | null {
   try {
@@ -128,6 +129,17 @@ function pickEmailLike(...values: any[]): string {
     if (s.includes("@")) return s;
   }
   return "";
+}
+
+function cleanDisplayValue(value: unknown): string {
+  const text = String(value ?? "").trim();
+  const mojibakeDash = "\u0393\u00c7\u00f6";
+  if (!text || text === mojibakeDash) return "";
+  return text;
+}
+
+function managerNameFromLabel(label: string): string {
+  return label.replace(/\s+\([^)]*\)\s*$/, "").trim();
 }
 
 async function resolveSessionEmailFallback(currentEmail: string): Promise<string> {
@@ -305,19 +317,52 @@ export default function Users(_: PageProps) {
   }, [editDepartmentKey, deptRoleLinks, roles]);
 
   const lineManagerOptions = useMemo(() => {
-    return (users ?? [])
-      .filter((u) => !isRootAdminSyntheticUser(u))
-      .map((u) => {
-        const userEmail = String(u.email ?? "").trim().toLowerCase();
-        const userName = String(u.fullName ?? "").trim() || userEmail;
-        return {
-          email: userEmail,
-          label: `${userName} (${userEmail})`,
-        };
-      })
-      .filter((x) => !!x.email)
+    const byEmail = new Map<string, { email: string; label: string }>();
+    for (const u of users ?? []) {
+      if (isRootAdminSyntheticUser(u)) continue;
+      const userEmail = String(u.email ?? "").trim().toLowerCase();
+      if (!userEmail) continue;
+      const userName = cleanDisplayValue(u.fullName) || userEmail;
+      const label = `${userName} (${userEmail})`;
+      const existing = byEmail.get(userEmail);
+      if (!existing || existing.label === `${userEmail} (${userEmail})`) {
+        byEmail.set(userEmail, { email: userEmail, label });
+      }
+    }
+
+    return Array.from(byEmail.values())
       .sort((a, b) => a.label.localeCompare(b.label));
   }, [users]);
+
+  const lineManagerLabelByEmail = useMemo(() => {
+    return new Map(lineManagerOptions.map((opt) => [opt.email, opt.label]));
+  }, [lineManagerOptions]);
+
+  const roleNameByIdForDisplay = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const role of roles ?? []) {
+      const id = String(role.id ?? "").trim();
+      const name = cleanDisplayValue(role.name);
+      if (id && name) map.set(id, name);
+    }
+    return map;
+  }, [roles]);
+
+  const detailsRoleDisplay = useMemo(() => {
+    const explicitRole = cleanDisplayValue((detailsUser as any)?.roleName);
+    const roleFromEdit = roleNameByIdForDisplay.get(editRoleKey);
+    const roleFromUser = roleNameByIdForDisplay.get(String((detailsUser as any)?.roleId ?? "").trim());
+    return explicitRole || roleFromEdit || roleFromUser || EMPTY_DISPLAY;
+  }, [detailsUser, editRoleKey, roleNameByIdForDisplay]);
+
+  const detailsLineManagerDisplay = useMemo(() => {
+    const rawName = cleanDisplayValue((detailsUser as any)?.lineManagerName);
+    const rawEmail = pickEmailLike((detailsUser as any)?.lineManagerEmail, rawName, editLineManagerEmail);
+    const resolvedLabel = rawEmail ? lineManagerLabelByEmail.get(rawEmail) : "";
+    const resolvedName = resolvedLabel ? managerNameFromLabel(resolvedLabel) : "";
+    const readableRawName = rawName.includes("@") ? "" : rawName;
+    return resolvedName || readableRawName || rawEmail || EMPTY_DISPLAY;
+  }, [detailsUser, editLineManagerEmail, lineManagerLabelByEmail]);
 
   const editUserLockoutInfo = useMemo(() => {
     const targetEmail = String(detailsUser?.email ?? "").trim().toLowerCase();
@@ -586,7 +631,7 @@ export default function Users(_: PageProps) {
       setDepartments(deptList);
       setRoles(roles ?? []);
       setDeptRoleLinks(links ?? []);
-      setStatus(`Loaded ${sorted.length} users ΓÇó ${deptList.length} departments.`);
+      setStatus(`Loaded ${sorted.length} users - ${deptList.length} departments.`);
     } catch (e: any) {
       console.error(e);
       setUsers([]);
@@ -659,15 +704,20 @@ export default function Users(_: PageProps) {
     return (users ?? []).map((u, idx) => {
       const persistedEmpId = String((u as any).employeeId ?? "").trim();
       const empId = persistedEmpId || empIdFromIndex(idx);
-      const deptName = deptNameByKey.get(String(u.departmentKey ?? "")) ?? (u.departmentName ?? "ΓÇö");
+      const deptName = deptNameByKey.get(String(u.departmentKey ?? "")) ?? cleanDisplayValue(u.departmentName);
+      const rawManagerName = cleanDisplayValue((u as any).lineManagerName);
+      const rawManagerEmail = pickEmailLike((u as any).lineManagerEmail, rawManagerName);
+      const resolvedManagerLabel = rawManagerEmail ? lineManagerLabelByEmail.get(rawManagerEmail) : "";
+      const readableManagerName = rawManagerName.includes("@") ? "" : rawManagerName;
       const lineManagerDisplay =
-        String((u as any).lineManagerName ?? "").trim() ||
-        String((u as any).lineManagerEmail ?? "").trim() ||
-        "ΓÇö";
+        managerNameFromLabel(resolvedManagerLabel ?? "") ||
+        readableManagerName ||
+        rawManagerEmail ||
+        EMPTY_DISPLAY;
 
       const userRoleId = String((u as any).roleId ?? "").trim();
-      const userRoleName = String((u as any).roleName ?? "").trim();
-      const roleName = userRoleName || roleNameById.get(userRoleId) || (u.departmentKey ? (firstRoleByDept[u.departmentKey] ?? "ΓÇö") : "ΓÇö");
+      const userRoleName = cleanDisplayValue((u as any).roleName);
+      const roleName = userRoleName || roleNameById.get(userRoleId) || (u.departmentKey ? (firstRoleByDept[u.departmentKey] ?? "") : "") || EMPTY_DISPLAY;
       const dashboardAccessEnabled = Boolean((u as any).dashboardAccessEnabled ?? true);
 
       const dashboardAllowed = isRootAdminSyntheticUser(u)
@@ -683,14 +733,14 @@ export default function Users(_: PageProps) {
       return {
         u,
         empId,
-        deptName: String(deptName || "ΓÇö"),
-        roleName: String(roleName || "ΓÇö"),
+        deptName: String(deptName || EMPTY_DISPLAY),
+        roleName: String(roleName || EMPTY_DISPLAY),
         lineManagerDisplay,
         dashboardAllowed,
         mobile,
       };
     });
-  }, [users, departments, roles, deptRoleLinks, dashboardAllowedByDept, dashboardAllowedByRoleId]);
+  }, [users, departments, roles, deptRoleLinks, dashboardAllowedByDept, dashboardAllowedByRoleId, lineManagerLabelByEmail]);
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -1536,7 +1586,7 @@ export default function Users(_: PageProps) {
               <div className={`ums-edit-page ${detailsEditing ? "is-editing" : "is-readonly"}`}>
                 <div className="ums-edit-card">
                   <div className="ums-edit-card-head-wrap">
-                    <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden>ΓùÅ</span>{t("userInformation")}</div>
+                    <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden><i className="fas fa-id-card" /></span>{t("userInformation")}</div>
                     <PermissionGate moduleId="users" optionId="users_edit">
                       <button
                         type="button"
@@ -1559,7 +1609,7 @@ export default function Users(_: PageProps) {
                           placeholder={t("employeeIdExample")}
                         />
                       ) : (
-                        <div className="ums-static-value">{String((detailsUser as any).employeeId ?? "").trim() || "ΓÇö"}</div>
+                        <div className="ums-static-value">{cleanDisplayValue((detailsUser as any).employeeId) || EMPTY_DISPLAY}</div>
                       )}
                     </div>
 
@@ -1575,7 +1625,7 @@ export default function Users(_: PageProps) {
                           autoComplete="off"
                         />
                       ) : (
-                        <div className="ums-static-value">{detailsUser.email ?? "ΓÇö"}</div>
+                        <div className="ums-static-value">{detailsUser.email ?? EMPTY_DISPLAY}</div>
                       )}
                     </div>
 
@@ -1589,7 +1639,7 @@ export default function Users(_: PageProps) {
                           placeholder={t("firstName")}
                         />
                       ) : (
-                        <div className="ums-static-value">{editFirstName || "ΓÇö"}</div>
+                        <div className="ums-static-value">{editFirstName || EMPTY_DISPLAY}</div>
                       )}
                     </div>
 
@@ -1603,7 +1653,7 @@ export default function Users(_: PageProps) {
                           placeholder={t("lastName")}
                         />
                       ) : (
-                        <div className="ums-static-value">{editLastName || "ΓÇö"}</div>
+                        <div className="ums-static-value">{editLastName || EMPTY_DISPLAY}</div>
                       )}
                     </div>
 
@@ -1617,7 +1667,7 @@ export default function Users(_: PageProps) {
                           placeholder={t("phoneExample")}
                         />
                       ) : (
-                        <div className="ums-static-value">{editMobileNumber || "ΓÇö"}</div>
+                        <div className="ums-static-value">{editMobileNumber || EMPTY_DISPLAY}</div>
                       )}
                     </div>
 
@@ -1643,7 +1693,7 @@ export default function Users(_: PageProps) {
                         </select>
                       ) : (
                         <div className="ums-static-value">
-                          {departments.find((d) => d.key === editDepartmentKey)?.name ?? detailsUser.departmentName ?? "ΓÇö"}
+                          {(departments.find((d) => d.key === editDepartmentKey)?.name ?? cleanDisplayValue(detailsUser.departmentName)) || EMPTY_DISPLAY}
                         </div>
                       )}
                     </div>
@@ -1661,7 +1711,7 @@ export default function Users(_: PageProps) {
                             <option value="">{t("selectEllipsis")}</option>
                             {availableRolesForEditDept.map((r) => (
                               <option key={String(r.id ?? "")} value={String(r.id ?? "")}>
-                                {r.name ?? "ΓÇö"}
+                                {cleanDisplayValue(r.name) || EMPTY_DISPLAY}
                               </option>
                             ))}
                           </select>
@@ -1670,7 +1720,7 @@ export default function Users(_: PageProps) {
                           )}
                         </>
                       ) : (
-                        <div className="ums-static-value">{String((detailsUser as any).roleName ?? "").trim() || "ΓÇö"}</div>
+                        <div className="ums-static-value">{detailsRoleDisplay}</div>
                       )}
                     </div>
 
@@ -1694,7 +1744,7 @@ export default function Users(_: PageProps) {
                         </select>
                       ) : (
                         <div className="ums-static-value">
-                          {String((detailsUser as any).lineManagerName ?? "").trim() || String((detailsUser as any).lineManagerEmail ?? "").trim() || "ΓÇö"}
+                          {detailsLineManagerDisplay}
                         </div>
                       )}
                     </div>
@@ -1702,7 +1752,7 @@ export default function Users(_: PageProps) {
                 </div>
 
                 <div className="ums-edit-card">
-                  <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden>ΓùÅ</span>{t("accountSettings")}</div>
+                  <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden><i className="fas fa-sliders" /></span>{t("accountSettings")}</div>
                   <div className="ums-toggle-grid">
                     <div className="ums-toggle-row">
                       <div>
@@ -1743,7 +1793,7 @@ export default function Users(_: PageProps) {
                 </div>
 
                 <div className="ums-edit-card">
-                  <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden>ΓùÅ</span>{t("passwordManagement")}</div>
+                  <div className="ums-edit-card-head"><span className="ums-card-icon" aria-hidden><i className="fas fa-key" /></span>{t("passwordManagement")}</div>
                   {editUserLockoutInfo.active && (
                     <div className="ums-lockout-label" role="status" aria-live="polite">
                       {t("resetPassword")} ({editUserLockoutInfo.remainingMinutes} min left)
@@ -1979,9 +2029,9 @@ export default function Users(_: PageProps) {
                   return (
                     <tr key={u.id}>
                       <td data-label={t("employeeID")} className="ums-mono">{row.empId}</td>
-                      <td data-label={t("employeeName")} className="ums-name">{u.fullName ?? "ΓÇö"}</td>
-                      <td data-label={t("emailAddress")} className="ums-email">{u.email ?? "ΓÇö"}</td>
-                      <td data-label={t("mobileNumber")} className="ums-muted">{row.mobile || "ΓÇö"}</td>
+                      <td data-label={t("employeeName")} className="ums-name">{cleanDisplayValue(u.fullName) || EMPTY_DISPLAY}</td>
+                      <td data-label={t("emailAddress")} className="ums-email">{cleanDisplayValue(u.email) || EMPTY_DISPLAY}</td>
+                      <td data-label={t("mobileNumber")} className="ums-muted">{row.mobile || EMPTY_DISPLAY}</td>
 
                       <td data-label={t("department")}>
                         <span className="pill pill-dept">{row.deptName}</span>
@@ -2149,7 +2199,7 @@ export default function Users(_: PageProps) {
                       <option value="">{t("selectEllipsis")}</option>
                       {availableRolesForDept.map((r) => (
                         <option key={String(r.id ?? "")} value={String(r.id ?? "")}>
-                          {r.name ?? "ΓÇö"}
+                          {cleanDisplayValue(r.name) || EMPTY_DISPLAY}
                         </option>
                       ))}
                     </select>

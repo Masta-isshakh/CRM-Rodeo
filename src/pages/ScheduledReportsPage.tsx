@@ -62,6 +62,8 @@ const MODELS: Array<{ key: ModelKey; label: string }> = [
   { key: "QuotationHistory", label: "Quotations" },
 ];
 
+const DEFAULT_SENDER_EMAIL = "CRM@roadiodrive.work";
+
 const EMPTY_FILTERS: FilterState = {
   search: "",
   dateFrom: "",
@@ -170,6 +172,14 @@ function pickModel(client: unknown, name: string): any {
   return (client as any)?.models?.[name] ?? null;
 }
 
+function modelLabel(key: ModelKey): string {
+  return MODELS.find((m) => m.key === key)?.label ?? key;
+}
+
+function fileToken(value: string): string {
+  return String(value || "report").replace(/[^a-zA-Z0-9_-]/g, "_");
+}
+
 async function safeList(client: unknown, modelName: string, limit = 3000): Promise<AnyObj[]> {
   const model = pickModel(client, modelName);
   if (!model?.list) return [];
@@ -194,7 +204,8 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
-  const [selectedModel, setSelectedModel] = useState<ModelKey>("JobOrder");
+  const [selectedModels, setSelectedModels] = useState<ModelKey[]>(["JobOrder"]);
+  const [modelMenuOpen, setModelMenuOpen] = useState(false);
   const [allData, setAllData] = useState<Record<ModelKey, AnyObj[]>>({
     JobOrder: [],
     Customer: [],
@@ -215,7 +226,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
   });
 
   const [recipientEmail, setRecipientEmail] = useState("");
-  const [senderEmail, setSenderEmail] = useState("");
+  const [senderEmail, setSenderEmail] = useState(DEFAULT_SENDER_EMAIL);
   const [scheduleAt, setScheduleAt] = useState("");
   const [scheduleFormat, setScheduleFormat] = useState<ReportFormat>("PDF");
   const [scheduleDaysOfWeek, setScheduleDaysOfWeek] = useState<WeekdayKey[]>([]);
@@ -391,7 +402,20 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
     void triggerProcessorNow({ silent: true, source: "auto" });
   }, [permissions?.canRead, isAdminGroup, runningProcessor, lastAutoRunAt, queue]);
 
-  const modelRows = useMemo(() => allData[selectedModel] ?? [], [allData, selectedModel]);
+  const selectedModelLabel = selectedModels.length === MODELS.length
+    ? t("All Data Models")
+    : selectedModels.map((key) => t(modelLabel(key))).join(", ");
+
+  const modelRows = useMemo<AnyObj[]>(
+    () =>
+      selectedModels.flatMap((key) =>
+        (allData[key] ?? []).map((row) => ({
+          "Data Model": t(modelLabel(key)),
+          ...row,
+        }) as AnyObj)
+      ),
+    [allData, selectedModels, t]
+  );
 
   const fieldOptions = useMemo(() => {
     const set = new Set<string>();
@@ -423,6 +447,19 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
       return Array.from(merged);
     });
   };
+
+  const toggleModel = (key: ModelKey) => {
+    setSelectedModels((prev) => {
+      if (prev.includes(key)) {
+        const next = prev.filter((item) => item !== key);
+        return next.length ? next : prev;
+      }
+      return [...prev, key];
+    });
+  };
+
+  const selectAllModels = () => setSelectedModels(MODELS.map((m) => m.key));
+  const resetModels = () => setSelectedModels(["JobOrder"]);
 
   useEffect(() => {
     if (fieldOptions.length === 0) {
@@ -491,7 +528,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
     let y = 14;
     doc.setFont("helvetica", "bold");
     doc.setFontSize(15);
-    doc.text(`${t("Scheduled Report")} - ${selectedModel}`, 10, y);
+    doc.text(`${t("Scheduled Report")} - ${selectedModelLabel}`, 10, y);
     y += 7;
     doc.setFont("helvetica", "normal");
     doc.setFontSize(9);
@@ -522,7 +559,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
       y += 6.6;
     }
 
-    doc.save(`scheduled-report-${selectedModel}-${Date.now()}.pdf`);
+    doc.save(`scheduled-report-${fileToken(selectedModels.join("-"))}-${Date.now()}.pdf`);
     setMessage(t("PDF report generated successfully."));
   };
 
@@ -550,7 +587,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
 
     const summary = XLSX.utils.json_to_sheet([
       {
-        model: selectedModel,
+        model: selectedModelLabel,
         records: rows.length,
         fields: selectedFields.join(", "),
         generatedAt: new Date().toISOString(),
@@ -561,7 +598,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
     const array = XLSX.write(wb, { type: "array", bookType: "xlsx" });
     downloadBlob(
       new Blob([array], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }),
-      `scheduled-report-${selectedModel}-${Date.now()}.xlsx`
+      `scheduled-report-${fileToken(selectedModels.join("-"))}-${Date.now()}.xlsx`
     );
 
     setMessage(t("Excel report generated successfully."));
@@ -611,14 +648,15 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
       }
 
       const payload = {
-        title: txt(scheduleTitle) || `${selectedModel} ${new Date().toLocaleDateString()} ${scheduleFormat}`,
+        title: txt(scheduleTitle) || `${selectedModelLabel} ${new Date().toLocaleDateString()} ${scheduleFormat}`,
         senderEmail: sender || undefined,
         recipientEmail: recipient,
         reportFormat: scheduleFormat,
-        reportModel: selectedModel,
+        reportModel: selectedModelLabel,
         selectedFieldsJson: JSON.stringify(selectedFields),
         filtersJson: JSON.stringify({
-          modelKey: selectedModel,
+          modelKey: selectedModels[0] ?? "JobOrder",
+          modelKeys: selectedModels,
           selectedFields,
           filters,
         }),
@@ -641,7 +679,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
           status: txt(row.status || "PENDING"),
           sendAt: txt(row.sendAt || payload.sendAt),
           createdAt: txt(row.createdAt || payload.createdAt),
-          reportModel: txt(row.reportModel || selectedModel),
+          reportModel: txt(row.reportModel || selectedModelLabel),
           daysOfWeek: scheduleDaysOfWeek,
           errorMessage: txt(row.errorMessage),
         },
@@ -650,7 +688,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
 
       setScheduleTitle("");
       setRecipientEmail("");
-      setSenderEmail("");
+      setSenderEmail(DEFAULT_SENDER_EMAIL);
       setScheduleAt("");
       setScheduleFormat("PDF");
       setScheduleDaysOfWeek([]);
@@ -709,7 +747,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
             <p>{t("Build a report, keep the filters simple, and send it by email on a schedule.")}</p>
           </div>
           <div className="sr-metrics">
-            <div><span>{t("Model")}</span><strong>{selectedModel}</strong></div>
+            <div><span>{t("Model")}</span><strong>{selectedModelLabel || "-"}</strong></div>
             <div><span>{t("Records")}</span><strong>{filteredRows.length}</strong></div>
             <div><span>{t("Scheduled")}</span><strong>{queue.length}</strong></div>
           </div>
@@ -728,11 +766,38 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
           <div className="sr-grid">
             <label>
               <span>{t("Data Model")}</span>
-              <select value={selectedModel} onChange={(e) => setSelectedModel(e.target.value as ModelKey)}>
-                {MODELS.map((m) => (
-                  <option key={m.key} value={m.key}>{m.label}</option>
-                ))}
-              </select>
+              <div className="sr-model-picker">
+                <button
+                  type="button"
+                  className="sr-model-trigger"
+                  onClick={() => setModelMenuOpen((open) => !open)}
+                  aria-expanded={modelMenuOpen}
+                >
+                  <span>{selectedModelLabel || t("Select data models")}</span>
+                  <i className="fas fa-chevron-down" aria-hidden="true" />
+                </button>
+                {modelMenuOpen && (
+                  <div className="sr-model-menu">
+                    <div className="sr-model-actions">
+                      <button type="button" onClick={selectAllModels}>{t("Select All")}</button>
+                      <button type="button" onClick={resetModels}>{t("Job Orders Only")}</button>
+                    </div>
+                    {MODELS.map((m) => {
+                      const checked = selectedModels.includes(m.key);
+                      return (
+                        <label key={m.key} className="sr-model-option">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleModel(m.key)}
+                          />
+                          <span>{t(m.label)}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </label>
 
             <label>
