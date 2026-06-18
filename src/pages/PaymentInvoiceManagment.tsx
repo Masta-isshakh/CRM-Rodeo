@@ -1682,9 +1682,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const billIssuedAt = safeText(billing.billIssuedAt || new Date().toISOString());
     const billDateOnly = formatDateOnly(billIssuedAt);
     const billIssuedAtDisplay = formatDateTime(billIssuedAt);
-    const jobCreatedAtDisplay = formatDateTime(order?._row?.createdAt || order?._parsed?.createdAt || order?.createdAt);
-    const jobUpdatedAtDisplay = formatDateTime(order?._row?.updatedAt || order?._parsed?.updatedAt || order?.updatedAt);
-    const billGeneratedBy = safeText(billing.billGeneratedBy || order?.createdBy || order?._row?.createdBy || "System");
+    const createdBy = safeText(billing.billGeneratedBy || order?.createdBy || order?._row?.createdBy || "System");
     const orderTypeLabel = safeText(order?.orderType || order?._row?.orderType || "Job Order");
     const workStatusLabel = safeText(order?.workStatus || order?._row?.workStatusLabel || order?._row?.status || "-");
     const paymentMethodLabel = safeText(billing.paymentMethod || "-");
@@ -1704,42 +1702,11 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const amountPaid = toNum(billing.amountPaid || 0);
     const balanceDue = toNum(billing.balanceDue || 0);
 
-    // Derive last payment amount from live payment rows (sorted by date, most recent first).
-    // This is the authoritative source — not the potentially stale billing field.
-    const sortedPayRows: Array<{ amount: number; paidAt?: string; createdAt?: string }> = Array.isArray(order?._paymentRowsRaw)
-      ? [...order._paymentRowsRaw].sort((a: any, b: any) =>
-          String(b.paidAt ?? b.createdAt ?? "").localeCompare(String(a.paidAt ?? a.createdAt ?? ""))
-        )
-      : [];
-    const lastPaymentAmount = roundMoney(Math.max(0,
-      sortedPayRows.length > 0
-        ? toNum(sortedPayRows[0].amount)
-        : toNum(billing.lastPaymentAmount || billing.latestPaymentAmount || 0)
-    ));
-    const previousAmountPaid = roundMoney(Math.max(0,
-      sortedPayRows.length > 1
-        ? sortedPayRows.slice(1).reduce((sum: number, r: any) => sum + toNum(r.amount), 0)
-        : toNum(billing.previousAmountPaid || billing.amountPaidBeforeLast || (lastPaymentAmount > 0 ? amountPaid - lastPaymentAmount : 0))
-    ));
     const dynamicPaymentSnap = computePaymentSnapshot(totalAmount, discount, amountPaid);
     const paymentStatusLabel = normalizePaymentStatusLabel(
       safeText(order?.paymentStatusEnum || billing.paymentStatus || dynamicPaymentSnap.paymentStatusEnum),
       safeText(order?.paymentStatus || billing.paymentStatusLabel || dynamicPaymentSnap.paymentStatusLabel)
     );
-    const paymentStatus =
-      paymentStatusLabel === "Fully Paid"
-        ? "PAID"
-        : paymentStatusLabel === "Partially Paid"
-          ? "PARTIAL"
-          : "UNPAID";
-    const paymentStatusArabic =
-      paymentStatus === "PAID"
-        ? "مدفوع"
-        : paymentStatus === "UNPAID"
-          ? "غير مدفوع"
-          : paymentStatus === "PARTIAL" || paymentStatus === "PARTIALLY_PAID"
-            ? "مدفوع جزئيا"
-            : paymentStatus;
 
     const logoDataUrl = await (async () => {
       try {
@@ -1809,13 +1776,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       return `${out}...`;
     };
 
-    const drawWrapped = (text: string, x: number, y: number, maxWidth: number, lineH: number, align: "left" | "right" = "left") => {
-      const lines = doc.splitTextToSize(text || "-", maxWidth) as string[];
-      lines.forEach((line, idx) => {
-        doc.text(line, x, y + idx * lineH, align === "right" ? { align: "right" } : undefined);
-      });
-      return lines.length;
-    };
 
     const containsArabic = (value: string) => /[\u0600-\u06FF]/.test(String(value ?? ""));
 
@@ -1922,23 +1882,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       return lines.length ? lines : [normalized];
     };
 
-    const drawWrappedArabicLines = (
-      text: string,
-      xRightMm: number,
-      yTopMm: number,
-      maxWidthMm: number,
-      fontPx: number,
-      style: "normal" | "italic" | "bold" | "bolditalic",
-      colorHex = "#181818",
-      lineGapMm = 0.6,
-    ) => {
-      const lineHeightMm = 4.4 + lineGapMm;
-      const lines = splitArabicTextToLines(text, maxWidthMm, fontPx, style);
-      lines.forEach((line, idx) => {
-        drawArabicLine(line, xRightMm, yTopMm + idx * lineHeightMm, maxWidthMm, fontPx, style, colorHex);
-      });
-      return lines.length;
-    };
 
     const drawSmartPdfLine = (
       text: string,
@@ -1961,145 +1904,176 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       doc.text(String(clipped[0] || "-"), xLeftMm, baselineYMm);
     };
 
-    // Letterhead geometry copied from provided HTML template.
+    // Match invoice layout with the job-order receipt geometry and spacing.
     const mmPerPx = 25.4 / 96;
-    const gridGap = 32 * mmPerPx; // 2rem gap
-    const headerLogoW = 140 * mmPerPx;
-    const headerLogoH = 100 * mmPerPx;
-    const footerQrSize = 70 * mmPerPx;
+    const gridGap = 14 * mmPerPx;
+    const headerLogoW = 58 * mmPerPx;
+    const headerLogoH = 58 * mmPerPx;
+    const footerQrSize = 42 * mmPerPx;
 
     const sideColW = (contentW - headerLogoW - gridGap * 2) / 2;
     const leftColX = marginX;
     const centerColX = leftColX + sideColW + gridGap;
     const rightColRightX = pageW - marginX;
 
-    // Footer uses a smaller center item (QR), so side columns should be wider.
     const footerSideColW = (contentW - footerQrSize - gridGap * 2) / 2;
     const footerLeftColX = marginX;
     const footerCenterColX = footerLeftColX + footerSideColW + gridGap;
     const footerRightColRightX = pageW - marginX;
 
-    const headerPadY = 2.1; // ~0.5rem
+    const headerPadY = 1.4;
     const headerContentTop = pagePadTop + headerPadY;
-    const headerBottom = pagePadTop + headerPadY * 2 + headerLogoH + 1.1; // includes bottom spacing
+    const headerBottom = pagePadTop + headerPadY * 2 + headerLogoH + 0.8;
 
-    const footerPadTop = 3.4; // 0.8rem
-    const footerBasePadY = 2.1; // 0.5rem
-    const footerTop = pageH - pagePadBottom - (footerPadTop + footerBasePadY + footerQrSize + 11.2);
+    const footerPadTop = 2;
+    const footerBasePadY = 1.5;
+    const footerTop = pageH - pagePadBottom - (footerPadTop + footerBasePadY + footerQrSize + 4.8);
     const footerContentTop = footerTop + footerPadTop;
+    const pageContentBottom = footerTop - 4;
+    const footerLineH = Math.max(3.6, BILL_BODY_FONT_SIZE * 0.42);
 
-    doc.setDrawColor(44, 62, 80);
-    doc.setLineWidth(0.53); // 2px equivalent
-    doc.line(marginX, headerBottom, pageW - marginX, headerBottom);
-    doc.line(marginX, footerTop, pageW - marginX, footerTop);
+    const drawLetterhead = () => {
+      doc.setDrawColor(44, 62, 80);
+      doc.setLineWidth(0.53);
+      doc.line(marginX, headerBottom, pageW - marginX, headerBottom);
+      doc.line(marginX, footerTop, pageW - marginX, footerTop);
 
-    // Header: left English lines
-    doc.setTextColor(24, 24, 24);
-    doc.setFont("helvetica", "bolditalic");
-    doc.setFontSize(BILL_TITLE_FONT_SIZE);
-    doc.text("RODEO DRIVE", leftColX, headerContentTop + 4.8);
-    doc.setFont("helvetica", "italic");
-    doc.setFontSize(BILL_BODY_FONT_SIZE);
-    doc.text("Gloss Perfected", leftColX, headerContentTop + 8.7);
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(BILL_BODY_FONT_SIZE);
-    doc.text("Block 2, Shop No. SYS 066, Block 21,", leftColX, headerContentTop + 12.6);
-    doc.text("Near Dragon Mart Al Sayer, Doha.", leftColX, headerContentTop + 16.5);
+      doc.setTextColor(24, 24, 24);
+      doc.setFont("helvetica", "bolditalic");
+      doc.setFontSize(BILL_TITLE_FONT_SIZE);
+      doc.text("RODEO DRIVE", leftColX, headerContentTop + 4.8);
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(BILL_BODY_FONT_SIZE);
+      doc.text("Gloss Perfected", leftColX, headerContentTop + 8.7);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(BILL_BODY_FONT_SIZE);
+      doc.text("Doha, Qatar", leftColX, headerContentTop + 12.4);
 
-    // Header: center logo
-    if (roundedLogoDataUrl) {
-      const headerLogoSize = Math.min(headerLogoW, headerLogoH);
-      const headerLogoX = centerColX + (headerLogoW - headerLogoSize) / 2;
-      const headerLogoY = headerContentTop + (headerLogoH - headerLogoSize) / 2;
-      doc.addImage(roundedLogoDataUrl, "PNG", headerLogoX, headerLogoY, headerLogoSize, headerLogoSize);
-    }
+      if (roundedLogoDataUrl) {
+        const headerLogoSize = Math.min(headerLogoW, headerLogoH);
+        const headerLogoX = centerColX + (headerLogoW - headerLogoSize) / 2;
+        const headerLogoY = headerContentTop + (headerLogoH - headerLogoSize) / 2;
+        doc.addImage(roundedLogoDataUrl, "PNG", headerLogoX, headerLogoY, headerLogoSize, headerLogoSize);
+      }
 
-    // Header: right Arabic lines (canvas rendering preserves Arabic shaping)
-    drawArabicLine("روديو درايف", rightColRightX, headerContentTop + 2.6, sideColW, BILL_TITLE_FONT_SIZE, "bolditalic");
-    drawArabicLine("اللمعان المثالي", rightColRightX, headerContentTop + 6.8, sideColW, BILL_BODY_FONT_SIZE, "italic");
-    drawArabicLine("مبنى 2 ، محل رقم SYS 066 ، مبنى 21 ،", rightColRightX, headerContentTop + 11.0, sideColW, BILL_BODY_FONT_SIZE, "normal");
-    drawArabicLine("بالقرب من دراجون مارت ال ساير ، الدوحة.", rightColRightX, headerContentTop + 15.2, sideColW, BILL_BODY_FONT_SIZE, "normal");
+      drawArabicLine("روديو درايف", rightColRightX, headerContentTop + 2.6, sideColW, BILL_TITLE_FONT_SIZE, "bolditalic");
+      drawArabicLine("اللمعان المثالي", rightColRightX, headerContentTop + 6.8, sideColW, BILL_BODY_FONT_SIZE, "italic");
+      drawArabicLine("الدوحة، قطر", rightColRightX, headerContentTop + 11.0, sideColW, BILL_BODY_FONT_SIZE, "normal");
 
-    // Body title and meta
-    const bodyTop = headerBottom + 8;
+      doc.setTextColor(24, 24, 24);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(BILL_BODY_FONT_SIZE);
+      doc.text("info@rodeodrive.qa", footerLeftColX, footerContentTop + footerLineH * 1.4);
+      doc.text("www.rodeodrive.qa", footerLeftColX, footerContentTop + footerLineH * 2.5);
+      doc.addImage(qrDataUrl, "PNG", footerCenterColX, footerContentTop, footerQrSize, footerQrSize);
+      drawArabicLine("info@rodeodrive.qa", footerRightColRightX, footerContentTop + footerLineH * 1.4 - 2.8, footerSideColW, BILL_BODY_FONT_SIZE, "normal");
+      drawArabicLine("www.rodeodrive.qa", footerRightColRightX, footerContentTop + footerLineH * 2.5 - 2.8, footerSideColW, BILL_BODY_FONT_SIZE, "normal");
+    };
+
+    const ensureSpace = (currentY: number, needed: number) => (
+      currentY + needed > pageContentBottom ? currentY : currentY
+    );
+
+    const drawInfoBox = (
+      x: number,
+      y: number,
+      w: number,
+      h: number,
+      title: string,
+      titleAr: string,
+      rows: Array<[string, string]>,
+    ) => {
+      doc.setFillColor(248, 250, 253);
+      doc.setDrawColor(220, 226, 234);
+      doc.roundedRect(x, y, w, h, 1.5, 1.5, "FD");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(BILL_TITLE_FONT_SIZE);
+      doc.setTextColor(20, 31, 46);
+      doc.text(title, x + 3, y + 5);
+      drawArabicLine(titleAr, x + w - 3, y + 1.8, 36, BILL_TITLE_FONT_SIZE, "bolditalic");
+
+      let rowY = y + 10.3;
+      rows.forEach(([label, value]) => {
+        doc.setFont("helvetica", "bold");
+        doc.setFontSize(6.2);
+        doc.setTextColor(107, 114, 128);
+        doc.text(label, x + 3, rowY);
+        drawSmartPdfLine(value, x + 31, rowY, w - 34, "normal", "#111827");
+        rowY += 3.75;
+      });
+    };
+
+    const dash = (value: unknown) => safeText(value) || "-";
+    const serviceRows = services.map((service) => {
+      const isPackage = service.type === "package";
+      const isIncluded = service.type === "package-included";
+      const label = isPackage
+        ? `Package: ${dash(service.name)}`
+        : isIncluded
+          ? `- ${dash(service.name)} (included in package)`
+          : dash(service.name);
+      return {
+        label,
+        amount: service.price == null ? null : toNum(service.price),
+        muted: isIncluded,
+        bold: isPackage,
+      };
+    });
+
+    drawLetterhead();
+
+    let cursorY = headerBottom + 5.5;
     doc.setTextColor(20, 31, 46);
     doc.setFont("helvetica", "bold");
     doc.setFontSize(BILL_TITLE_FONT_SIZE);
-    doc.text("INVOICE", marginX, bodyTop);
-    drawArabicLine("فاتورة", pageW - marginX, bodyTop - 3.1, 30, BILL_TITLE_FONT_SIZE, "bolditalic");
+    doc.text("JOB ORDER RECEIPT", marginX, cursorY);
+    drawArabicLine("إيصال أمر العمل", pageW - marginX, cursorY - 3.1, 42, BILL_TITLE_FONT_SIZE, "bolditalic");
 
     doc.setFont("helvetica", "normal");
     doc.setFontSize(BILL_BODY_FONT_SIZE);
-    doc.text(`Bill #: ${billId}`, marginX, bodyTop + 6);
-    doc.text(`Date: ${billDateOnly}`, marginX + 45, bodyTop + 6);
-    doc.text(`Status: ${paymentStatus}`, marginX + 88, bodyTop + 6);
-    drawSmartPdfLine(`Order ID: ${safeText(order?.id) || "-"}`, marginX + 124, bodyTop + 6, pageW - marginX - (marginX + 124));
-    doc.setFontSize(BILL_BODY_FONT_SIZE);
-    drawSmartPdfLine(`Issued At: ${billIssuedAtDisplay}`, marginX, bodyTop + 10.5, 95);
-    drawSmartPdfLine(`Issued By: ${billGeneratedBy}`, marginX + 110, bodyTop + 10.5, pageW - marginX - (marginX + 110));
-    drawArabicLine(`رقم الفاتورة: ${billId} | التاريخ: ${billDateOnly}`, pageW - marginX, bodyTop + 11.9, 95, BILL_BODY_FONT_SIZE, "normal");
-    drawArabicLine(`الحالة: ${paymentStatusArabic} | رقم الطلب: ${safeText(order?.id) || "-"}`, pageW - marginX, bodyTop + 16.2, 95, BILL_BODY_FONT_SIZE, "normal");
-    drawArabicLine(`وقت الإصدار: ${billIssuedAtDisplay} | أنشأ الفاتورة: ${billGeneratedBy}`, pageW - marginX, bodyTop + 20.5, 120, BILL_BODY_FONT_SIZE, "normal");
+    doc.text(`Receipt #: ${billId}`, marginX, cursorY + 4.8);
+    doc.text(`Date: ${billDateOnly}`, marginX + 55, cursorY + 4.8);
+    drawSmartPdfLine(`Created By: ${createdBy}`, marginX + 100, cursorY + 4.8, pageW - marginX - (marginX + 100));
+    drawArabicLine(`رقم الإيصال: ${billId} | التاريخ: ${billDateOnly}`, pageW - marginX, cursorY + 6.9, 96, BILL_BODY_FONT_SIZE, "normal");
 
     doc.setDrawColor(188, 196, 206);
     doc.setLineWidth(0.3);
-    doc.line(marginX, bodyTop + 25.2, pageW - marginX, bodyTop + 25.2);
+    doc.line(marginX, cursorY + 12.2, pageW - marginX, cursorY + 12.2);
+    cursorY += 15.5;
 
-    // Customer / vehicle section
-    const infoTop = bodyTop + 30;
     const infoGap = 4;
     const infoW = (contentW - infoGap) / 2;
-    doc.setFillColor(248, 250, 253);
-    doc.setDrawColor(220, 226, 234);
-    doc.roundedRect(marginX, infoTop, infoW, 28, 1.5, 1.5, "FD");
-    doc.roundedRect(marginX + infoW + infoGap, infoTop, infoW, 28, 1.5, 1.5, "FD");
+    const infoRows = 5;
+    const infoH = 10.3 + (infoRows * 3.75) + 3;
+    drawInfoBox(marginX, cursorY, infoW, infoH, "BILL TO", "العميل", [
+      ["Name", dash(order?.customerName || order?.customerDetails?.name)],
+      ["Mobile", dash(order?.mobile || order?.customerMobile || order?.customerDetails?.mobile)],
+      ["Customer ID", dash(order?.customerDetails?.customerId || order?.customerDetails?.id)],
+      ["Email", dash(order?.customerDetails?.email)],
+      ["Address", dash(order?.customerDetails?.address)],
+    ]);
+    drawInfoBox(marginX + infoW + infoGap, cursorY, infoW, infoH, "VEHICLE", "المركبة", [
+      ["Plate", dash(order?.vehiclePlate || order?.vehicleDetails?.plateNumber)],
+      ["Vehicle", dash(`${dash(order?.vehicleDetails?.make)} ${dash(order?.vehicleDetails?.model)}`.replace(/ -/g, "").replace(/- /g, ""))],
+      ["Year / Type", dash([order?.vehicleDetails?.year, order?.vehicleDetails?.type].filter(Boolean).join(" / "))],
+      ["Color", dash(order?.vehicleDetails?.color)],
+      ["VIN", dash(order?.vehicleDetails?.vin)],
+    ]);
+    cursorY += infoH + 4;
 
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(BILL_TITLE_FONT_SIZE);
-    doc.text("BILL TO", marginX + 3, infoTop + 5);
-    doc.text("VEHICLE", marginX + infoW + infoGap + 3, infoTop + 5);
-    drawArabicLine("العميل", marginX + infoW - 3, infoTop + 1.8, 22, BILL_TITLE_FONT_SIZE, "bolditalic");
-    drawArabicLine("المركبة", marginX + infoW + infoGap + infoW - 3, infoTop + 1.8, 24, BILL_TITLE_FONT_SIZE, "bolditalic");
+    const detailsRows = 5;
+    const detailsH = 10.3 + (detailsRows * 3.75) + 3;
+    cursorY = ensureSpace(cursorY, detailsH + 4);
+    drawInfoBox(marginX, cursorY, contentW, detailsH, "JOB ORDER DETAILS", "تفاصيل أمر العمل", [
+      ["Order Type", dash(orderTypeLabel)],
+      ["Work Status", dash(workStatusLabel)],
+      ["Payment Status", dash(paymentStatusLabel)],
+      ["Bill ID", dash(billId)],
+      ["Payment Method", dash(paymentMethodLabel)],
+    ]);
+    cursorY += detailsH + 12;
 
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(BILL_BODY_FONT_SIZE);
-    drawSmartPdfLine(safeText(order?.customerName) || "-", marginX + 3, infoTop + 10, infoW - 6);
-    doc.text(`Mobile: ${safeText(order?.mobile) || "-"}`, marginX + 3, infoTop + 14.5);
-    doc.text(`Order: ${safeText(order?.id) || "-"}`, marginX + 3, infoTop + 19);
-    drawArabicLine(`الجوال: ${safeText(order?.mobile) || "-"}`, marginX + infoW - 3, infoTop + 12.1, infoW - 8, BILL_BODY_FONT_SIZE, "normal");
-    drawArabicLine(`رقم الطلب: ${safeText(order?.id) || "-"}`, marginX + infoW - 3, infoTop + 16.6, infoW - 8, BILL_BODY_FONT_SIZE, "normal");
-
-    const vehicleName = `${safeText(order?.vehicleDetails?.make)} ${safeText(order?.vehicleDetails?.model)}`.trim() || "-";
-    drawSmartPdfLine(vehicleName, marginX + infoW + infoGap + 3, infoTop + 10, infoW - 6);
-    drawSmartPdfLine(`Plate: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 14.5, infoW - 6);
-    drawSmartPdfLine(`VIN: ${safeText(order?.vehicleDetails?.vin) || "-"}`, marginX + infoW + infoGap + 3, infoTop + 19, infoW - 6);
-    drawArabicLine(`رقم اللوحة: ${safeText(order?.vehiclePlate || order?.vehicleDetails?.plateNumber) || "-"}`, marginX + infoW + infoGap + infoW - 3, infoTop + 12.1, infoW - 8, BILL_BODY_FONT_SIZE, "normal");
-    drawArabicLine(`الرقم التعريفي: ${safeText(order?.vehicleDetails?.vin) || "-"}`, marginX + infoW + infoGap + infoW - 3, infoTop + 16.6, infoW - 8, BILL_BODY_FONT_SIZE, "normal");
-
-    // Job-order metadata block
-    const metaTop = infoTop + 30.8;
-    const metaH = 24;
-    doc.setFillColor(248, 250, 253);
-    doc.setDrawColor(220, 226, 234);
-    doc.roundedRect(marginX, metaTop, contentW, metaH, 1.5, 1.5, "FD");
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(BILL_TITLE_FONT_SIZE);
-    doc.text("JOB ORDER DETAILS", marginX + 2.5, metaTop + 4.2);
-    drawArabicLine("تفاصيل أمر العمل", pageW - marginX - 2.5, metaTop + 0.9, 42, BILL_TITLE_FONT_SIZE, "bolditalic");
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(BILL_BODY_FONT_SIZE);
-    doc.text(`Type: ${orderTypeLabel || "-"}`, marginX + 2.5, metaTop + 8.6);
-    doc.text(`Work Status: ${workStatusLabel || "-"}`, marginX + 72, metaTop + 8.6);
-    doc.text(`Payment Method: ${paymentMethodLabel || "-"}`, marginX + 2.5, metaTop + 11.9);
-    doc.text(`Opened: ${jobCreatedAtDisplay}`, marginX + 2.5, metaTop + 15.2);
-    doc.text(`Last Update: ${jobUpdatedAtDisplay}`, marginX + 2.5, metaTop + 18.5);
-    drawArabicLine(`نوع الطلب: ${orderTypeLabel || "-"}`, pageW - marginX - 2.5, metaTop + 6.1, 66, BILL_BODY_FONT_SIZE, "normal");
-    drawArabicLine(`حالة العمل: ${workStatusLabel || "-"}`, pageW - marginX - 2.5, metaTop + 9.4, 66, BILL_BODY_FONT_SIZE, "normal");
-    drawArabicLine(`طريقة الدفع: ${paymentMethodLabel || "-"}`, pageW - marginX - 2.5, metaTop + 12.7, 66, BILL_BODY_FONT_SIZE, "normal");
-    drawArabicLine(`تاريخ الفتح: ${jobCreatedAtDisplay}`, pageW - marginX - 2.5, metaTop + 16.0, 66, BILL_BODY_FONT_SIZE, "normal");
-    drawArabicLine(`آخر تحديث: ${jobUpdatedAtDisplay}`, pageW - marginX - 2.5, metaTop + 19.3, 66, BILL_BODY_FONT_SIZE, "normal");
-
-    const customerNote = safeText(
+    const customerNote = dash(
       order?.customerNotes
       || order?.notes
       || order?._row?.customerNotes
@@ -2109,287 +2083,143 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       || order?._parsed?.customer?.notes
     );
 
-    // Customer note block
-    let tableTop = metaTop + metaH + 3;
-    if (customerNote) {
-      const noteTitleTop = tableTop;
-      const noteY = noteTitleTop + 2;
-      const noteW = contentW;
-      const noteHasArabic = containsArabic(customerNote);
-
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(BILL_TITLE_FONT_SIZE);
-      doc.text("Customer Note", marginX + 1, noteTitleTop);
-      drawArabicLine("ملاحظة العميل", pageW - marginX - 1, noteTitleTop - 3.1, 28, BILL_TITLE_FONT_SIZE, "bolditalic");
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(BILL_BODY_FONT_SIZE);
-      const noteLines = noteHasArabic
-        ? splitArabicTextToLines(customerNote, noteW - 6, BILL_BODY_FONT_SIZE, "normal")
-        : (doc.splitTextToSize(customerNote, noteW - 6) as string[]);
-      const noteBoxH = Math.max(9, noteLines.length * 4.8 + 4);
-
+    if (customerNote !== "-") {
+      const noteLines = containsArabic(customerNote)
+        ? splitArabicTextToLines(customerNote, contentW - 6, BILL_BODY_FONT_SIZE, "normal")
+        : (doc.splitTextToSize(customerNote, contentW - 6) as string[]);
+      const displayLines = noteLines.slice(0, 4);
+      const noteH = Math.max(14, displayLines.length * 3.4 + 9);
+      cursorY = ensureSpace(cursorY, noteH + 5);
       doc.setFillColor(248, 251, 255);
       doc.setDrawColor(220, 226, 234);
-      doc.roundedRect(marginX, noteY, noteW, noteBoxH, 1.5, 1.5, "FD");
-
-      if (noteHasArabic) {
-        drawWrappedArabicLines(
-          customerNote,
-          pageW - marginX - 2,
-          noteY + 2,
-          noteW - 4,
-          BILL_BODY_FONT_SIZE,
-          "normal",
-          "#111827",
-          0.6
-        );
+      doc.roundedRect(marginX, cursorY, contentW, noteH, 1.5, 1.5, "FD");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(BILL_TITLE_FONT_SIZE);
+      doc.setTextColor(20, 31, 46);
+      doc.text("Customer Note", marginX + 3, cursorY + 5);
+      drawArabicLine("ملاحظة العميل", pageW - marginX - 3, cursorY + 1.8, 32, BILL_TITLE_FONT_SIZE, "bolditalic");
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(BILL_BODY_FONT_SIZE);
+      if (containsArabic(customerNote)) {
+        displayLines.forEach((line, idx) => {
+          drawArabicLine(line, pageW - marginX - 3, cursorY + 7.2 + idx * 3.6, contentW - 6, BILL_BODY_FONT_SIZE, "normal");
+        });
       } else {
-        doc.text(noteLines, marginX + 2, noteY + 4.8);
+        doc.text(displayLines, marginX + 3, cursorY + 10);
       }
-
-      tableTop = noteY + noteBoxH + 4;
+      cursorY += noteH + 10;
     }
 
-    // Services table area
-    const tableHeaderH = 11;
-    const rowH = 10.5;
-    const tableFontSize = BILL_BODY_FONT_SIZE;
-    const noW = 12;
-    const amountW = 36;
+    const tableHeaderH = 6.4;
+    const rowH = 5.8;
+    const noW = 10;
+    const amountW = 28;
     const descW = contentW - noW - amountW;
-    const summaryReserve = 34;
-    const maxRows = Math.max(1, Math.floor((footerTop - summaryReserve - (tableTop + tableHeaderH)) / rowH));
+    const drawServiceHeader = (y: number) => {
+      doc.setFillColor(44, 62, 80);
+      doc.setTextColor(255, 255, 255);
+      doc.rect(marginX, y, contentW, tableHeaderH, "F");
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(BILL_BODY_FONT_SIZE);
+      doc.text("No", marginX + noW / 2, y + 4.4, { align: "center" });
+      doc.text("Description", marginX + noW + 2, y + 4.4);
+      doc.text("Amount", pageW - marginX - 2, y + 4.4, { align: "right" });
+      return y + tableHeaderH;
+    };
 
-    doc.setFillColor(44, 62, 80);
-    doc.setTextColor(255, 255, 255);
-    doc.rect(marginX, tableTop, contentW, tableHeaderH, "F");
+    cursorY = ensureSpace(cursorY, tableHeaderH + rowH + 4);
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(tableFontSize);
-    doc.text("No", marginX + noW / 2, tableTop + 7.8, { align: "center" });
-    doc.text("Description", marginX + noW + 2, tableTop + 7.8);
-    doc.text("Amount", pageW - marginX - 2, tableTop + 7.8, { align: "right" });
-
-    const shownServices = services.slice(0, maxRows);
-    const remainingServices = services.slice(maxRows);
+    doc.setFontSize(BILL_TITLE_FONT_SIZE);
     doc.setTextColor(20, 31, 46);
-    shownServices.forEach((service, idx) => {
-      const y = tableTop + tableHeaderH + idx * rowH;
+    doc.text("REQUESTED SERVICES", marginX, cursorY);
+    drawArabicLine("الخدمات المطلوبة", pageW - marginX, cursorY - 3.1, 42, BILL_TITLE_FONT_SIZE, "bolditalic");
+    cursorY += 7;
+    cursorY = drawServiceHeader(cursorY);
+
+    if (!serviceRows.length) {
+      doc.setDrawColor(220, 226, 234);
+      doc.rect(marginX, cursorY, contentW, rowH);
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(107, 114, 128);
+      doc.text("No services listed", marginX + noW + 2, cursorY + 4.1);
+      cursorY += rowH;
+    }
+
+    const reservedAfterServices = 58;
+    const maxServiceRows = Math.max(1, Math.floor((pageContentBottom - cursorY - reservedAfterServices) / rowH));
+    const visibleServiceRows =
+      serviceRows.length > maxServiceRows
+        ? [
+            ...serviceRows.slice(0, Math.max(0, maxServiceRows - 1)),
+            {
+              label: `+${serviceRows.length - Math.max(0, maxServiceRows - 1)} more services in system`,
+              amount: null,
+              muted: true,
+              bold: true,
+            },
+          ]
+        : serviceRows;
+
+    visibleServiceRows.forEach((row, idx) => {
+      if (cursorY + rowH > pageContentBottom - reservedAfterServices) return;
       if (idx % 2 === 0) {
         doc.setFillColor(250, 252, 255);
-        doc.rect(marginX, y, contentW, rowH, "F");
+        doc.rect(marginX, cursorY, contentW, rowH, "F");
       }
-      if (service.type === "package-included") {
+      if (row.muted) {
         doc.setFillColor(241, 245, 249);
-        doc.rect(marginX + 0.3, y + 0.3, contentW - 0.6, rowH - 0.6, "F");
+        doc.rect(marginX + 0.3, cursorY + 0.3, contentW - 0.6, rowH - 0.6, "F");
       }
       doc.setDrawColor(220, 226, 234);
       doc.setLineWidth(0.22);
-      doc.rect(marginX, y, contentW, rowH);
-
-      const isPackageHeader = service.type === "package";
-      const isIncludedService = service.type === "package-included";
-      doc.setFont("helvetica", isPackageHeader ? "bold" : "normal");
-      doc.setFontSize(tableFontSize);
-      doc.text(String(idx + 1), marginX + noW / 2, y + 6.9, { align: "center" });
-      const descriptionText =
-        service.type === "package"
-          ? `Package: ${safeText(service.name)}`
-          : service.type === "package-included"
-            ? `- ${safeText(service.name)} (included in package)`
-            : safeText(service.name) || "-";
-      const descriptionX = marginX + noW + (isIncludedService ? 6.5 : 2);
-      if (isIncludedService) {
-        doc.setTextColor(113, 128, 150);
-      }
-      const clippedDescription = clipText(descriptionText, descW - 4);
-      const wrappedLines = containsArabic(clippedDescription)
-        ? 1
-        : drawWrapped(
-            clippedDescription,
-            descriptionX,
-            y + 6.9,
-            descW - 4,
-            5.2,
-          );
-      if (containsArabic(clippedDescription)) {
-        drawArabicLine(clippedDescription, marginX + noW + descW - 2, y + 1.4, descW - 4, tableFontSize, isPackageHeader ? "bold" : "normal", isIncludedService ? "#718096" : "#111827");
-      }
-      if (wrappedLines > 1) {
-        // Keep row compact and single-line visually for print consistency.
-        doc.setTextColor(95, 109, 123);
-        doc.setFontSize(BILL_BODY_FONT_SIZE);
-        doc.text("...", marginX + noW + descW - 5, y + 6.9, { align: "right" });
-        doc.setTextColor(20, 31, 46);
-      }
-      const amountText = service.price == null ? "" : fmtQar(toNum(service.price));
-      doc.text(amountText, pageW - marginX - 2, y + 6.9, { align: "right" });
-      doc.setTextColor(20, 31, 46);
-    });
-
-    let summaryTop = tableTop + tableHeaderH + shownServices.length * rowH + 4;
-    if (remainingServices.length > 0) {
-      doc.setFont("helvetica", "italic");
+      doc.rect(marginX, cursorY, contentW, rowH);
+      doc.setFont("helvetica", row.bold ? "bold" : "normal");
       doc.setFontSize(BILL_BODY_FONT_SIZE);
-      doc.setTextColor(110, 118, 128);
-      doc.text(`+ ${remainingServices.length} more service(s) are included in continuation page(s).`, marginX, summaryTop);
-      summaryTop += 4.8;
+      doc.setTextColor(row.muted ? 113 : 20, row.muted ? 128 : 31, row.muted ? 150 : 46);
+      doc.text(String(idx + 1), marginX + noW / 2, cursorY + 4.1, { align: "center" });
+      const description = clipText(row.label, descW - 4);
+      if (containsArabic(description)) {
+        drawArabicLine(description, marginX + noW + descW - 2, cursorY + 1.1, descW - 4, BILL_BODY_FONT_SIZE, row.bold ? "bold" : "normal", row.muted ? "#718096" : "#111827");
+      } else {
+        doc.text(description, marginX + noW + (row.muted ? 5 : 2), cursorY + 4.1);
+      }
       doc.setTextColor(20, 31, 46);
-    }
+      doc.text(row.amount == null ? "" : fmtQar(row.amount), pageW - marginX - 2, cursorY + 4.1, { align: "right" });
+      cursorY += rowH;
+    });
+    cursorY += 3;
 
-    const summaryW = contentW;
-    const summaryX = marginX;
-    const summaryRowH = 12.2;
-    const summaryRows = [
-      ["Total Amount", "إجمالي المبلغ", totalAmount],
-      ["Discount", "الخصم", discount],
-      ["Net Amount", "الصافي", netAmount],
-      ["Paid Before Last", "المدفوع قبل آخر دفعة", previousAmountPaid],
-      ["Last Amount Paid", "آخر مبلغ مدفوع", lastPaymentAmount],
-      ["Amount Paid", "المدفوع", amountPaid],
-      ["Balance Due", "المتبقي", balanceDue],
-    ] as const;
-
+    const summaryH = 17;
+    cursorY = ensureSpace(cursorY, summaryH + 10);
     doc.setDrawColor(188, 196, 206);
     doc.setFillColor(246, 249, 252);
-    doc.roundedRect(summaryX, summaryTop - 2, summaryW, summaryRowH + 3, 1.5, 1.5, "FD");
-    const summaryColW = summaryW / summaryRows.length;
-    for (let i = 1; i < summaryRows.length; i += 1) {
-      const x = summaryX + i * summaryColW;
-      doc.line(x, summaryTop - 2, x, summaryTop + summaryRowH + 1);
-    }
-
+    doc.roundedRect(marginX, cursorY, contentW, summaryH, 1.5, 1.5, "FD");
+    const summaryRows = [
+      ["Total", "الإجمالي", totalAmount],
+      ["Discount", "الخصم", discount],
+      ["Net", "الصافي", netAmount],
+      ["Paid", "المدفوع", amountPaid],
+      ["Balance Due", "المتبقي", balanceDue],
+    ] as const;
+    const summaryColW = contentW / summaryRows.length;
     summaryRows.forEach(([enLabel, arLabel, value], idx) => {
-      const colLeft = summaryX + idx * summaryColW;
+      const colLeft = marginX + idx * summaryColW;
       const colCenter = colLeft + summaryColW / 2;
       const isBalance = idx === summaryRows.length - 1;
+      if (idx > 0) doc.line(colLeft, cursorY, colLeft, cursorY + summaryH);
       if (isBalance) {
         doc.setFillColor(44, 62, 80);
-        doc.rect(colLeft, summaryTop - 2, summaryColW, summaryRowH + 3, "F");
+        doc.rect(colLeft, cursorY, summaryColW, summaryH, "F");
       }
-
       doc.setTextColor(isBalance ? 255 : 20, isBalance ? 255 : 31, isBalance ? 255 : 46);
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(6.1);
-      doc.text(enLabel, colCenter, summaryTop + 1.9, { align: "center" });
-      drawArabicLine(
-        arLabel,
-        colLeft + summaryColW - 1.6,
-        summaryTop + 2.7,
-        summaryColW - 3.2,
-        5.9,
-        "normal",
-        isBalance ? "#FFFFFF" : "#181818",
-      );
+      doc.setFontSize(6);
+      doc.text(enLabel, colCenter, cursorY + 4.1, { align: "center" });
+      drawArabicLine(arLabel, colLeft + summaryColW - 1.6, cursorY + 4.9, summaryColW - 3.2, 5.8, "normal", isBalance ? "#FFFFFF" : "#181818");
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(7.1);
-      doc.text(fmtQar(value), colCenter, summaryTop + 8.8, { align: "center" });
+      doc.setFontSize(6.8);
+      doc.text(fmtQar(value), colCenter, cursorY + 12.1, { align: "center" });
     });
-
-    // Footer: exact 3-column structure from template
-    doc.setTextColor(24, 24, 24);
-    doc.setFont("helvetica", "bolditalic");
-    doc.setFontSize(BILL_BODY_FONT_SIZE);
-    const footerLineH = Math.max(5.2, BILL_BODY_FONT_SIZE * 0.38);
-    doc.text("RODEO DRIVE TRADING & SERVICES", footerLeftColX, footerContentTop + footerLineH * 1);
-    doc.text("C.R. No: 122716", footerLeftColX, footerContentTop + footerLineH * 2);
-    doc.text("LLC - capital QAR 200,000", footerLeftColX, footerContentTop + footerLineH * 3);
-    doc.text("T: +974 44311871 | M: +974 3320 2409", footerLeftColX, footerContentTop + footerLineH * 4);
-    doc.text("E: info@rodeodrive.qa | W: www.rodeodrive.qa", footerLeftColX, footerContentTop + footerLineH * 5);
-
-    doc.addImage(qrDataUrl, "PNG", footerCenterColX, footerContentTop, footerQrSize, footerQrSize);
-
-    drawArabicLine("روديو درايف للتجارة والخدمات", footerRightColRightX, footerContentTop + footerLineH * 1 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
-    drawArabicLine("س.ت:122716", footerRightColRightX, footerContentTop + footerLineH * 2 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
-    drawArabicLine("شركة ذات مسؤلية محدودة برأس مال 200,000 رق", footerRightColRightX, footerContentTop + footerLineH * 3 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
-    drawArabicLine("T:+974 44311871 | M:+974 3320 2409", footerRightColRightX, footerContentTop + footerLineH * 4 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
-    drawArabicLine("E: info@rodeodrive.qa W: www.rodeodrive.qa", footerRightColRightX, footerContentTop + footerLineH * 5 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
-
-    if (remainingServices.length > 0) {
-      const continuationRowH = 9.6;
-      const continuationHeaderTop = 48;
-      const continuationHeaderH = 9;
-      const continuationTableBottom = footerTop - 10;
-      const continuationMaxRows = Math.max(1, Math.floor((continuationTableBottom - (continuationHeaderTop + continuationHeaderH)) / continuationRowH));
-      const chunks: Array<typeof remainingServices> = [];
-      for (let i = 0; i < remainingServices.length; i += continuationMaxRows) {
-        chunks.push(remainingServices.slice(i, i + continuationMaxRows));
-      }
-
-      chunks.forEach((chunk, chunkIndex) => {
-        doc.addPage("a4", "portrait");
-
-        doc.setDrawColor(44, 62, 80);
-        doc.setLineWidth(0.53);
-        doc.line(marginX, headerBottom, pageW - marginX, headerBottom);
-        doc.line(marginX, footerTop, pageW - marginX, footerTop);
-
-        doc.setTextColor(20, 31, 46);
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(BILL_TITLE_FONT_SIZE);
-        doc.text(`INVOICE - SERVICES CONTINUATION (${chunkIndex + 1}/${chunks.length})`, marginX, 24);
-        drawArabicLine("متابعة تفاصيل الخدمات", pageW - marginX, 20, 42, BILL_TITLE_FONT_SIZE, "bolditalic");
-
-        doc.setFont("helvetica", "normal");
-        doc.setFontSize(BILL_BODY_FONT_SIZE);
-        doc.text(`Bill #: ${billId}`, marginX, 30);
-        doc.text(`Order #: ${safeText(order?.id) || "-"}`, marginX + 48, 30);
-        doc.text(`Payment Status: ${paymentStatus}`, marginX + 100, 30);
-        doc.text(`Work Status: ${workStatusLabel || "-"}`, marginX, 35);
-
-        doc.setFillColor(44, 62, 80);
-        doc.setTextColor(255, 255, 255);
-        doc.rect(marginX, continuationHeaderTop, contentW, continuationHeaderH, "F");
-        doc.setFont("helvetica", "bold");
-        doc.setFontSize(BILL_BODY_FONT_SIZE);
-        doc.text("No", marginX + noW / 2, continuationHeaderTop + 6.2, { align: "center" });
-        doc.text("Description", marginX + noW + 2, continuationHeaderTop + 6.2);
-        doc.text("Amount", pageW - marginX - 2, continuationHeaderTop + 6.2, { align: "right" });
-
-        doc.setTextColor(20, 31, 46);
-        chunk.forEach((service, idx) => {
-          const absoluteIndex = maxRows + chunkIndex * continuationMaxRows + idx + 1;
-          const y = continuationHeaderTop + continuationHeaderH + idx * continuationRowH;
-          if (idx % 2 === 0) {
-            doc.setFillColor(250, 252, 255);
-            doc.rect(marginX, y, contentW, continuationRowH, "F");
-          }
-          doc.setDrawColor(220, 226, 234);
-          doc.setLineWidth(0.22);
-          doc.rect(marginX, y, contentW, continuationRowH);
-          doc.setFont("helvetica", service.type === "package" ? "bold" : "normal");
-          doc.text(String(absoluteIndex), marginX + noW / 2, y + 6.2, { align: "center" });
-
-          const descriptionText =
-            service.type === "package"
-              ? `Package: ${safeText(service.name)}`
-              : service.type === "package-included"
-                ? `- ${safeText(service.name)} (included in package)`
-                : safeText(service.name) || "-";
-          const clippedDescription = clipText(descriptionText, descW - 4);
-          doc.text(clippedDescription, marginX + noW + 2, y + 6.2);
-
-          const amountText = service.price == null ? "" : fmtQar(toNum(service.price));
-          doc.text(amountText, pageW - marginX - 2, y + 6.2, { align: "right" });
-        });
-
-        doc.setTextColor(24, 24, 24);
-        doc.setFont("helvetica", "bolditalic");
-        doc.setFontSize(BILL_BODY_FONT_SIZE);
-        doc.text("RODEO DRIVE TRADING & SERVICES", footerLeftColX, footerContentTop + footerLineH * 1);
-        doc.text("C.R. No: 122716", footerLeftColX, footerContentTop + footerLineH * 2);
-        doc.text("LLC - capital QAR 200,000", footerLeftColX, footerContentTop + footerLineH * 3);
-        doc.text("T: +974 44311871 | M: +974 3320 2409", footerLeftColX, footerContentTop + footerLineH * 4);
-        doc.text("E: info@rodeodrive.qa | W: www.rodeodrive.qa", footerLeftColX, footerContentTop + footerLineH * 5);
-
-        doc.addImage(qrDataUrl, "PNG", footerCenterColX, footerContentTop, footerQrSize, footerQrSize);
-        drawArabicLine("روديو درايف للتجارة والخدمات", footerRightColRightX, footerContentTop + footerLineH * 1 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
-        drawArabicLine("س.ت:122716", footerRightColRightX, footerContentTop + footerLineH * 2 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
-        drawArabicLine("شركة ذات مسؤلية محدودة برأس مال 200,000 رق", footerRightColRightX, footerContentTop + footerLineH * 3 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
-        drawArabicLine("T:+974 44311871 | M:+974 3320 2409", footerRightColRightX, footerContentTop + footerLineH * 4 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
-        drawArabicLine("E: info@rodeodrive.qa W: www.rodeodrive.qa", footerRightColRightX, footerContentTop + footerLineH * 5 - 3.9, footerSideColW, BILL_BODY_FONT_SIZE, "bolditalic");
-      });
-    }
 
     return doc.output("blob") as Blob;
   };
