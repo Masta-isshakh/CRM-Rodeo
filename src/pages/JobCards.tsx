@@ -1071,7 +1071,8 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
 
       const infoGap = 4;
       const infoW = (contentW - infoGap) / 2;
-      const infoH = 26;
+      const infoRows = 5;
+      const infoH = 10.3 + (infoRows * 3.75) + 3;
       drawInfoBox(marginX, cursorY, infoW, infoH, "CUSTOMER", "العميل", [
         ["Name", dash(order?.customerName || order?.customerDetails?.name)],
         ["Mobile", dash(order?.mobile || order?.customerMobile || order?.customerDetails?.mobile)],
@@ -1088,7 +1089,8 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
       ]);
       cursorY += infoH + 4;
 
-      const detailsH = 19;
+      const detailsRows = 5;
+      const detailsH = 10.3 + (detailsRows * 3.75) + 3;
       cursorY = ensureSpace(cursorY, detailsH + 4);
       drawInfoBox(marginX, cursorY, contentW, detailsH, "JOB ORDER DETAILS", "تفاصيل أمر العمل", [
         ["Order Type", dash(order?.orderType)],
@@ -1097,14 +1099,15 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         ["Bill ID", dash(billing.billId)],
         ["Expected Delivery", dash(expectedDelivery)],
       ]);
-      cursorY += detailsH + 5;
+      cursorY += detailsH + 12;
 
       const customerNote = dash(order?.customerNotes || order?.notes || order?.orderNotes);
       if (customerNote !== "-") {
         const noteLines = containsArabic(customerNote)
           ? splitArabicTextToLines(customerNote, contentW - 6, BILL_BODY_FONT_SIZE, "normal")
           : (doc.splitTextToSize(customerNote, contentW - 6) as string[]);
-        const noteH = Math.min(14, Math.max(10, noteLines.length * 3.4 + 6));
+        const displayLines = noteLines.slice(0, 4);
+        const noteH = Math.max(14, displayLines.length * 3.4 + 9);
         cursorY = ensureSpace(cursorY, noteH + 5);
         doc.setFillColor(248, 251, 255);
         doc.setDrawColor(220, 226, 234);
@@ -1123,7 +1126,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         } else {
           doc.text(noteLines.slice(0, 4), marginX + 3, cursorY + 10);
         }
-        cursorY += noteH + 5;
+        cursorY += noteH + 10;
       }
 
       const tableHeaderH = 6.4;
@@ -1149,7 +1152,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
       doc.setTextColor(20, 31, 46);
       doc.text("REQUESTED SERVICES", marginX, cursorY);
       drawArabicLine("الخدمات المطلوبة", pageW - marginX, cursorY - 3.1, 42, BILL_TITLE_FONT_SIZE, "bolditalic");
-      cursorY += 4;
+      cursorY += 7;
       cursorY = drawServiceHeader(cursorY);
 
       if (!serviceRows.length) {
