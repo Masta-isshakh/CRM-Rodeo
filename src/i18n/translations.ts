@@ -1326,6 +1326,44 @@ PHRASES_EN_AR.push(
   ["Language", "اللغة"]
 );
 
+PHRASES_EN_AR.push(
+  ["Close", "إغلاق"],
+  ["Remove", "إزالة"],
+  ["Refresh", "تحديث"],
+  ["Refresh logs", "تحديث السجلات"],
+  ["Generated on", "تم الإنشاء في"],
+  ["Create Date", "تاريخ الإنشاء"],
+  ["Create role", "إنشاء دور"],
+  ["Edit role", "تعديل دور"],
+  ["Edit department", "تعديل القسم"],
+  ["Referral", "إحالة"],
+  ["Social Media", "وسائل التواصل الاجتماعي"],
+  ["Enter", "أدخل"],
+  ["Any additional notes...", "أي ملاحظات إضافية..."],
+  ["Scan or type serial / barcode...", "امسح أو اكتب الرقم التسلسلي / الباركود..."],
+  ["add a product name (optional)", "أضف اسم المنتج (اختياري)"],
+  ["Adding...", "جارٍ الإضافة..."],
+  ["All subcategories and products inside will also be hidden.", "سيتم أيضًا إخفاء جميع الفئات الفرعية والمنتجات الموجودة بداخلها."],
+  ["All products inside will also be hidden.", "سيتم أيضًا إخفاء جميع المنتجات الموجودة بداخلها."],
+  ["One-time Package Repair Completed", "اكتمل إصلاح الحزمة لمرة واحدة"],
+  ["Scanned", "تم فحص"],
+  ["records", "سجلات"],
+  ["Repaired", "تم إصلاح"],
+  ["Failed", "فشل"],
+  ["Bill Generated", "تم إنشاء الفاتورة"],
+  ["No logs yet.", "لا توجد سجلات بعد."],
+  ["Loading activity logs...", "جاري تحميل سجلات النشاط..."],
+  ["Failed to load activity logs. Please try again.", "فشل تحميل سجلات النشاط. يرجى المحاولة مرة أخرى."],
+  ["user@example.com", "user@example.com"],
+  ["email@domain.com", "email@domain.com"],
+  ["QAR", "ر.ق"],
+  ["Quality Check Result Report", "تقرير نتيجة فحص الجودة"],
+  ["Order Number", "رقم الطلب"],
+  ["Overall Status", "الحالة العامة"],
+  ["Service Results", "نتائج الخدمة"],
+  ["Overall", "الإجمالي"]
+);
+
 const AUTO_AUDIT_TRANSLATIONS_EN_AR: Array<[string, string]> = [
   [
     "Application Error",
