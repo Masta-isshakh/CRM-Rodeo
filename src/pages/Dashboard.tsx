@@ -43,6 +43,7 @@ import logoImg from "../assets/logo.jpeg";
 import { getDashboardStats, type DashboardStats } from "./jobOrderRepo";
 import { usePermissions } from "../lib/userPermissions";
 import { useGlobalLoading } from "../utils/GlobalLoadingContext";
+import { useLanguage } from "../i18n/LanguageContext";
 
 type DashboardProps = PageProps & {
   email?: string;
@@ -151,6 +152,7 @@ function Sparkline({ points, color, className }: SparklineProps) {
 
 /* ── Custom line-chart tooltip ─────────────────────────────────── */
 function LineTooltip({ active, payload, label }: any) {
+  const { t } = useLanguage();
   if (!active || !payload?.length) return null;
   return (
     <div className="crm-db__chart-tooltip">
@@ -159,7 +161,7 @@ function LineTooltip({ active, payload, label }: any) {
         <div key={p.dataKey} className="crm-db__chart-tooltip-row">
           <span className="crm-db__chart-tooltip-dot" style={{ background: p.color }} />
           <span style={{ color: "#A3AED0", fontWeight: 500, marginRight: 4 }}>
-            {p.dataKey === "thisWeek" ? "This Week" : "Last Week"}
+            {p.dataKey === "thisWeek" ? t("This Week") : t("Last Week")}
           </span>
           {p.value}
         </div>
@@ -205,6 +207,7 @@ function QarCurrencyMark() {
 export default function Dashboard({ permissions, employeeName, currentPage, onNavigate, onSignOut }: DashboardProps) {
   const { canOption } = usePermissions();
   const { withLoading } = useGlobalLoading();
+  const { language, t } = useLanguage();
   const activeNav = useMemo<DashboardNavPage>(() => currentPage ?? "jobcards", [currentPage]);
 
   const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -217,7 +220,7 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
     const refresh = async (withUiLoading: boolean) => {
       try {
         const result = withUiLoading
-          ? await withLoading(getDashboardStats(), "Loading dashboard...")
+          ? await withLoading(getDashboardStats(), t("Loading dashboard..."))
           : await getDashboardStats();
         if (!cancelled) {
           setStats(result);
@@ -271,6 +274,29 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
 
   const formatQar = (n: number) =>
     `QAR ${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+
+  const localizeStatusLabel = (value: string) => {
+    const raw = String(value ?? "").trim();
+    if (!raw) return raw;
+    return t(raw.replace(/[_-]+/g, " "));
+  };
+
+  const localizeDateLabel = (value: string) => {
+    const raw = String(value ?? "").trim();
+    if (language !== "ar") return raw;
+    const m = raw.match(/^([A-Za-z]{3,})\s+(\d{1,2})$/);
+    if (!m) return raw;
+    const monthMap: Record<string, string> = {
+      Jan: "يناير", Feb: "فبراير", Mar: "مارس", Apr: "أبريل", May: "مايو", Jun: "يونيو",
+      Jul: "يوليو", Aug: "أغسطس", Sep: "سبتمبر", Oct: "أكتوبر", Nov: "نوفمبر", Dec: "ديسمبر",
+    };
+    return `${m[2]} ${monthMap[m[1].slice(0, 3)] || m[1]}`;
+  };
+
+  const weeklyDataLocalized = useMemo(
+    () => weeklyData.map((d) => ({ ...d, date: localizeDateLabel(String(d.date ?? "")) })),
+    [weeklyData, language]
+  );
   const displayName = useMemo(() => resolveEmployeeName(employeeName), [employeeName]);
   const avatarInitial = useMemo(() => displayName.charAt(0).toUpperCase() || "U", [displayName]);
 
@@ -290,7 +316,7 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
       : 720;
 
   if (!permissions.canRead) {
-    return <div style={{ padding: 24, color: "#2B3674" }}>You don't have access to this page.</div>;
+    return <div style={{ padding: 24, color: "#2B3674" }}>{t("You don't have access to this page.")}</div>;
   }
 
   return (
@@ -303,7 +329,7 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
           </div>
           <div className="crm-db__logo-text">
             <strong>Rodeo Drive</strong>
-            <span>CRM Console</span>
+            <span>{t("CRM Console")}</span>
           </div>
         </div>
 
@@ -311,8 +337,8 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
           <div className="crm-db__banner">
             <div className="crm-db__banner-icon"><FiCalendar /></div>
             <div className="crm-db__banner-text">
-              <strong>Today at a glance</strong>
-              <p>Track performance, incidents, and delivery flow in one place.</p>
+              <strong>{t("Today at a glance")}</strong>
+              <p>{t("Track performance, incidents, and delivery flow in one place.")}</p>
             </div>
           </div>
         )}
@@ -320,7 +346,7 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
         {showDashboardQuickNav && (
           <>
             <div className="crm-db__nav-section">
-              <div className="crm-db__nav-label">Overview</div>
+              <div className="crm-db__nav-label">{t("Overview")}</div>
               {NAV_OVERVIEW.map(({ key, label, Icon }) => (
                 <button
                   key={key}
@@ -328,13 +354,13 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
                   onClick={() => handleNavClick(key)}
                 >
                   <span className="crm-db__nav-icon"><Icon /></span>
-                  {label}
+                  {t(label)}
                 </button>
               ))}
             </div>
 
             <div className="crm-db__nav-section">
-              <div className="crm-db__nav-label">Operations</div>
+              <div className="crm-db__nav-label">{t("Operations")}</div>
               {NAV_OPERATIONS.map(({ key, label, Icon }) => (
                 <button
                   key={key}
@@ -342,7 +368,7 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
                   onClick={() => handleNavClick(key)}
                 >
                   <span className="crm-db__nav-icon"><Icon /></span>
-                  {label}
+                  {t(label)}
                 </button>
               ))}
             </div>
@@ -352,7 +378,7 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
         <div className="crm-db__signout">
           <button className="crm-db__signout-btn" onClick={onSignOut}>
             <FiLogOut />
-            Sign out
+            {t("Sign out")}
           </button>
         </div>
       </aside>
@@ -371,7 +397,7 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
           <div className="crm-db__header-right">
             <button className="crm-db__header-filters">
               <MdTune />
-              Filters
+              {t("Filters")}
             </button>
           </div>
         </header>
@@ -384,13 +410,13 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
             {/* Total Jobs */}
             {showDashboardKpis && <div className="crm-db__stat-card">
               <div className="crm-db__stat-top">
-                <span className="crm-db__stat-title">Total Jobs</span>
+                <span className="crm-db__stat-title">{t("Total Jobs")}</span>
                 <div className="crm-db__stat-icon crm-db__stat-icon--blue"><HiMiniClipboardDocumentList /></div>
               </div>
               <div className="crm-db__stat-value">{loading ? "—" : totalJobs.toLocaleString()}</div>
               <div className="crm-db__stat-change crm-db__stat-change--up">
                 <span>↑</span>
-                &nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>all time</span>
+                &nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>{t("all time")}</span>
               </div>
               <Sparkline points={SPARK_BLUE} color="#4318FF" className="crm-db__sparkline" />
             </div>}
@@ -398,13 +424,13 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
             {/* Completed Jobs */}
             {showDashboardKpis && <div className="crm-db__stat-card">
               <div className="crm-db__stat-top">
-                <span className="crm-db__stat-title">Completed Jobs</span>
+                <span className="crm-db__stat-title">{t("Completed Jobs")}</span>
                 <div className="crm-db__stat-icon crm-db__stat-icon--teal"><HiMiniCheckCircle /></div>
               </div>
               <div className="crm-db__stat-value">{loading ? "—" : completedJobs.toLocaleString()}</div>
               <div className="crm-db__stat-change crm-db__stat-change--up">
                 <span>↑</span>
-                &nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>all time</span>
+                &nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>{t("all time")}</span>
               </div>
               <Sparkline points={SPARK_TEAL} color="#05CD99" className="crm-db__sparkline" />
             </div>}
@@ -412,13 +438,13 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
             {/* Revenue */}
             {showDashboardRevenue && <div className="crm-db__stat-card">
               <div className="crm-db__stat-top">
-                <span className="crm-db__stat-title">Revenue (QAR)</span>
+                <span className="crm-db__stat-title">{t("Revenue (QAR)")}</span>
                 <div className="crm-db__stat-icon crm-db__stat-icon--purple"><QarCurrencyMark /></div>
               </div>
               <div className="crm-db__stat-value">{loading ? "—" : formatQar(totalRevenue)}</div>
               <div className="crm-db__stat-change crm-db__stat-change--up">
                 <span>↑</span>
-                &nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>collected</span>
+                &nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>{t("collected")}</span>
               </div>
               <Sparkline points={SPARK_PURPLE} color="#7551FF" className="crm-db__sparkline" />
             </div>}
@@ -426,7 +452,7 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
             {/* Customer Satisfaction */}
             {showDashboardKpis && <div className="crm-db__stat-card">
               <div className="crm-db__stat-top">
-                <span className="crm-db__stat-title">Customer Satisfaction</span>
+                <span className="crm-db__stat-title">{t("Customer Satisfaction")}</span>
                 <div className="crm-db__stat-icon crm-db__stat-icon--blue2"><HiMiniStar /></div>
               </div>
               <div className="crm-db__stat-value">
@@ -434,33 +460,33 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
               </div>
               <div className="crm-db__stat-change crm-db__stat-change--up">
                 <span>↑</span>
-                6.2%&nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>vs last 7 days</span>
+                6.2%&nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>{t("vs last 7 days")}</span>
               </div>
               <Stars rating={4.5} />
             </div>}
 
             {showDashboardKpis && <div className="crm-db__stat-card">
               <div className="crm-db__stat-top">
-                <span className="crm-db__stat-title">Voucher Gifts</span>
+                <span className="crm-db__stat-title">{t("Voucher Gifts")}</span>
                 <div className="crm-db__stat-icon crm-db__stat-icon--blue"><HiOutlineDocumentAdd /></div>
               </div>
               <div className="crm-db__stat-value">{loading ? "—" : voucherCount.toLocaleString()}</div>
               <div className="crm-db__stat-change crm-db__stat-change--up">
                 <span>↑</span>
-                &nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>history count</span>
+                &nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>{t("history count")}</span>
               </div>
               <Sparkline points={SPARK_CYAN} color="#39BFFF" className="crm-db__sparkline" />
             </div>}
 
             {showDashboardKpis && <div className="crm-db__stat-card">
               <div className="crm-db__stat-top">
-                <span className="crm-db__stat-title">Quotations</span>
+                <span className="crm-db__stat-title">{t("Quotations")}</span>
                 <div className="crm-db__stat-icon crm-db__stat-icon--purple"><HiOutlineDocumentText /></div>
               </div>
               <div className="crm-db__stat-value">{loading ? "—" : quotationCount.toLocaleString()}</div>
               <div className="crm-db__stat-change crm-db__stat-change--up">
                 <span>↑</span>
-                &nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>history count</span>
+                &nbsp;<span style={{ color: "#A3AED0", fontWeight: 400 }}>{t("history count")}</span>
               </div>
               <Sparkline points={SPARK_PURPLE} color="#7551FF" className="crm-db__sparkline" />
             </div>}
@@ -471,8 +497,8 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
             {/* Donut */}
             <div className="crm-db__chart-card">
               <div className="crm-db__chart-card-header">
-                <span className="crm-db__chart-card-title">Job Status Overview</span>
-                <button className="crm-db__view-all">View all</button>
+                <span className="crm-db__chart-card-title">{t("Job Status Overview")}</span>
+                <button className="crm-db__view-all">{t("View all")}</button>
               </div>
               <div className="crm-db__donut-body">
                 <div className="crm-db__donut-chart-wrap" style={{ width: 160, height: 160 }}>
@@ -492,14 +518,14 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
                   ) : null}
                   <div className="crm-db__donut-center">
                     <span className="crm-db__donut-center-value">{loading ? "—" : totalJobs.toLocaleString()}</span>
-                    <span className="crm-db__donut-center-label">Total Jobs</span>
+                    <span className="crm-db__donut-center-label">{t("Total Jobs")}</span>
                   </div>
                 </div>
                 <div className="crm-db__donut-legend">
                   {jobStatusData.map((item) => (
                     <div key={item.name} className="crm-db__legend-row">
                       <span className="crm-db__legend-dot" style={{ background: item.color }} />
-                      <span className="crm-db__legend-name">{item.name}</span>
+                      <span className="crm-db__legend-name">{localizeStatusLabel(item.name)}</span>
                       <span className="crm-db__legend-val">{item.value}</span>
                       <span className="crm-db__legend-pct">{item.pct}</span>
                     </div>
@@ -511,22 +537,22 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
             {/* Line chart */}
             <div className="crm-db__chart-card">
               <div className="crm-db__chart-card-header">
-                <span className="crm-db__chart-card-title">Jobs Over Time</span>
-                <div className="crm-db__chart-dropdown">Daily <FiChevronDown size={12} /></div>
+                <span className="crm-db__chart-card-title">{t("Jobs Over Time")}</span>
+                <div className="crm-db__chart-dropdown">{t("Daily")} <FiChevronDown size={12} /></div>
               </div>
               <div className="crm-db__line-legend">
                 <div className="crm-db__line-legend-item">
                   <span className="crm-db__line-legend-dash crm-db__line-legend-dash--solid" />
-                  This Week
+                  {t("This Week")}
                 </div>
                 <div className="crm-db__line-legend-item">
                   <span className="crm-db__line-legend-dash crm-db__line-legend-dash--dashed" />
-                  Last Week
+                  {t("Last Week")}
                 </div>
               </div>
               <div className="crm-db__line-chart-wrap">
                 {chartsReady ? (
-                  <LineChart width={lineChartWidth} height={220} data={weeklyData} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
+                  <LineChart width={lineChartWidth} height={220} data={weeklyDataLocalized} margin={{ top: 4, right: 8, bottom: 0, left: -20 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f3fa" vertical={false} />
                     <XAxis dataKey="date" tick={{ fill: "#A3AED0", fontSize: 11 }} axisLine={false} tickLine={false} />
                     <YAxis domain={[0, 280]} ticks={[0, 70, 140, 210, 280]} tick={{ fill: "#A3AED0", fontSize: 11 }} axisLine={false} tickLine={false} />
@@ -543,15 +569,15 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
             {/* Service categories */}
             <div className="crm-db__chart-card">
               <div className="crm-db__chart-card-header">
-                <span className="crm-db__chart-card-title">Top Service Categories</span>
-                <button className="crm-db__view-all">View all</button>
+                <span className="crm-db__chart-card-title">{t("Top Service Categories")}</span>
+                <button className="crm-db__view-all">{t("View all")}</button>
               </div>
               <div className="crm-db__service-list">
                 {serviceCategories.map(({ name, pct, Icon }) => (
                   <div key={name} className="crm-db__service-row">
                     <div className="crm-db__service-icon"><Icon /></div>
                     <div className="crm-db__service-info">
-                      <div className="crm-db__service-name">{name}</div>
+                      <div className="crm-db__service-name">{t(name)}</div>
                       <div className="crm-db__service-bar-track">
                         <div className="crm-db__service-bar-fill" style={{ width: `${pct}%` }} />
                       </div>
@@ -568,50 +594,50 @@ export default function Dashboard({ permissions, employeeName, currentPage, onNa
             {/* New Requests */}
             {showDashboardKpis && <div className="crm-db__bottom-card">
               <div className="crm-db__bottom-card-top">
-                <span className="crm-db__bottom-card-title">New Requests</span>
+                <span className="crm-db__bottom-card-title">{t("New Requests")}</span>
                 <div className="crm-db__bottom-icon crm-db__bottom-icon--blue"><HiMiniChatBubbleLeftRight /></div>
               </div>
               <div className="crm-db__bottom-value">{loading ? "—" : newRequestJobs.toLocaleString()}</div>
               <div className="crm-db__bottom-change"><span>↑ 14.6%</span></div>
-              <div className="crm-db__bottom-sub">vs last 7 days</div>
+              <div className="crm-db__bottom-sub">{t("vs last 7 days")}</div>
               <Sparkline points={SPARK_BLUE} color="#4318FF" className="crm-db__bottom-sparkline" />
             </div>}
 
             {/* In Progress */}
             {showDashboardKpis && <div className="crm-db__bottom-card">
               <div className="crm-db__bottom-card-top">
-                <span className="crm-db__bottom-card-title">In Progress</span>
+                <span className="crm-db__bottom-card-title">{t("In Progress")}</span>
                 <div className="crm-db__bottom-icon crm-db__bottom-icon--teal"><HiMiniWrench /></div>
               </div>
               <div className="crm-db__bottom-value">{loading ? "—" : inProgressJobs.toLocaleString()}</div>
               <div className="crm-db__bottom-change"><span>↑ 10.1%</span></div>
-              <div className="crm-db__bottom-sub">vs last 7 days</div>
+              <div className="crm-db__bottom-sub">{t("vs last 7 days")}</div>
               <Sparkline points={SPARK_TEAL} color="#05CD99" className="crm-db__bottom-sparkline" />
             </div>}
 
             {/* Upcoming Deliveries */}
             {showDashboardCalendar && <div className="crm-db__bottom-card">
               <div className="crm-db__bottom-card-top">
-                <span className="crm-db__bottom-card-title">Upcoming Deliveries</span>
+                <span className="crm-db__bottom-card-title">{t("Upcoming Deliveries")}</span>
                 <div className="crm-db__bottom-icon crm-db__bottom-icon--purple"><HiMiniCalendar /></div>
               </div>
               <div className="crm-db__bottom-value">{loading ? "—" : upcomingDeliveries.toLocaleString()}</div>
               <div className="crm-db__bottom-change"><span>↑ 8.3%</span></div>
-              <div className="crm-db__bottom-sub">vs last 7 days</div>
+              <div className="crm-db__bottom-sub">{t("vs last 7 days")}</div>
               <Sparkline points={SPARK_PURPLE} color="#7551FF" className="crm-db__bottom-sparkline" />
             </div>}
 
             {/* Avg Turnaround */}
             {showDashboardKpis && <div className="crm-db__bottom-card">
               <div className="crm-db__bottom-card-top">
-                <span className="crm-db__bottom-card-title">Avg. Turnaround Time</span>
+                <span className="crm-db__bottom-card-title">{t("Avg. Turnaround Time")}</span>
                 <div className="crm-db__bottom-icon crm-db__bottom-icon--cyan"><HiMiniClock /></div>
               </div>
               <div className="crm-db__bottom-value">
-                2.6&nbsp;<span style={{ fontSize: 14, fontWeight: 600, color: "#A3AED0" }}>Days</span>
+                2.6&nbsp;<span style={{ fontSize: 14, fontWeight: 600, color: "#A3AED0" }}>{t("Days")}</span>
               </div>
               <div className="crm-db__bottom-change crm-db__bottom-change--down"><span>↓ 12.4%</span></div>
-              <div className="crm-db__bottom-sub">vs last 7 days</div>
+              <div className="crm-db__bottom-sub">{t("vs last 7 days")}</div>
               <Sparkline points={SPARK_CYAN} color="#39BFFF" className="crm-db__bottom-sparkline" />
             </div>}
           </div>}

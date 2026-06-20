@@ -19,6 +19,13 @@ function toCurrencyDisplay(v: any): string {
   return `QAR ${n.toLocaleString()}`;
 }
 
+function normalizeChoiceLabel(value: string): string {
+  return joStr(value)
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .trim();
+}
+
 const PAYMENT_COLORS: Record<string, { bg: string; color: string; border: string }> = {
   "Paid":         { bg: "#D1FAE5", color: "#065F46", border: "#6EE7B7" },
   "Full Payment": { bg: "#D1FAE5", color: "#065F46", border: "#6EE7B7" },
@@ -45,8 +52,10 @@ export function UnifiedBillingInvoicesCard({ order, className = "", style }: Pro
   const netAmount = toCurrencyDisplay(joFirst(billing?.netAmount, order?.netAmount));
   const amountPaid = toCurrencyDisplay(joFirst(billing?.amountPaid, "0"));
   const balanceDue = toCurrencyDisplay(joFirst(billing?.balanceDue, billing?.netAmount, order?.netAmount));
-  const paymentMethod = joFirst(billing?.paymentMethod, "—");
+  const paymentMethodRaw = joFirst(billing?.paymentMethod, "—");
+  const paymentMethod = paymentMethodRaw === "—" ? "—" : t(normalizeChoiceLabel(paymentMethodRaw));
   const paymentStatus = normalizePaymentStatusLabel(joFirst(order?.paymentStatus, "Unpaid"));
+  const paymentStatusLabel = t(normalizeChoiceLabel(paymentStatus));
   const pmColors = PAYMENT_COLORS[paymentStatus] ?? { bg: "#F3F4F6", color: "#374151", border: "#D1D5DB" };
 
   const invoices: any[] = Array.isArray(billing?.invoices) ? billing.invoices : [];
@@ -75,7 +84,7 @@ export function UnifiedBillingInvoicesCard({ order, className = "", style }: Pro
           <span style={{ fontSize: "0.78rem", color: "#8C9ABF", fontWeight: 600 }}>{invoices.length} {t("invoice(s)")}</span>
         </div>
         <span style={{ fontSize: "0.74rem", fontWeight: 800, padding: "4px 12px", borderRadius: 20, background: pmColors.bg, color: pmColors.color, border: `1px solid ${pmColors.border}`, flexShrink: 0 }}>
-          {paymentStatus}
+          {paymentStatusLabel}
         </span>
       </div>
 
@@ -105,7 +114,9 @@ export function UnifiedBillingInvoicesCard({ order, className = "", style }: Pro
                 const invAmount = toCurrencyDisplay(joFirst(inv?.amount, inv?.netAmount));
                 const invDiscount = toCurrencyDisplay(joFirst(inv?.discount));
                 const invStatus = joFirst(inv?.status, "Unpaid");
-                const invMethod = joFirst(inv?.paymentMethod, "—");
+                const invStatusLabel = t(normalizeChoiceLabel(invStatus));
+                const invMethodRaw = joFirst(inv?.paymentMethod, "—");
+                const invMethod = invMethodRaw === "—" ? "—" : t(normalizeChoiceLabel(invMethodRaw));
                 const invServices = Array.isArray(inv?.services) ? inv.services : [];
                 const invStatusColors = PAYMENT_COLORS[invStatus] ?? { bg: "#F3F4F6", color: "#374151", border: "#D1D5DB" };
 
@@ -116,7 +127,7 @@ export function UnifiedBillingInvoicesCard({ order, className = "", style }: Pro
                       <span style={{ fontWeight: 800, fontSize: "0.86rem", color: "#102A68", fontFamily: "monospace", letterSpacing: "0.04em" }}>{invNum}</span>
                       <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
                         <span style={{ fontWeight: 800, fontSize: "0.88rem", color: "#4E40F8" }}>{invAmount}</span>
-                        <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "3px 9px", borderRadius: 12, background: invStatusColors.bg, color: invStatusColors.color, border: `1px solid ${invStatusColors.border}` }}>{invStatus}</span>
+                        <span style={{ fontSize: "0.72rem", fontWeight: 700, padding: "3px 9px", borderRadius: 12, background: invStatusColors.bg, color: invStatusColors.color, border: `1px solid ${invStatusColors.border}` }}>{invStatusLabel}</span>
                       </div>
                     </div>
                     {/* Invoice details */}

@@ -14,13 +14,11 @@ function joNum(v: any): number | null {
   const n = Number(v);
   return Number.isFinite(n) ? n : null;
 }
-function heardFromLabel(value: string): string {
-  const key = joStr(value).toLowerCase();
-  if (!key) return "—";
-  if (key === "refer_person" || key === "referral") return "Referral";
-  if (key === "social_media") return "Social Media";
-  if (key === "walk_in") return "Walk-in";
-  return value;
+function normalizeChoiceLabel(value: string): string {
+  return joStr(value)
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .trim();
 }
 
 interface Props {
@@ -117,7 +115,16 @@ export function UnifiedCustomerDetailsCard({ order, className = "" }: Props) {
     "—"
   );
   const heardFromKey = joStr(heardFromValue).toLowerCase();
-  const heardFromDisplay = heardFromLabel(heardFromValue);
+  const heardFromSeed = normalizeChoiceLabel(heardFromValue);
+  const heardFromDisplay = heardFromSeed === "—"
+    ? "—"
+    : heardFromKey === "refer_person" || heardFromKey === "referral"
+      ? t("Referral")
+      : heardFromKey === "social_media"
+        ? t("Social Media")
+        : heardFromKey === "walk_in"
+          ? t("Walk-in")
+          : t(heardFromSeed);
   const customerName = joFirst(order?.customerName, cd?.fullName, cd?.name, "—");
   const customerId = joFirst(cd?.customerId, cbd?.id, order?.customerId, "—");
   const phone = joFirst(order?.mobile, order?.phone, cd?.mobile, cd?.phone, cbd?.phone, "—");
@@ -142,7 +149,8 @@ export function UnifiedCustomerDetailsCard({ order, className = "" }: Props) {
     order?.referralMobile,
     "—"
   );
-  const socialPlatform = joFirst(cd?.socialPlatform, cd?.platform, cbd?.socialPlatform, cbd?.platform, order?.socialPlatform, order?.platform, "—");
+  const socialPlatformRaw = joFirst(cd?.socialPlatform, cd?.platform, cbd?.socialPlatform, cbd?.platform, order?.socialPlatform, order?.platform, "—");
+  const socialPlatform = socialPlatformRaw === "—" ? "—" : t(normalizeChoiceLabel(socialPlatformRaw));
   const heardFromOtherNote = joFirst(
     cd?.heardFromOtherNote,
     cd?.otherSourceNote,

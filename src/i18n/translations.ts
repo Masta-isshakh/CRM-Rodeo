@@ -89,6 +89,11 @@ const PHRASES_EN_AR: Array<[string, string]> = [
   ["Services", "الخدمات"],
   ["Confirm & Submit", "تأكيد وإرسال"],
   ["Login", "تسجيل الدخول"],
+  ["Sign in", "تسجيل الدخول"],
+  ["Sign In", "تسجيل الدخول"],
+  ["Signing you in...", "جارٍ تسجيل دخولك..."],
+  ["Reset Password", "إعادة تعيين كلمة المرور"],
+  ["Confirm New Password", "تأكيد كلمة المرور الجديدة"],
   ["Toggle language", "تبديل اللغة"],
   ["User", "مستخدم"],
   ["Email", "البريد الإلكتروني"],
@@ -1287,6 +1292,38 @@ PHRASES_EN_AR.push(
   ["PDF report generated", "تم إنشاء تقرير PDF"],
   ["CRM@roadiodrive.work", "CRM@roadiodrive.work"],
   ["| Sedan:", "| سيدان:"],
+);
+
+PHRASES_EN_AR.push(
+  ["Today at a glance", "لمحة سريعة لليوم"],
+  ["Track performance, incidents, and delivery flow in one place.", "تابع الأداء والحوادث وتدفق التسليم في مكان واحد."],
+  ["Overview", "نظرة عامة"],
+  ["Operations", "العمليات"],
+  ["Loading dashboard...", "جاري تحميل لوحة التحكم..."],
+  ["Job Status Overview", "نظرة عامة على حالة الطلبات"],
+  ["Jobs Over Time", "الطلبات عبر الوقت"],
+  ["Top Service Categories", "أعلى فئات الخدمات"],
+  ["View all", "عرض الكل"],
+  ["Daily", "يومي"],
+  ["history count", "عدد السجلات"],
+  ["all time", "كل الوقت"],
+  ["collected", "محصل"],
+  ["New Requests", "طلبات جديدة"],
+  ["In Progress", "قيد التنفيذ"],
+  ["Upcoming Deliveries", "عمليات التسليم القادمة"],
+  ["Avg. Turnaround Time", "متوسط وقت الإنجاز"],
+  ["Days", "أيام"],
+  ["Service Operation", "تنفيذ الخدمة"],
+  ["New Request", "طلب جديد"],
+  ["Search by any inspection details", "ابحث بأي تفاصيل فحص"],
+  ["Track incoming inspections, move active vehicles forward, and keep the queue review-ready.", "تابع الفحوصات الواردة، وادفع المركبات النشطة للأمام، وحافظ على جاهزية قائمة المراجعة."],
+  ["DETAILS", "التفاصيل"],
+  ["FULL NAME", "الاسم الكامل"],
+  ["EXPECTED DELIVERY", "موعد التسليم المتوقع"],
+  ["TECHNICIAN", "الفني"],
+  ["HEARD FROM", "مصدر المعرفة"],
+  ["TOTAL AMOUNT", "إجمالي المبلغ"],
+  ["Language", "اللغة"]
 );
 
 const AUTO_AUDIT_TRANSLATIONS_EN_AR: Array<[string, string]> = [
@@ -5536,10 +5573,32 @@ const AUTO_AUDIT_TRANSLATIONS_EN_AR: Array<[string, string]> = [
   ]
 ];
 
-PHRASES_EN_AR.push(...AUTO_AUDIT_TRANSLATIONS_EN_AR);
+function isBrokenArabicTranslation(value: string): boolean {
+  const normalized = normalizeSpaces(String(value ?? ""));
+  if (!normalized) return true;
+  if (/\?{2,}/.test(normalized)) return true;
+  if (normalized.includes("\uFFFD") || normalized.includes("�")) return true;
+  return false;
+}
 
-const EN_TO_AR = new Map<string, string>(PHRASES_EN_AR);
-const AR_TO_EN = new Map<string, string>(PHRASES_EN_AR.map(([en, ar]) => [ar, en]));
+function isWeakWordRule(source: string, target: string): boolean {
+  const src = normalizeSpaces(String(source ?? "")).toLowerCase();
+  const dst = normalizeSpaces(String(target ?? ""));
+  if (!src || !dst) return true;
+  if (["is", "are", "am", "do", "does", "did", "ed", "ing"].includes(src)) return true;
+  return false;
+}
+
+PHRASES_EN_AR.push(...AUTO_AUDIT_TRANSLATIONS_EN_AR.filter(([, ar]) => !isBrokenArabicTranslation(ar)));
+
+const SAFE_PHRASES_EN_AR = PHRASES_EN_AR.filter(([en, ar]) => {
+  const source = normalizeSpaces(String(en ?? ""));
+  const target = normalizeSpaces(String(ar ?? ""));
+  return Boolean(source) && Boolean(target) && !isBrokenArabicTranslation(target);
+});
+
+const EN_TO_AR = new Map<string, string>(SAFE_PHRASES_EN_AR);
+const AR_TO_EN = new Map<string, string>(SAFE_PHRASES_EN_AR.map(([en, ar]) => [ar, en]));
 
 const FRAGMENTS_EN_AR: Array<[string, string]> = [
   ["Signed in as:", "مسجل الدخول باسم:"],
@@ -5939,11 +5998,6 @@ function escapeRegex(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function replaceInsensitive(text: string, search: string, replacement: string): string {
-  const re = new RegExp(escapeRegex(search), "gi");
-  return text.replace(re, replacement);
-}
-
 function titleCaseWord(word: string): string {
   if (!word) return word;
   const upper = word.toUpperCase();
@@ -6176,16 +6230,38 @@ WORDS_EN_AR.push(
   ["ing", ""],
 );
 
-const WORDS_AR_EN: Array<[string, string]> = WORDS_EN_AR.map(([en, ar]) => [ar, en]);
+const SAFE_FRAGMENTS_EN_AR: Array<[string, string]> = FRAGMENTS_EN_AR
+  .filter(([src, target]) => Boolean(src) && !isBrokenArabicTranslation(target));
+
+const SAFE_WORDS_EN_AR: Array<[string, string]> = WORDS_EN_AR
+  .filter(([src, target]) => Boolean(src) && !isBrokenArabicTranslation(target) && !isWeakWordRule(src, target));
+
+const WORDS_AR_EN: Array<[string, string]> = SAFE_WORDS_EN_AR.map(([en, ar]) => [ar, en]);
+
+const FRAGMENT_TRANSLATORS_EN_AR: Array<[RegExp, string]> = SAFE_FRAGMENTS_EN_AR
+  .map(([src, target]) => [new RegExp(escapeRegex(src), "gi"), target]);
+
+const WORD_TRANSLATORS_EN_AR: Array<[RegExp, string]> = SAFE_WORDS_EN_AR
+  .map(([src, target]) => [new RegExp(`\\b${escapeRegex(src)}\\b`, "gi"), target]);
+
+const TRANSLATION_CACHE_LIMIT = 8000;
+const translationCache = new Map<string, string>();
+const HAS_LATIN_TEXT = /[A-Za-z]/;
+const HAS_ARABIC_TEXT = /[\u0600-\u06FF]/;
 
 function applyEnglishWordTranslations(value: string): string {
   let out = String(value ?? "");
-  for (const [src, target] of WORDS_EN_AR) {
-    if (!src) continue;
-    const re = new RegExp(`\\b${escapeRegex(src)}\\b`, "gi");
-    out = out.replace(re, target);
+  for (const [pattern, target] of WORD_TRANSLATORS_EN_AR) {
+    pattern.lastIndex = 0;
+    out = out.replace(pattern, target);
   }
   return out.replace(/\s+/g, " ").trim();
+}
+
+function cacheTranslation(language: LanguageCode, text: string, value: string): string {
+  if (translationCache.size >= TRANSLATION_CACHE_LIMIT) translationCache.clear();
+  translationCache.set(`${language}\u0000${text}`, value);
+  return value;
 }
 
 export function translateTextValue(input: string, language: LanguageCode): string {
@@ -6193,30 +6269,51 @@ export function translateTextValue(input: string, language: LanguageCode): strin
   const trimmed = normalizeSpaces(raw);
   if (!trimmed) return raw;
 
+  const normalizedIdentifier = normalizeSpaces(
+    trimmed
+      .replace(/[_-]+/g, " ")
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+  );
+  const translationSeed = normalizedIdentifier || trimmed;
+
   const leading = raw.match(/^\s*/)?.[0] ?? "";
   const trailing = raw.match(/\s*$/)?.[0] ?? "";
 
+  if (language === "ar" && !HAS_LATIN_TEXT.test(trimmed)) return raw;
+  if (language === "en" && !HAS_ARABIC_TEXT.test(trimmed)) return raw;
+
+  const cacheKey = `${language}\u0000${trimmed}`;
+  const cached = translationCache.get(cacheKey);
+  if (cached !== undefined) return `${leading}${cached}${trailing}`;
+
   if (language === "ar") {
-    if (EN_TO_AR.has(trimmed)) {
-      return `${leading}${applyEnglishWordTranslations(String(EN_TO_AR.get(trimmed) ?? ""))}${trailing}`;
+    if (EN_TO_AR.has(trimmed) || EN_TO_AR.has(translationSeed)) {
+      const translated = String(EN_TO_AR.get(trimmed) ?? EN_TO_AR.get(translationSeed) ?? "");
+      if (!isBrokenArabicTranslation(translated)) {
+        return `${leading}${cacheTranslation(language, trimmed, translated)}${trailing}`;
+      }
     }
-    let out = trimmed;
-    for (const [src, target] of FRAGMENTS_EN_AR) {
-      out = replaceInsensitive(out, src, target);
+    let out = translationSeed;
+    for (const [pattern, target] of FRAGMENT_TRANSLATORS_EN_AR) {
+      pattern.lastIndex = 0;
+      out = out.replace(pattern, target);
     }
     out = applyEnglishWordTranslations(out);
-    return `${leading}${out}${trailing}`;
+    return `${leading}${cacheTranslation(language, trimmed, out)}${trailing}`;
   }
 
-  if (AR_TO_EN.has(trimmed)) return `${leading}${AR_TO_EN.get(trimmed)}${trailing}`;
+  if (AR_TO_EN.has(trimmed)) {
+    const translated = String(AR_TO_EN.get(trimmed) ?? "");
+    return `${leading}${cacheTranslation(language, trimmed, translated)}${trailing}`;
+  }
   let out = trimmed;
   for (const [src, target] of FRAGMENTS_AR_EN) {
     if (out.includes(src)) out = replaceEvery(out, src, target);
   }
   for (const [src, target] of WORDS_AR_EN) {
-    out = replaceEvery(out, src, target);
+    if (src && out.includes(src)) out = replaceEvery(out, src, target);
   }
-  return `${leading}${out}${trailing}`;
+  return `${leading}${cacheTranslation(language, trimmed, out)}${trailing}`;
 }
 
 export function t(language: LanguageCode, englishText: string): string {

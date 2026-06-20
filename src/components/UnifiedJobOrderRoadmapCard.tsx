@@ -55,6 +55,13 @@ function resolveStepStatus(step: any): StepStatus {
   return "pending";
 }
 
+function normalizeDisplayLabel(value: string): string {
+  return joStr(value)
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .trim();
+}
+
 const STEP_CONFIGS: Record<string, { icon: string; color: string; label: string }> = {
   newrequest:       { icon: "fa-plus-circle",     color: "#4E40F8", label: "New Request" },
   inspection:       { icon: "fa-search",           color: "#0891B2", label: "Inspection" },
@@ -121,7 +128,7 @@ export function UnifiedJobOrderRoadmapCard({ order, actorMap, identityToUsername
       <div style={{ padding: "16px 20px 16px" }}>
         {roadmap.map((step: any, idx: number) => {
           const stepKey = normStep(step?.step);
-          const config = STEP_CONFIGS[stepKey] ?? { icon: "fa-circle", color: "#8C9ABF", label: step?.step || "Step" };
+          const config = STEP_CONFIGS[stepKey] ?? { icon: "fa-circle", color: "#8C9ABF", label: normalizeDisplayLabel(step?.step || "Step") };
           const status = resolveStepStatus(step);
           const statusStyle = STATUS_STYLES[status];
           const isLast = idx === roadmap.length - 1;
@@ -129,12 +136,13 @@ export function UnifiedJobOrderRoadmapCard({ order, actorMap, identityToUsername
           const startedAt = joFirst(step?.startTimestamp, step?.startedAt, step?.startTime, step?.started);
           const completedAt = joFirst(step?.endTimestamp, step?.completedAt, step?.endTime, step?.ended);
           const actor = resolveActor(step, order, map);
-          const statusLabel = joFirst(step?.stepStatus, step?.status, "Pending");
+          const statusLabelRaw = joFirst(step?.stepStatus, step?.status, "Pending");
+          const statusLabel = normalizeDisplayLabel(statusLabelRaw);
 
           // Display step label
           const displayLabel = stepKey === "inprogress" || stepKey === "serviceoperation"
             ? t("Service Operation")
-            : step?.step || config.label;
+            : t(normalizeDisplayLabel(config.label));
 
           return (
             <div key={idx} style={{ display: "flex", gap: 14, marginBottom: isLast ? 0 : 4 }}>

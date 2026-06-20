@@ -65,7 +65,6 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
         tag === "STYLE" ||
         tag === "CODE" ||
         tag === "PRE" ||
-        parent.closest("[data-no-translate='true']") !== null ||
         parent.closest("[translate='no']") !== null ||
         parent.closest(".notranslate") !== null
       );
