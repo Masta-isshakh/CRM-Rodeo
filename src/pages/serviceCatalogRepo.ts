@@ -153,13 +153,27 @@ function toOptionalNumber(value: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+function sanitizeArabicScript(value: unknown): string {
+  return String(value ?? "")
+    .replace(/[A-Za-z]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function sanitizeEnglishScript(value: unknown): string {
+  return String(value ?? "")
+    .replace(/[\u0600-\u06FF]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function normalizeBilingualValue(nameEn: unknown, nameAr: unknown, fallback = ""): { en: string; ar: string } {
-  const en = String(nameEn ?? "").trim() || String(fallback ?? "").trim();
-  const rawAr = String(nameAr ?? "").trim();
+  const en = sanitizeEnglishScript(nameEn) || sanitizeEnglishScript(fallback);
+  const rawAr = sanitizeArabicScript(nameAr);
   if (rawAr) return { en, ar: rawAr };
   if (!en) return { en: "", ar: "" };
-  const translated = String(translateTextValue(en, "ar") || "").trim();
-  return { en, ar: translated && translated !== en ? translated : en };
+  const translated = sanitizeArabicScript(translateTextValue(en, "ar"));
+  return { en, ar: translated };
 }
 
 function mapCategoryRow(row: any): ServiceCategoryItem {
@@ -169,8 +183,8 @@ function mapCategoryRow(row: any): ServiceCategoryItem {
     categoryCode: String(row?.categoryCode || "").trim(),
     nameEn: names.en,
     nameAr: names.ar,
-    descriptionEn: row?.descriptionEn ? String(row.descriptionEn) : undefined,
-    descriptionAr: row?.descriptionAr ? String(row.descriptionAr) : undefined,
+    descriptionEn: row?.descriptionEn ? sanitizeEnglishScript(row.descriptionEn) : undefined,
+    descriptionAr: row?.descriptionAr ? sanitizeArabicScript(row.descriptionAr) : undefined,
     isActive: row?.isActive !== false,
     createdAt: row?.createdAt ? String(row.createdAt) : undefined,
     updatedAt: row?.updatedAt ? String(row.updatedAt) : undefined,
@@ -221,8 +235,8 @@ function mapServiceRow(row: any, specificationsById?: Map<string, ServiceBrandSp
     serviceCode: String(row?.serviceCode || "").trim(),
     name: names.en,
     nameAr: names.ar || undefined,
-    descriptionEn: row?.descriptionEn ? String(row.descriptionEn) : undefined,
-    descriptionAr: row?.descriptionAr ? String(row.descriptionAr) : undefined,
+    descriptionEn: row?.descriptionEn ? sanitizeEnglishScript(row.descriptionEn) : undefined,
+    descriptionAr: row?.descriptionAr ? sanitizeArabicScript(row.descriptionAr) : undefined,
     categoryId: row?.categoryId ? String(row.categoryId) : undefined,
     categoryCode: row?.categoryCode ? String(row.categoryCode) : undefined,
     categoryNameEn: categoryNames.en || undefined,

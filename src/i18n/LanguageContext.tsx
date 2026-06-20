@@ -56,6 +56,16 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     const root = document.getElementById("root");
     if (!root) return;
 
+    const shouldSkipElement = (element: Element | null) => {
+      if (!element) return true;
+      return (
+        element.closest("[translate='no']") !== null ||
+        element.closest(".notranslate") !== null ||
+        element.closest("[data-no-translate]") !== null ||
+        element.closest("[no-translate]") !== null
+      );
+    };
+
     const shouldSkipTextNode = (textNode: Text) => {
       const parent = textNode.parentElement;
       if (!parent) return true;
@@ -65,8 +75,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
         tag === "STYLE" ||
         tag === "CODE" ||
         tag === "PRE" ||
-        parent.closest("[translate='no']") !== null ||
-        parent.closest(".notranslate") !== null
+        shouldSkipElement(parent)
       );
     };
 
@@ -96,6 +105,8 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     };
 
     const translateElementAttrs = (element: Element) => {
+      if (shouldSkipElement(element)) return;
+
       const attrNames = ["placeholder", "title", "aria-label", "data-label", "alt", "value"];
       let originalMap = originalAttrRef.current.get(element);
       if (!originalMap) {

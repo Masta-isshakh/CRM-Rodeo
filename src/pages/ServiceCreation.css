@@ -373,6 +373,8 @@
 }
 
 .sc2-name {
+	display: grid;
+	gap: 2px;
 	font-weight: 800;
 	color: #1d3a78;
 	font-size: 0.9rem;

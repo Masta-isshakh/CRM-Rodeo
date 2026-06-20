@@ -182,10 +182,18 @@ function sanitizeEnglishText(value: unknown): string {
     .trim();
 }
 
+function getEnglishDisplayText(value: unknown): string {
+  return sanitizeEnglishText(value) || "-";
+}
+
+function getArabicDisplayText(value: unknown): string {
+  return sanitizeArabicText(value) || "-";
+}
+
 function displayBilingual(en?: string, ar?: string) {
   const e = sanitizeEnglishText(en);
   const a = sanitizeArabicText(ar);
-  if (e && a) return `${e} / ${a}`;
+  if (e && a) return `${e} • ${a}`;
   return e || a || "-";
 }
 
@@ -1029,7 +1037,10 @@ export default function ServiceCreation() {
                     <div className="sc2-item-top" data-no-translate="true">
                       <div className="sc2-name-line">
                         <span className="sc2-index-pill">{idx + 1}</span>
-                        <span className="sc2-name">{displayBilingual(service.name, service.nameAr)}</span>
+                        <span className="sc2-name" data-no-translate="true">
+                          <span>{getEnglishDisplayText(service.name)}</span>
+                          <span>{getArabicDisplayText(service.nameAr)}</span>
+                        </span>
                       </div>
                       <div className="sc2-inline-actions">
                         <PermissionGate moduleId="joborder" optionId="joborder_create">
@@ -1123,7 +1134,10 @@ export default function ServiceCreation() {
               <header className="sc2-item-top" data-no-translate="true">
                 <div className="sc2-name-line">
                   <i className="fas fa-box-open"></i>
-                  <span className="sc2-name">{displayBilingual(pkg.name, pkg.nameAr)}</span>
+                  <span className="sc2-name" data-no-translate="true">
+                    <span>{getEnglishDisplayText(pkg.name)}</span>
+                    <span>{getArabicDisplayText(pkg.nameAr)}</span>
+                  </span>
                 </div>
                 <div className="sc2-inline-actions">
                   <PermissionGate moduleId="joborder" optionId="joborder_create">
@@ -1147,7 +1161,7 @@ export default function ServiceCreation() {
                   const service = serviceByCode.get(code);
                   return (
                     <span key={`${pkg.id}-${code}`} className="sc2-chip">
-                      {service ? displayBilingual(service.name, service.nameAr) : code}
+                      {service ? `${getEnglishDisplayText(service.name)} • ${getArabicDisplayText(service.nameAr)}` : code}
                     </span>
                   );
                 })}
@@ -1238,19 +1252,19 @@ export default function ServiceCreation() {
                   <div className="sc2-grid-2">
                     <label>
                       <span>{t("English Name *")}</span>
-                      <input value={categoryForm.nameEn} onChange={(e) => setCategoryForm((p) => ({ ...p, nameEn: e.target.value }))} placeholder={t("Category name in English")} />
+                      <input value={categoryForm.nameEn} onChange={(e) => setCategoryForm((p) => ({ ...p, nameEn: sanitizeEnglishText(e.target.value) }))} placeholder={t("Category name in English")} />
                     </label>
                     <label>
                       <span>{t("Arabic Name *")}</span>
-                      <input value={categoryForm.nameAr} onChange={(e) => setCategoryForm((p) => ({ ...p, nameAr: e.target.value }))} placeholder={t("Category name in Arabic")} />
+                      <input value={categoryForm.nameAr} onChange={(e) => setCategoryForm((p) => ({ ...p, nameAr: sanitizeArabicText(e.target.value) }))} placeholder={t("Category name in Arabic")} />
                     </label>
                     <label>
                       <span>{t("English Description")}</span>
-                      <textarea value={categoryForm.descriptionEn} onChange={(e) => setCategoryForm((p) => ({ ...p, descriptionEn: e.target.value }))} placeholder={t("Category description in English")} />
+                      <textarea value={categoryForm.descriptionEn} onChange={(e) => setCategoryForm((p) => ({ ...p, descriptionEn: sanitizeEnglishText(e.target.value) }))} placeholder={t("Category description in English")} />
                     </label>
                     <label>
                       <span>{t("Arabic Description")}</span>
-                      <textarea value={categoryForm.descriptionAr} onChange={(e) => setCategoryForm((p) => ({ ...p, descriptionAr: e.target.value }))} placeholder={t("Category description in Arabic")} />
+                      <textarea value={categoryForm.descriptionAr} onChange={(e) => setCategoryForm((p) => ({ ...p, descriptionAr: sanitizeArabicText(e.target.value) }))} placeholder={t("Category description in Arabic")} />
                     </label>
                   </div>
                 </div>
@@ -1318,19 +1332,19 @@ export default function ServiceCreation() {
                   <div className="sc2-grid-2">
                     <label>
                       <span>{t("English Name *")}</span>
-                      <input value={serviceForm.nameEn} onChange={(e) => setServiceForm((p) => ({ ...p, nameEn: e.target.value }))} placeholder={t("Service name in English")} />
+                      <input value={serviceForm.nameEn} onChange={(e) => setServiceForm((p) => ({ ...p, nameEn: sanitizeEnglishText(e.target.value) }))} placeholder={t("Service name in English")} />
                     </label>
                     <label>
                       <span>{t("Arabic Name *")}</span>
-                      <input value={serviceForm.nameAr} onChange={(e) => setServiceForm((p) => ({ ...p, nameAr: e.target.value }))} placeholder={t("Service name in Arabic")} />
+                      <input value={serviceForm.nameAr} onChange={(e) => setServiceForm((p) => ({ ...p, nameAr: sanitizeArabicText(e.target.value) }))} placeholder={t("Service name in Arabic")} />
                     </label>
                     <label>
                       <span>{t("English Description")}</span>
-                      <textarea value={serviceForm.descriptionEn} onChange={(e) => setServiceForm((p) => ({ ...p, descriptionEn: e.target.value }))} placeholder={t("Service description in English")} />
+                      <textarea value={serviceForm.descriptionEn} onChange={(e) => setServiceForm((p) => ({ ...p, descriptionEn: sanitizeEnglishText(e.target.value) }))} placeholder={t("Service description in English")} />
                     </label>
                     <label>
                       <span>{t("Arabic Description")}</span>
-                      <textarea value={serviceForm.descriptionAr} onChange={(e) => setServiceForm((p) => ({ ...p, descriptionAr: e.target.value }))} placeholder={t("Service description in Arabic")} />
+                      <textarea value={serviceForm.descriptionAr} onChange={(e) => setServiceForm((p) => ({ ...p, descriptionAr: sanitizeArabicText(e.target.value) }))} placeholder={t("Service description in Arabic")} />
                     </label>
                   </div>
 
@@ -1357,19 +1371,19 @@ export default function ServiceCreation() {
                   <div className="sc2-grid-2">
                     <label>
                       <span>{t("English Name *")}</span>
-                      <input value={packageForm.nameEn} onChange={(e) => setPackageForm((p) => ({ ...p, nameEn: e.target.value }))} placeholder={t("Package name in English")} />
+                      <input value={packageForm.nameEn} onChange={(e) => setPackageForm((p) => ({ ...p, nameEn: sanitizeEnglishText(e.target.value) }))} placeholder={t("Package name in English")} />
                     </label>
                     <label>
                       <span>{t("Arabic Name *")}</span>
-                      <input value={packageForm.nameAr} onChange={(e) => setPackageForm((p) => ({ ...p, nameAr: e.target.value }))} placeholder={t("Package name in Arabic")} />
+                      <input value={packageForm.nameAr} onChange={(e) => setPackageForm((p) => ({ ...p, nameAr: sanitizeArabicText(e.target.value) }))} placeholder={t("Package name in Arabic")} />
                     </label>
                     <label>
                       <span>{t("English Description")}</span>
-                      <textarea value={packageForm.descriptionEn} onChange={(e) => setPackageForm((p) => ({ ...p, descriptionEn: e.target.value }))} placeholder={t("Package description in English")} />
+                      <textarea value={packageForm.descriptionEn} onChange={(e) => setPackageForm((p) => ({ ...p, descriptionEn: sanitizeEnglishText(e.target.value) }))} placeholder={t("Package description in English")} />
                     </label>
                     <label>
                       <span>{t("Arabic Description")}</span>
-                      <textarea value={packageForm.descriptionAr} onChange={(e) => setPackageForm((p) => ({ ...p, descriptionAr: e.target.value }))} placeholder={t("Package description in Arabic")} />
+                      <textarea value={packageForm.descriptionAr} onChange={(e) => setPackageForm((p) => ({ ...p, descriptionAr: sanitizeArabicText(e.target.value) }))} placeholder={t("Package description in Arabic")} />
                     </label>
                   </div>
 
