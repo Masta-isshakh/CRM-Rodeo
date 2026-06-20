@@ -30,6 +30,7 @@ function shouldSkipText(text) {
   const t = normalize(text);
   if (!t) return true;
   if (t.length < 2) return true;
+  if (t === "&nbsp;" || t === "\\u2022" || t === "•") return true;
   if (/^[0-9\s.,:%()\-+/*#]+$/.test(t)) return true;
   if (/^(fa[srldb]?\s+fa-|https?:\/\/|\/|#|--)/i.test(t)) return true;
   if (/^[A-Z0-9_\-:.]+$/.test(t) && !/\s/.test(t)) return true;
@@ -40,11 +41,16 @@ function shouldSkipText(text) {
 function loadDictionaryKeys() {
   const raw = fs.readFileSync(translationsPath, "utf8");
   const keys = new Set();
-  const pairRegex = /\[\s*"([^"]+)"\s*,\s*"[^"]*"\s*\]/g;
+  const pairRegex = /\[\s*"((?:\\.|[^"\\])*)"\s*,\s*"((?:\\.|[^"\\])*)"\s*\]/g;
   let m;
   while ((m = pairRegex.exec(raw)) !== null) {
-    const key = normalize(m[1]);
-    if (key) keys.add(key);
+    try {
+      const key = normalize(JSON.parse(`"${m[1]}"`));
+      if (key) keys.add(key);
+    } catch {
+      const key = normalize(m[1]);
+      if (key) keys.add(key);
+    }
   }
   return keys;
 }

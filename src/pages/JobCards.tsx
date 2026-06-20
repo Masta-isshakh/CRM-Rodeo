@@ -1259,10 +1259,10 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         doc.setFontSize(7.5);
         doc.setTextColor(107, 114, 128);
         drawSmartPdfLine(`Name: ${name}`, x, signatureY + 17, signatureW);
-        doc.text("Date:", x, signatureY + 20.8);
+        doc.text(`Date: ${createdAtDisplay}`, x, signatureY + 20.8);
       };
       drawSignature(marginX, "Customer Signature", "توقيع العميل", dash(order?.customerName));
-      drawSignature(marginX + signatureW + 14, "Created By Signature", "توقيع العميل", createdBy);
+      drawSignature(marginX + signatureW + 14, "Created By Signature", "توقيع الموظف", createdBy);
 
       const fileName = `job-order-receipt-${cleanFileToken(jobId)}.pdf`;
       return { doc, fileName };
