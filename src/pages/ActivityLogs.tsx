@@ -6,6 +6,7 @@ import "./activity.css";
 import type { PageProps } from "../lib/PageProps";
 import PermissionGate from "./PermissionGate";
 import { useGlobalLoading } from "../utils/GlobalLoadingContext";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const client = generateClient<Schema>();
 type LogRow = Schema["ActivityLog"]["type"];
@@ -17,6 +18,7 @@ function safeDate(val: unknown): string {
 }
 
 export default function ActivityLog({ permissions }: PageProps) {
+  const { t } = useLanguage();
   const { withLoading } = useGlobalLoading();
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +54,7 @@ export default function ActivityLog({ permissions }: PageProps) {
       );
       setLogs(sorted);
     } catch (err) {
-      if (!silent) setError("Failed to load activity logs. Please try again.");
+      if (!silent) setError(t("Failed to load activity logs. Please try again."));
       console.error("[ActivityLogs] fetchLogs error:", err);
     } finally {
       setLoading(false);
@@ -73,20 +75,20 @@ export default function ActivityLog({ permissions }: PageProps) {
       <main className="main-content customer-dashboard-main" style={{ padding: "16px 8px" }}>
       <div className="activity-page customer-table-card-shell">
       {!permissions.canRead ? (
-        <div style={{ padding: 24 }}>You don't have access to this page.</div>
+        <div style={{ padding: 24 }}>{t("You don't have access to this page.")}</div>
       ) : (
         <>
       <div className="activity-header">
-        <h2>Activity Log</h2>
-        <button className="activity-refresh-btn" onClick={() => void fetchLogs()} disabled={loading} aria-label="Refresh logs">
-          {loading ? "Loading\u2026" : "\u21bb Refresh"}
+        <h2>{t("Activity Log")}</h2>
+        <button className="activity-refresh-btn" onClick={() => void fetchLogs()} disabled={loading} aria-label={t("Refresh logs")}>
+          {loading ? t("Loading...") : `${"\u21bb"} ${t("Refresh")}`}
         </button>
       </div>
 
       {error && (
         <div className="activity-error" role="alert">
           {error}
-          <button onClick={() => void fetchLogs()} className="activity-retry-btn">Retry</button>
+          <button onClick={() => void fetchLogs()} className="activity-retry-btn">{t("Retry")}</button>
         </div>
       )}
 
@@ -94,7 +96,7 @@ export default function ActivityLog({ permissions }: PageProps) {
         {loading ? (
           <div className="activity-loading">
             <div className="activity-spinner" aria-hidden="true" />
-            <span>Loading activity logs\u2026</span>
+            <span>{t("Loading activity logs...")}</span>
           </div>
         ) : (
           <div className="timeline">
@@ -112,7 +114,7 @@ export default function ActivityLog({ permissions }: PageProps) {
                 </div>
               </div>
             ))}
-            {!logs.length && <div className="activity-empty">No logs yet.</div>}
+            {!logs.length && <div className="activity-empty">{t("No logs yet.")}</div>}
           </div>
         )}
       </PermissionGate>

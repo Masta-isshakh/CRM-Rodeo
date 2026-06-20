@@ -96,7 +96,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
     };
 
     const translateElementAttrs = (element: Element) => {
-      const attrNames = ["placeholder", "title", "aria-label", "value"];
+      const attrNames = ["placeholder", "title", "aria-label", "data-label", "alt", "value"];
       let originalMap = originalAttrRef.current.get(element);
       if (!originalMap) {
         originalMap = new Map<string, string>();
@@ -135,6 +135,30 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
           element.setAttribute(attrName, translated);
         }
       }
+
+      // React commonly sets button/submit label through the DOM property, not the attribute.
+      if (element instanceof HTMLInputElement && (element.type === "button" || element.type === "submit")) {
+        const currentValue = String(element.value ?? "");
+        if (!currentValue.trim()) return;
+
+        const valueKey = "__value_prop__";
+        let originalValue = originalMap.get(valueKey);
+        if (!originalValue) {
+          originalValue = currentValue;
+          originalMap.set(valueKey, originalValue);
+        } else {
+          const expected = translateTextValue(originalValue, language);
+          if (currentValue !== expected) {
+            originalValue = currentValue;
+            originalMap.set(valueKey, originalValue);
+          }
+        }
+
+        const translatedValue = translateTextValue(originalValue, language);
+        if (translatedValue !== currentValue) {
+          element.value = translatedValue;
+        }
+      }
     };
 
     const translateSubtree = (subtreeRoot: ParentNode) => {
@@ -148,7 +172,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       const rootEl = subtreeRoot as Element;
       if (typeof rootEl.querySelectorAll === "function") {
         const elements = rootEl.querySelectorAll(
-          "[placeholder], [title], [aria-label], input[type='button'], input[type='submit']"
+          "[placeholder], [title], [aria-label], [data-label], [alt], input[type='button'], input[type='submit']"
         );
         elements.forEach((el) => translateElementAttrs(el));
       }
@@ -199,7 +223,7 @@ export function LanguageProvider({ children }: { children: ReactNode }) {
       subtree: true,
       characterData: true,
       attributes: true,
-      attributeFilter: ["placeholder", "title", "aria-label", "value"],
+      attributeFilter: ["placeholder", "title", "aria-label", "data-label", "alt", "value"],
     });
     return () => observer.disconnect();
   }, [language]);

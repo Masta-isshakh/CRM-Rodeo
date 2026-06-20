@@ -1517,7 +1517,7 @@ export default function ServiceCreation() {
           <div className="sc2-modal sc2-delete" onClick={(e) => e.stopPropagation()}>
             <div className="sc2-modal-header">
               <h3>{t("Confirm Deletion")}</h3>
-              <button onClick={() => setPendingDelete(null)}>✕</button>
+              <button onClick={() => setPendingDelete(null)} aria-label={t("Close")}>✕</button>
             </div>
             <div className="sc2-modal-body">
               <p>

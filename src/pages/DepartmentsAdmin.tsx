@@ -570,7 +570,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
       </section>
 
       {showRoleModal && roleModalDept && (
-        <div className="dep-modal-backdrop" role="dialog" aria-modal="true" aria-label="Create role">
+        <div className="dep-modal-backdrop" role="dialog" aria-modal="true" aria-label={t("Create role")}>
           <div className="dep-modal-card">
             <div className="dep-modal-head">
               <h3>{t("Create Role")}</h3>
@@ -628,7 +628,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
       )}
 
       {showEditRoleModal && editRoleDept && (
-        <div className="dep-modal-backdrop" role="dialog" aria-modal="true" aria-label="Edit role">
+        <div className="dep-modal-backdrop" role="dialog" aria-modal="true" aria-label={t("Edit role")}>
           <div className="dep-modal-card">
             <div className="dep-modal-head">
               <h3>{t("Edit Role")}</h3>
@@ -676,7 +676,7 @@ export default function DepartmentsAdmin({ permissions }: PageProps) {
       )}
 
       {showEditDeptModal && editDeptTarget && (
-        <div className="dep-modal-backdrop" role="dialog" aria-modal="true" aria-label="Edit department">
+        <div className="dep-modal-backdrop" role="dialog" aria-modal="true" aria-label={t("Edit department")}>
           <div className="dep-modal-card">
             <div className="dep-modal-head">
               <h3>{t("Edit Department")}</h3>

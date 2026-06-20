@@ -2907,10 +2907,10 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
                   <label>{t("Platform")} *</label>
                   <select value={socialPlatform} onChange={(e) => setSocialPlatform(e.target.value)}>
                     <option value="">{t("Select...")}</option>
-                    <option value="instagram">Instagram</option>
-                    <option value="twitter">Twitter</option>
-                    <option value="tiktok">TikTok</option>
-                    <option value="website">Website</option>
+                    <option value="instagram">{t("Instagram")}</option>
+                    <option value="twitter">{t("Twitter")}</option>
+                    <option value="tiktok">{t("TikTok")}</option>
+                    <option value="website">{t("Website")}</option>
                   </select>
                 </div>
               </div>
@@ -2983,7 +2983,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
                         </div>
                       </div>
                       <button className="btn btn-verify" onClick={() => void handleSelectCustomer(customer)}>
-                        <i className="fas fa-check"></i> Select
+                        <i className="fas fa-check"></i> {t("Select")}
                       </button>
                     </div>
                   ))}
@@ -2994,7 +2994,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
                 <div className="customer-search-results">
                   <div className="no-results-message">
                     <i className="fas fa-search"></i>
-                    <p>No customers found matching your search</p>
+                    <p>{t("No customers found matching your search")}</p>
                   </div>
                 </div>
               )}
@@ -3004,28 +3004,28 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
               <div className="verified-customer-display">
                 <div className="verified-header">
                   <i className="fas fa-check-circle"></i>
-                  <span>Customer Verified</span>
+                  <span>{t("Customer Verified")}</span>
                 </div>
                 <div className="verified-info">
                   <div className="verified-row">
-                    <span className="verified-label">Name:</span>
+                    <span className="verified-label">{t("Name")}:</span>
                     <span className="verified-value">{verifiedCustomer.name}</span>
                   </div>
                   <div className="verified-row">
-                    <span className="verified-label">Customer ID:</span>
+                    <span className="verified-label">{t("Customer ID")}:</span>
                     <span className="verified-value">{formatCustomerDisplayId(verifiedCustomer.id)}</span>
                   </div>
                   <div className="verified-row">
-                    <span className="verified-label">Email:</span>
+                    <span className="verified-label">{t("Email")}:</span>
                     <span className="verified-value">{verifiedCustomer.email}</span>
                   </div>
                   <div className="verified-row">
-                    <span className="verified-label">Mobile:</span>
+                    <span className="verified-label">{t("Mobile")}:</span>
                     <span className="verified-value">{verifiedCustomer.mobile}</span>
                   </div>
                   {verifiedCustomer.address && (
                     <div className="verified-row">
-                      <span className="verified-label">Address:</span>
+                      <span className="verified-label">{t("Address")}:</span>
                       <span className="verified-value">{verifiedCustomer.address}</span>
                     </div>
                   )}
@@ -3074,7 +3074,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
                     setSearchResults([]);
                   }}
                 >
-                  <i className="fas fa-sync-alt"></i> Change Customer
+                  <i className="fas fa-sync-alt"></i> {t("Change Customer")}
                 </button>
               </div>
             )}
@@ -3085,19 +3085,19 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
           <div className="verified-customer-display">
             <div className="verified-header">
               <i className="fas fa-check-circle"></i>
-              <span>Customer Verified</span>
+              <span>{t("Customer Verified")}</span>
             </div>
             <div className="verified-info">
               <div className="verified-row">
-                <span className="verified-label">Name:</span>
+                <span className="verified-label">{t("Name")}:</span>
                 <span className="verified-value">{verifiedCustomer.name}</span>
               </div>
               <div className="verified-row">
-                <span className="verified-label">Customer ID:</span>
+                <span className="verified-label">{t("Customer ID")}:</span>
                 <span className="verified-value">{formatCustomerDisplayId(verifiedCustomer.id)}</span>
               </div>
               <div className="verified-row">
-                <span className="verified-label">Mobile:</span>
+                <span className="verified-label">{t("Mobile")}:</span>
                 <span className="verified-value">{verifiedCustomer.mobile}</span>
               </div>
               {(verifiedCustomer.heardFrom || "").trim() && (
@@ -3123,7 +3123,7 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
                 setHeardFromOtherNote("");
               }}
             >
-              <i className="fas fa-edit"></i> Edit Customer
+              <i className="fas fa-edit"></i> {t("Edit Customer")}
             </button>
           </div>
         )}
@@ -3138,10 +3138,10 @@ function StepOneCustomer({ customerType, setCustomerType, customerData, setCusto
               <div className="warning-dialog-body">
                 <p>{t("This customer already exists in the system.")}</p>
                 <p>
-                  <strong>Name:</strong> {pendingCustomer?.name}
+                  <strong>{t("Name")}:</strong> {pendingCustomer?.name}
                 </p>
                 <p>
-                  <strong>Mobile:</strong> {pendingCustomer?.mobile}
+                  <strong>{t("Mobile")}:</strong> {pendingCustomer?.mobile}
                 </p>
                 <p className="warning-message">{t("Are you sure you want to save as a new customer?")}</p>
               </div>
@@ -3305,7 +3305,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
               <div className="form-group">
                 <label>{t("Model")} *</label>
                 <select value={model} onChange={(e) => setModel(e.target.value)} disabled={!modelOptions.length}>
-                  <option value="">Select model</option>
+                  <option value="">{t("Select model")}</option>
                   {modelOptions.map((modelName) => (
                     <option key={modelName} value={modelName}>
                       {modelName}
@@ -3328,7 +3328,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
               </div>
               <div className="form-group">
                 <label>{t("License Plate")} *</label>
-                <input value={license} onChange={(e) => setLicense(e.target.value)} placeholder="e.g., 123456" />
+                <input value={license} onChange={(e) => setLicense(e.target.value)} placeholder={t("e.g., 123456")} />
               </div>
             </div>
 
@@ -3339,7 +3339,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
                 <input
                   value={vinNumber}
                   onChange={(e) => setVinNumber(e.target.value.toUpperCase())}
-                  placeholder="e.g., JTDBR32E720054321"
+                  placeholder={t("e.g., JTDBR32E720054321")}
                   maxLength={30}
                   required
                 />

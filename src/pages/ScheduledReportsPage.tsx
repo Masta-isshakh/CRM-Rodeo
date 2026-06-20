@@ -940,8 +940,8 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
             <label>
               <span>{t("Format")}</span>
               <select value={scheduleFormat} onChange={(e) => setScheduleFormat(e.target.value as ReportFormat)}>
-                <option value="PDF">PDF</option>
-                <option value="EXCEL">Excel</option>
+                <option value="PDF">{t("PDF")}</option>
+                <option value="EXCEL">{t("Excel")}</option>
               </select>
             </label>
             <label style={{ gridColumn: "1 / -2" }}>

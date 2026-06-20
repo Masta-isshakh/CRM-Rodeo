@@ -102,7 +102,9 @@ function generateExitPermitHTML(input: {
   permitMode?: string;
   bypassReason?: string;
   bypassNote?: string;
+  tr?: (text: string) => string;
 }) {
+  const tr = input.tr ?? ((text: string) => text);
   const createdAt = new Date(input.createdAtIso);
   const createdAtText = createdAt.toLocaleString("en-GB", {
     day: "2-digit",
@@ -132,40 +134,40 @@ function generateExitPermitHTML(input: {
 </head>
 <body>
   <div class="hdr">
-    <h1>Exit Permit</h1>
-    <p>Generated on ${createdAtText}</p>
+    <h1>${tr("Exit Permit")}</h1>
+    <p>${tr("Generated on")} ${createdAtText}</p>
   </div>
 
   <div class="card">
-    <div class="ttl">Permit Information</div>
+    <div class="ttl">${tr("Permit Information")}</div>
     <div class="grid">
-      <div><span class="lbl">Permit ID</span><span class="val">${input.permitId}</span></div>
-      <div><span class="lbl">Job Order ID</span><span class="val">${input.orderNumber}</span></div>
-      <div><span class="lbl">Created By</span><span class="val">${input.createdBy || "—"}</span></div>
-      <div><span class="lbl">Created At</span><span class="val">${createdAtText}</span></div>
+      <div><span class="lbl">${tr("Permit ID")}</span><span class="val">${input.permitId}</span></div>
+      <div><span class="lbl">${tr("Job Order ID")}</span><span class="val">${input.orderNumber}</span></div>
+      <div><span class="lbl">${tr("Created By")}</span><span class="val">${input.createdBy || "—"}</span></div>
+      <div><span class="lbl">${tr("Created At")}</span><span class="val">${createdAtText}</span></div>
     </div>
   </div>
 
   <div class="card">
-    <div class="ttl">Customer & Vehicle</div>
+    <div class="ttl">${tr("Customer & Vehicle")}</div>
     <div class="grid">
-      <div><span class="lbl">Customer Name</span><span class="val">${input.customerName || "—"}</span></div>
-      <div><span class="lbl">Mobile</span><span class="val">${input.mobile || "—"}</span></div>
-      <div><span class="lbl">Vehicle Plate</span><span class="val">${input.vehiclePlate || "—"}</span></div>
-      <div><span class="lbl">Work Status</span><span class="val">${input.workStatus || "—"}</span></div>
-      <div><span class="lbl">Payment Status</span><span class="val">${input.paymentStatus || "—"}</span></div>
-      <div><span class="lbl">Next Service Date</span><span class="val">${input.nextServiceDate || "N/A"}</span></div>
+      <div><span class="lbl">${tr("Customer Name")}</span><span class="val">${input.customerName || "—"}</span></div>
+      <div><span class="lbl">${tr("Mobile")}</span><span class="val">${input.mobile || "—"}</span></div>
+      <div><span class="lbl">${tr("Vehicle Plate")}</span><span class="val">${input.vehiclePlate || "—"}</span></div>
+      <div><span class="lbl">${tr("Work Status")}</span><span class="val">${input.workStatus || "—"}</span></div>
+      <div><span class="lbl">${tr("Payment Status")}</span><span class="val">${input.paymentStatus || "—"}</span></div>
+      <div><span class="lbl">${tr("Next Service Date")}</span><span class="val">${input.nextServiceDate || tr("N/A")}</span></div>
     </div>
   </div>
 
   <div class="card">
-    <div class="ttl">Collection Details</div>
+    <div class="ttl">${tr("Collection Details")}</div>
     <div class="grid">
-      <div><span class="lbl">Collected By</span><span class="val">${input.collectedBy}</span></div>
-      <div><span class="lbl">Collection Mobile</span><span class="val">${input.collectedMobile}</span></div>
-      <div><span class="lbl">Permit Mode</span><span class="val">${input.permitMode || "STANDARD"}</span></div>
-      <div><span class="lbl">Bypass Reason</span><span class="val">${input.bypassReason || "N/A"}</span></div>
-      <div><span class="lbl">Bypass Note</span><span class="val">${input.bypassNote || "N/A"}</span></div>
+      <div><span class="lbl">${tr("Collected By")}</span><span class="val">${input.collectedBy}</span></div>
+      <div><span class="lbl">${tr("Collection Mobile")}</span><span class="val">${input.collectedMobile}</span></div>
+      <div><span class="lbl">${tr("Permit Mode")}</span><span class="val">${input.permitMode || tr("STANDARD")}</span></div>
+      <div><span class="lbl">${tr("Bypass Reason")}</span><span class="val">${input.bypassReason || tr("N/A")}</span></div>
+      <div><span class="lbl">${tr("Bypass Note")}</span><span class="val">${input.bypassNote || tr("N/A")}</span></div>
     </div>
   </div>
 </body>
@@ -851,6 +853,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
         createdBy: actor,
         createdAtIso,
         permitMode: "STANDARD",
+        tr: t,
       });
 
       const permitDocPath = `job-orders/${orderNumber}/exit-permits/ExitPermit_${safeFileName(String(res.permitId))}_${Date.now()}.html`;
@@ -960,6 +963,7 @@ const ExitPermitManagement = ({ currentUser }: { currentUser: any }) => {
         permitMode: "BYPASS",
         bypassReason,
         bypassNote,
+        tr: t,
       });
 
       const permitDocPath = `job-orders/${orderNumber}/exit-permits/ExitPermit_${safeFileName(String(res.permitId))}_${Date.now()}.html`;

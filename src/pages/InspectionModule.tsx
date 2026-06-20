@@ -1363,7 +1363,7 @@ function InspectionModule({ currentUser }: any) {
                   <table className="job-order-table customer-dashboard-table jc-job-table">
                     <thead>
                       <tr>
-                        <th>Create Date</th>
+                        <th>{t("Create Date")}</th>
                         <th>{t("Job Card ID")}</th>
                         <th>{t("Order Type")}</th>
                         <th>{t("Customer Name")}</th>

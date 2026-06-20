@@ -799,7 +799,7 @@ export default function PushNotifications({ permissions }: PageProps) {
                 {selectedContacts.slice(0, 10).map((c) => (
                   <span key={c.phone} className="pn-chip">
                     {c.name}
-                    <button type="button" onClick={() => togglePhone(c.phone)}>✕</button>
+                    <button type="button" onClick={() => togglePhone(c.phone)} aria-label={t("Remove")}>✕</button>
                   </span>
                 ))}
                 {selectedContacts.length > 10 && <span className="pn-chip pn-chip-more">+{selectedContacts.length - 10} {t("more")}</span>}

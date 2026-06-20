@@ -2975,7 +2975,7 @@ export default function FileSharing({ permissions }: PageProps) {
       {openOfficeModal && (
         <div className="filesharing-modal-backdrop office-launch-backdrop" onClick={() => setOpenOfficeModal(null)}>
           <div className="office-launch-modal" onClick={(e) => e.stopPropagation()}>
-            <button type="button" className="office-launch-close" onClick={() => setOpenOfficeModal(null)}>&#x2715;</button>
+            <button type="button" className="office-launch-close" onClick={() => setOpenOfficeModal(null)} aria-label={t("Close")}>&#x2715;</button>
             <div className="office-launch-icon-wrap">
               {openOfficeModal.kind === "doc" ? (
                 <span className="office-launch-icon office-launch-icon--word">
@@ -3030,7 +3030,7 @@ export default function FileSharing({ permissions }: PageProps) {
           <div className="filesharing-modal" onClick={(e) => e.stopPropagation()}>
             <div className="filesharing-modal-header">
               <span>{preview.name}</span>
-              <button type="button" className="filesharing-modal-close" onClick={() => setPreview(null)}>x</button>
+              <button type="button" className="filesharing-modal-close" onClick={() => setPreview(null)} aria-label={t("Close")}>x</button>
             </div>
             <div className="filesharing-modal-body">
               {IMAGE_TYPES.includes(preview.type) ? <img src={preview.url} alt={preview.name} /> : <iframe src={preview.url} title={preview.name} />}

@@ -106,7 +106,7 @@ function parseSerialRange(startSerialRaw: string, endSerialRaw: string): SerialR
 export default function InventoryManagement({ permissions }: PageProps) {
   const { t } = useLanguage();
   if (!permissions.canRead) {
-    return <div className="inv-page"><p style={{ padding: 24 }}>You do not have access to this page.</p></div>;
+    return <div className="inv-page"><p style={{ padding: 24 }}>{t("You do not have access to this page.")}</p></div>;
   }
 
   const client = getDataClient();
@@ -1923,7 +1923,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                 <>
                   <div className="inv-form-row">
                     <div className="inv-form-group">
-                      <label>Product Name <span className="req">*</span></label>
+                      <label>{t("Product Name")} <span className="req">*</span></label>
                       <input
                         type="text"
                         value={prodName}
@@ -1933,7 +1933,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                       />
                     </div>
                     <div className="inv-form-group">
-                      <label>Quantity to Add <span className="req">*</span></label>
+                      <label>{t("Quantity to Add")} <span className="req">*</span></label>
                       <input
                         type="number"
                         min={1}
@@ -2005,16 +2005,16 @@ export default function InventoryManagement({ permissions }: PageProps) {
                                 value={prodCustom[fd.key] ?? ""}
                                 onChange={(e) => setProdCustom((prev) => ({ ...prev, [fd.key]: e.target.value }))}
                               >
-                                <option value="">— Select —</option>
-                                <option value="true">Yes</option>
-                                <option value="false">No</option>
+                                <option value="">{t("Select...")}</option>
+                                <option value="true">{t("Yes")}</option>
+                                <option value="false">{t("No")}</option>
                               </select>
                             ) : (
                               <input
                                 type={fd.type === "number" ? "number" : fd.type === "date" ? "date" : fd.type === "email" ? "email" : "text"}
                                 value={prodCustom[fd.key] ?? ""}
                                 onChange={(e) => setProdCustom((prev) => ({ ...prev, [fd.key]: e.target.value }))}
-                                placeholder={`Enter ${fd.label.toLowerCase()}`}
+                                placeholder={`${t("Enter")} ${fd.label.toLowerCase()}`}
                               />
                             )}
                           </div>
@@ -2024,11 +2024,11 @@ export default function InventoryManagement({ permissions }: PageProps) {
                   )}
 
                   <div className="inv-form-group">
-                    <label>Notes</label>
+                    <label>{t("Notes")}</label>
                     <textarea
                       value={prodNotes}
                       onChange={(e) => setProdNotes(e.target.value)}
-                      placeholder="Any additional notes…"
+                      placeholder={t("Any additional notes...") as string}
                       rows={2}
                     />
                   </div>
@@ -2040,8 +2040,8 @@ export default function InventoryManagement({ permissions }: PageProps) {
                 <>
                   <div className="inv-scan-area">
                     <div className="inv-scan-icon"><i className="fas fa-barcode" /></div>
-                    <h4>Scan or Enter Serial / Barcode</h4>
-                    <p>Use a USB barcode scanner or type the code manually. Press Enter to add each item.</p>
+                    <h4>{t("Scan or Enter Serial / Barcode")}</h4>
+                    <p>{t("Use a USB barcode scanner or type the code manually. Press Enter to add each item.")}</p>
                     <div className="inv-scan-input-wrap">
                       <input
                         ref={scanRef}
@@ -2050,7 +2050,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                         value={scanInput}
                         onChange={(e) => setScanInput(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && handleScanSubmit()}
-                        placeholder="Scan or type serial / barcode…"
+                        placeholder={t("Scan or type serial / barcode...") as string}
                         autoFocus
                       />
                       <button
@@ -2059,7 +2059,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                         onClick={handleScanSubmit}
                         disabled={!scanInput.trim()}
                       >
-                        <i className="fas fa-plus" /> Add
+                        <i className="fas fa-plus" /> {t("Add")}
                       </button>
                     </div>
                   </div>
@@ -2068,8 +2068,8 @@ export default function InventoryManagement({ permissions }: PageProps) {
                     <div style={{ marginTop: 16 }}>
                       <p style={{ fontSize: 13, fontWeight: 700, color: "#374151", margin: "0 0 8px" }}>
                         <i className="fas fa-list-check" style={{ marginRight: 6 }} />
-                        {scannedItems.length} item{scannedItems.length !== 1 ? "s" : ""} scanned
-                        — add a product name (optional):
+                        {scannedItems.length} {t("item")}{scannedItems.length !== 1 ? "s" : ""} {t("scanned")}
+                        {` - ${t("add a product name (optional)")}:`}
                       </p>
                       <div className="inv-scanned-list">
                         {scannedItems.map((item, idx) => (
@@ -2077,7 +2077,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                             <span className="inv-scanned-serial"><i className="fas fa-barcode" /> {item.serial}</span>
                             <input
                               type="text"
-                              placeholder="Product name (optional)"
+                              placeholder={t("Product name (optional)") as string}
                               value={item.name}
                               onChange={(e) => updateScannedItem(idx, { name: e.target.value })}
                               style={{ flex: 1, padding: "4px 8px", border: "1px solid #d1d9e6", borderRadius: 6, fontSize: 12 }}
@@ -2086,7 +2086,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
                               type="button"
                               className="inv-btn-icon danger"
                               onClick={() => removeScannedItem(idx)}
-                              title="Remove"
+                              title={t("Remove") as string}
                             >
                               <i className="fas fa-times" />
                             </button>
@@ -2100,7 +2100,7 @@ export default function InventoryManagement({ permissions }: PageProps) {
             </div>
             <div className="inv-modal-footer">
               <button type="button" className="inv-btn inv-btn-secondary" onClick={() => setShowAddProdModal(false)} disabled={saving}>
-                Cancel
+                {t("Cancel")}
               </button>
               {addMode === "quantity" ? (
                 <button
@@ -2110,8 +2110,8 @@ export default function InventoryManagement({ permissions }: PageProps) {
                   disabled={saving || !prodName.trim() || !activeModalSubcategory}
                 >
                   {saving
-                    ? <><i className="fas fa-circle-notch fa-spin" /> Adding…</>
-                    : <><i className="fas fa-plus" /> Add {prodQty} Unit{prodQty !== 1 ? "s" : ""}</>}
+                    ? <><i className="fas fa-circle-notch fa-spin" /> {t("Adding...")}</>
+                    : <><i className="fas fa-plus" /> {t("Add")} {prodQty} {t("Unit")}{prodQty !== 1 ? "s" : ""}</>}
                 </button>
               ) : (
                 <button
@@ -2121,8 +2121,8 @@ export default function InventoryManagement({ permissions }: PageProps) {
                   disabled={saving || scannedItems.length === 0 || !activeModalSubcategory}
                 >
                   {saving
-                    ? <><i className="fas fa-circle-notch fa-spin" /> Processing…</>
-                    : <><i className="fas fa-check" /> Add {scannedItems.length} Scanned Item{scannedItems.length !== 1 ? "s" : ""}</>}
+                    ? <><i className="fas fa-circle-notch fa-spin" /> {t("Processing...")}</>
+                    : <><i className="fas fa-check" /> {t("Add")} {scannedItems.length} {t("Scanned Item")}{scannedItems.length !== 1 ? "s" : ""}</>}
                 </button>
               )}
             </div>
@@ -2133,16 +2133,16 @@ export default function InventoryManagement({ permissions }: PageProps) {
       {/* Delete Confirmation */}
       <ConfirmationPopup
         open={!!deleteTarget}
-        title={`Delete ${deleteTarget?.type === "category" ? "Category" : deleteTarget?.type === "subcategory" ? "Subcategory" : "Product"}`}
+        title={`${t("Delete")} ${deleteTarget?.type === "category" ? t("Category") : deleteTarget?.type === "subcategory" ? t("Subcategory") : t("Product")}`}
         message={
           <span>
-            Are you sure you want to delete <strong>{deleteTarget?.label}</strong>?
-            {deleteTarget?.type === "category" && " All subcategories and products inside will also be hidden."}
-            {deleteTarget?.type === "subcategory" && " All products inside will also be hidden."}
-            {" This action cannot be undone."}
+            {t("Are you sure you want to delete")} <strong>{deleteTarget?.label}</strong>?
+            {deleteTarget?.type === "category" && ` ${t("All subcategories and products inside will also be hidden.")}`}
+            {deleteTarget?.type === "subcategory" && ` ${t("All products inside will also be hidden.")}`}
+            {` ${t("This action cannot be undone.")}`}
           </span>
         }
-        confirmText="Delete"
+        confirmText={t("Delete")}
         tone="danger"
         loading={saving}
         onConfirm={handleDeleteConfirm}

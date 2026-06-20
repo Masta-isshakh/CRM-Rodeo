@@ -499,11 +499,12 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
     const serviceRows = services
       .map((item: CompletedQcService, viewIdx: number) => {
         const s = item.service;
-        const name = String(s?.name ?? s ?? `Service ${viewIdx + 1}`);
+        const name = String(s?.name ?? s ?? `${t("Service")} ${viewIdx + 1}`);
         const r = String(serviceQCResults[item.idx] ?? "Not Evaluated");
+        const displayR = t(r);
         const cls =
           r === "Pass" ? "qc-pass" : r === "Failed" ? "qc-failed" : r === "Acceptable" ? "qc-acceptable" : "qc-na";
-        return `<tr><td>${name}</td><td class="${cls}">${r}</td></tr>`;
+        return `<tr><td>${name}</td><td class="${cls}">${displayR}</td></tr>`;
       })
       .join("");
 
@@ -538,27 +539,27 @@ export default function QualityCheckModule({ currentUser }: { currentUser: any }
 </head>
 <body>
   <div class="hdr">
-    <h1>Quality Check Result Report</h1>
-    <p>Generated on ${now.toLocaleString()}</p>
+    <h1>${t("Quality Check Result Report")}</h1>
+    <p>${t("Generated on")} ${now.toLocaleString()}</p>
   </div>
 
   <div class="card">
-    <div class="ttl">Job Order</div>
+    <div class="ttl">${t("Job Order")}</div>
     <div class="grid">
-      <div><span class="lbl">Order Number</span><span class="val">${orderNumber}</span></div>
-      <div><span class="lbl">Overall Status</span><span class="val">${overallStatus}</span></div>
+      <div><span class="lbl">${t("Order Number")}</span><span class="val">${orderNumber}</span></div>
+      <div><span class="lbl">${t("Overall Status")}</span><span class="val">${t(overallStatus)}</span></div>
     </div>
   </div>
 
   <div class="card">
-    <div class="ttl">Service Results</div>
+    <div class="ttl">${t("Service Results")}</div>
     <table>
-      <thead><tr><th>Service</th><th>Result</th></tr></thead>
+      <thead><tr><th>${t("Service")}</th><th>${t("Result")}</th></tr></thead>
       <tbody>${serviceRows}</tbody>
     </table>
     <div class="overall ${
       overallStatus === "Pass" ? "pass" : overallStatus === "Failed" ? "failed" : "acceptable"
-    }">Overall: ${overallStatus}</div>
+    }">${t("Overall")}: ${t(overallStatus)}</div>
   </div>
 </body>
 </html>`;

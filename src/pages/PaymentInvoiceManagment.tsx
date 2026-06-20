@@ -580,9 +580,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         const result = await runOneTimePackageBillingRepair();
         setSuccessMessage(
           <>
-            <span className="pim-pop-title"><i className="fas fa-check-circle" /> One-time Package Repair Completed</span>
+            <span className="pim-pop-title"><i className="fas fa-check-circle" /> {t("One-time Package Repair Completed")}</span>
             <span className="pim-pop-text">
-              Scanned <strong>{result.scanned}</strong> records. Repaired <strong>{result.repaired}</strong>. Failed <strong>{result.failed}</strong>.
+              {t("Scanned")} <strong>{result.scanned}</strong> {t("records")}. {t("Repaired")} <strong>{result.repaired}</strong>. {t("Failed")} <strong>{result.failed}</strong>.
             </span>
           </>
         );
@@ -3090,7 +3090,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                 onClose={() => setShowBillGeneratedPopup(false)}
                 message={
                   <>
-                    <span className="pim-pop-title"><i className="fas fa-file-invoice" /> Bill Generated</span>
+                    <span className="pim-pop-title"><i className="fas fa-file-invoice" /> {t("Bill Generated")}</span>
                     <span className="pim-pop-text">{billGeneratedMessage}</span>
                   </>
                 }

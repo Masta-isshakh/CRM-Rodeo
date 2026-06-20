@@ -1621,7 +1621,7 @@ export default function Users(_: PageProps) {
                           type="email"
                           value={editEmail}
                           onChange={(e) => setEditEmail(e.target.value)}
-                          placeholder="user@example.com"
+                          placeholder={t("user@example.com")}
                           autoComplete="off"
                         />
                       ) : (
@@ -2151,7 +2151,7 @@ export default function Users(_: PageProps) {
                       className="ums-input"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="email@domain.com"
+                      placeholder={t("email@domain.com")}
                       type="email"
                     />
                   </div>
