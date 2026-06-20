@@ -173,7 +173,11 @@ export function UnifiedCustomerDetailsCard({ order, className = "" }: Props) {
   // Vehicle quick-view fields
   const vehicleMake = joFirst(vd?.make, vd?.factory, order?.vehicleMake, "—");
   const vehicleModel = joFirst(vd?.model, order?.vehicleModel, "—");
-  const vehicleMakeModel = vehicleMake !== "—" && vehicleModel !== "—" ? `${vehicleMake} ${vehicleModel}` : joFirst(vehicleMake, vehicleModel, order?.vehicle, "—");
+  const vehicleSubModel = joFirst(vd?.subModel, vd?.submodel, order?.vehicleSubModel, "");
+  const vehicleMakeModel =
+    vehicleMake !== "—" && vehicleModel !== "—"
+      ? [vehicleMake, vehicleModel, vehicleSubModel].filter(Boolean).join(" ")
+      : joFirst(vehicleMake, vehicleModel, order?.vehicle, "—");
   const vehicleYear = joFirst(vd?.year, order?.vehicleYear, "—");
   const vehicleColor = joFirst(vd?.color, order?.color, "—");
   const vehiclePlate = joFirst(order?.vehiclePlate, vd?.plateNumber, order?.plateNumber, "—");
@@ -181,7 +185,7 @@ export function UnifiedCustomerDetailsCard({ order, className = "" }: Props) {
   const infoRow = (label: string, value: React.ReactNode, noBorder = false) => (
     <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "9px 0", borderBottom: noBorder ? "none" : "1px solid #EEF2FB", gap: 12 }}>
       <span style={{ fontSize: "0.74rem", fontWeight: 700, color: "#8C9ABF", textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>{label}</span>
-      <span style={{ fontSize: "0.88rem", fontWeight: 700, color: "#102A68", textAlign: "right", wordBreak: "break-word", maxWidth: 220 }}>{value}</span>
+      <span data-no-translate="true" style={{ fontSize: "0.88rem", fontWeight: 700, color: "#102A68", textAlign: "right", wordBreak: "break-word", maxWidth: 220 }}>{value}</span>
     </div>
   );
 
@@ -197,10 +201,10 @@ export function UnifiedCustomerDetailsCard({ order, className = "" }: Props) {
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h3 style={{ margin: 0, fontSize: 12.5, fontWeight: 800, color: "#102A68", letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Customer Details")}</h3>
-          <span style={{ fontSize: "0.78rem", color: "#8C9ABF", fontWeight: 600, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{customerName}</span>
+          <span data-no-translate="true" style={{ fontSize: "0.78rem", color: "#8C9ABF", fontWeight: 600, display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{customerName}</span>
         </div>
         {/* Customer ID badge */}
-        <span style={{ fontSize: "0.72rem", fontWeight: 800, background: "linear-gradient(90deg, #EEF4FF 0%, #E8F7FF 100%)", color: "#4E40F8", border: "1px solid #C8D9FA", borderRadius: 8, padding: "3px 9px", flexShrink: 0 }}>{customerId}</span>
+        <span data-no-translate="true" style={{ fontSize: "0.72rem", fontWeight: 800, background: "linear-gradient(90deg, #EEF4FF 0%, #E8F7FF 100%)", color: "#4E40F8", border: "1px solid #C8D9FA", borderRadius: 8, padding: "3px 9px", flexShrink: 0 }}>{customerId}</span>
       </div>
 
       {/* Body */}
@@ -223,9 +227,9 @@ export function UnifiedCustomerDetailsCard({ order, className = "" }: Props) {
             {t("Vehicle")}
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px" }}>
-            <span style={{ fontSize: "0.85rem", fontWeight: 800, color: "#102A68" }}>{vehicleMakeModel}{vehicleYear !== "—" ? ` · ${vehicleYear}` : ""}</span>
-            {vehicleColor !== "—" && <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "#5D6B8A" }}>{vehicleColor}</span>}
-            <span style={{ fontFamily: "monospace", fontSize: "0.82rem", fontWeight: 800, color: "#FFFFFF", background: "#102A68", borderRadius: 6, padding: "1px 8px", letterSpacing: "0.08em" }}>{vehiclePlate}</span>
+            <span data-no-translate="true" style={{ fontSize: "0.85rem", fontWeight: 800, color: "#102A68" }}>{vehicleMakeModel}{vehicleYear !== "—" ? ` · ${vehicleYear}` : ""}</span>
+            {vehicleColor !== "—" && <span data-no-translate="true" style={{ fontSize: "0.82rem", fontWeight: 600, color: "#5D6B8A" }}>{vehicleColor}</span>}
+            <span data-no-translate="true" style={{ fontFamily: "monospace", fontSize: "0.82rem", fontWeight: 800, color: "#FFFFFF", background: "#102A68", borderRadius: 6, padding: "1px 8px", letterSpacing: "0.08em" }}>{vehiclePlate}</span>
           </div>
         </div>
 

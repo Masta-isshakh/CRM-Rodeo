@@ -333,6 +333,7 @@ export const handler: AppSyncResolverHandler<Args, any> = async (event) => {
 
   // Keep nested data needed by UI details cards (permit id, collector, etc.)
   const dataJson = JSON.stringify({
+    vehicleDetails: payload.vehicleDetails ?? parsedExistingData?.vehicleDetails ?? {},
     services: services.map((s: any, idx: number) => {
       const price = toNum((s as any).price);
       const assignedTo = String((s as any).assignedTo ?? "").trim().toLowerCase() || null;

@@ -22,6 +22,7 @@ const loadInternalChat = () => import("../pages/InternalMessaging");
 const loadFileSharing = () => import("../pages/FileSharing.tsx");
 const loadPushNotifications = () => import("../pages/PushNotifications");
 const loadCampaignAudienceAdmin = () => import("../pages/CampaignAudienceAdmin");
+const loadVehicleCatalogAdmin = () => import("../pages/VehicleCatalogAdmin");
 
 const loadJobOrderHistory = () => import("../pages/JobOrderHistory");
 const loadQuotationPage = () => import("../pages/QuotationPage");
@@ -54,6 +55,7 @@ const InternalChat = lazy(loadInternalChat);
 const FileSharing = lazy(loadFileSharing);
 const PushNotifications = lazy(loadPushNotifications);
 const CampaignAudienceAdmin = lazy(loadCampaignAudienceAdmin);
+const VehicleCatalogAdmin = lazy(loadVehicleCatalogAdmin);
 
 const JobOrderHistory = lazy(loadJobOrderHistory);
 const QuotationPage = lazy(loadQuotationPage);
@@ -100,6 +102,7 @@ type Page =
   | "filesharing"
     | "pushnotifications"
   | "campaignaudience"
+  | "vehiclecatalog"
   | "users"
   | "departments"
   | "rolespolicies"
@@ -130,6 +133,7 @@ const PAGE_LOADERS: Record<Page, () => Promise<unknown>> = {
   filesharing: loadFileSharing,
     pushnotifications: loadPushNotifications,
   campaignaudience: loadCampaignAudienceAdmin,
+  vehiclecatalog: loadVehicleCatalogAdmin,
   users: loadUsers,
   departments: loadDepartmentsAdmin,
   rolespolicies: loadRolesPoliciesAdmin,
@@ -480,6 +484,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       exitpermit: jobCardsRead && listOn("exitpermit", "exitpermit_list"),
       inspection: jobCardsRead && listOn("inspection", "inspection_list"),
       inventory: (isAdminGroup || canAny("INVENTORY").canRead) && listOn("inventory", "inventory_list"),
+      vehiclecatalog: (isAdminGroup || canAny("VEHICLES").canRead) && listOn("vehicles", "vehicles_list"),
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdminGroup, can, canOption, customerPerms]);
@@ -529,6 +534,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.filesharing) pages.push("filesharing");
       if (show.pushnotifications) pages.push("pushnotifications");
     if (show.inventory) pages.push("inventory");
+    if (show.vehiclecatalog) pages.push("vehiclecatalog");
     if (showAdmin.campaignaudience) pages.push("campaignaudience");
     if (showAdmin.users) pages.push("users");
     if (showAdmin.departments) pages.push("departments");
@@ -658,6 +664,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     !show.exitpermit &&
     !show.inspection &&
     !show.inventory &&
+    !show.vehiclecatalog &&
     !showAdmin.users &&
     !showAdmin.departments &&
     !showAdmin.rolespolicies &&
@@ -690,6 +697,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
     if (show.filesharing) allowedPages.push("filesharing");
       if (show.pushnotifications) allowedPages.push("pushnotifications");
     if (show.inventory) allowedPages.push("inventory");
+    if (show.vehiclecatalog) allowedPages.push("vehiclecatalog");
     if (showAdmin.campaignaudience) allowedPages.push("campaignaudience");
 
     if (showAdmin.users) allowedPages.push("users");
@@ -721,6 +729,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
       (page === "filesharing" && show.filesharing) ||
         (page === "pushnotifications" && show.pushnotifications) ||
       (page === "inventory" && show.inventory) ||
+      (page === "vehiclecatalog" && show.vehiclecatalog) ||
       (page === "campaignaudience" && showAdmin.campaignaudience) ||
       (page === "users" && showAdmin.users) ||
       (page === "departments" && showAdmin.departments) ||
@@ -1060,7 +1069,7 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
               </button>
             )}
 
-            {(show.servicecreation || show.servicetech || showAdmin.users || showAdmin.departments || showAdmin.rolespolicies || showAdmin.campaignaudience || showAdmin.dbcleanup) && (
+            {(show.servicecreation || show.servicetech || show.vehiclecatalog || showAdmin.users || showAdmin.departments || showAdmin.rolespolicies || showAdmin.campaignaudience || showAdmin.dbcleanup) && (
               <div className="drawer-section">
                 <div className="drawer-section-label">{t("Admin")}</div>
 
@@ -1072,6 +1081,11 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
                 {show.servicetech && (
                   <button className={page === "servicetech" ? "active" : ""} onClick={() => go("servicetech")}>
                     <i className="fas fa-user-cog" aria-hidden="true" /> {t("Service Technicians")}
+                  </button>
+                )}
+                {show.vehiclecatalog && (
+                  <button className={page === "vehiclecatalog" ? "active" : ""} onClick={() => go("vehiclecatalog")}>
+                    <i className="fas fa-car-side" aria-hidden="true" /> {t("Add Vehicles")}
                   </button>
                 )}
 
@@ -1344,6 +1358,12 @@ export default function MainLayout({ signOut }: { signOut: () => void }) {
             {page === "inventory" && show.inventory && (
               <PermissionGate moduleId="inventory" optionId="inventory_list">
                 <InventoryManagement permissions={canAny("INVENTORY")} />
+              </PermissionGate>
+            )}
+
+            {page === "vehiclecatalog" && show.vehiclecatalog && (
+              <PermissionGate moduleId="vehicles" optionId="vehicles_list">
+                <VehicleCatalogAdmin />
               </PermissionGate>
             )}
 

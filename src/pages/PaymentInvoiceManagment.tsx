@@ -2054,7 +2054,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     ]);
     drawInfoBox(marginX + infoW + infoGap, cursorY, infoW, infoH, "VEHICLE", "المركبة", [
       ["Plate", dash(order?.vehiclePlate || order?.vehicleDetails?.plateNumber)],
-      ["Vehicle", dash(`${dash(order?.vehicleDetails?.make)} ${dash(order?.vehicleDetails?.model)}`.replace(/ -/g, "").replace(/- /g, ""))],
+      ["Vehicle", dash([order?.vehicleDetails?.make, order?.vehicleDetails?.model, order?.vehicleDetails?.subModel ?? order?.vehicleDetails?.submodel].filter(Boolean).join(" "))],
       ["Year / Type", dash([order?.vehicleDetails?.year, order?.vehicleDetails?.type].filter(Boolean).join(" / "))],
       ["Color", dash(order?.vehicleDetails?.color)],
       ["VIN", dash(order?.vehicleDetails?.vin)],
@@ -2940,9 +2940,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                         <td data-label={t("Create Date")} className="pim-date-column">{order.createDate}</td>
                         <td data-label={t("Job Card ID")} className="pim-strong">{order.id}</td>
                         <td data-label={t("Order Type")}>{order.orderType}</td>
-                        <td data-label={t("Customer Name")}>{order.customerName}</td>
-                        <td data-label={t("Mobile")}>{order.mobile}</td>
-                        <td data-label={t("Vehicle Plate")}>{order.vehiclePlate}</td>
+                        <td data-label={t("Customer Name")} data-no-translate="true">{order.customerName}</td>
+                        <td data-label={t("Mobile")} data-no-translate="true">{order.mobile}</td>
+                        <td data-label={t("Vehicle Plate")} data-no-translate="true">{order.vehiclePlate}</td>
                         <td data-label={t("Work Status")}><span className={`pim-badge ${workStatusClass(order.workStatus)}`}>{t(order.workStatus)}</span></td>
                         <td data-label={t("Payment Status")}><span className={`pim-badge ${payStatusClass(order.paymentStatus)}`}>{t(order.paymentStatus)}</span></td>
                         <td data-label={t("Actions")}>

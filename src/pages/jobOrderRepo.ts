@@ -557,6 +557,7 @@ async function persistJobOrderViaModel(client: any, payload: any): Promise<{ id?
   const now = new Date().toISOString();
 
   const dataJson = JSON.stringify({
+    vehicleDetails: payload?.vehicleDetails ?? {},
     services: Array.isArray(payload?.services) ? payload.services : [],
     documents: Array.isArray(payload?.documents) ? payload.documents : [],
     billing: payload?.billing ?? {},
@@ -950,6 +951,7 @@ export async function createVehicleForCustomer(input: {
   ownedBy: string;
   make: string;
   model: string;
+  subModel?: string;
   year: string;
   color: string;
   plateNumber: string;
@@ -986,6 +988,7 @@ export async function createVehicleForCustomer(input: {
     ownedBy: row.ownedBy,
     make: row.make,
     model: row.model,
+    subModel: String(input.subModel ?? "").trim() || undefined,
     year: row.year,
     vehicleType: row.vehicleType,
     color: row.color,
@@ -1670,6 +1673,13 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
   // ✅ FIX: vehicleType enum normalization (prevents create failure)
   const uiVehicleType = order?.vehicleDetails?.type ?? order?.vehicleType ?? "SUV";
   const vehicleTypeEnum = normalizeVehicleTypeToEnum(uiVehicleType);
+  const vehicleSubModel = String(
+    order?.vehicleDetails?.subModel ?? order?.vehicleDetails?.submodel ?? order?.vehicleSubModel ?? ""
+  ).trim();
+  const payloadVehicleDetails = {
+    ...(order?.vehicleDetails ?? {}),
+    subModel: vehicleSubModel || undefined,
+  };
 
   // ✅ FIX: never serialize invalid dates (UI sometimes carries "Not checked"/"Not assigned")
   const assignmentDateIso = toIsoOrUndefined(order?.technicianAssignment?.assignedDate ?? order?.assignmentDate);
@@ -1697,6 +1707,8 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
     ).trim() || undefined,
     vehicleMake: String(order?.vehicleDetails?.make ?? "").trim() || undefined,
     vehicleModel: String(order?.vehicleDetails?.model ?? "").trim() || undefined,
+    vehicleSubModel: vehicleSubModel || undefined,
+    vehicleDetails: payloadVehicleDetails,
     vehicleYear: String(order?.vehicleDetails?.year ?? "").trim() || undefined,
     vin: String(order?.vehicleDetails?.vin ?? "").trim() || undefined,
     color: String(order?.vehicleDetails?.color ?? "").trim() || undefined,

@@ -772,13 +772,13 @@ function CustomersTable(props: {
             return (
               <tr key={c.id} style={rowStyle}>
                 <td style={cellStyle} data-label={t("Customer Name")}>
-                  <div className="customer-cell-primary" style={primaryInfoStyle} dangerouslySetInnerHTML={{ __html: highlight(fullName || "—", searchQuery) }} />
+                  <div className="customer-cell-primary" style={primaryInfoStyle} data-no-translate="true" dangerouslySetInnerHTML={{ __html: highlight(fullName || "—", searchQuery) }} />
                 </td>
                 <td style={cellStyle} data-label={t("Contact Info")}>
-                  <div className="customer-cell-primary" style={primaryInfoStyle} dangerouslySetInnerHTML={{ __html: highlight(c.phone ?? "—", searchQuery) }} />
+                  <div className="customer-cell-primary" style={primaryInfoStyle} data-no-translate="true" dangerouslySetInnerHTML={{ __html: highlight(c.phone ?? "—", searchQuery) }} />
                 </td>
                 <td style={cellStyle} data-label={t("Vehicle Make/Model")}>
-                  <div className="customer-cell-primary" style={primaryInfoStyle} dangerouslySetInnerHTML={{ __html: highlight(c.company ?? "—", searchQuery) }} />
+                  <div className="customer-cell-primary" style={primaryInfoStyle} data-no-translate="true" dangerouslySetInnerHTML={{ __html: highlight(c.company ?? "—", searchQuery) }} />
                 </td>
                 <td style={cellStyle} data-label={t("Recent Service")}>
                   <span className="count-badge">

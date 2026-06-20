@@ -12,7 +12,11 @@ import { normalizePaymentStatusLabel as normalizePaymentStatusLabelShared } from
 import { formatCustomerDisplayId } from "../utils/customerId";
 import { logActivity } from "../utils/activityLogger";
 import { matchesSearchQuery } from "../lib/searchUtils";
-import { QATAR_MANUFACTURERS, getModelsByManufacturer } from "../utils/vehicleCatalog";
+import {
+  getManufacturerOptions,
+  getModelsByManufacturer,
+  getVehicleCatalogUpdatedEventName,
+} from "../utils/vehicleCatalog";
 import { VEHICLE_COLORS } from "../utils/vehicleColors";
 import type { CSSProperties, ReactNode } from "react";
 import { usePermissions } from "../lib/userPermissions";
@@ -764,19 +768,19 @@ function VehiclesTable(props: {
           {data.map((v, idx) => (
             <tr key={v.id} style={{ background: idx % 2 === 0 ? "rgba(255,255,255,0.96)" : "rgba(246,250,255,0.96)" }}>
               <td style={cellStyle}>
-                <div className="customer-cell-primary" style={primaryInfoStyle}>{highlightText(resolveVehicleIdDisplay(v), searchQuery)}</div>
+                <div className="customer-cell-primary" style={primaryInfoStyle} data-no-translate="true">{highlightText(resolveVehicleIdDisplay(v), searchQuery)}</div>
               </td>
               <td style={cellStyle}>
-                <div className="customer-cell-primary" style={primaryInfoStyle}>{highlightText(v.ownedBy ?? "—", searchQuery)}</div>
+                <div className="customer-cell-primary" style={primaryInfoStyle} data-no-translate="true">{highlightText(v.ownedBy ?? "—", searchQuery)}</div>
               </td>
               <td style={cellStyle}>
-                <div className="customer-cell-primary" style={primaryInfoStyle}>{highlightText(v.make ?? "—", searchQuery)}</div>
+                <div className="customer-cell-primary" style={primaryInfoStyle} data-no-translate="true">{highlightText(v.make ?? "—", searchQuery)}</div>
               </td>
               <td style={cellStyle}>
-                <div className="customer-cell-primary" style={primaryInfoStyle}>{highlightText(v.year ?? "—", searchQuery)}</div>
+                <div className="customer-cell-primary" style={primaryInfoStyle} data-no-translate="true">{highlightText(v.year ?? "—", searchQuery)}</div>
               </td>
               <td style={cellStyle}>
-                <div className="customer-cell-primary" style={primaryInfoStyle}>{highlightText(v.plateNumber ?? "—", searchQuery)}</div>
+                <div className="customer-cell-primary" style={primaryInfoStyle} data-no-translate="true">{highlightText(v.plateNumber ?? "—", searchQuery)}</div>
               </td>
               <td style={cellStyle}>
                 {(() => {
@@ -1045,18 +1049,28 @@ export default function VehicleManagement({
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [catalogVersion, setCatalogVersion] = useState(0);
+
+  useEffect(() => {
+    const eventName = getVehicleCatalogUpdatedEventName();
+    const onCatalogChanged = () => setCatalogVersion((v) => v + 1);
+    window.addEventListener(eventName, onCatalogChanged);
+    return () => window.removeEventListener(eventName, onCatalogChanged);
+  }, []);
+
+  const dynamicManufacturers = useMemo(() => getManufacturerOptions(), [catalogVersion]);
 
   const manufacturerOptions = useMemo<Array<string | { value: string; label: string }>>(() => {
     const options: Array<string | { value: string; label: string }> = [{ value: "", label: t("Select manufacturer") }];
     const make = form.make.trim();
-    if (make && !QATAR_MANUFACTURERS.includes(make)) {
+    if (make && !dynamicManufacturers.includes(make)) {
       options.push({ value: make, label: `${make} ${t("(current)")}` });
     }
-    options.push(...QATAR_MANUFACTURERS);
+    options.push(...dynamicManufacturers);
     return options;
-  }, [form.make, t]);
+  }, [dynamicManufacturers, form.make, t]);
 
-  const catalogModelsForMake = useMemo(() => getModelsByManufacturer(form.make), [form.make]);
+  const catalogModelsForMake = useMemo(() => getModelsByManufacturer(form.make), [form.make, catalogVersion]);
   const selectedMakeHasCatalog = catalogModelsForMake.length > 0;
 
   const modelOptions = useMemo<Array<string | { value: string; label: string }>>(() => {

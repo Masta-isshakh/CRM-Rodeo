@@ -225,6 +225,7 @@ export const handler = async (event) => {
     })();
     // Keep nested data needed by UI details cards (permit id, collector, etc.)
     const dataJson = JSON.stringify({
+        vehicleDetails: payload.vehicleDetails ?? parsedExistingData?.vehicleDetails ?? {},
         services: services.map((s, idx) => {
             const price = toNum(s.price);
             const assignedTo = String(s.assignedTo ?? "").trim().toLowerCase() || null;

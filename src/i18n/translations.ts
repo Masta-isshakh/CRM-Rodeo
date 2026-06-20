@@ -44,7 +44,7 @@ const PHRASES_EN_AR: Array<[string, string]> = [
   ["Reload application", "إعادة تحميل التطبيق"],
   ["CRM Logo", "شعار CRM"],
   ["Checking your session...", "جارٍ التحقق من جلستك..."],
-  ["Your session expired after 1 hour. Please sign in again.", "انتهت جلستك بعد ساعة واحدة. يرجى تسجيل الدخول مرة أخرى."],
+  ["Your session expired after 10 hours of inactivity. Please sign in again.", "انتهت جلستك بعد 10 ساعات من عدم النشاط. يرجى تسجيل الدخول مرة أخرى."],
   ["Unexpected error while rendering.", "حدث خطأ غير متوقع أثناء العرض."],
   ["Workspace", "مساحة العمل"],
   ["Verify", "تحقق"],
@@ -5874,7 +5874,6 @@ const SAFE_PHRASES_EN_AR = PHRASES_EN_AR.filter(([en, ar]) => {
 });
 
 const EN_TO_AR = new Map<string, string>(SAFE_PHRASES_EN_AR);
-const AR_TO_EN = new Map<string, string>(SAFE_PHRASES_EN_AR.map(([en, ar]) => [ar, en]));
 
 const FRAGMENTS_EN_AR: Array<[string, string]> = [
   ["Signed in as:", "مسجل الدخول باسم:"],
@@ -6256,14 +6255,8 @@ const FRAGMENTS_EN_AR: Array<[string, string]> = [
   ["loadFailed", "فشل التحميل"],
 ];
 
-const FRAGMENTS_AR_EN: Array<[string, string]> = FRAGMENTS_EN_AR.map(([en, ar]) => [ar, en]);
-
 function normalizeSpaces(value: string): string {
   return value.replace(/\s+/g, " ").trim();
-}
-
-function replaceEvery(text: string, search: string, replacement: string): string {
-  return text.split(search).join(replacement);
 }
 
 function escapeRegex(value: string): string {
@@ -6508,8 +6501,6 @@ const SAFE_FRAGMENTS_EN_AR: Array<[string, string]> = FRAGMENTS_EN_AR
 const SAFE_WORDS_EN_AR: Array<[string, string]> = WORDS_EN_AR
   .filter(([src, target]) => Boolean(src) && !isBrokenArabicTranslation(target) && !isWeakWordRule(src, target));
 
-const WORDS_AR_EN: Array<[string, string]> = SAFE_WORDS_EN_AR.map(([en, ar]) => [ar, en]);
-
 const FRAGMENT_TRANSLATORS_EN_AR: Array<[RegExp, string]> = SAFE_FRAGMENTS_EN_AR
   .map(([src, target]) => [new RegExp(escapeRegex(src), "gi"), target]);
 
@@ -6525,7 +6516,6 @@ const PHRASE_TRANSLATORS_EN_AR: Array<[RegExp, string]> = SAFE_PHRASES_EN_AR
 const TRANSLATION_CACHE_LIMIT = 8000;
 const translationCache = new Map<string, string>();
 const HAS_LATIN_TEXT = /[A-Za-z]/;
-const HAS_ARABIC_TEXT = /[\u0600-\u06FF]/;
 
 function applyEnglishWordTranslations(value: string): string {
   let out = String(value ?? "");
@@ -6567,7 +6557,9 @@ export function translateTextValue(input: string, language: LanguageCode): strin
   const trailing = raw.match(/\s*$/)?.[0] ?? "";
 
   if (language === "ar" && !HAS_LATIN_TEXT.test(trimmed)) return raw;
-  if (language === "en" && !HAS_ARABIC_TEXT.test(trimmed)) return raw;
+  // Keep user-entered Arabic data intact in EN mode. Auto-translated UI labels
+  // already carry their original English baseline, so reverse Arabic rewrites are unsafe.
+  if (language === "en") return raw;
 
   const cacheKey = `${language}\u0000${trimmed}`;
   const cached = translationCache.get(cacheKey);
@@ -6589,18 +6581,7 @@ export function translateTextValue(input: string, language: LanguageCode): strin
     return `${leading}${cacheTranslation(language, trimmed, out)}${trailing}`;
   }
 
-  if (AR_TO_EN.has(trimmed)) {
-    const translated = String(AR_TO_EN.get(trimmed) ?? "");
-    return `${leading}${cacheTranslation(language, trimmed, translated)}${trailing}`;
-  }
-  let out = trimmed;
-  for (const [src, target] of FRAGMENTS_AR_EN) {
-    if (out.includes(src)) out = replaceEvery(out, src, target);
-  }
-  for (const [src, target] of WORDS_AR_EN) {
-    if (src && out.includes(src)) out = replaceEvery(out, src, target);
-  }
-  return `${leading}${cacheTranslation(language, trimmed, out)}${trailing}`;
+  return raw;
 }
 
 export function t(language: LanguageCode, englishText: string): string {

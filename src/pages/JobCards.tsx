@@ -13,7 +13,13 @@ import { normalizeActorIdentity, resolveActorDisplay, resolveActorUsername } fro
 import { getUserDirectory } from "../utils/userDirectoryCache";
 import { getDataClient } from "../lib/amplifyClient";
 import { matchesSearchQuery } from "../lib/searchUtils";
-import { QATAR_MANUFACTURERS, getModelsByManufacturer } from "../utils/vehicleCatalog";
+import {
+  QATAR_MANUFACTURERS,
+  getManufacturerOptions,
+  getModelsByManufacturer,
+  getSubmodelsByManufacturerAndModel,
+  getVehicleCatalogUpdatedEventName,
+} from "../utils/vehicleCatalog";
 import { VEHICLE_COLORS } from "../utils/vehicleColors";
 
 import SuccessPopup from "./SuccessPopup";
@@ -774,7 +780,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         `Receipt: ${jobId}`,
         `Bill: ${dash(billing.billId)}`,
         `Customer: ${dash(order?.customerName)}`,
-        `Vehicle: ${dash(order?.vehiclePlate || order?.vehicleDetails?.plateNumber)}`,
+        `Vehicle: ${dash([order?.vehicleDetails?.make, order?.vehicleDetails?.model, order?.vehicleDetails?.subModel ?? order?.vehicleDetails?.submodel, order?.vehiclePlate || order?.vehicleDetails?.plateNumber].filter(Boolean).join(" "))}`,
         `Net: ${netAmount.toFixed(2)}`,
         `Due: ${balanceDue.toFixed(2)}`,
         `Created: ${createdAtDisplay}`,
@@ -1084,7 +1090,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
       ]);
       drawInfoBox(marginX + infoW + infoGap, cursorY, infoW, infoH, "VEHICLE", "المركبة", [
         ["Plate", dash(order?.vehiclePlate || order?.vehicleDetails?.plateNumber)],
-        ["Vehicle", dash(`${dash(order?.vehicleDetails?.make)} ${dash(order?.vehicleDetails?.model)}`.replace(/ -/g, "").replace(/- /g, ""))],
+        ["Vehicle", dash([order?.vehicleDetails?.make, order?.vehicleDetails?.model, order?.vehicleDetails?.subModel ?? order?.vehicleDetails?.submodel].filter(Boolean).join(" "))],
         ["Year / Type", dash([order?.vehicleDetails?.year, order?.vehicleDetails?.type].filter(Boolean).join(" / "))],
         ["Color", dash(order?.vehicleDetails?.color)],
         ["VIN", dash(order?.vehicleDetails?.vin)],
@@ -1975,9 +1981,9 @@ const JobOrderRecordsTable = memo(function JobOrderRecordsTable({
                     {t(order.orderType)}
                   </span>
                 </td>
-                <td data-label={t("Customer Name")}>{order.customerName}</td>
-                <td data-label={t("Mobile Number")}>{order.mobile}</td>
-                <td data-label={t("Vehicle Plate")}>{order.vehiclePlate}</td>
+                <td data-label={t("Customer Name")} data-no-translate="true">{order.customerName}</td>
+                <td data-label={t("Mobile Number")} data-no-translate="true">{order.mobile}</td>
+                <td data-label={t("Vehicle Plate")} data-no-translate="true">{order.vehiclePlate}</td>
                 <td data-label={t("Work Status")}>
                   <span className={`status-badge ${getWorkStatusClass(order.workStatus)}`}>{displayWorkStatusLabel(order.workStatus)}</span>
                 </td>
@@ -2523,6 +2529,7 @@ function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }
           ownedBy: safeCustomerName,
           make: vehicleData.make || vehicleData.factory,
           model: vehicleData.model,
+          subModel: vehicleData.subModel || vehicleData.submodel || null,
           year: vehicleData.year,
           type: vehicleData.vehicleType || vehicleData.carType,
           color: vehicleData.color,
@@ -3178,13 +3185,29 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
   const [showNewVehicleForm, setShowNewVehicleForm] = useState(false);
   const [factory, setFactory] = useState(QATAR_MANUFACTURERS[0] ?? "Toyota");
   const [model, setModel] = useState("");
+  const [subModel, setSubModel] = useState("");
   const [year, setYear] = useState<any>(new Date().getFullYear());
   const [license, setLicense] = useState("");
   const [carType, setCarType] = useState("SUV");
   const [color, setColor] = useState("");
   const [vinNumber, setVinNumber] = useState(""); // NEW manual VIN
-  const manufacturerOptions = QATAR_MANUFACTURERS;
-  const modelOptions = useMemo(() => getModelsByManufacturer(factory), [factory]);
+  const [catalogVersion, setCatalogVersion] = useState(0);
+  const manufacturerOptions = useMemo(() => getManufacturerOptions(), [catalogVersion]);
+  const modelOptions = useMemo(() => getModelsByManufacturer(factory), [factory, catalogVersion]);
+  const subModelOptions = useMemo(
+    () => getSubmodelsByManufacturerAndModel(factory, model),
+    [factory, model, catalogVersion]
+  );
+  const vehicleFormReady = Boolean(
+    factory &&
+      model &&
+      year &&
+      license &&
+      carType &&
+      color &&
+      vinNumber.trim() &&
+      (subModelOptions.length === 0 || subModel)
+  );
   const colorOptions = VEHICLE_COLORS;
 
   const hasVehicles = customerData?.vehicles && customerData.vehicles.length > 0;
@@ -3194,17 +3217,33 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
   }, [hasVehicles]);
 
   useEffect(() => {
+    setFactory((current) => (manufacturerOptions.includes(current) ? current : manufacturerOptions[0] ?? ""));
+  }, [manufacturerOptions]);
+
+  useEffect(() => {
     setModel((current) => (modelOptions.includes(current) ? current : ""));
   }, [modelOptions]);
 
+  useEffect(() => {
+    setSubModel((current) => (subModelOptions.includes(current) ? current : ""));
+  }, [subModelOptions]);
+
+  useEffect(() => {
+    const eventName = getVehicleCatalogUpdatedEventName();
+    const onCatalogChanged = () => setCatalogVersion((v) => v + 1);
+    window.addEventListener(eventName, onCatalogChanged);
+    return () => window.removeEventListener(eventName, onCatalogChanged);
+  }, []);
+
   const handleSaveNewVehicle = async () => {
-    if (!(factory && model && year && license && carType && color && vinNumber.trim())) return;
+    if (!vehicleFormReady) return;
 
     const created = await createVehicleForCustomer({
       customerId: customerData.id,
       ownedBy: customerData.name,
       make: factory.trim(),
       model: model.trim(),
+      subModel: subModel.trim() || undefined,
       year: String(year),
       color,
       plateNumber: license,
@@ -3252,7 +3291,8 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
                   <div className="vehicle-result-info">
                     <div className="vehicle-result-name">
                       <strong>
-                        {vehicle.make} {vehicle.model} ({vehicle.year})
+                        {vehicle.make} {vehicle.model}
+                        {vehicle.subModel ? ` - ${vehicle.subModel}` : ""} ({vehicle.year})
                       </strong>
                     </div>
                     <div className="vehicle-result-details">
@@ -3315,6 +3355,22 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
               </div>
             </div>
 
+            {subModelOptions.length > 0 && (
+              <div className="form-row grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="form-group">
+                  <label>{t("Sub-Model")}</label>
+                  <select value={subModel} onChange={(e) => setSubModel(e.target.value)}>
+                    <option value="">{t("Select sub-model")}</option>
+                    {subModelOptions.map((subModelName) => (
+                      <option key={subModelName} value={subModelName}>
+                        {subModelName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            )}
+
             <div className="form-row grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="form-group">
                 <label>{t("Year")} *</label>
@@ -3373,7 +3429,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
             <button
               className="btn btn-success bg-[#4318FF] text-white rounded-xl px-6 py-3 font-bold hover:bg-[#3A14DF] transition-all shadow-[0_8px_22px_rgba(67,24,255,0.25)]"
               onClick={() => void handleSaveNewVehicle()}
-              disabled={!(factory && model && year && license && carType && color && vinNumber.trim())}
+              disabled={!vehicleFormReady}
             >
               <i className="fas fa-save"></i> {t("Save Vehicle")}
             </button>
@@ -3390,7 +3446,8 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
               <div className="verified-row">
                 <span className="verified-label">{t("Vehicle")}:</span>
                 <span className="verified-value">
-                  {vehicleData.make} {vehicleData.model} ({vehicleData.year})
+                  {vehicleData.make} {vehicleData.model}
+                  {vehicleData.subModel ? ` - ${vehicleData.subModel}` : ""} ({vehicleData.year})
                 </span>
               </div>
               <div className="verified-row">
@@ -4509,9 +4566,12 @@ function StepFourConfirm({
   const discountPercent = subtotal > 0 ? (discount / subtotal) * 100 : 0;
   const total = subtotal - discount;
 
-  const customerMobile = customerData?.mobile || customerData?.phone || "Not provided";
+  const customerMobile = customerData?.mobile || customerData?.phone || t("Not provided");
   const heardFrom = String(customerData?.heardFrom ?? "").trim();
   const vehicleType = vehicleData?.vehicleType || vehicleData?.carType || "N/A";
+  const vehicleModelLabel = [vehicleData?.make || vehicleData?.factory, vehicleData?.model, vehicleData?.subModel || vehicleData?.submodel]
+    .filter(Boolean)
+    .join(" ");
   const vehicleId =
     String(
       vehicleData?.vehicleDetails?.vehicleId ??
@@ -4520,7 +4580,7 @@ function StepFourConfirm({
       ""
     ).trim() || "-";
   const plate = vehicleData?.plateNumber || vehicleData?.license || "N/A";
-  const vin = vehicleData?.vin || "Not provided";
+  const vin = vehicleData?.vin || t("Not provided");
 
 
   return (
@@ -4539,7 +4599,7 @@ function StepFourConfirm({
               <div>
                 <div className="jo-confirm-strip-title">{orderType === "service" ? t("Service Order") : t("New Job Order")}</div>
                 <div className="jo-confirm-strip-subtitle">
-                  {[vehicleData?.make, vehicleData?.model].filter(Boolean).join(" ")} {plate ? `* ${plate}` : ""}
+                  {vehicleModelLabel} {plate ? `* ${plate}` : ""}
                 </div>
               </div>
             </div>
@@ -4557,23 +4617,23 @@ function StepFourConfirm({
           <div className="jo-confirm-grid">
             <div className="jo-confirm-item">
               <span>{t("Customer ID")}</span>
-              <strong>{formatCustomerDisplayId(customerData?.id)}</strong>
+              <strong data-no-translate="true">{formatCustomerDisplayId(customerData?.id)}</strong>
             </div>
             <div className="jo-confirm-item">
               <span>{t("Customer Name")}</span>
-              <strong>{customerData?.name || "N/A"}</strong>
+              <strong data-no-translate="true">{customerData?.name || "N/A"}</strong>
             </div>
             <div className="jo-confirm-item">
               <span>{t("Mobile Number")}</span>
-              <strong>{customerMobile}</strong>
+              <strong data-no-translate="true">{customerMobile}</strong>
             </div>
             <div className="jo-confirm-item">
               <span>{t("Email Address")}</span>
-              <strong>{customerData?.email || "Not provided"}</strong>
+              <strong data-no-translate="true">{customerData?.email || t("Not provided")}</strong>
             </div>
             <div className="jo-confirm-item jo-confirm-item-wide">
               <span>{t("Home Address")}</span>
-              <strong>{customerData?.address || t("Not provided")}</strong>
+              <strong data-no-translate="true">{customerData?.address || t("Not provided")}</strong>
             </div>
             {heardFrom && (
               <div className="jo-confirm-item">
@@ -4585,11 +4645,11 @@ function StepFourConfirm({
               <>
                 <div className="jo-confirm-item">
                   <span>{t("Referred Person Name")}</span>
-                  <strong>{customerData?.referralPersonName || t("Not provided")}</strong>
+                  <strong data-no-translate="true">{customerData?.referralPersonName || t("Not provided")}</strong>
                 </div>
                 <div className="jo-confirm-item">
                   <span>{t("Referred Person Mobile")}</span>
-                  <strong>{customerData?.referralPersonMobile || t("Not provided")}</strong>
+                  <strong data-no-translate="true">{customerData?.referralPersonMobile || t("Not provided")}</strong>
                 </div>
               </>
             )}
@@ -4602,7 +4662,7 @@ function StepFourConfirm({
             {heardFrom === "other" && (
               <div className="jo-confirm-item jo-confirm-item-wide">
                 <span>{t("Other Note")}</span>
-                <strong>{customerData?.heardFromOtherNote || t("Not provided")}</strong>
+                <strong data-no-translate="true">{customerData?.heardFromOtherNote || t("Not provided")}</strong>
               </div>
             )}
             <div className="jo-confirm-item">
@@ -4632,16 +4692,22 @@ function StepFourConfirm({
             </div>
             <div className="jo-confirm-item">
               <span>{t("Owned By")}</span>
-              <strong>{customerData?.name || t("N/A")}</strong>
+              <strong data-no-translate="true">{customerData?.name || t("N/A")}</strong>
             </div>
             <div className="jo-confirm-item">
               <span>{t("Make")}</span>
-              <strong>{vehicleData?.make || vehicleData?.factory || t("N/A")}</strong>
+              <strong data-no-translate="true">{vehicleData?.make || vehicleData?.factory || t("N/A")}</strong>
             </div>
             <div className="jo-confirm-item">
               <span>{t("Model")}</span>
-              <strong>{vehicleData?.model || t("N/A")}</strong>
+              <strong data-no-translate="true">{vehicleData?.model || t("N/A")}</strong>
             </div>
+            {(vehicleData?.subModel || vehicleData?.submodel) && (
+              <div className="jo-confirm-item">
+                <span>{t("Sub-Model")}</span>
+                <strong data-no-translate="true">{vehicleData?.subModel || vehicleData?.submodel}</strong>
+              </div>
+            )}
             <div className="jo-confirm-item">
               <span>{t("Year")}</span>
               <strong>{vehicleData?.year || t("N/A")}</strong>
@@ -4652,11 +4718,11 @@ function StepFourConfirm({
             </div>
             <div className="jo-confirm-item">
               <span>{t("Plate Number")}</span>
-              <strong>{plate}</strong>
+              <strong data-no-translate="true">{plate}</strong>
             </div>
             <div className="jo-confirm-item">
               <span>{t("VIN")}</span>
-              <strong>{vin}</strong>
+              <strong data-no-translate="true">{vin}</strong>
             </div>
             <div className="jo-confirm-item">
               <span>{t("Vehicle Type")}</span>
@@ -4764,7 +4830,7 @@ function StepFourConfirm({
               </div>
               <div className="jo-confirm-item jo-confirm-item-wide">
                 <span>{t("Notes / Comments")}</span>
-                <strong style={{ whiteSpace: "pre-wrap" }}>{orderNotes || t("No notes")}</strong>
+                <strong data-no-translate="true" style={{ whiteSpace: "pre-wrap" }}>{orderNotes || t("No notes")}</strong>
               </div>
             </div>
           </section>

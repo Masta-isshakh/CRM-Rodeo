@@ -1,0 +1,185 @@
+.vca-page {
+  display: grid;
+  gap: 16px;
+}
+
+.vca-header h1 {
+  margin: 0;
+  font-size: 1.35rem;
+  color: #102a68;
+}
+
+.vca-header p {
+  margin: 6px 0 0;
+  color: #6b7ea8;
+}
+
+.vca-form-card,
+.vca-list-card {
+  background: #fff;
+  border: 1px solid #dce6f8;
+  border-radius: 12px;
+  padding: 16px;
+}
+
+.vca-form-card h2,
+.vca-list-card h2 {
+  margin: 0 0 12px;
+  color: #173b7a;
+  font-size: 1rem;
+}
+
+.vca-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.vca-form-grid label {
+  display: grid;
+  gap: 6px;
+}
+
+.vca-form-grid span {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #2b3674;
+}
+
+.vca-form-grid input {
+  border: 1px solid #dce6f8;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+}
+
+.vca-form-actions {
+  margin-top: 12px;
+}
+
+.vca-form-actions button {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 14px;
+  background: #4318ff;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.vca-form-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.vca-manufacturer-list {
+  display: grid;
+  gap: 12px;
+}
+
+.vca-manufacturer-item {
+  border: 1px solid #e7edf8;
+  border-radius: 10px;
+  padding: 12px;
+}
+
+.vca-manufacturer-head,
+.vca-model-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.vca-manufacturer-head h3 {
+  margin: 0;
+  color: #102a68;
+}
+
+.vca-model-item {
+  border-top: 1px dashed #dce6f8;
+  margin-top: 10px;
+  padding-top: 10px;
+}
+
+.vca-submodels {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.vca-submodel-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #dce6f8;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.8rem;
+  color: #2b3674;
+  background: #f8fbff;
+}
+
+.vca-row-actions,
+.vca-inline-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.vca-inline-edit {
+  flex: 1 1 260px;
+}
+
+.vca-inline-edit input,
+.vca-submodel-chip input {
+  min-width: 180px;
+  border: 1px solid #dce6f8;
+  border-radius: 8px;
+  padding: 7px 9px;
+  font-size: 0.86rem;
+}
+
+.vca-row-actions button,
+.vca-inline-edit button,
+.vca-submodel-chip button,
+.vca-model-head .danger,
+.vca-manufacturer-head .danger {
+  border: 0;
+  background: transparent;
+  color: #4318ff;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.vca-submodel-chip button,
+.vca-row-actions .danger,
+.vca-model-head .danger,
+.vca-manufacturer-head .danger {
+  color: #c53030;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.vca-inline-edit button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.vca-inline-edit .ghost {
+  color: #6b7ea8;
+}
+
+.vca-submodel-chip.is-editing {
+  border-radius: 8px;
+  padding: 6px;
+}
+
+.vca-empty,
+.vca-empty-inline {
+  color: #7b8fb4;
+  font-size: 0.88rem;
+}

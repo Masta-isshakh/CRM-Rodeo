@@ -153,8 +153,8 @@ function deriveDetailData(order: AnyObj, row: AnyObj) {
       : "Not specified";
 
   const vehicleModel =
-    (order.vehicleMake && order.vehicleModel ? `${order.vehicleMake} ${order.vehicleModel} ${order.vehicleYear || ""}` : "").trim() ||
-    `${order.vehicleDetails?.make || ""} ${order.vehicleDetails?.model || ""} ${order.vehicleDetails?.year || ""}`.trim() ||
+    (order.vehicleMake && order.vehicleModel ? `${order.vehicleMake} ${order.vehicleModel} ${order.vehicleSubModel || ""} ${order.vehicleYear || ""}` : "").trim() ||
+    `${order.vehicleDetails?.make || ""} ${order.vehicleDetails?.model || ""} ${order.vehicleDetails?.subModel || order.vehicleDetails?.submodel || ""} ${order.vehicleDetails?.year || ""}`.trim() ||
     "N/A";
 
   return {
@@ -546,6 +546,7 @@ function InspectionModule({ currentUser }: any) {
 
   const reportRef = useRef<HTMLDivElement | null>(null);
   const hydratedRef = useRef(false);
+  const finishInspectionInFlightRef = useRef(false);
 
   useEffect(() => {
     const initial: Record<string, boolean> = {};
@@ -1051,13 +1052,21 @@ function InspectionModule({ currentUser }: any) {
     (inspectionState.exterior.completed || inspectionState.exterior.notRequired) &&
     (inspectionState.interior.completed || inspectionState.interior.notRequired);
 
+  const inspectionAlreadyFinished = useMemo(() => {
+    const status = String(activeOrder?.workStatus || activeOrder?.workStatusLabel || "").trim().toLowerCase();
+    return status === "service_operation" || status === "service operation" || status === "serviceoperation";
+  }, [activeOrder]);
+
   const finishInspection = () => {
+    if (inspectionAlreadyFinished || loading || finishInspectionInFlightRef.current) return;
+
     setInspectionConfirmData({
       title: t("Finish Inspection"),
       message: t("Finish the inspection? Status will change to Service_Operation."),
       onConfirm: async () => {
-        if (!activeOrder || !activeRow) return;
+        if (!activeOrder || !activeRow || finishInspectionInFlightRef.current) return;
 
+        finishInspectionInFlightRef.current = true;
         setLoading(true);
         try {
           const photoMap: Record<string, string> = { ...photoUrlCache };
@@ -1190,6 +1199,7 @@ function InspectionModule({ currentUser }: any) {
           setPopupMessage(`${t("Finish failed:")} ${errMsg(e)}`);
           setShowPopup(true);
         } finally {
+          finishInspectionInFlightRef.current = false;
           setLoading(false);
         }
       },
@@ -1383,9 +1393,9 @@ function InspectionModule({ currentUser }: any) {
                               {job.orderType}
                             </span>
                           </td>
-                          <td data-label={t("Customer Name")}>{job.customerName}</td>
-                          <td data-label={t("Mobile Number")}>{job.mobile}</td>
-                          <td data-label={t("Vehicle Plate")}>{job.vehiclePlate}</td>
+                          <td data-label={t("Customer Name")} data-no-translate="true">{job.customerName}</td>
+                          <td data-label={t("Mobile Number")} data-no-translate="true">{job.mobile}</td>
+                          <td data-label={t("Vehicle Plate")} data-no-translate="true">{job.vehiclePlate}</td>
                           <td data-label={t("Work Status")}>
                             <span className={`status-badge ${job.workStatus === "New Request" ? "status-new-request" : "status-inspection"}`}>
                               {job.workStatus}
@@ -1780,8 +1790,8 @@ function InspectionModule({ currentUser }: any) {
 
                 <div className="inspection-list-footer">
                   <PermissionGate moduleId="inspection" optionId="inspection_finish">
-                    <button className="finish-btn inspection-finish-btn" disabled={!canFinish || loading} onClick={finishInspection}>
-                      <i className="fas fa-flag-checkered"></i> {loading ? t("Working...") : t("Finish Inspection")}
+                    <button className="finish-btn inspection-finish-btn" disabled={!canFinish || loading || inspectionAlreadyFinished} onClick={finishInspection}>
+                      <i className="fas fa-flag-checkered"></i> {loading ? t("Working...") : inspectionAlreadyFinished ? t("Inspection Finished") : t("Finish Inspection")}
                     </button>
                   </PermissionGate>
                 </div>

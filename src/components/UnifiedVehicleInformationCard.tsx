@@ -20,7 +20,11 @@ export function UnifiedVehicleInformationCard({ order, className = "" }: Props) 
 
   const make = joFirst(vd?.make, vd?.factory, "—");
   const model = joFirst(vd?.model, "—");
-  const makeModel = make !== "—" && model !== "—" ? `${make} ${model}` : joFirst(make, model, order?.vehicle, "—");
+  const subModel = joFirst(vd?.subModel, vd?.submodel, order?.vehicleSubModel, "");
+  const makeModel =
+    make !== "—" && model !== "—"
+      ? [make, model, subModel].filter(Boolean).join(" ")
+      : joFirst(make, model, order?.vehicle, "—");
   const year = joFirst(vd?.year, "—");
   const color = joFirst(vd?.color, "—");
   const vehicleType = joFirst(vd?.type, vd?.vehicleType, vd?.carType, "—");
@@ -33,7 +37,7 @@ export function UnifiedVehicleInformationCard({ order, className = "" }: Props) 
   const infoRow = (label: string, value: React.ReactNode, noBorder = false) => (
     <div key={label} style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", padding: "9px 0", borderBottom: noBorder ? "none" : "1px solid #EEF2FB", gap: 12 }}>
       <span style={{ fontSize: "0.74rem", fontWeight: 700, color: "#8C9ABF", textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>{label}</span>
-      <span style={{ fontSize: "0.88rem", fontWeight: 700, color: "#102A68", textAlign: "right", wordBreak: "break-word", maxWidth: 220 }}>{value}</span>
+      <span data-no-translate="true" style={{ fontSize: "0.88rem", fontWeight: 700, color: "#102A68", textAlign: "right", wordBreak: "break-word", maxWidth: 220 }}>{value}</span>
     </div>
   );
 
@@ -58,15 +62,16 @@ export function UnifiedVehicleInformationCard({ order, className = "" }: Props) 
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <h3 style={{ margin: 0, fontSize: 12.5, fontWeight: 800, color: "#102A68", letterSpacing: "0.05em", textTransform: "uppercase" }}>{t("Vehicle Information")}</h3>
-          <span style={{ fontSize: "0.78rem", color: "#8C9ABF", fontWeight: 600 }}>{makeModel} {year !== "—" ? `· ${year}` : ""}</span>
+          <span data-no-translate="true" style={{ fontSize: "0.78rem", color: "#8C9ABF", fontWeight: 600 }}>{makeModel} {year !== "—" ? `· ${year}` : ""}</span>
         </div>
         {/* Plate badge */}
-        <span style={{ fontSize: "0.76rem", fontWeight: 800, background: "#102A68", color: "#FFFFFF", borderRadius: 8, padding: "4px 10px", flexShrink: 0, letterSpacing: "0.08em" }}>{plateNumber}</span>
+        <span data-no-translate="true" style={{ fontSize: "0.76rem", fontWeight: 800, background: "#102A68", color: "#FFFFFF", borderRadius: 8, padding: "4px 10px", flexShrink: 0, letterSpacing: "0.08em" }}>{plateNumber}</span>
       </div>
 
       {/* Body */}
       <div style={{ padding: "14px 20px 16px" }}>
         {infoRow(t("Make / Model"), makeModel)}
+        {subModel && infoRow(t("Sub-Model"), subModel)}
         {infoRow(t("Year"), year)}
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "9px 0", borderBottom: "1px solid #EEF2FB", gap: 12 }}>
           <span style={{ fontSize: "0.74rem", fontWeight: 700, color: "#8C9ABF", textTransform: "uppercase", letterSpacing: "0.06em", flexShrink: 0 }}>{t("Color")}</span>
@@ -74,7 +79,7 @@ export function UnifiedVehicleInformationCard({ order, className = "" }: Props) 
             {colorHex && (
               <span style={{ width: 14, height: 14, borderRadius: "50%", background: colorHex, border: "1px solid rgba(0,0,0,0.15)", flexShrink: 0, display: "inline-block" }} />
             )}
-            <span style={{ fontSize: "0.88rem", fontWeight: 700, color: "#102A68" }}>{color}</span>
+            <span data-no-translate="true" style={{ fontSize: "0.88rem", fontWeight: 700, color: "#102A68" }}>{color}</span>
           </div>
         </div>
         {infoRow(t("Vehicle Type"), vehicleType)}

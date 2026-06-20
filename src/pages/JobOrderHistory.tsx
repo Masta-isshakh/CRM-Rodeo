@@ -1031,17 +1031,20 @@ export default function JobOrderHistory({
         loadNormalizedInvoices(client, String(detailed._backendId), invoicesCacheRef.current),
       ]);
 
+      const parsedVehicle = parsed?.vehicleDetails ?? {};
       const vehicleDetails = {
+        ...parsedVehicle,
         vehicleId: vehicleId ?? "N/A",
         ownedBy: customerDetails?.name ?? detailed?.customerName ?? "N/A",
-        make: row?.vehicleMake ?? null,
-        model: row?.vehicleModel ?? null,
-        year: row?.vehicleYear ?? null,
-        type: row?.vehicleType ?? null,
-        color: row?.color ?? null,
+        make: row?.vehicleMake ?? parsedVehicle?.make ?? null,
+        model: row?.vehicleModel ?? parsedVehicle?.model ?? null,
+        subModel: parsedVehicle?.subModel ?? parsedVehicle?.submodel ?? null,
+        year: row?.vehicleYear ?? parsedVehicle?.year ?? null,
+        type: row?.vehicleType ?? parsedVehicle?.type ?? null,
+        color: row?.color ?? parsedVehicle?.color ?? null,
         plateNumber: vehiclePlate || "N/A",
-        vin: row?.vin ?? null,
-        registrationDate: null,
+        vin: row?.vin ?? parsedVehicle?.vin ?? null,
+        registrationDate: parsedVehicle?.registrationDate ?? null,
       };
 
       const detailedRoadmap = Array.isArray(detailed?.roadmap) ? detailed.roadmap : [];
@@ -1431,9 +1434,9 @@ export default function JobOrderHistory({
                         <td data-label={t("Order Type")}>
                           <span className={orderTypeClass(r.orderType)}>{r.orderType}</span>
                         </td>
-                        <td data-label={t("Customer")}>{r.customerName || "—"}</td>
-                        <td data-label={t("Mobile")}>{r.mobile || "—"}</td>
-                        <td data-label={t("Plate")}>{r.vehiclePlate || "—"}</td>
+                        <td data-label={t("Customer")} data-no-translate="true">{r.customerName || "—"}</td>
+                        <td data-label={t("Mobile")} data-no-translate="true">{r.mobile || "—"}</td>
+                        <td data-label={t("Plate")} data-no-translate="true">{r.vehiclePlate || "—"}</td>
                         <td data-label={t("Work Status")}>
                           <span className={workStatusClass(r.workStatus)}>{r.workStatus}</span>
                         </td>

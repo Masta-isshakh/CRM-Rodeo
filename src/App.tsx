@@ -1,7 +1,7 @@
 import { Component, lazy, Suspense, type ErrorInfo, type ReactNode, useEffect, useMemo, useState } from "react";
 import { Authenticator, ThemeProvider, useAuthenticator } from "@aws-amplify/ui-react";
 import "@aws-amplify/ui-react/styles.css";
-import { fetchAuthSession, getCurrentUser, signIn } from "aws-amplify/auth";
+import { getCurrentUser, signIn } from "aws-amplify/auth";
 import SetPasswordPage from "./pages/SetPassword";
 import { getDataClient } from "./lib/amplifyClient";
 import appLogo from "./assets/logo.jpeg";
@@ -24,7 +24,7 @@ const SESSION_CHECK_TIMEOUT_MS = (() => {
 const SESSION_DEBUG_LOCAL_STORAGE_KEY = "crm.debugSessionCheck";
 const SESSION_CACHE_KEY = "crm.sessionOk";
 const SESSION_CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const SESSION_EXPIRY_MS = 60 * 60 * 1000; // 1 hour
+const SESSION_INACTIVITY_EXPIRY_MS = 10 * 60 * 60 * 1000; // 10 hours
 const SESSION_EXPIRES_AT_KEY = "crm.sessionExpiresAt";
 const BLOCKED_BANNER_VISIBLE_MS = 5000;
 const BLOCKED_BANNER_FADE_MS = 420;
@@ -480,7 +480,7 @@ function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
   useEffect(() => {
     let timeoutId: number | null = null;
     let intervalId: number | null = null;
-    let cancelled = false;
+    let lastActivityWriteAt = 0;
 
     const readExpiry = () => {
       try {
@@ -508,16 +508,20 @@ function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
     };
 
     const expireNow = () => {
-      onBlocked(tr("Your session expired after 1 hour. Please sign in again."));
+      onBlocked(tr("Your session expired after 10 hours of inactivity. Please sign in again."));
       safeSignOut();
     };
 
-    const ensureExpiry = () => {
+    const ensureExpiry = (nextExpiry?: number) => {
       const now = Date.now();
       const existing = readExpiry();
-      const expiresAt = existing && existing > 0 ? existing : now + SESSION_EXPIRY_MS;
+      const expiresAt = Number.isFinite(nextExpiry)
+        ? Number(nextExpiry)
+        : existing && existing > 0
+        ? existing
+        : now + SESSION_INACTIVITY_EXPIRY_MS;
 
-      if (!existing) writeExpiry(expiresAt);
+      if (!existing || Number.isFinite(nextExpiry)) writeExpiry(expiresAt);
 
       const remainingMs = expiresAt - now;
       clearScheduled();
@@ -532,30 +536,15 @@ function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
       }, remainingMs);
     };
 
-    const ensureExpiryFromLogin = async () => {
-      try {
-        const session = await fetchAuthSession();
-        const accessPayload: any = session.tokens?.accessToken?.payload ?? {};
-        const idPayload: any = session.tokens?.idToken?.payload ?? {};
-        const authTimeSec = Number(
-          accessPayload?.auth_time ??
-            idPayload?.auth_time ??
-            accessPayload?.iat ??
-            idPayload?.iat ??
-            0
-        );
-        const loginAt = Number.isFinite(authTimeSec) && authTimeSec > 0 ? authTimeSec * 1000 : Date.now();
-        const expiresAt = loginAt + SESSION_EXPIRY_MS;
-        writeExpiry(expiresAt);
-      } catch {
-        // If token introspection fails, keep existing fallback behavior.
-      }
-
-      if (!cancelled) ensureExpiry();
+    const markActivity = () => {
+      const now = Date.now();
+      if (now - lastActivityWriteAt < 15_000) return;
+      lastActivityWriteAt = now;
+      ensureExpiry(now + SESSION_INACTIVITY_EXPIRY_MS);
     };
 
     const onVisibility = () => {
-      if (document.visibilityState === "visible") ensureExpiry();
+      if (document.visibilityState === "visible") markActivity();
     };
 
     const onStorage = (event: StorageEvent) => {
@@ -568,17 +557,28 @@ function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
       ensureExpiry();
     };
 
-    void ensureExpiryFromLogin();
-    intervalId = window.setInterval(ensureExpiry, 60 * 1000);
+    const activityEvents: Array<keyof WindowEventMap> = [
+      "click",
+      "keydown",
+      "pointerdown",
+      "touchstart",
+      "scroll",
+      "mousemove",
+      "focus",
+    ];
+
+    markActivity();
+    intervalId = window.setInterval(() => ensureExpiry(), 60 * 1000);
     document.addEventListener("visibilitychange", onVisibility);
     window.addEventListener("storage", onStorage);
+    activityEvents.forEach((evt) => window.addEventListener(evt, markActivity, { passive: true }));
 
     return () => {
-      cancelled = true;
       clearScheduled();
       if (intervalId != null) window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", onVisibility);
       window.removeEventListener("storage", onStorage);
+      activityEvents.forEach((evt) => window.removeEventListener(evt, markActivity));
     };
   }, [onBlocked, signOut]);
 
@@ -630,18 +630,8 @@ function AppContent({ onBlocked }: { onBlocked: (message: string) => void }) {
         onBlocked("");
       } catch (error) {
         debugLog("Session verification failed", error);
-          // Only block the user if we don't already have a recent cached OK (avoid false-positives on network flakes)
-          try {
-            const raw = window.sessionStorage.getItem(SESSION_CACHE_KEY);
-            const cached = raw ? (JSON.parse(raw) as { at: number }) : null;
-            if (!cached || Date.now() - cached.at >= SESSION_CACHE_TTL_MS) {
-              onBlocked("We could not verify your session. Please sign in again.");
-              safeSignOut();
-            }
-          } catch {
-            onBlocked("We could not verify your session. Please sign in again.");
-            safeSignOut();
-          }
+        // Do not force sign-out on transient network/session-check failures.
+        // Keep active users in-app and retry checks on the next cycle.
       } finally {
         debugLog("Session verification completed");
         if (!cancelled) setSessionChecked(true);
