@@ -7,6 +7,7 @@ import type { PageProps } from "../lib/PageProps";
 import PermissionGate from "./PermissionGate";
 import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 import { useLanguage } from "../i18n/LanguageContext";
+import { translateTextValue } from "../i18n/translations";
 
 const client = generateClient<Schema>();
 type LogRow = Schema["ActivityLog"]["type"];
@@ -17,8 +18,72 @@ function safeDate(val: unknown): string {
   return isNaN(d.getTime()) ? "\u2014" : d.toLocaleString();
 }
 
+function humanizeActivityText(value: string): string {
+  return String(value ?? "")
+    .replace(/[_-]+/g, " ")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatActivityAction(action: unknown, language: string, t: (text: string) => string): string {
+  const raw = String(action ?? "").trim();
+  if (!raw) return "-";
+  const humanized = humanizeActivityText(raw);
+  if (language !== "ar") return humanized;
+
+  const direct = t(humanized);
+  if (direct && direct !== humanized) return direct;
+
+  const translated = translateTextValue(humanized, "ar");
+  if (translated && translated !== humanized) return translated;
+
+  return humanized;
+}
+
+function formatActivityMessage(message: unknown, language: string, t: (text: string) => string): string {
+  const raw = String(message ?? "").trim();
+  if (!raw) return "-";
+  if (language !== "ar") return raw;
+
+  const protectedTokens: string[] = [];
+  const tokenized = raw.replace(/(https?:\/\/\S+|[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}|\b[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\b|\b\d{4,}\b)/gi, (match) => {
+    const idx = protectedTokens.push(match) - 1;
+    return `__TK${idx}__`;
+  });
+
+  let normalized = humanizeActivityText(tokenized);
+  const templateReplacements: Array<[RegExp, string]> = [
+    [/^Created\s+(.+)$/i, "تم الإنشاء $1"],
+    [/^Updated\s+(.+)$/i, "تم التحديث $1"],
+    [/^Deleted\s+(.+)$/i, "تم الحذف $1"],
+    [/^Sent\s+(.+)$/i, "تم الإرسال $1"],
+    [/^Failed\s+to\s+(.+)$/i, "فشل في $1"],
+    [/^Processing\s+(.+)$/i, "جار معالجة $1"],
+    [/^Scheduled\s+(.+)$/i, "تمت الجدولة $1"],
+    [/^Queue\s+(.+)$/i, "الطابور $1"],
+    [/^SMS\s+batch\s+(.+)$/i, "دفعة الرسائل النصية $1"],
+    [/^WhatsApp\s+batch\s+(.+)$/i, "دفعة واتساب $1"],
+    [/^Drive\s+share\s+link\s+(.+)$/i, "رابط مشاركة درايف $1"],
+    [/^File\s+share\s+link\s+(.+)$/i, "رابط مشاركة الملف $1"],
+    [/^Quota\s+(.+)$/i, "الحصة $1"],
+  ];
+
+  templateReplacements.forEach(([pattern, replacement]) => {
+    normalized = normalized.replace(pattern, replacement);
+  });
+
+  const translated = translateTextValue(normalized, "ar");
+  const localized = translated && translated !== normalized ? translated : t(normalized);
+
+  return localized.replace(/__TK(\d+)__/g, (_whole, indexText) => {
+    const idx = Number(indexText);
+    return Number.isInteger(idx) && idx >= 0 && idx < protectedTokens.length ? protectedTokens[idx] : _whole;
+  });
+}
+
 export default function ActivityLog({ permissions }: PageProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { withLoading } = useGlobalLoading();
   const [logs, setLogs] = useState<LogRow[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,12 +167,12 @@ export default function ActivityLog({ permissions }: PageProps) {
           <div className="timeline">
             {logs.map((log) => (
               <div className="timeline-item" key={log.id}>
-                <div className={`badge ${String(log.action || "").toLowerCase()}`}>
-                  {log.action}
+                <div className={`badge ${String(log.action || "").toLowerCase().replace(/\s+/g, "-")}`}>
+                  {formatActivityAction(log.action, language, t)}
                 </div>
 
                 <div className="content">
-                  <p className="message">{log.message}</p>
+                  <p className="message">{formatActivityMessage(log.message, language, t)}</p>
                   <span className="meta">
                     {actorOf(log)} \u2022 {entityOf(log)} \u2022 {safeDate(log.createdAt)}
                   </span>

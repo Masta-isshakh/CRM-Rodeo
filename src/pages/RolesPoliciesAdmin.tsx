@@ -665,6 +665,7 @@ const OptionNode = ({
   percentValues,
   onPercentChange,
   parentEnabled,
+  formatOptionLabel,
 }: any) => {
   const isPercent = option.kind === "percent";
 
@@ -679,13 +680,14 @@ const OptionNode = ({
 
   const percentKey = optKey(moduleId, option.id);
   const percentVal = percentValues[percentKey];
+  const optionLabel = formatOptionLabel(String(option.label || ""));
 
   return (
     <div className={`rac-option rac-level-${level} ${effectiveEnabled ? "" : "rac-disabled"}`}>
       <div className="rac-option-row">
         <div className="rac-option-label">
           {option.prefix && <span className="rac-option-prefix">{option.prefix}</span>}
-          <span>{option.label}</span>
+          <span>{optionLabel}</span>
         </div>
 
         {!isPercent && (
@@ -729,6 +731,7 @@ const OptionNode = ({
               percentValues={percentValues}
               onPercentChange={onPercentChange}
               parentEnabled={effectiveEnabled}
+              formatOptionLabel={formatOptionLabel}
             />
           ))}
         </div>
@@ -738,7 +741,7 @@ const OptionNode = ({
 };
 
 export default function RoleAccessControl() {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { withLoading } = useGlobalLoading();
   const client = useMemo(() => getDataClient(), []);
   const [loading, setLoading] = useState(false);
@@ -760,6 +763,73 @@ export default function RoleAccessControl() {
   const searchPermissionsLabel = humanizeWords(t("searchPermissionsPlaceholder")) || "Search Permissions";
   const resetBackendLabel = humanizeWords(t("resetDeleteBackendRows")) || "Reset Delete Backend Rows";
   const saveBackendLabel = humanizeWords(t("saveToBackend")) || "Save To Backend";
+
+  const formatOptionLabel = (label: string) => {
+    const raw = String(label ?? "").trim();
+    if (!raw) return raw;
+    if (language !== "ar") return raw;
+
+    const exactOverrides: Record<string, string> = {
+      "View Activity Logs": "عرض سجل النشاط",
+      "View conversations": "عرض المحادثات",
+      "Send messages": "إرسال الرسائل",
+      "Start direct messages": "بدء الرسائل المباشرة",
+      "View shared files": "عرض الملفات المشتركة",
+      "Upload files": "رفع الملفات",
+      "Create folders": "إنشاء مجلدات",
+      "Move files/folders": "نقل الملفات/المجلدات",
+      "Star files": "تمييز الملفات",
+      "Share / change visibility": "مشاركة / تغيير مستوى الظهور",
+      "Create expiring shared links": "إنشاء روابط مشاركة مؤقتة",
+      "Revoke shared links": "إلغاء روابط المشاركة",
+      "Download files": "تنزيل الملفات",
+      "View version history": "عرض سجل الإصدارات",
+      "Restore old versions": "استعادة الإصدارات القديمة",
+      "Move to trash (soft delete)": "نقل إلى سلة المحذوفات (حذف ناعم)",
+      "Restore from trash": "استعادة من سلة المحذوفات",
+      "Delete own files": "حذف ملفاتي",
+      "Delete any file": "حذف أي ملف",
+      "Permanent delete": "حذف نهائي",
+      "Manage all files": "إدارة جميع الملفات",
+      "Open drive admin panel": "فتح لوحة إدارة الملفات",
+      "Manage user storage quotas": "إدارة حصص تخزين المستخدمين",
+      "View storage analytics": "عرض تحليلات التخزين",
+      "Cross-department sharing": "مشاركة بين الأقسام",
+      "View send history": "عرض سجل الإرسال",
+      "Compose message": "كتابة رسالة",
+      "Send SMS notifications": "إرسال إشعارات SMS",
+    };
+    if (exactOverrides[raw]) return exactOverrides[raw];
+
+    const exact = t(raw);
+    if (exact && exact !== raw && !/[A-Za-z]/.test(exact)) return exact;
+
+    const viewPage = raw.match(/^Show\s+(.+?)\s+page\s+in\s+sidebar$/i);
+    if (viewPage) return `عرض صفحة ${t(viewPage[1])} في الشريط الجانبي`;
+
+    const viewSidebar = raw.match(/^Show\s+(.+?)\s+in\s+sidebar$/i);
+    if (viewSidebar) return `عرض ${t(viewSidebar[1])} في الشريط الجانبي`;
+
+    const addBtn = raw.match(/^Add\s+New\s+(.+?)\s+Button$/i);
+    if (addBtn) return `زر إضافة ${t(addBtn[1])} جديد`;
+
+    const detailsCard = raw.match(/^Details:\s+(.+?)\s+Card$/i);
+    if (detailsCard) return `التفاصيل: بطاقة ${t(detailsCard[1])}`;
+
+    const relatedSection = raw.match(/^Related\s+Records:\s+(.+?)\s+Section$/i);
+    if (relatedSection) return `السجلات المرتبطة: ${t(relatedSection[1])}`;
+
+    const viewX = raw.match(/^View\s+(.+)$/i);
+    if (viewX) return `عرض ${t(viewX[1])}`;
+
+    return exact
+      .replace(/\bButton\b/gi, "زر")
+      .replace(/\bDropdown\b/gi, "قائمة منسدلة")
+      .replace(/\bSection\b/gi, "قسم")
+      .replace(/\bCard\b/gi, "بطاقة")
+      .replace(/\bin sidebar\b/gi, "في الشريط الجانبي")
+      .replace(/\bpage\b/gi, "صفحة");
+  };
 
   const [roles, setRoles] = useState<any[]>([]);
   const [currentRoleId, setCurrentRoleId] = useState<string>("");
@@ -1459,9 +1529,9 @@ export default function RoleAccessControl() {
                 </div>
 
                 <div className="rac-topbar-metrics" aria-label={t("roleAccessControl")}>
-                  <span className="rac-topbar-metric">Roles: {roles.length}</span>
-                  <span className="rac-topbar-metric">Modules: {visibleModules.length}</span>
-                  <span className="rac-topbar-metric">Active: {enabledVisibleModulesCount}</span>
+                  <span className="rac-topbar-metric">{t("roles")}: {roles.length}</span>
+                  <span className="rac-topbar-metric">{t("modules")}: {visibleModules.length}</span>
+                  <span className="rac-topbar-metric">{t("active")}: {enabledVisibleModulesCount}</span>
                 </div>
               </div>
             </div>
@@ -1495,7 +1565,7 @@ export default function RoleAccessControl() {
             </div>
 
             <div className="rac-showing">
-              {t("Showing")} {visibleModules.length} {t("of")} {modulesWithSearchIndex.length} modules · {visibleOptionsCount} options
+              {t("Showing")} {visibleModules.length} {t("of")} {modulesWithSearchIndex.length} {t("modules")} · {visibleOptionsCount} {t("options")}
             </div>
           </div>
 
@@ -1561,6 +1631,7 @@ export default function RoleAccessControl() {
                             percentValues={percentValues}
                             onPercentChange={handlePercentChange}
                             parentEnabled={moduleState.enabled}
+                            formatOptionLabel={formatOptionLabel}
                           />
                         ))}
                       </div>

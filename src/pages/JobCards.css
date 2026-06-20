@@ -1982,6 +1982,61 @@ mark.search-highlight {
 
   .jo-details-v3 .svc-filter-row:last-child { margin-bottom: 0; }
 
+  .jo-details-v3 .svc-search-row {
+    margin: 0 0 10px;
+  }
+
+  .jo-details-v3 .svc-search-input-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 520px;
+  }
+
+  .jo-details-v3 .svc-search-input-wrap > i {
+    position: absolute;
+    left: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #8C9ABF;
+    font-size: 12px;
+    pointer-events: none;
+  }
+
+  .jo-details-v3 .svc-search-input {
+    width: 100%;
+    height: 36px;
+    border: 1px solid #DDE7F6;
+    border-radius: 9px;
+    background: #FFFFFF;
+    color: #102A68;
+    font-size: 0.82rem;
+    font-weight: 700;
+    padding: 0 34px 0 32px;
+  }
+
+  .jo-details-v3 .svc-search-input:focus {
+    outline: none;
+    border-color: #4E40F8;
+    box-shadow: 0 0 0 3px rgba(78, 64, 248, 0.12);
+  }
+
+  .jo-details-v3 .svc-search-clear {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    border-radius: 999px;
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #EEF3FF;
+    color: #5D54FF;
+    cursor: pointer;
+  }
+
   .jo-details-v3 .svc-filter-label {
     font-size: 0.72rem;
     font-weight: 800;
@@ -2477,6 +2532,61 @@ mark.search-highlight {
 
   .jo-wizard-body .jo-services-premium-card .svc-filter-row:last-child {
     margin-bottom: 0;
+  }
+
+  .jo-wizard-body .jo-services-premium-card .svc-search-row {
+    margin: 0 0 10px;
+  }
+
+  .jo-wizard-body .jo-services-premium-card .svc-search-input-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 560px;
+  }
+
+  .jo-wizard-body .jo-services-premium-card .svc-search-input-wrap > i {
+    position: absolute;
+    left: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #8C9ABF;
+    font-size: 12px;
+    pointer-events: none;
+  }
+
+  .jo-wizard-body .jo-services-premium-card .svc-search-input {
+    width: 100%;
+    height: 38px;
+    border: 1px solid #DDE7F6;
+    border-radius: 9px;
+    background: #FFFFFF;
+    color: #102A68;
+    font-size: 0.83rem;
+    font-weight: 700;
+    padding: 0 36px 0 33px;
+  }
+
+  .jo-wizard-body .jo-services-premium-card .svc-search-input:focus {
+    border-color: #4E40F8;
+    box-shadow: 0 0 0 4px rgba(78, 64, 248, 0.12);
+    outline: none;
+  }
+
+  .jo-wizard-body .jo-services-premium-card .svc-search-clear {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    border: none;
+    border-radius: 999px;
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #EEF3FF;
+    color: #5D54FF;
+    cursor: pointer;
   }
 
   .jo-wizard-body .jo-services-premium-card .svc-filter-label {

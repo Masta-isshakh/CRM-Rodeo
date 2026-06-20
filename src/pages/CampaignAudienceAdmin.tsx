@@ -3,6 +3,7 @@ import * as XLSX from "xlsx";
 import type { Schema } from "../../amplify/data/resource";
 import { getDataClient } from "../lib/amplifyClient";
 import { useLanguage } from "../i18n/LanguageContext";
+import { translateTextValue } from "../i18n/translations";
 import "./CampaignAudienceAdmin.css";
 import { useGlobalLoading } from "../utils/GlobalLoadingContext";
 
@@ -130,6 +131,29 @@ function normalizeHeader(value: string): string {
     .replace(/[_-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function humanizeImportedColumnLabel(value: string): string {
+  return String(value ?? "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatImportedColumnLabel(value: string, language: string, t: (text: string) => string): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const humanized = humanizeImportedColumnLabel(raw);
+  if (language !== "ar") return humanized;
+
+  const direct = t(humanized);
+  if (direct && direct !== humanized) return direct;
+
+  const translated = translateTextValue(humanized, "ar");
+  if (translated && translated !== humanized) return translated;
+
+  return humanized;
 }
 
 function toText(value: unknown): string {
@@ -534,7 +558,7 @@ function collectDetectedColumns(
 
 export default function CampaignAudienceAdmin() {
   const client = getDataClient();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { withLoading } = useGlobalLoading();
   const [copyPopup, setCopyPopup] = useState<{ title: string; message: string } | null>(null);
 
@@ -1416,7 +1440,7 @@ export default function CampaignAudienceAdmin() {
                       <thead>
                         <tr>
                           {previewDisplayColumns.map((column) => (
-                            <th key={column}>{column}</th>
+                            <th key={column}>{formatImportedColumnLabel(column, language, t)}</th>
                           ))}
                         </tr>
                       </thead>
@@ -1424,7 +1448,7 @@ export default function CampaignAudienceAdmin() {
                         {previewPagedRows.map((row, index) => (
                           <tr key={`preview-${index}-${previewPage}`}>
                             {previewDisplayColumns.map((column) => (
-                              <td key={`${index}-${column}`} data-label={column}>{toText(row[column]) || "—"}</td>
+                              <td key={`${index}-${column}`} data-label={formatImportedColumnLabel(column, language, t)}>{toText(row[column]) || "—"}</td>
                             ))}
                           </tr>
                         ))}
@@ -1448,7 +1472,7 @@ export default function CampaignAudienceAdmin() {
                             <div className="campaign-data-grid">
                               {previewDisplayColumns.map((column) => (
                                 <div key={`${index}-${column}`}>
-                                  <span>{column}</span>
+                                  <span>{formatImportedColumnLabel(column, language, t)}</span>
                                   <strong>{toText(row[column]) || "—"}</strong>
                                 </div>
                               ))}
@@ -1599,7 +1623,7 @@ export default function CampaignAudienceAdmin() {
                   <select value={audienceColumn} onChange={(e) => { setAudienceColumn(e.target.value); localStorage.setItem(AUDIENCE_COLUMN_STORAGE_KEY, e.target.value); }}>
                     <option value="">{t("Select column")}</option>
                     {uploadedColumns.map((column) => (
-                      <option key={`audience-col-${column}`} value={column}>{column}</option>
+                      <option key={`audience-col-${column}`} value={column}>{formatImportedColumnLabel(column, language, t)}</option>
                     ))}
                   </select>
                 </label>
@@ -1652,7 +1676,7 @@ export default function CampaignAudienceAdmin() {
 
               <div className="campaign-column-preview-panel">
                 <div className="campaign-column-preview-head">
-                  <strong>{audienceColumn || t("Selected column values")}</strong>
+                  <strong>{audienceColumn ? formatImportedColumnLabel(audienceColumn, language, t) : t("Selected column values")}</strong>
                   <span>{`${selectedColumnValues.length.toLocaleString()} ${t("unique values")}`}</span>
                 </div>
                 <div className="campaign-column-preview-values">
@@ -1673,7 +1697,7 @@ export default function CampaignAudienceAdmin() {
                     <span>{t("Service columns")}</span>
                     <p>
                       {detectedServiceColumns.length > 0
-                        ? detectedServiceColumns.slice(0, 4).map((entry) => `${entry.column} (${entry.hits}, ${t(entry.confidence === "high" ? "High confidence" : entry.confidence === "medium" ? "Medium confidence" : "Low confidence")})`).join(" • ")
+                        ? detectedServiceColumns.slice(0, 4).map((entry) => `${formatImportedColumnLabel(entry.column, language, t)} (${entry.hits}, ${t(entry.confidence === "high" ? "High confidence" : entry.confidence === "medium" ? "Medium confidence" : "Low confidence")})`).join(" • ")
                         : t("No service columns detected")}
                     </p>
                   </div>
@@ -1681,7 +1705,7 @@ export default function CampaignAudienceAdmin() {
                     <span>{t("Date columns")}</span>
                     <p>
                       {detectedDateColumns.length > 0
-                        ? detectedDateColumns.slice(0, 4).map((entry) => `${entry.column} (${entry.hits}, ${t(entry.confidence === "high" ? "High confidence" : entry.confidence === "medium" ? "Medium confidence" : "Low confidence")})`).join(" • ")
+                        ? detectedDateColumns.slice(0, 4).map((entry) => `${formatImportedColumnLabel(entry.column, language, t)} (${entry.hits}, ${t(entry.confidence === "high" ? "High confidence" : entry.confidence === "medium" ? "Medium confidence" : "Low confidence")})`).join(" • ")
                         : t("No date columns detected")}
                     </p>
                   </div>
@@ -1714,7 +1738,7 @@ export default function CampaignAudienceAdmin() {
                     <thead>
                       <tr>
                         {resultDisplayColumns.map((column) => (
-                          <th key={`col-${column}`}>{column}</th>
+                          <th key={`col-${column}`}>{formatImportedColumnLabel(column, language, t)}</th>
                         ))}
                       </tr>
                     </thead>
@@ -1729,7 +1753,7 @@ export default function CampaignAudienceAdmin() {
                             const isDateLike = isDateColumnName(column);
                             const fallback = isServiceDateColumnName(column) ? lead.serviceDate : undefined;
                             const value = isDateLike ? formatDateForUi(normalizeDateForExport(rawValue, fallback)) : rawValue;
-                            return <td key={`${String(lead.id)}-${column}`} data-label={column}>{value || "—"}</td>;
+                            return <td key={`${String(lead.id)}-${column}`} data-label={formatImportedColumnLabel(column, language, t)}>{value || "—"}</td>;
                           })}
                         </tr>
                         );
@@ -1770,7 +1794,7 @@ export default function CampaignAudienceAdmin() {
                           const value = isDateLike ? formatDateForUi(normalizeDateForExport(rawValue, fallback)) : rawValue;
                           return (
                             <div key={`${String(lead.id)}-card-${column}`}>
-                              <span>{column}</span>
+                              <span>{formatImportedColumnLabel(column, language, t)}</span>
                               <strong>{value || "—"}</strong>
                             </div>
                           );

@@ -1,3 +1,5 @@
+import { translateTextValue } from "../i18n/translations";
+
 const STORAGE_KEY = "crm.serviceTechnicians.catalog.v1";
 const CHANGE_EVENT = "service-technicians:changed";
 
@@ -15,6 +17,15 @@ function normalizeText(value: unknown) {
   return String(value ?? "").trim();
 }
 
+function normalizeBilingualName(nameEn: unknown, nameAr: unknown): { en: string; ar: string } {
+  const en = normalizeText(nameEn);
+  const arRaw = normalizeText(nameAr);
+  if (arRaw) return { en, ar: arRaw };
+  if (!en) return { en: "", ar: "" };
+  const translated = normalizeText(translateTextValue(en, "ar"));
+  return { en, ar: translated && translated !== en ? translated : en };
+}
+
 function makeId() {
   return `svc-tech-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -28,8 +39,9 @@ function parseCatalog(raw: string | null): ServiceTechnicianItem[] {
       .map((item: any): ServiceTechnicianItem | null => {
         const id = normalizeText(item?.id) || makeId();
         const serviceId = normalizeText(item?.serviceId);
-        const nameEn = normalizeText(item?.nameEn);
-        const nameAr = normalizeText(item?.nameAr);
+        const names = normalizeBilingualName(item?.nameEn, item?.nameAr);
+        const nameEn = names.en;
+        const nameAr = names.ar;
         if (!serviceId || (!nameEn && !nameAr)) return null;
 
         const createdAt = normalizeText(item?.createdAt) || new Date().toISOString();
@@ -78,8 +90,9 @@ export function addServiceTechnicianCatalogItem(input: {
   description?: string;
 }): ServiceTechnicianItem {
   const serviceId = normalizeText(input.serviceId);
-  const nameEn = normalizeText(input.nameEn);
-  const nameAr = normalizeText(input.nameAr);
+  const names = normalizeBilingualName(input.nameEn, input.nameAr);
+  const nameEn = names.en;
+  const nameAr = names.ar;
   const description = normalizeText(input.description);
 
   if (!serviceId) throw new Error("Service ID is required.");
@@ -119,8 +132,9 @@ export function updateServiceTechnicianCatalogItem(
   if (!normalizedId) throw new Error("Service item ID is required.");
 
   const serviceId = normalizeText(updates.serviceId);
-  const nameEn = normalizeText(updates.nameEn);
-  const nameAr = normalizeText(updates.nameAr);
+  const names = normalizeBilingualName(updates.nameEn, updates.nameAr);
+  const nameEn = names.en;
+  const nameAr = names.ar;
   const description = normalizeText(updates.description);
 
   if (!serviceId) throw new Error("Service ID is required.");

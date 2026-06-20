@@ -5629,6 +5629,244 @@ function isWeakWordRule(source: string, target: string): boolean {
 
 PHRASES_EN_AR.push(...AUTO_AUDIT_TRANSLATIONS_EN_AR.filter(([, ar]) => !isBrokenArabicTranslation(ar)));
 
+const RUNTIME_OVERRIDE_TRANSLATIONS_EN_AR: Array<[string, string]> = [
+  ["From", "من"],
+  ["To", "إلى"],
+  ["Database Cleanup", "تنظيف قاعدة البيانات"],
+  ["Executive Minimal", "تنسيق تنفيذي"],
+  ["Pixel Pass: Detail View", "عرض التفاصيل"],
+  ["Customers", "العملاء"],
+  ["Contact Information", "معلومات التواصل"],
+  ["Vehicle Make/Model", "الشركة/الموديل"],
+  ["Recent Service", "أحدث خدمة"],
+  ["Total Spent", "إجمالي الإنفاق"],
+  ["service records", "سجلات الخدمة"],
+  ["Not available", "غير متوفر"],
+  ["Vehicles", "المركبات"],
+  ["Manage vehicle information, ownership, and completed services.", "إدارة معلومات المركبات والملكية والخدمات المكتملة."],
+  ["Add New Job Order", "إضافة طلب عمل جديد"],
+  ["Reports & Delivery", "التقارير والتسليم"],
+  ["Build a report, keep the filters simple, and send it by email on a schedule.", "أنشئ تقريرًا، وأبقِ الفلاتر بسيطة، وأرسله عبر البريد الإلكتروني وفق جدول."],
+  ["Scheduled", "مجدول"],
+  ["Manage report filters, exports, and scheduled email delivery in one place.", "إدارة فلاتر التقارير والتصدير والتسليم المجدول عبر البريد الإلكتروني في مكان واحد."],
+  ["Start with the model, then use the optional filters if you need to narrow the report further.", "ابدأ بالنموذج، ثم استخدم الفلاتر الاختيارية إذا احتجت لتضييق التقرير أكثر."],
+  ["Advanced filters", "فلاتر متقدمة"],
+  ["Use these only when the simple search and date range are not enough.", "استخدم هذه فقط عندما لا يكفي البحث البسيط ونطاق التاريخ."],
+  ["Choose columns", "اختر الأعمدة"],
+  ["Search columns", "ابحث في الأعمدة"],
+  ["Select all visible", "تحديد كل الظاهر"],
+  ["actual Completion Hours", "ساعات الإكمال الفعلية"],
+  ["actual Delivery date", "تاريخ التسليم الفعلي"],
+  ["actual Delivery time", "وقت التسليم الفعلي"],
+  ["Amount Paid", "المبلغ المدفوع"],
+  ["Assigned Technician Id", "معرّف الفني المعيّن"],
+  ["Upload, organize, share, and govern files from one workspace while keeping quota and permission control in admin hands.", "ارفع الملفات ونظّمها وشاركها وأدرها من مساحة عمل واحدة مع إبقاء التحكم في الحصة والصلاحيات بيد الإدارة."],
+  ["items", "عناصر"],
+  ["active links", "روابط نشطة"],
+  ["List", "قائمة"],
+  ["My storage", "مساحتي"],
+  ["New", "جديد"],
+  ["Home", "الرئيسية"],
+  ["My Drive", "ملفاتي"],
+  ["Shared with me", "تمت مشاركته معي"],
+  ["Recent", "الأخيرة"],
+  ["Starred", "المميزة"],
+  ["Organization", "المؤسسة"],
+  ["Trash", "سلة المحذوفات"],
+  ["Send SMS messages directly to customers and track the queue fanout pipeline end to end.", "أرسل رسائل SMS مباشرة للعملاء وتابع مسار الطابور من البداية إلى النهاية."],
+  ["batches", "دفعات"],
+  ["max batch:", "الحد الأقصى للدفعة:"],
+  ["Send SMS", "إرسال SMS"],
+  ["Setup incomplete: no carrier delivery feedback is being ingested yet.", "الإعداد غير مكتمل: لم يتم بعد استقبال ملاحظات تسليم شركات الاتصالات."],
+  ["Manage customer support tickets, ownership, priorities, and lifecycle status.", "إدارة تذاكر دعم العملاء والملكية والأولويات وحالة دورة الحياة."],
+  ["Open", "مفتوحة"],
+  ["Resolved / Closed", "تم الحل / مغلقة"],
+  ["Use this form to register a new customer support case.", "استخدم هذا النموذج لتسجيل حالة دعم عميل جديدة."],
+  ["Priority", "الأولوية"],
+  ["Description", "الوصف"],
+  ["Ticket Records", "سجلات التذاكر"],
+  ["No tickets found.", "لا توجد تذاكر."],
+  ["Manage team profiles with customer-grade visual polish", "إدارة ملفات الفريق بمظهر احترافي عالي الجودة."],
+  ["Workforce", "القوى العاملة"],
+  ["No employees found.", "لا يوجد موظفون."],
+  ["Manage inventory structure, stock, and checkout with customer-grade visual polish", "إدارة هيكل المخزون والمخزون وعمليات الصرف بمظهر احترافي عالي الجودة."],
+  ["Services by category", "الخدمات حسب الفئة"],
+  ["Categories", "الفئات"],
+  ["Avg services/Cat", "متوسط الخدمات لكل فئة"],
+  ["Add Service Technicians", "إضافة فنيي الخدمة"],
+  ["Create and manage technician service capabilities in Arabic and English.", "أنشئ وأدر قدرات خدمة الفنيين باللغتين العربية والإنجليزية."],
+  ["No service technicians found.", "لا يوجد فنيو خدمة."],
+  ["View and Manage User Account Settings", "عرض وإدارة إعدادات حساب المستخدم"],
+  ["Inactive", "غير نشط"],
+  ["User invite", "دعوة مستخدم"],
+  ["User view root admin", "عرض المستخدم للمسؤول الجذري"],
+  ["User access", "وصول المستخدم"],
+  ["Loaded 1 users 1 departments.", "تم تحميل 1 مستخدم و1 قسم."],
+  ["Add New Department", "إضافة قسم جديد"],
+  ["Create departments, add roles, and manage your organizational structure with full width department and role cards.", "أنشئ الأقسام وأضف الأدوار وأدر الهيكل التنظيمي ببطاقات قسم ودور بعرض كامل."],
+  ["Departments & Roles", "الأقسام والأدوار"],
+  ["Total Roles", "إجمالي الأدوار"],
+  ["Avg Roles/Department", "متوسط الأدوار/القسم"],
+  ["Users in this department:", "المستخدمون في هذا القسم:"],
+  ["Department Roles", "أدوار القسم"],
+  ["Role assigned to this department", "الدور المعيّن لهذا القسم"],
+  ["Create New Role", "إنشاء دور جديد"],
+  ["Select Role To Modify", "اختر الدور للتعديل"],
+  ["currently Editing", "قيد التعديل"],
+  ["Roles:", "الأدوار:"],
+  ["Modules:", "الوحدات:"],
+  ["all Modules", "كل الوحدات"],
+  ["core operations", "العمليات الأساسية"],
+  ["modules", "وحدات"],
+  ["options", "خيارات"],
+  ["enable disable", "تفعيل / تعطيل"],
+  ["View Dashboard in sidebar", "عرض لوحة التحكم في الشريط الجانبي"],
+  ["Imported rows", "الصفوف المستوردة"],
+  ["Unique mobiles", "أرقام الجوال الفريدة"],
+  ["Last import", "آخر استيراد"],
+  ["Excel Import", "استيراد Excel"],
+  ["Upload a large Excel file once, keep the imported dataset in the database, and filter it safely for Whats App campaigns.", "ارفع ملف Excel كبير مرة واحدة، واحتفظ بمجموعة البيانات المستوردة في قاعدة البيانات، وقم بتصفيتها بأمان لحملات WhatsApp."],
+  ["Preview the workbook and upload all records into the campaign audience database table.", "عاين المصنف وارفع جميع السجلات إلى جدول جمهور الحملة في قاعدة البيانات."],
+  ["Choose Excel file", "اختر ملف Excel"],
+  ["No file selected", "لم يتم اختيار ملف"],
+  ["Select a workbook to begin", "اختر مصنفًا للبدء"],
+  ["Campaign Filters", "فلاتر الحملة"],
+  ["Copy mobile numbers", "نسخ أرقام الجوال"],
+  ["Table View", "عرض الجدول"],
+  ["Table view", "عرض الجدول"],
+  ["Card View", "عرض البطاقات"],
+  ["Card view", "عرض البطاقات"],
+  ["Loading campaign audience data...", "جارٍ تحميل بيانات جمهور الحملة..."],
+  ["CRM Rodeo Premium Workspace", "مساحة العمل CRM Rodeo Premium"],
+  ["All rights reserved", "جميع الحقوق محفوظة"],
+  ["Filter by service date, service name, customer name, phone number, batch, and export the audience list for WhatsApp.", "تصفية حسب تاريخ الخدمة واسم الخدمة واسم العميل ورقم الهاتف والدفعة، ثم تصدير قائمة الجمهور لحملات WhatsApp."],
+  ["Filter by service date, service name, customer name, phone number, batch, and export the audience list for Whats App.", "تصفية حسب تاريخ الخدمة واسم الخدمة واسم العميل ورقم الهاتف والدفعة، ثم تصدير قائمة الجمهور لحملات WhatsApp."],
+  ["Filter by خدمة التاريخ, خدمة الاسم, عميل الاسم, الهاتف رقم, batch, and export the audience list for Whats App.", "تصفية حسب تاريخ الخدمة واسم الخدمة واسم العميل ورقم الهاتف والدفعة، ثم تصدير قائمة الجمهور لحملات WhatsApp."],
+  ["Workspaces", "مساحات العمل"],
+  ["Welcome to Drive", "مرحبًا بك في الملفات"],
+  ["View القسيمة السجل", "عرض سجل القسائم"],
+  ["View عرض سعر السجل", "عرض سجل عروض الأسعار"],
+  ["Ticket Management", "إدارة التذاكر"],
+  ["Total Tickets", "إجمالي التذاكر"],
+  ["Inventory Management", "إدارة المخزون"],
+  ["Department & Role Management", "إدارة الأقسام والأدوار"],
+  ["View and Manage User Account Settings", "عرض وإدارة إعدادات حساب المستخدم"],
+  ["view And إدارة مستخدم Account Settings", "عرض وإدارة إعدادات حساب المستخدم"],
+  ["select الدور To Modify", "اختر الدور للتعديل"],
+  ["core Operations", "العمليات الأساسية"],
+  ["enable Disable", "تفعيل / تعطيل"],
+  ["KPI Cards", "بطاقات مؤشرات الأداء"],
+  ["actual Delivery التاريخ", "تاريخ التسليم الفعلي"],
+  ["actual Delivery الوقت", "وقت التسليم الفعلي"],
+  ["amount Paid", "المبلغ المدفوع"],
+  ["مُعيّن Technician Id", "معرّف الفني المعيّن"],
+  ["مُعيّن Technician الاسم", "اسم الفني المعيّن"],
+  ["assignment التاريخ", "تاريخ الإسناد"],
+  ["balance Due", "الرصيد المستحق"],
+  ["bill Id", "معرّف الفاتورة"],
+  ["عميلs", "العملاء"],
+  ["مركبةs", "المركبات"],
+  ["الدورs", "الأدوار"],
+  ["Contact المعلومات", "معلومات التواصل"],
+  ["تذكرة Management", "إدارة التذاكر"],
+  ["Total التذاكر", "إجمالي التذاكر"],
+  ["خدمات by Category", "الخدمات حسب الفئة"],
+  ["Total خدمات", "إجمالي الخدمات"],
+  ["Avg خدمات/Cat", "متوسط الخدمات/الفئة"],
+  ["القسم & الدور Management", "إدارة الأقسام والأدوار"],
+  ["Avg الدورs/قسم", "متوسط الأدوار/القسم"],
+  ["عرض لوحة التحكم in sidebar", "عرض لوحة التحكم في الشريط الجانبي"],
+  ["الدور Access Control", "تحكم وصول الدور"],
+  ["إدارة خيار Level Permissions", "إدارة صلاحيات مستوى الخيارات"],
+  ["modules ·", "الوحدات ·"],
+  ["per page", "لكل صفحة"],
+  ["Whats App", "واتساب"],
+  ["actual Delivery date", "تاريخ التسليم الفعلي"],
+  ["actual Delivery time", "وقت التسليم الفعلي"],
+  ["Assigned Technician Id", "معرّف الفني المعيّن"],
+  ["Assigned Technician name", "اسم الفني المعيّن"],
+  ["assignment date", "تاريخ الإسناد"],
+  ["balance Due", "الرصيد المستحق"],
+  ["bill Id", "معرّف الفاتورة"],
+  ["rbac Self Verify Dev Only", "تحقق ذاتي RBAC (تطوير فقط)"],
+  ["users view", "عرض المستخدمين"],
+  ["users invite", "دعوة المستخدمين"],
+  ["users access", "وصول المستخدمين"],
+  ["root admin", "المسؤول الجذري"],
+  ["Add role", "إضافة دور"],
+  ["department key:", "مفتاح القسم:"],
+  ["Team profiles", "ملفات الفريق"],
+  ["Inventory structure", "هيكل المخزون"],
+  ["stock", "المخزون"],
+  ["checkout", "الصرف"],
+  ["عرض لوحة التحكم in sidebar", "عرض لوحة التحكم في الشريط الجانبي"],
+  ["Quick Navigation", "تنقل سريع"],
+  ["Revenue Summary", "ملخص الإيرادات"],
+  ["Calendar Widget", "أداة التقويم"],
+  ["عرض عميلs page in sidebar", "عرض صفحة العملاء في الشريط الجانبي"],
+  ["Search & Filter", "بحث وتصفية"],
+  ["Refresh Button", "زر التحديث"],
+  ["إضافة عميل جديد Button", "زر إضافة عميل جديد"],
+  ["Row Actions قائمة منسدلة", "قائمة منسدلة لإجراءات الصف"],
+  ["إضافة عميل جديد Button", "زر إضافة عميل جديد"],
+  ["Details: معلومات العميل Card", "التفاصيل: بطاقة معلومات العميل"],
+  ["Details: السجلات المرتبطة Card", "التفاصيل: بطاقة السجلات المرتبطة"],
+  ["view details", "عرض التفاصيل"],
+  ["edit customer", "تعديل العميل"],
+  ["delete customer", "حذف العميل"],
+  ["Button", "زر"],
+  ["page in sidebar", "الصفحة في الشريط الجانبي"],
+  [" in sidebar", " في الشريط الجانبي"],
+  [" Button", " زر"],
+  ["Permissions", "الصلاحيات"],
+  ["Permissions Placeholder", "بحث الصلاحيات"],
+  ["Current date and time", "التاريخ والوقت الحاليان"],
+  ["Language switch", "مبدل اللغة"],
+  ["Services & Work Management", "إدارة الخدمات وسير العمل"],
+  ["Track assignments, execution progress, and service operations in one place.", "تابع الإسنادات وتقدم التنفيذ وعمليات الخدمة في مكان واحد."],
+  ["Assign to me", "إسناد إلي"],
+  ["Assigned to me", "مسند إلي"],
+  ["Unassigned tasks", "مهام غير مسندة"],
+  ["Team tasks", "مهام الفريق"],
+  ["No tasks in this view", "لا توجد مهام في هذا العرض"],
+  ["View voucher log", "عرض سجل القسائم"],
+  ["View Voucher Log", "عرض سجل القسائم"],
+  ["View quotation log", "عرض سجل عروض الأسعار"],
+  ["View Quotation Log", "عرض سجل عروض الأسعار"],
+  [
+    "Create customer quotations with live service/package pricing and policy-based discount limits.",
+    "أنشئ عروض أسعار العملاء مع تسعير مباشر للخدمات/الباقات وحدود خصم مبنية على السياسة."
+  ],
+  [
+    "Create voucher gifts with live service/package pricing and policy-based discount limits.",
+    "أنشئ قسائم الهدايا مع تسعير مباشر للخدمات/الباقات وحدود خصم مبنية على السياسة."
+  ],
+  [
+    "1) The customer agrees to the terms and conditions mentioned in the vehicle receipt paper and the services mentioned in this invoice. 2) Warranty terms and conditions apply to the services provided in this invoice and it is the customer's responsibility to read them before ordering the services. 3) This quotation is valid for 7 day(s) from issuance date.",
+    "1) يوافق العميل على الشروط والأحكام المذكورة في ورقة استلام المركبة والخدمات المذكورة في هذه الفاتورة. 2) تنطبق شروط وأحكام الضمان على الخدمات المقدمة في هذه الفاتورة وتقع مسؤولية قراءتها على العميل قبل طلب الخدمات. 3) عرض السعر هذا صالح لمدة 7 يومًا من تاريخ الإصدار."
+  ],
+  [
+    "1) The customer agrees to the terms and conditions mentioned in the vehicle receipt paper and the services mentioned in this invoice. 2) Warranty terms and conditions apply to the services provided in this invoice and it is the customer's responsibility to read them before ordering the services. 3) This voucher is valid for 7 day(s) from issuance date.",
+    "1) يوافق العميل على الشروط والأحكام المذكورة في ورقة استلام المركبة والخدمات المذكورة في هذه الفاتورة. 2) تنطبق شروط وأحكام الضمان على الخدمات المقدمة في هذه الفاتورة وتقع مسؤولية قراءتها على العميل قبل طلب الخدمات. 3) هذه القسيمة صالحة لمدة 7 يومًا من تاريخ الإصدار."
+  ],
+  ["Remarks are view only for your role.", "الملاحظات للعرض فقط حسب دورك."],
+  ["Services & Packages", "الخدمات والباقات"],
+  ["Service Category", "فئة الخدمة"],
+  ["Discount Amount", "قيمة الخصم"],
+  ["Max discount allowed by policy:", "الحد الأقصى للخصم المسموح حسب السياسة:"],
+  ["Total Jobs", "إجمالي الطلبات"],
+  ["Completed Jobs", "الطلبات المكتملة"],
+  ["Revenue (QAR)", "الإيرادات (ر.ق)"],
+  ["Customer Satisfaction", "رضا العملاء"],
+  ["vs last 7 days", "مقارنة بآخر 7 أيام"],
+  ["Last Week", "الأسبوع الماضي"],
+  ["General", "عام"],
+  ["Service Technicians", "فنيّو الخدمة"],
+  ["Technicians", "الفنيون"]
+];
+
+PHRASES_EN_AR.push(...RUNTIME_OVERRIDE_TRANSLATIONS_EN_AR);
+
 const SAFE_PHRASES_EN_AR = PHRASES_EN_AR.filter(([en, ar]) => {
   const source = normalizeSpaces(String(en ?? ""));
   const target = normalizeSpaces(String(ar ?? ""));
@@ -5644,10 +5882,6 @@ const FRAGMENTS_EN_AR: Array<[string, string]> = [
   ["(current)", "(الحالي)"],
   ["required", "مطلوب"],
   ["optional", "اختياري"],
-  ["services", "خدمات"],
-  ["vehicle", "مركبة"],
-  ["customer", "عميل"],
-  ["order", "طلب"],
   ["Save", "حفظ"],
   ["Delete", "حذف"],
   ["Edit", "تعديل"],
@@ -6282,6 +6516,12 @@ const FRAGMENT_TRANSLATORS_EN_AR: Array<[RegExp, string]> = SAFE_FRAGMENTS_EN_AR
 const WORD_TRANSLATORS_EN_AR: Array<[RegExp, string]> = SAFE_WORDS_EN_AR
   .map(([src, target]) => [new RegExp(`\\b${escapeRegex(src)}\\b`, "gi"), target]);
 
+const PHRASE_TRANSLATORS_EN_AR: Array<[RegExp, string]> = SAFE_PHRASES_EN_AR
+  .map(([src, target]) => [normalizeSpaces(String(src ?? "")), String(target ?? "")] as [string, string])
+  .filter(([src, target]) => src.length >= 4 && src.includes(" ") && Boolean(target))
+  .sort((a, b) => b[0].length - a[0].length)
+  .map(([src, target]) => [new RegExp(escapeRegex(src), "gi"), target]);
+
 const TRANSLATION_CACHE_LIMIT = 8000;
 const translationCache = new Map<string, string>();
 const HAS_LATIN_TEXT = /[A-Za-z]/;
@@ -6294,6 +6534,15 @@ function applyEnglishWordTranslations(value: string): string {
     out = out.replace(pattern, target);
   }
   return out.replace(/\s+/g, " ").trim();
+}
+
+function applyEnglishPhraseTranslations(value: string): string {
+  let out = String(value ?? "");
+  for (const [pattern, target] of PHRASE_TRANSLATORS_EN_AR) {
+    pattern.lastIndex = 0;
+    out = out.replace(pattern, target);
+  }
+  return out;
 }
 
 function cacheTranslation(language: LanguageCode, text: string, value: string): string {
@@ -6331,7 +6580,7 @@ export function translateTextValue(input: string, language: LanguageCode): strin
         return `${leading}${cacheTranslation(language, trimmed, translated)}${trailing}`;
       }
     }
-    let out = translationSeed;
+    let out = applyEnglishPhraseTranslations(translationSeed);
     for (const [pattern, target] of FRAGMENT_TRANSLATORS_EN_AR) {
       pattern.lastIndex = 0;
       out = out.replace(pattern, target);

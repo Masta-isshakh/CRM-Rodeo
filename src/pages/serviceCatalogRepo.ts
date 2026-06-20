@@ -1,4 +1,5 @@
 import { getDataClient } from "../lib/amplifyClient";
+import { translateTextValue } from "../i18n/translations";
 
 export type ServiceCatalogType = "service" | "package";
 
@@ -152,12 +153,22 @@ function toOptionalNumber(value: unknown): number | undefined {
   return Number.isFinite(n) ? n : undefined;
 }
 
+function normalizeBilingualValue(nameEn: unknown, nameAr: unknown, fallback = ""): { en: string; ar: string } {
+  const en = String(nameEn ?? "").trim() || String(fallback ?? "").trim();
+  const rawAr = String(nameAr ?? "").trim();
+  if (rawAr) return { en, ar: rawAr };
+  if (!en) return { en: "", ar: "" };
+  const translated = String(translateTextValue(en, "ar") || "").trim();
+  return { en, ar: translated && translated !== en ? translated : en };
+}
+
 function mapCategoryRow(row: any): ServiceCategoryItem {
+  const names = normalizeBilingualValue(row?.nameEn, row?.nameAr);
   return {
     id: String(row?.id || ""),
     categoryCode: String(row?.categoryCode || "").trim(),
-    nameEn: String(row?.nameEn || "").trim(),
-    nameAr: String(row?.nameAr || "").trim(),
+    nameEn: names.en,
+    nameAr: names.ar,
     descriptionEn: row?.descriptionEn ? String(row.descriptionEn) : undefined,
     descriptionAr: row?.descriptionAr ? String(row.descriptionAr) : undefined,
     isActive: row?.isActive !== false,
@@ -195,6 +206,8 @@ function mapBrandSpecificationRow(row: any): ServiceBrandSpecificationItem {
 }
 
 function mapServiceRow(row: any, specificationsById?: Map<string, ServiceBrandSpecificationItem>): ServiceCatalogItem {
+  const names = normalizeBilingualValue(row?.name, row?.nameAr);
+  const categoryNames = normalizeBilingualValue(row?.categoryNameEn, row?.categoryNameAr, row?.categoryCode);
   const storedSpecifications = parseSpecifications(row?.specificationsJson);
   const specificationId = row?.specificationId ? String(row.specificationId).trim() : undefined;
   const specification = specificationId ? specificationsById?.get(specificationId) : undefined;
@@ -206,14 +219,14 @@ function mapServiceRow(row: any, specificationsById?: Map<string, ServiceBrandSp
   return {
     id: String(row?.id || ""),
     serviceCode: String(row?.serviceCode || "").trim(),
-    name: String(row?.name || "").trim(),
-    nameAr: row?.nameAr ? String(row.nameAr).trim() : undefined,
+    name: names.en,
+    nameAr: names.ar || undefined,
     descriptionEn: row?.descriptionEn ? String(row.descriptionEn) : undefined,
     descriptionAr: row?.descriptionAr ? String(row.descriptionAr) : undefined,
     categoryId: row?.categoryId ? String(row.categoryId) : undefined,
     categoryCode: row?.categoryCode ? String(row.categoryCode) : undefined,
-    categoryNameEn: row?.categoryNameEn ? String(row.categoryNameEn) : undefined,
-    categoryNameAr: row?.categoryNameAr ? String(row.categoryNameAr) : undefined,
+    categoryNameEn: categoryNames.en || undefined,
+    categoryNameAr: categoryNames.ar || undefined,
     specificationId,
     specificationName: specification?.brandName || (row?.specificationName ? String(row.specificationName) : undefined),
     specificationColorHex: specification?.colorHex || (row?.specificationColorHex ? String(row.specificationColorHex) : undefined),

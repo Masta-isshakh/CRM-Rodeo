@@ -3633,6 +3633,7 @@ function StepThreeServices({
 
   const [filterCategory, setFilterCategory] = useState("all");
   const [filterType, setFilterType] = useState("all");
+  const [serviceSearch, setServiceSearch] = useState("");
 
   const svcCategories = useMemo(() => {
     const catMap = new Map<string, { id: string; nameEn: string }>();
@@ -3645,12 +3646,48 @@ function StepThreeServices({
     return [...catMap.values()].sort((a, b) => a.nameEn.localeCompare(b.nameEn));
   }, [products]);
 
+  const normalizedServiceSearch = serviceSearch.trim();
+
   const filteredProducts = useMemo(() =>
     products.filter((p: any) => {
       const catOk = filterCategory === "all" || String(p?.categoryId || "") === filterCategory;
       const typeOk = filterType === "all" || String(p?.type || "").toLowerCase() === filterType;
-      return catOk && typeOk;
-    }), [products, filterCategory, filterType]);
+      const searchOk = !normalizedServiceSearch || matchesSearchQuery(
+        [
+          p?.serviceCode,
+          p?.name,
+          p?.nameAr,
+          p?.descriptionEn,
+          p?.descriptionAr,
+          p?.categoryCode,
+          p?.categoryNameEn,
+          p?.categoryNameAr,
+          p?.type,
+        ],
+        normalizedServiceSearch
+      );
+      return catOk && typeOk && searchOk;
+    }), [products, filterCategory, filterType, normalizedServiceSearch]);
+
+  const filteredCompletedOrdersServices = useMemo(() => {
+    if (!normalizedServiceSearch) return completedOrdersServices;
+    return completedOrdersServices.filter((svc: any) =>
+      matchesSearchQuery(
+        [
+          svc?.serviceCode,
+          svc?.catalogId,
+          svc?.name,
+          svc?.nameAr,
+          svc?.description,
+          svc?.descriptionAr,
+          svc?.specificationBrandName,
+          svc?.specificationProductName,
+          svc?.specificationMeasurement,
+        ],
+        normalizedServiceSearch
+      )
+    );
+  }, [completedOrdersServices, normalizedServiceSearch]);
 
   const formatPrice = (price: number) => `QAR ${price.toLocaleString()}`;
 
@@ -3711,8 +3748,31 @@ function StepThreeServices({
               <span>{t("Services from the selected completed order are included for free (QAR 0)")}</span>
             </div>
 
+            <div className="svc-search-row">
+              <div className="svc-search-input-wrap">
+                <i className="fas fa-search" aria-hidden="true" />
+                <input
+                  type="search"
+                  className="svc-search-input"
+                  value={serviceSearch}
+                  onChange={(e) => setServiceSearch(e.target.value)}
+                  placeholder={t("Search services and packages") as string}
+                />
+                {serviceSearch.trim() ? (
+                  <button
+                    type="button"
+                    className="svc-search-clear"
+                    onClick={() => setServiceSearch("")}
+                    aria-label={t("Clear search") as string}
+                  >
+                    <i className="fas fa-times" aria-hidden="true" />
+                  </button>
+                ) : null}
+              </div>
+            </div>
+
             <div className="jo-completed-svc-grid">
-              {completedOrdersServices.map((svc: any, idx: number) => {
+              {filteredCompletedOrdersServices.map((svc: any, idx: number) => {
                 const svcKey = normalizeCatalogKey(svc?.serviceCode || svc?.catalogId || svc?.name);
                 const isSelected = complimentaryServices.some(
                   (s: any) => normalizeCatalogKey(s?.complimentaryKey || s?.serviceCode || s?.catalogId || s?.name) === svcKey
@@ -3774,6 +3834,11 @@ function StepThreeServices({
                 );
               })}
             </div>
+            {filteredCompletedOrdersServices.length === 0 && (
+              <div className="empty-state" style={{ padding: "14px 12px" }}>
+                <div className="empty-text">{t("No completed services match your search")}</div>
+              </div>
+            )}
 
             <div className="jo-completed-orders-wrap" style={{ marginTop: 14 }}>
               <div className="jo-completed-orders-title">
@@ -3806,7 +3871,7 @@ function StepThreeServices({
 
               {filteredProducts.length === 0 ? (
                 <div className="empty-state" style={{ padding: "20px 12px" }}>
-                  <div className="empty-text">{t("No services match your filter")}</div>
+                  <div className="empty-text">{t("No services match your filter/search")}</div>
                 </div>
               ) : (
                 <div className="services-grid" style={{ marginTop: 10 }}>
@@ -3850,6 +3915,29 @@ function StepThreeServices({
             ) : (
             <>
               <div className="svc-filter-bar">
+                <div className="svc-filter-row svc-filter-row-search">
+                  <span className="svc-filter-label"><i className="fas fa-search"></i> {t("Search")}</span>
+                  <div className="svc-search-input-wrap">
+                    <i className="fas fa-search" aria-hidden="true" />
+                    <input
+                      type="search"
+                      className="svc-search-input"
+                      value={serviceSearch}
+                      onChange={(e) => setServiceSearch(e.target.value)}
+                      placeholder={t("Search services and packages") as string}
+                    />
+                    {serviceSearch.trim() ? (
+                      <button
+                        type="button"
+                        className="svc-search-clear"
+                        onClick={() => setServiceSearch("")}
+                        aria-label={t("Clear search") as string}
+                      >
+                        <i className="fas fa-times" aria-hidden="true" />
+                      </button>
+                    ) : null}
+                  </div>
+                </div>
                 <div className="svc-filter-row">
                   <span className="svc-filter-label"><i className="fas fa-tags"></i> {t("Category")}</span>
                   <select
@@ -3875,7 +3963,7 @@ function StepThreeServices({
               </div>
               {filteredProducts.length === 0 ? (
                 <div className="empty-state" style={{ padding: "24px 12px" }}>
-                  <div className="empty-text">{t("No services match your filter")}</div>
+                  <div className="empty-text">{t("No services match your filter/search")}</div>
                   <div className="empty-subtext">{t("Try a different category or type.")}</div>
                 </div>
               ) : (

@@ -23,6 +23,7 @@ import {
 } from "./serviceCatalogRepo";
 import { useLanguage } from "../i18n/LanguageContext";
 import { useGlobalLoading } from "../utils/GlobalLoadingContext";
+import { matchesSearchQuery } from "../lib/searchUtils";
 
 type Tab = "services" | "packages" | "specifications";
 type ModalType = "none" | "category" | "service" | "package" | "specification";
@@ -167,9 +168,23 @@ function makeNextCode(existingCodes: string[], prefix: string) {
   return `${prefix}${next}`;
 }
 
+function sanitizeArabicText(value: unknown): string {
+  return String(value ?? "")
+    .replace(/[A-Za-z]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function sanitizeEnglishText(value: unknown): string {
+  return String(value ?? "")
+    .replace(/[\u0600-\u06FF]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function displayBilingual(en?: string, ar?: string) {
-  const e = String(en || "").trim();
-  const a = String(ar || "").trim();
+  const e = sanitizeEnglishText(en);
+  const a = sanitizeArabicText(ar);
   if (e && a) return `${e} / ${a}`;
   return e || a || "-";
 }
@@ -271,6 +286,7 @@ export default function ServiceCreation() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [banner, setBanner] = useState<{ message: string; isError?: boolean } | null>(null);
+  const [catalogSearch, setCatalogSearch] = useState("");
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [successPopupTitle, setSuccessPopupTitle] = useState("");
   const [successPopupSubtitle, setSuccessPopupSubtitle] = useState("");
@@ -322,6 +338,7 @@ export default function ServiceCreation() {
 
   const services = useMemo(() => catalog.filter((x) => x.type === "service"), [catalog]);
   const packages = useMemo(() => catalog.filter((x) => x.type === "package"), [catalog]);
+  const normalizedCatalogSearch = catalogSearch.trim();
   const servicesWithSpecifications = useMemo(
     () => services.filter((service) => service.hasSpecifications && service.specifications.length > 0),
     [services]
@@ -343,6 +360,27 @@ export default function ServiceCreation() {
     services.forEach((s) => map.set(String(s.serviceCode || "").trim(), s));
     return map;
   }, [services]);
+
+  const filteredPackages = useMemo(() => {
+    if (!normalizedCatalogSearch) return packages;
+
+    return packages.filter((pkg) => {
+      const includedNames = (pkg.includedServiceCodes || []).map((code) => serviceByCode.get(code)?.name || "");
+      const includedNamesAr = (pkg.includedServiceCodes || []).map((code) => serviceByCode.get(code)?.nameAr || "");
+      return matchesSearchQuery(
+        [
+          pkg.serviceCode,
+          pkg.name,
+          pkg.nameAr,
+          pkg.descriptionEn,
+          pkg.descriptionAr,
+          ...includedNames,
+          ...includedNamesAr,
+        ],
+        normalizedCatalogSearch
+      );
+    });
+  }, [normalizedCatalogSearch, packages, serviceByCode]);
 
   const categoryRows = useMemo(() => {
     const out = categories
@@ -370,6 +408,48 @@ export default function ServiceCreation() {
 
     return out;
   }, [categories, services, t]);
+
+  const filteredCategoryRows = useMemo(() => {
+    if (!normalizedCatalogSearch) return categoryRows;
+
+    return categoryRows
+      .map((row) => {
+        const categoryMatches = matchesSearchQuery(
+          [
+            row.category.categoryCode,
+            row.category.nameEn,
+            row.category.nameAr,
+            row.category.descriptionEn,
+            row.category.descriptionAr,
+          ],
+          normalizedCatalogSearch
+        );
+
+        if (categoryMatches) return row;
+
+        const nextServices = row.services.filter((service) =>
+          matchesSearchQuery(
+            [
+              service.serviceCode,
+              service.name,
+              service.nameAr,
+              service.descriptionEn,
+              service.descriptionAr,
+              service.categoryCode,
+              service.categoryNameEn,
+              service.categoryNameAr,
+            ],
+            normalizedCatalogSearch
+          )
+        );
+
+        return {
+          ...row,
+          services: nextServices,
+        };
+      })
+      .filter((row) => row.services.length > 0);
+  }, [categoryRows, normalizedCatalogSearch]);
 
   const avgServicesPerCategory = useMemo(() => {
     const count = categories.length || 1;
@@ -539,10 +619,10 @@ export default function ServiceCreation() {
     try {
       const payload = {
         categoryCode: categoryForm.categoryCode.trim() || makeNextCode(categories.map((c) => c.categoryCode), "CAT"),
-        nameEn: categoryForm.nameEn.trim(),
-        nameAr: categoryForm.nameAr.trim(),
-        descriptionEn: categoryForm.descriptionEn.trim() || undefined,
-        descriptionAr: categoryForm.descriptionAr.trim() || undefined,
+        nameEn: sanitizeEnglishText(categoryForm.nameEn),
+        nameAr: sanitizeArabicText(categoryForm.nameAr),
+        descriptionEn: sanitizeEnglishText(categoryForm.descriptionEn) || undefined,
+        descriptionAr: sanitizeArabicText(categoryForm.descriptionAr) || undefined,
       };
 
       if (categoryForm.id) {
@@ -605,14 +685,14 @@ export default function ServiceCreation() {
       const primarySpecification = selectedSpecifications[0];
       const payload = {
         serviceCode: serviceForm.serviceCode.trim().toUpperCase(),
-        name: serviceForm.nameEn.trim(),
-        nameAr: serviceForm.nameAr.trim(),
-        descriptionEn: serviceForm.descriptionEn.trim() || undefined,
-        descriptionAr: serviceForm.descriptionAr.trim() || undefined,
+        name: sanitizeEnglishText(serviceForm.nameEn),
+        nameAr: sanitizeArabicText(serviceForm.nameAr),
+        descriptionEn: sanitizeEnglishText(serviceForm.descriptionEn) || undefined,
+        descriptionAr: sanitizeArabicText(serviceForm.descriptionAr) || undefined,
         categoryId: selectedCategory.id,
         categoryCode: selectedCategory.categoryCode,
-        categoryNameEn: selectedCategory.nameEn,
-        categoryNameAr: selectedCategory.nameAr,
+        categoryNameEn: sanitizeEnglishText(selectedCategory.nameEn),
+        categoryNameAr: sanitizeArabicText(selectedCategory.nameAr),
         type: "service" as const,
         suvPrice: toNum(serviceForm.suvPrice),
         sedanPrice: toNum(serviceForm.sedanPrice),
@@ -666,10 +746,10 @@ export default function ServiceCreation() {
     try {
       const payload = {
         serviceCode: packageForm.packageCode.trim().toUpperCase(),
-        name: packageForm.nameEn.trim(),
-        nameAr: packageForm.nameAr.trim(),
-        descriptionEn: packageForm.descriptionEn.trim() || undefined,
-        descriptionAr: packageForm.descriptionAr.trim() || undefined,
+        name: sanitizeEnglishText(packageForm.nameEn),
+        nameAr: sanitizeArabicText(packageForm.nameAr),
+        descriptionEn: sanitizeEnglishText(packageForm.descriptionEn) || undefined,
+        descriptionAr: sanitizeArabicText(packageForm.descriptionAr) || undefined,
         type: "package" as const,
         suvPrice: toNum(packageForm.suvPrice),
         sedanPrice: toNum(packageForm.sedanPrice),
@@ -884,6 +964,29 @@ export default function ServiceCreation() {
             </div>
           </div>
 
+          <div className="sc2-search-row">
+            <div className="sc2-search-wrap">
+              <i className="fas fa-search" aria-hidden="true"></i>
+              <input
+                type="search"
+                value={catalogSearch}
+                onChange={(e) => setCatalogSearch(e.target.value)}
+                placeholder={t("Search services and packages by name, code, category, and description") as string}
+                className="sc2-search-input"
+              />
+              {catalogSearch.trim() ? (
+                <button
+                  type="button"
+                  className="sc2-search-clear"
+                  onClick={() => setCatalogSearch("")}
+                  aria-label={t("Clear search") as string}
+                >
+                  <i className="fas fa-times" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+          </div>
+
           <div className="sc2-stats-grid">
             <div className="sc2-stat-card"><strong>{categories.length}</strong><span>{t("Categories")}</span></div>
             <div className="sc2-stat-card"><strong>{services.length}</strong><span>{t("Total Services")}</span></div>
@@ -891,9 +994,9 @@ export default function ServiceCreation() {
           </div>
 
           {loading && <div className="sc2-empty">{t("Loading services...")}</div>}
-          {!loading && categoryRows.length === 0 && <div className="sc2-empty">{t("No service categories found.")}</div>}
+          {!loading && filteredCategoryRows.length === 0 && <div className="sc2-empty">{t("No services match your search.")}</div>}
 
-          {!loading && categoryRows.map((row) => (
+          {!loading && filteredCategoryRows.map((row) => (
             <article className="sc2-category-card" key={row.category.id}>
               <header className="sc2-category-header" data-no-translate="true">
                 <div className="sc2-category-title">
@@ -915,8 +1018,8 @@ export default function ServiceCreation() {
 
               {(row.category.descriptionEn || row.category.descriptionAr) && (
                 <div className="sc2-category-desc" data-no-translate="true">
-                  <div><strong>{t("EN:")}</strong> {row.category.descriptionEn || "-"}</div>
-                  <div><strong>{t("AR:")}</strong> {row.category.descriptionAr || "-"}</div>
+                  <div><strong>{t("EN:")}</strong> {sanitizeEnglishText(row.category.descriptionEn) || "-"}</div>
+                  <div><strong>{t("AR:")}</strong> {sanitizeArabicText(row.category.descriptionAr) || "-"}</div>
                 </div>
               )}
 
@@ -944,8 +1047,8 @@ export default function ServiceCreation() {
                     </div>
 
                     <div className="sc2-dual-desc" data-no-translate="true">
-                      <div><strong>{t("EN:")}</strong> {service.descriptionEn || "-"}</div>
-                      <div><strong>{t("AR:")}</strong> {service.descriptionAr || "-"}</div>
+                      <div><strong>{t("EN:")}</strong> {sanitizeEnglishText(service.descriptionEn) || "-"}</div>
+                      <div><strong>{t("AR:")}</strong> {sanitizeArabicText(service.descriptionAr) || "-"}</div>
                     </div>
 
                     <div data-no-translate="true">{renderPriceChips(service)}</div>
@@ -983,6 +1086,29 @@ export default function ServiceCreation() {
             </PermissionGate>
           </div>
 
+          <div className="sc2-search-row">
+            <div className="sc2-search-wrap">
+              <i className="fas fa-search" aria-hidden="true"></i>
+              <input
+                type="search"
+                value={catalogSearch}
+                onChange={(e) => setCatalogSearch(e.target.value)}
+                placeholder={t("Search services and packages by name, code, category, and description") as string}
+                className="sc2-search-input"
+              />
+              {catalogSearch.trim() ? (
+                <button
+                  type="button"
+                  className="sc2-search-clear"
+                  onClick={() => setCatalogSearch("")}
+                  aria-label={t("Clear search") as string}
+                >
+                  <i className="fas fa-times" aria-hidden="true" />
+                </button>
+              ) : null}
+            </div>
+          </div>
+
           <div className="sc2-stats-grid">
             <div className="sc2-stat-card"><strong>{packages.length}</strong><span>{t("Total Packages")}</span></div>
             <div className="sc2-stat-card"><strong>{formatQar(avgPackagePrice)}</strong><span>{t("Avg SUV Price")}</span></div>
@@ -990,9 +1116,9 @@ export default function ServiceCreation() {
           </div>
 
           {loading && <div className="sc2-empty">{t("Loading packages...")}</div>}
-          {!loading && packages.length === 0 && <div className="sc2-empty">{t("No packages found.")}</div>}
+          {!loading && filteredPackages.length === 0 && <div className="sc2-empty">{t("No packages match your search.")}</div>}
 
-          {!loading && packages.map((pkg) => (
+          {!loading && filteredPackages.map((pkg) => (
             <article className="sc2-package-card" key={pkg.id}>
               <header className="sc2-item-top" data-no-translate="true">
                 <div className="sc2-name-line">
@@ -1010,8 +1136,8 @@ export default function ServiceCreation() {
               </header>
 
               <div className="sc2-dual-desc" data-no-translate="true">
-                <div><strong>{t("EN:")}</strong> {pkg.descriptionEn || "-"}</div>
-                <div><strong>{t("AR:")}</strong> {pkg.descriptionAr || "-"}</div>
+                <div><strong>{t("EN:")}</strong> {sanitizeEnglishText(pkg.descriptionEn) || "-"}</div>
+                <div><strong>{t("AR:")}</strong> {sanitizeArabicText(pkg.descriptionAr) || "-"}</div>
               </div>
 
               <div data-no-translate="true">{renderPriceChips(pkg)}</div>

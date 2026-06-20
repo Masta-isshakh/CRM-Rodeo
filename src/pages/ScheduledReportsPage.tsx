@@ -4,6 +4,7 @@ import { jsPDF } from "jspdf";
 import * as XLSX from "xlsx";
 import type { PageProps } from "../lib/PageProps";
 import { useLanguage } from "../i18n/LanguageContext";
+import { translateTextValue } from "../i18n/translations";
 import { getDataClient } from "../lib/amplifyClient";
 import { usePermissions } from "../lib/userPermissions";
 import "./ScheduledReportsPage.css";
@@ -176,6 +177,29 @@ function modelLabel(key: ModelKey): string {
   return MODELS.find((m) => m.key === key)?.label ?? key;
 }
 
+function humanizeDataLabel(value: string): string {
+  return String(value ?? "")
+    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function formatDynamicDataLabel(value: string, language: string, t: (text: string) => string): string {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const humanized = humanizeDataLabel(raw);
+  if (language !== "ar") return humanized;
+
+  const direct = t(humanized);
+  if (direct && direct !== humanized) return direct;
+
+  const translated = translateTextValue(humanized, "ar");
+  if (translated && translated !== humanized) return translated;
+
+  return humanized;
+}
+
 function fileToken(value: string): string {
   return String(value || "report").replace(/[^a-zA-Z0-9_-]/g, "_");
 }
@@ -192,7 +216,7 @@ async function safeList(client: unknown, modelName: string, limit = 3000): Promi
 }
 
 export default function ScheduledReportsPage({ permissions }: PageProps) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { isAdminGroup, canOption } = usePermissions();
   const client = useMemo(() => getDataClient(), []);
 
@@ -404,13 +428,13 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
 
   const selectedModelLabel = selectedModels.length === MODELS.length
     ? t("All Data Models")
-    : selectedModels.map((key) => t(modelLabel(key))).join(", ");
+    : selectedModels.map((key) => formatDynamicDataLabel(modelLabel(key), language, t)).join(", ");
 
   const modelRows = useMemo<AnyObj[]>(
     () =>
       selectedModels.flatMap((key) =>
         (allData[key] ?? []).map((row) => ({
-          "Data Model": t(modelLabel(key)),
+          "Data Model": formatDynamicDataLabel(modelLabel(key), language, t),
           ...row,
         }) as AnyObj)
       ),
@@ -791,7 +815,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
                             checked={checked}
                             onChange={() => toggleModel(m.key)}
                           />
-                          <span>{t(m.label)}</span>
+                          <span>{formatDynamicDataLabel(m.label, language, t)}</span>
                         </label>
                       );
                     })}
@@ -825,7 +849,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
                 <span>{t("Filter Field 1")}</span>
                 <select value={filters.field1} onChange={(e) => setFilters((p) => ({ ...p, field1: e.target.value, value1: "" }))}>
                   <option value="">{t("All")}</option>
-                  {fieldOptions.map((f) => <option key={f} value={f}>{f}</option>)}
+                  {fieldOptions.map((f) => <option key={f} value={f}>{formatDynamicDataLabel(f, language, t)}</option>)}
                 </select>
               </label>
               <label>
@@ -839,7 +863,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
                 <span>{t("Filter Field 2")}</span>
                 <select value={filters.field2} onChange={(e) => setFilters((p) => ({ ...p, field2: e.target.value, value2: "" }))}>
                   <option value="">{t("All")}</option>
-                  {fieldOptions.map((f) => <option key={f} value={f}>{f}</option>)}
+                  {fieldOptions.map((f) => <option key={f} value={f}>{formatDynamicDataLabel(f, language, t)}</option>)}
                 </select>
               </label>
               <label>
@@ -853,7 +877,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
                 <span>{t("Filter Field 3")}</span>
                 <select value={filters.field3} onChange={(e) => setFilters((p) => ({ ...p, field3: e.target.value, value3: "" }))}>
                   <option value="">{t("All")}</option>
-                  {fieldOptions.map((f) => <option key={f} value={f}>{f}</option>)}
+                  {fieldOptions.map((f) => <option key={f} value={f}>{formatDynamicDataLabel(f, language, t)}</option>)}
                 </select>
               </label>
               <label>
@@ -897,7 +921,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
                         });
                       }}
                     />
-                    <span>{field}</span>
+                    <span>{formatDynamicDataLabel(field, language, t)}</span>
                   </label>
                 );
               })}
@@ -980,7 +1004,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
             <table className="sr-table">
               <thead>
                 <tr>
-                  {selectedFields.map((f) => <th key={f}>{f}</th>)}
+                  {selectedFields.map((f) => <th key={f}>{formatDynamicDataLabel(f, language, t)}</th>)}
                 </tr>
               </thead>
               <tbody>
@@ -997,7 +1021,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
                 {!loading && filteredRows.slice(0, 250).map((row, idx) => (
                   <tr key={idx}>
                     {selectedFields.map((f) => (
-                      <td key={`${idx}-${f}`} className="sr-services" data-label={f}>
+                      <td key={`${idx}-${f}`} className="sr-services" data-label={formatDynamicDataLabel(f, language, t)}>
                         {txt(row[f]) || "-"}
                       </td>
                     ))}
@@ -1053,7 +1077,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
                 {queue.map((row) => (
                   <tr key={row.id}>
                     <td data-label={t("Title")}>{row.title || "-"}</td>
-                    <td data-label={t("Model")}>{row.reportModel || "JobOrder"}</td>
+                    <td data-label={t("Model")}>{formatDynamicDataLabel(row.reportModel || "JobOrder", language, t)}</td>
                     <td data-label={t("Recipient")}>{row.recipientEmail || "-"}</td>
                     <td data-label={t("Format")}>{row.reportFormat}</td>
                     <td data-label={t("Days")}>{row.daysOfWeek.length > 0 ? row.daysOfWeek.map((day) => t(WEEKDAY_OPTIONS.find((option) => option.key === day)?.label || day)).join(", ") : "-"}</td>
