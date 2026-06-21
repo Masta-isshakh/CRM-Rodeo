@@ -1026,20 +1026,62 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         });
       };
 
-      const serviceRows: Array<{ label: string; amount: number | null; muted?: boolean; bold?: boolean }> = [];
+      const findCatalogService = (service: any) => {
+        const keys = [
+          service?.serviceCode,
+          service?.catalogId,
+          service?.id,
+          service?.name,
+        ].map(normalizeCatalogKey).filter(Boolean);
+        if (!keys.length) return null;
+
+        return serviceCatalog.find((item: any) => {
+          const itemKeys = [
+            item?.serviceCode,
+            item?.id,
+            item?.name,
+          ].map(normalizeCatalogKey).filter(Boolean);
+          return itemKeys.some((key) => keys.includes(key));
+        }) || null;
+      };
+
+      const getReceiptServiceNameParts = (service: any, fallback = "Unnamed service") => {
+        const catalogItem = findCatalogService(service);
+        const en = text(service?.name ?? service?.serviceName ?? service?.title ?? catalogItem?.name) || fallback;
+        const ar = text(service?.nameAr ?? service?.serviceNameAr ?? catalogItem?.nameAr);
+        return { en, ar };
+      };
+
+      const splitReceiptBilingualLabel = (value: string) => {
+        const safe = text(value);
+        const parts = safe.split(/\s+\/\s+/);
+        if (parts.length < 2) return { en: safe, ar: "" };
+        return {
+          en: text(parts[0]),
+          ar: text(parts.slice(1).join(" / ")),
+        };
+      };
+
+      const serviceRows: Array<{ label: string; labelEn?: string; labelAr?: string; amount: number | null; muted?: boolean; bold?: boolean }> = [];
       const serviceGroups = groupServicesByPackage(services);
       serviceGroups.forEach((group) => {
         if (group.packageTitle) {
           const fallbackTotal = group.items.reduce((sum, item) => sum + toCurrencyNumber(item?.price), 0);
+          const packageParts = splitReceiptBilingualLabel(group.packageTitle);
           serviceRows.push({
             label: group.packageTitle,
+            labelEn: packageParts.en,
+            labelAr: packageParts.ar,
             amount: group.packagePrice ?? fallbackTotal,
             bold: true,
           });
           group.items.forEach((item) => {
             const spec = getServiceSpecificationLabel(item);
+            const parts = getReceiptServiceNameParts(item);
             serviceRows.push({
               label: `- ${getServiceDisplayName(item)}${spec ? ` (${spec})` : ""}`,
+              labelEn: `- ${parts.en}${spec ? ` (${spec})` : ""}`,
+              labelAr: parts.ar,
               amount: null,
               muted: true,
             });
@@ -1049,8 +1091,11 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
 
         group.items.forEach((item) => {
           const spec = getServiceSpecificationLabel(item);
+          const parts = getReceiptServiceNameParts(item);
           serviceRows.push({
             label: `${getServiceDisplayName(item)}${spec ? ` (${spec})` : ""}`,
+            labelEn: `${parts.en}${spec ? ` (${spec})` : ""}`,
+            labelAr: parts.ar,
             amount: toCurrencyNumber(item?.price),
           });
         });
@@ -1204,11 +1249,20 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         doc.setFontSize(BILL_BODY_FONT_SIZE);
         doc.setTextColor(row.muted ? 113 : 20, row.muted ? 128 : 31, row.muted ? 150 : 46);
         doc.text(String(idx + 1), marginX + noW / 2, cursorY + 4.1, { align: "center" });
-        const description = clipText(row.label, descW - 4);
-        if (containsArabic(description)) {
+        const descriptionX = marginX + noW + (row.muted ? 5 : 2);
+        const descriptionW = descW - (row.muted ? 7 : 4);
+        const description = clipText(row.label, descriptionW);
+        if (row.labelAr) {
+          const englishW = Math.max(32, descriptionW * 0.56);
+          const arabicW = Math.max(24, descriptionW - englishW - 5);
+          const englishText = clipText(row.labelEn || row.label, englishW);
+          doc.text(englishText, descriptionX, cursorY + 4.1);
+          doc.text("/", descriptionX + englishW + 1.1, cursorY + 4.1);
+          drawArabicLine(row.labelAr, descriptionX + descriptionW, cursorY + 1.1, arabicW, BILL_BODY_FONT_SIZE, row.bold ? "bold" : "normal", row.muted ? "#718096" : "#111827");
+        } else if (containsArabic(description)) {
           drawArabicLine(description, marginX + noW + descW - 2, cursorY + 1.1, descW - 4, BILL_BODY_FONT_SIZE, row.bold ? "bold" : "normal", row.muted ? "#718096" : "#111827");
         } else {
-          doc.text(description, marginX + noW + (row.muted ? 5 : 2), cursorY + 4.1);
+          doc.text(description, descriptionX, cursorY + 4.1);
         }
         doc.setTextColor(20, 31, 46);
         doc.text(row.amount == null ? "" : fmtMoney(row.amount), pageW - marginX - 2, cursorY + 4.1, { align: "right" });
@@ -1485,11 +1539,13 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
 
     const newServiceEntries = selectedServices.map((service: any) => ({
       name: service.name,
+      nameAr: service.nameAr || undefined,
       price: service.price || 0,
       serviceCode: service.serviceCode || undefined,
       catalogId: service.catalogId || undefined,
       packageCode: service.packageCode || undefined,
       packageName: service.packageName || undefined,
+      packageNameAr: service.packageNameAr || undefined,
       packagePrice: service.packagePrice || undefined,
       specificationBrandId: service.specificationBrandId || undefined,
       specificationBrandName: service.specificationBrandName || undefined,
@@ -2539,11 +2595,13 @@ function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }
         },
         services: (orderType === "service" ? additionalServices : selectedServices).map((s: any) => ({
           name: s.name,
+          nameAr: s.nameAr || undefined,
           price: s.price || 0,
           serviceCode: s.serviceCode || undefined,
           catalogId: s.catalogId || undefined,
           packageCode: s.packageCode || undefined,
           packageName: s.packageName || undefined,
+          packageNameAr: s.packageNameAr || undefined,
           packagePrice: s.packagePrice || undefined,
           specificationBrandId: s.specificationBrandId || undefined,
           specificationBrandName: s.specificationBrandName || undefined,

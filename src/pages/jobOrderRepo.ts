@@ -1106,6 +1106,7 @@ export async function getJobOrderByOrderNumber(orderKey: string): Promise<any | 
       id: String(s.id ?? `SVC-${idx + 1}`),
       order: Number(s.order ?? idx + 1),
       name: String(s.name ?? "").trim() || "Service",
+      nameAr: String(s.nameAr ?? "").trim() || null,
       price,
 
       // Package grouping info — preserved from save so billing total stays authoritative
@@ -1794,6 +1795,7 @@ export async function upsertJobOrder(order: any): Promise<{ backendId: string; o
         id: String(s.id ?? `SVC-${idx + 1}`),
         order: Number(s.order ?? idx + 1),
         name: String(s.name ?? "").trim() || "Service",
+        nameAr: String(s.nameAr ?? "").trim() || undefined,
         price,
         qty: Math.max(1, toNum(s.qty ?? 1)),
         unitPrice: Math.max(0, toNum(s.unitPrice ?? price)),
