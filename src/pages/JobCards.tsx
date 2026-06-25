@@ -39,8 +39,10 @@ import {
 } from "./jobOrderRepo";
 import {
   listServiceCatalog,
+  listServiceCategories,
   resolveServicePriceForVehicleType,
   type ServiceCatalogItem,
+  type ServiceCategoryItem,
 } from "./serviceCatalogRepo";
 import {
   normalizePaymentStatusLabel as normalizePaymentStatusLabelShared,
@@ -566,10 +568,24 @@ function getProductCategoryPaths(product: any, products: any[] = []) {
   });
 }
 
-function buildServiceCategoryCascade(products: any[]) {
+function getCategoryRecordNode(category: any) {
+  const id = String(category?.id || "").trim();
+  if (!id) return null;
+  const parentId = String(category?.parentCategoryId || "").trim();
+  return {
+    value: `cat:${id}`,
+    parentValue: parentId ? `cat:${parentId}` : "",
+    labelEn: String(category?.nameEn || category?.categoryCode || id).trim(),
+    labelAr: String(category?.nameAr || "").trim(),
+    level: Number.isFinite(Number(category?.categoryLevel)) ? Number(category.categoryLevel) : 0,
+  };
+}
+
+function buildServiceCategoryCascade(products: any[], categories: any[] = []) {
   const nodesByValue = new Map<string, any>();
   const childrenByParent = new Map<string, any[]>();
   const productCategoryValues = new Map<string, Set<string>>();
+  const categoryById = new Map<string, any>();
 
   const upsertNode = (entry: any) => {
     if (!entry?.value) return;
@@ -583,16 +599,43 @@ function buildServiceCategoryCascade(products: any[]) {
     nodesByValue.set(entry.value, next);
   };
 
+  for (const category of categories || []) {
+    if (category?.isActive === false) continue;
+    const id = String(category?.id || "").trim();
+    if (!id) continue;
+    categoryById.set(id, category);
+    const node = getCategoryRecordNode(category);
+    if (node) upsertNode(node);
+  }
+
+  const productByCode = getCatalogProductByCode(products);
+
   for (const product of products || []) {
     const productKey = getCatalogProductIdentity(product);
     if (!productKey) continue;
-    const paths = getProductCategoryPaths(product, products);
     const categoryValues = productCategoryValues.get(productKey) || new Set<string>();
+    const directCategoryId = String(product?.categoryId || "").trim();
 
-    for (const path of paths) {
-      path.forEach(upsertNode);
-      const leaf = path[path.length - 1]?.value;
-      if (leaf) categoryValues.add(leaf);
+    if (directCategoryId && categoryById.has(directCategoryId)) {
+      categoryValues.add(`cat:${directCategoryId}`);
+    } else if (getCatalogProductType(product) === "package") {
+      const includedCodes = Array.isArray(product?.includedServiceCodes) ? product.includedServiceCodes : [];
+      for (const code of includedCodes) {
+        const child = productByCode.get(normalizeCatalogKey(code));
+        const childCategoryId = String(child?.categoryId || "").trim();
+        if (childCategoryId && categoryById.has(childCategoryId)) {
+          categoryValues.add(`cat:${childCategoryId}`);
+        }
+      }
+    }
+
+    if (categoryValues.size === 0) {
+      const paths = getProductCategoryPaths(product, products);
+      for (const path of paths) {
+        path.forEach(upsertNode);
+        const leaf = path[path.length - 1]?.value;
+        if (leaf) categoryValues.add(leaf);
+      }
     }
 
     if (categoryValues.size) productCategoryValues.set(productKey, categoryValues);
@@ -612,7 +655,29 @@ function buildServiceCategoryCascade(products: any[]) {
     );
   });
 
-  return { nodesByValue, childrenByParent, productCategoryValues };
+  const descendantValuesByNode = new Map<string, Set<string>>();
+  const collectDescendants = (nodeValue: string): Set<string> => {
+    const cached = descendantValuesByNode.get(nodeValue);
+    if (cached) return cached;
+
+    const descendants = new Set<string>([nodeValue]);
+    const children = childrenByParent.get(nodeValue) || [];
+    for (const child of children) {
+      const childValue = String(child?.value || "");
+      if (!childValue) continue;
+      const childDescendants = collectDescendants(childValue);
+      childDescendants.forEach((value) => descendants.add(value));
+    }
+
+    descendantValuesByNode.set(nodeValue, descendants);
+    return descendants;
+  };
+
+  nodesByValue.forEach((_, nodeValue) => {
+    collectDescendants(nodeValue);
+  });
+
+  return { nodesByValue, childrenByParent, productCategoryValues, descendantValuesByNode };
 }
 
 function buildCategoryDropdownLevels(categoryCascade: any, selectedPath: string[]) {
@@ -645,6 +710,8 @@ function productMatchesServiceSearch(product: any, search: string) {
       product?.categoryCode,
       product?.categoryNameEn,
       product?.categoryNameAr,
+      product?.categoryPathEn,
+      product?.categoryPathAr,
       product?.type,
     ],
     search
@@ -937,6 +1004,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
   const [showAddServiceSuccessPopup, setShowAddServiceSuccessPopup] = useState(false);
   const [addServiceSuccessData, setAddServiceSuccessData] = useState({ orderId: "", invoiceId: "" });
   const [serviceCatalog, setServiceCatalog] = useState<ServiceCatalogItem[]>([]);
+  const [serviceCategories, setServiceCategories] = useState<ServiceCategoryItem[]>([]);
 
   // Error popup state
   const [errorOpen, setErrorOpen] = useState(false);
@@ -1663,10 +1731,15 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
 
   const refreshServiceCatalog = useCallback(async () => {
     try {
-      const services = await listServiceCatalog();
+      const [services, categories] = await Promise.all([
+        listServiceCatalog(),
+        listServiceCategories(),
+      ]);
       setServiceCatalog(services);
+      setServiceCategories(categories);
     } catch {
       setServiceCatalog([]);
+      setServiceCategories([]);
     }
   }, []);
 
@@ -2035,6 +2108,7 @@ function JobOrderManagement({ currentUser, navigationData, onClearNavigation, on
         <NewJobScreen
           currentUser={currentUser}
           products={serviceCatalog}
+          serviceCategories={serviceCategories}
           onClose={() => {
             setScreenState("main");
             setNewJobPrefill(null);
@@ -2751,7 +2825,7 @@ function JobOrderReceiptDocumentCard({ order, onDownloadReceipt, onPrintReceipt 
 // ============================================
 // NEW JOB SCREEN
 // ============================================
-function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }: any) {
+function NewJobScreen({ currentUser, products = [], serviceCategories = [], onClose, onSubmit, prefill }: any) {
   const client = useMemo(() => getDataClient(), []);
   const { canOption, getOptionNumber } = usePermissions();
   const { t } = useLanguage();
@@ -2974,7 +3048,7 @@ function NewJobScreen({ currentUser, products = [], onClose, onSubmit, prefill }
           <NoCompletedServicesMessage onNext={() => { setOrderType("new"); setStep(4); }} onBack={() => setStep(2)} />
         )}
         {step === 4 && (
-          <StepThreeServices products={products} selectedServices={orderType === "service" ? additionalServices : selectedServices} setSelectedServices={orderType === "service" ? setAdditionalServices : setSelectedServices} vehicleType={vehicleData?.carType || vehicleData?.vehicleType || "SUV"} maxDiscountPercent={centralDiscountPercent} discountAmount={discountAmount} setDiscountAmount={setDiscountAmount} orderNotes={orderNotes} setOrderNotes={setOrderNotes} expectedDeliveryDate={expectedDeliveryDate} setExpectedDeliveryDate={setExpectedDeliveryDate} expectedDeliveryTime={expectedDeliveryTime} setExpectedDeliveryTime={setExpectedDeliveryTime} onNext={() => setStep(5)} onBack={() => setStep(3)} orderType={orderType} vehicleCompletedServices={vehicleCompletedServices} />
+          <StepThreeServices products={products} serviceCategories={serviceCategories} selectedServices={orderType === "service" ? additionalServices : selectedServices} setSelectedServices={orderType === "service" ? setAdditionalServices : setSelectedServices} vehicleType={vehicleData?.carType || vehicleData?.vehicleType || "SUV"} maxDiscountPercent={centralDiscountPercent} discountAmount={discountAmount} setDiscountAmount={setDiscountAmount} orderNotes={orderNotes} setOrderNotes={setOrderNotes} expectedDeliveryDate={expectedDeliveryDate} setExpectedDeliveryDate={setExpectedDeliveryDate} expectedDeliveryTime={expectedDeliveryTime} setExpectedDeliveryTime={setExpectedDeliveryTime} onNext={() => setStep(5)} onBack={() => setStep(3)} orderType={orderType} vehicleCompletedServices={vehicleCompletedServices} />
         )}
           {step === 5 && (
             <StepFourConfirm orderType={orderType} customerData={customerData} vehicleData={vehicleData} selectedServices={orderType === "service" ? additionalServices : selectedServices} maxDiscountPercent={centralDiscountPercent} discountAmount={discountAmount} orderNotes={orderNotes} expectedDeliveryDate={expectedDeliveryDate} expectedDeliveryTime={expectedDeliveryTime} isSubmitting={isSubmitting} onBack={() => setStep(4)} onSubmit={handleSubmit} />
@@ -3834,6 +3908,7 @@ function StepTwoVehicle({ vehicleData, setVehicleData, customerData, setCustomer
 // ============================================
 function StepThreeServices({
   products,
+  serviceCategories = [],
   selectedServices,
   setSelectedServices,
   vehicleType,
@@ -4036,7 +4111,10 @@ function StepThreeServices({
 
   const normalizedServiceSearch = serviceSearch.trim();
 
-  const serviceCategoryCascade = useMemo(() => buildServiceCategoryCascade(products), [products]);
+  const serviceCategoryCascade = useMemo(
+    () => buildServiceCategoryCascade(products, serviceCategories),
+    [products, serviceCategories]
+  );
   const categoryDropdownLevels = useMemo(
     () => buildCategoryDropdownLevels(serviceCategoryCascade, selectedCategoryPath),
     [serviceCategoryCascade, selectedCategoryPath]
@@ -4071,7 +4149,13 @@ function StepThreeServices({
       const searchOk = productMatchesServiceSearch(p, normalizedServiceSearch);
       if (!selectedCategoryValue) return !!normalizedServiceSearch && searchOk;
       const productKey = getCatalogProductIdentity(p);
-      const categoryOk = serviceCategoryCascade.productCategoryValues.get(productKey)?.has(selectedCategoryValue);
+      const selectedCategoryAndDescendants =
+        serviceCategoryCascade.descendantValuesByNode.get(selectedCategoryValue) ||
+        new Set<string>([selectedCategoryValue]);
+      const productCategories = serviceCategoryCascade.productCategoryValues.get(productKey);
+      const categoryOk =
+        !!productCategories &&
+        Array.from(productCategories).some((value) => selectedCategoryAndDescendants.has(value));
       return Boolean(categoryOk) && searchOk;
     }), [products, selectedCategoryValue, serviceCategoryCascade, normalizedServiceSearch]);
 
