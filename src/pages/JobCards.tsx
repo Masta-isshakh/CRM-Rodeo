@@ -4120,6 +4120,26 @@ function StepThreeServices({
     [serviceCategoryCascade, selectedCategoryPath]
   );
   const selectedCategoryValue = selectedCategoryPath[selectedCategoryPath.length - 1] || "";
+  const selectedCategoryBreadcrumbSegments = useMemo(
+    () =>
+      categoryDropdownLevels
+        .map((level: any) => {
+          const selectedOption = level.options.find((cat: any) => cat.value === level.selectedValue);
+          if (!selectedOption) return null;
+          return {
+            levelIndex: level.levelIndex,
+            value: selectedOption.value,
+            label: toBilingualName(
+              selectedOption.labelEn,
+              selectedOption.labelAr,
+              selectedOption.labelEn || selectedOption.labelAr || t("Category")
+            ),
+          };
+        })
+        .filter(Boolean)
+        .map((segment: any) => segment),
+    [categoryDropdownLevels, t]
+  );
 
   const handleCategoryPathChange = useCallback((levelIndex: number, value: string) => {
     setSelectedCategoryPath((current) => {
@@ -4127,6 +4147,10 @@ function StepThreeServices({
       if (value) next[levelIndex] = value;
       return next;
     });
+  }, []);
+
+  const handleCategoryBreadcrumbClick = useCallback((levelIndex: number) => {
+    setSelectedCategoryPath((current) => current.slice(0, levelIndex + 1));
   }, []);
 
   useEffect(() => {
@@ -4194,11 +4218,36 @@ function StepThreeServices({
 
   const renderCategoryCascade = () => (
     <div className="jo-category-cascade">
+      {selectedCategoryBreadcrumbSegments.length > 0 ? (
+        <div className="jo-category-breadcrumb" data-no-translate="true">
+          <i className="fas fa-route" aria-hidden="true"></i>
+          <span className="jo-category-breadcrumb-label">{t("Selected path")}:</span>
+          <span className="jo-category-breadcrumb-value">
+            {selectedCategoryBreadcrumbSegments.map((segment: any, idx: number) => {
+              const isLast = idx === selectedCategoryBreadcrumbSegments.length - 1;
+              return (
+                <Fragment key={`crumb-${segment.value}-${idx}`}>
+                  <button
+                    type="button"
+                    className={`jo-category-breadcrumb-segment${isLast ? " is-active" : ""}`}
+                    onClick={() => handleCategoryBreadcrumbClick(segment.levelIndex)}
+                    aria-current={isLast ? "location" : undefined}
+                    title={isLast ? t("Current level") as string : t("Jump to this level") as string}
+                  >
+                    {segment.label}
+                  </button>
+                  {!isLast ? <span className="jo-category-breadcrumb-separator">/</span> : null}
+                </Fragment>
+              );
+            })}
+          </span>
+        </div>
+      ) : null}
       {categoryDropdownLevels.map((level: any) => (
         <label key={`category-level-${level.levelIndex}-${level.parentValue || "root"}`} className="svc-category-level">
           <span className="svc-filter-label">
             <i className={level.levelIndex === 0 ? "fas fa-tags" : "fas fa-sitemap"}></i>
-            {level.levelIndex === 0 ? t("Category") : `${t("Subcategory")}${level.levelIndex > 1 ? ` ${level.levelIndex}` : ""}`}
+            {`${t("Level")} ${level.levelIndex + 1} - ${level.levelIndex === 0 ? t("Category") : t("Subcategory")}`}
           </span>
           <select
             className="svc-filter-select"
