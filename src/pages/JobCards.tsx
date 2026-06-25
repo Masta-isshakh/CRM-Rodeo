@@ -195,11 +195,75 @@ function toMoneyNumber(value: any) {
 
 function hasServiceSpecifications(product: any) {
   return (
-    String(product?.type ?? "").toLowerCase() === "service" &&
     product?.hasSpecifications === true &&
     Array.isArray(product?.specifications) &&
     product.specifications.length > 0
   );
+}
+
+function getCatalogProductType(product: any) {
+  return String(product?.type ?? "").toLowerCase() === "package" ? "package" : "service";
+}
+
+function getCatalogProductIdentity(product: any) {
+  return normalizeCatalogKey(product?.serviceCode || product?.id || product?.name);
+}
+
+function getCatalogProductDisplayType(product: any) {
+  return getCatalogProductType(product) === "package" ? "Package" : "Service";
+}
+
+function getCatalogProductByCode(products: any[]) {
+  const byCode = new Map<string, any>();
+  for (const candidate of products || []) {
+    const keys = [
+      candidate?.serviceCode,
+      candidate?.id,
+      candidate?.name,
+    ].map(normalizeCatalogKey).filter(Boolean);
+    for (const key of keys) {
+      if (!byCode.has(key)) byCode.set(key, candidate);
+    }
+  }
+  return byCode;
+}
+
+function getSelectableSpecificationProduct(product: any, products: any[] = []) {
+  if (hasServiceSpecifications(product)) return product;
+  if (getCatalogProductType(product) !== "package") return product;
+
+  const byCode = getCatalogProductByCode(products);
+  const includedCodes = Array.isArray(product?.includedServiceCodes) ? product.includedServiceCodes : [];
+  const specificationBrands: any[] = [];
+  const seenBrandKeys = new Set<string>();
+  let configuredSource: any = null;
+
+  for (const code of includedCodes) {
+    const child = byCode.get(normalizeCatalogKey(code));
+    if (!child || !hasServiceSpecifications(child)) continue;
+    if (!configuredSource && getConfiguredSpecificationSelection(child)) configuredSource = child;
+
+    for (const brand of child.specifications || []) {
+      const brandKey = normalizeCatalogKey(brand?.id || brand?.name);
+      if (!brandKey || seenBrandKeys.has(brandKey)) continue;
+      seenBrandKeys.add(brandKey);
+      specificationBrands.push(brand);
+    }
+  }
+
+  if (!specificationBrands.length) return product;
+
+  return {
+    ...product,
+    hasSpecifications: true,
+    specifications: specificationBrands,
+    specificationId: product?.specificationId || configuredSource?.specificationId,
+    specificationName: product?.specificationName || configuredSource?.specificationName,
+    specificationColorHex: product?.specificationColorHex || configuredSource?.specificationColorHex,
+    specificationProductId: product?.specificationProductId || configuredSource?.specificationProductId,
+    specificationProductName: product?.specificationProductName || configuredSource?.specificationProductName,
+    specificationMeasurement: product?.specificationMeasurement || configuredSource?.specificationMeasurement,
+  };
 }
 
 function getServiceSpecificationLabel(service: any) {
@@ -249,6 +313,11 @@ function renderServiceSpecificationBadges(service: any) {
 
 function getSelectedSpecificationForProduct(product: any, selectedServices: any[]) {
   const productCode = normalizeCatalogKey(product?.serviceCode || product?.id || product?.name);
+  if (getCatalogProductType(product) === "package") {
+    return selectedServices.find(
+      (service: any) => normalizeCatalogKey(service?.packageCode || service?.catalogId || service?.name) === productCode
+    );
+  }
   return selectedServices.find(
     (service: any) => normalizeCatalogKey(service?.serviceCode || service?.catalogId || service?.name) === productCode
   );
@@ -338,6 +407,12 @@ function expandCatalogProductToServices(product: any, products: any[], vehicleTy
       packageName: product.name,
       packageNameAr: product.nameAr,
       packagePrice: resolvedPackagePrice,
+      specificationBrandId: specification?.brandId || undefined,
+      specificationBrandName: specification?.brandName || undefined,
+      specificationColorHex: specification?.colorHex || undefined,
+      specificationProductId: specification?.productId || undefined,
+      specificationProductName: specification?.productName || undefined,
+      specificationMeasurement: specification?.measurement || undefined,
     }));
 
   if (expanded.length) return dedupeSelectedServices(expanded);
@@ -353,6 +428,12 @@ function expandCatalogProductToServices(product: any, products: any[], vehicleTy
       packageName: product.name,
       packageNameAr: product.nameAr,
       packagePrice: resolvedPackagePrice,
+      specificationBrandId: specification?.brandId || undefined,
+      specificationBrandName: specification?.brandName || undefined,
+      specificationColorHex: specification?.colorHex || undefined,
+      specificationProductId: specification?.productId || undefined,
+      specificationProductName: specification?.productName || undefined,
+      specificationMeasurement: specification?.measurement || undefined,
     },
   ];
 }
@@ -366,6 +447,208 @@ function isCatalogProductSelected(product: any, selectedServices: any[]) {
   }
 
   return selectedServices.some((service: any) => normalizeCatalogKey(service?.serviceCode || service?.catalogId || service?.name) === productCode);
+}
+
+function splitCategoryPathValue(value: any) {
+  const text = String(value || "").trim();
+  if (!text) return [];
+  const separators = /\s*(?:>|»|›|\||→|->|\s\/\s)\s*/;
+  return text.split(separators).map((part) => part.trim()).filter(Boolean);
+}
+
+function makeCategoryPathValue(parts: string[]) {
+  return `path:${parts.map((part) => normalizeCatalogKey(part).replace(/[^a-z0-9\u0600-\u06FF]+/g, "-")).filter(Boolean).join("/")}`;
+}
+
+function getCategoryPathEntries(item: any) {
+  const categoryId = String(item?.categoryId || "").trim();
+  const categoryCode = String(item?.categoryCode || "").trim();
+  const nameEn = String(item?.categoryNameEn || item?.categoryName || categoryCode || categoryId || "").trim();
+  const nameAr = String(item?.categoryNameAr || "").trim();
+  const pathText =
+    item?.categoryPathEn ||
+    item?.categoryPath ||
+    item?.categoryFullPath ||
+    item?.categoryBreadcrumb ||
+    item?.categoryNamePath ||
+    "";
+  const parentId = String(item?.categoryParentId || item?.parentCategoryId || item?.parentId || "").trim();
+  const parentNameEn = String(item?.categoryParentNameEn || item?.parentCategoryNameEn || item?.parentNameEn || "").trim();
+  const parentNameAr = String(item?.categoryParentNameAr || item?.parentCategoryNameAr || item?.parentNameAr || "").trim();
+
+  if (pathText) {
+    const enParts = splitCategoryPathValue(pathText);
+    const arParts = splitCategoryPathValue(item?.categoryPathAr || item?.categoryNamePathAr || "");
+    if (enParts.length > 1) {
+      return enParts.map((part, idx) => {
+        const chain = enParts.slice(0, idx + 1);
+        const isLeaf = idx === enParts.length - 1;
+        return {
+          value: isLeaf && categoryId ? `cat:${categoryId}` : makeCategoryPathValue(chain),
+          parentValue: idx === 0 ? "" : (idx === enParts.length - 1 && categoryId ? makeCategoryPathValue(enParts.slice(0, idx)) : makeCategoryPathValue(enParts.slice(0, idx))),
+          labelEn: part,
+          labelAr: arParts[idx] || "",
+          level: idx,
+        };
+      });
+    }
+  }
+
+  const nameParts = splitCategoryPathValue(nameEn);
+  const arParts = splitCategoryPathValue(nameAr);
+  if (nameParts.length > 1) {
+    return nameParts.map((part, idx) => {
+      const chain = nameParts.slice(0, idx + 1);
+      const isLeaf = idx === nameParts.length - 1;
+      return {
+        value: isLeaf && categoryId ? `cat:${categoryId}` : makeCategoryPathValue(chain),
+        parentValue: idx === 0 ? "" : makeCategoryPathValue(nameParts.slice(0, idx)),
+        labelEn: part,
+        labelAr: arParts[idx] || "",
+        level: idx,
+      };
+    });
+  }
+
+  if (parentId) {
+    return [
+      {
+        value: `cat:${parentId}`,
+        parentValue: "",
+        labelEn: parentNameEn || parentId,
+        labelAr: parentNameAr,
+        level: 0,
+      },
+      {
+        value: categoryId ? `cat:${categoryId}` : makeCategoryPathValue([parentNameEn || parentId, nameEn || categoryCode]),
+        parentValue: `cat:${parentId}`,
+        labelEn: nameEn || categoryCode || categoryId,
+        labelAr: nameAr,
+        level: 1,
+      },
+    ];
+  }
+
+  if (!categoryId && !categoryCode && !nameEn && !nameAr) return [];
+
+  return [
+    {
+      value: categoryId ? `cat:${categoryId}` : makeCategoryPathValue([nameEn || nameAr || categoryCode]),
+      parentValue: "",
+      labelEn: nameEn || categoryCode || categoryId,
+      labelAr: nameAr,
+      level: 0,
+    },
+  ];
+}
+
+function getProductCategoryPaths(product: any, products: any[] = []) {
+  const paths: any[][] = [];
+  const directPath = getCategoryPathEntries(product);
+  if (directPath.length) paths.push(directPath);
+
+  if (getCatalogProductType(product) === "package") {
+    const byCode = getCatalogProductByCode(products);
+    const includedCodes = Array.isArray(product?.includedServiceCodes) ? product.includedServiceCodes : [];
+    for (const code of includedCodes) {
+      const child = byCode.get(normalizeCatalogKey(code));
+      const childPath = child ? getCategoryPathEntries(child) : [];
+      if (childPath.length) paths.push(childPath);
+    }
+  }
+
+  const seenLeafValues = new Set<string>();
+  return paths.filter((path) => {
+    const leaf = path[path.length - 1]?.value;
+    if (!leaf || seenLeafValues.has(leaf)) return false;
+    seenLeafValues.add(leaf);
+    return true;
+  });
+}
+
+function buildServiceCategoryCascade(products: any[]) {
+  const nodesByValue = new Map<string, any>();
+  const childrenByParent = new Map<string, any[]>();
+  const productCategoryValues = new Map<string, Set<string>>();
+
+  const upsertNode = (entry: any) => {
+    if (!entry?.value) return;
+    const existing = nodesByValue.get(entry.value);
+    const next = {
+      ...existing,
+      ...entry,
+      labelEn: entry.labelEn || existing?.labelEn || entry.value,
+      labelAr: entry.labelAr || existing?.labelAr || "",
+    };
+    nodesByValue.set(entry.value, next);
+  };
+
+  for (const product of products || []) {
+    const productKey = getCatalogProductIdentity(product);
+    if (!productKey) continue;
+    const paths = getProductCategoryPaths(product, products);
+    const categoryValues = productCategoryValues.get(productKey) || new Set<string>();
+
+    for (const path of paths) {
+      path.forEach(upsertNode);
+      const leaf = path[path.length - 1]?.value;
+      if (leaf) categoryValues.add(leaf);
+    }
+
+    if (categoryValues.size) productCategoryValues.set(productKey, categoryValues);
+  }
+
+  nodesByValue.forEach((node) => {
+    const parent = String(node.parentValue || "");
+    const list = childrenByParent.get(parent) || [];
+    list.push(node);
+    childrenByParent.set(parent, list);
+  });
+
+  childrenByParent.forEach((list, parent) => {
+    childrenByParent.set(
+      parent,
+      [...list].sort((a, b) => String(a.labelEn || a.labelAr).localeCompare(String(b.labelEn || b.labelAr)))
+    );
+  });
+
+  return { nodesByValue, childrenByParent, productCategoryValues };
+}
+
+function buildCategoryDropdownLevels(categoryCascade: any, selectedPath: string[]) {
+  const levels: any[] = [];
+  let parentValue = "";
+  let levelIndex = 0;
+
+  while (true) {
+    const options = categoryCascade.childrenByParent.get(parentValue) || [];
+    if (!options.length) break;
+    const selectedValue = selectedPath[levelIndex] || "";
+    levels.push({ levelIndex, parentValue, options, selectedValue });
+    if (!selectedValue) break;
+    parentValue = selectedValue;
+    levelIndex += 1;
+  }
+
+  return levels;
+}
+
+function productMatchesServiceSearch(product: any, search: string) {
+  if (!search) return true;
+  return matchesSearchQuery(
+    [
+      product?.serviceCode,
+      product?.name,
+      product?.nameAr,
+      product?.descriptionEn,
+      product?.descriptionAr,
+      product?.categoryCode,
+      product?.categoryNameEn,
+      product?.categoryNameAr,
+      product?.type,
+    ],
+    search
+  );
 }
 
 function groupServicesByPackage(services: any[]) {
@@ -3676,9 +3959,10 @@ function StepThreeServices({
         normalizeCatalogKey(p?.serviceCode || p?.id || p?.name) ===
         normalizeCatalogKey(svc?.serviceCode || svc?.catalogId || svc?.name)
     );
-    if (catalogProduct && hasServiceSpecifications(catalogProduct)) {
+    const specificationProduct = catalogProduct ? getSelectableSpecificationProduct(catalogProduct, products) : null;
+    if (specificationProduct && hasServiceSpecifications(specificationProduct)) {
       setPendingSelectionMode("complimentary");
-      setPendingSpecificationProduct(catalogProduct);
+      setPendingSpecificationProduct(specificationProduct);
       return;
     }
     // No spec flow - add directly as complimentary (price 0)
@@ -3722,11 +4006,12 @@ function StepThreeServices({
         setSelectedServices(dedupeSelectedServices(next));
       }
     } else {
-      if (hasServiceSpecifications(product)) {
+      const specificationProduct = getSelectableSpecificationProduct(product, products);
+      if (hasServiceSpecifications(specificationProduct)) {
         setPendingSelectionMode("paid");
-        const configuredSpecification = getConfiguredSpecificationSelection(product);
+        const configuredSpecification = getConfiguredSpecificationSelection(specificationProduct);
         if (configuredSpecification) {
-          const expanded = expandCatalogProductToServices(product, products, vehicleType, configuredSpecification);
+          const expanded = expandCatalogProductToServices(specificationProduct, products, vehicleType, configuredSpecification);
           if (useCompletedPool) {
             setSelectedServices(dedupeSelectedServices([...complimentaryServices, ...paidSelectedServices, ...expanded]));
           } else {
@@ -3734,7 +4019,7 @@ function StepThreeServices({
           }
           return;
         }
-        setPendingSpecificationProduct(product);
+        setPendingSpecificationProduct(specificationProduct);
         return;
       }
       const expanded = expandCatalogProductToServices(product, products, vehicleType);
@@ -3746,43 +4031,49 @@ function StepThreeServices({
     }
   };
 
-  const [filterCategory, setFilterCategory] = useState("all");
-  const [filterType, setFilterType] = useState("all");
+  const [selectedCategoryPath, setSelectedCategoryPath] = useState<string[]>([]);
   const [serviceSearch, setServiceSearch] = useState("");
-
-  const svcCategories = useMemo(() => {
-    const catMap = new Map<string, { id: string; nameEn: string }>();
-    for (const p of products) {
-      const catId = String(p?.categoryId || "");
-      if (catId && !catMap.has(catId)) {
-        catMap.set(catId, { id: catId, nameEn: String(p?.categoryNameEn || p?.categoryCode || catId) });
-      }
-    }
-    return [...catMap.values()].sort((a, b) => a.nameEn.localeCompare(b.nameEn));
-  }, [products]);
 
   const normalizedServiceSearch = serviceSearch.trim();
 
+  const serviceCategoryCascade = useMemo(() => buildServiceCategoryCascade(products), [products]);
+  const categoryDropdownLevels = useMemo(
+    () => buildCategoryDropdownLevels(serviceCategoryCascade, selectedCategoryPath),
+    [serviceCategoryCascade, selectedCategoryPath]
+  );
+  const selectedCategoryValue = selectedCategoryPath[selectedCategoryPath.length - 1] || "";
+
+  const handleCategoryPathChange = useCallback((levelIndex: number, value: string) => {
+    setSelectedCategoryPath((current) => {
+      const next = current.slice(0, levelIndex);
+      if (value) next[levelIndex] = value;
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    setSelectedCategoryPath((current) => {
+      const next: string[] = [];
+      let parentValue = "";
+      for (const value of current) {
+        const options = serviceCategoryCascade.childrenByParent.get(parentValue) || [];
+        if (!options.some((option: any) => option.value === value)) break;
+        next.push(value);
+        parentValue = value;
+      }
+      if (next.length === current.length && next.every((value, idx) => value === current[idx])) return current;
+      return next;
+    });
+  }, [serviceCategoryCascade]);
+
   const filteredProducts = useMemo(() =>
     products.filter((p: any) => {
-      const catOk = filterCategory === "all" || String(p?.categoryId || "") === filterCategory;
-      const typeOk = filterType === "all" || String(p?.type || "").toLowerCase() === filterType;
-      const searchOk = !normalizedServiceSearch || matchesSearchQuery(
-        [
-          p?.serviceCode,
-          p?.name,
-          p?.nameAr,
-          p?.descriptionEn,
-          p?.descriptionAr,
-          p?.categoryCode,
-          p?.categoryNameEn,
-          p?.categoryNameAr,
-          p?.type,
-        ],
-        normalizedServiceSearch
-      );
-      return catOk && typeOk && searchOk;
-    }), [products, filterCategory, filterType, normalizedServiceSearch]);
+      const searchOk = productMatchesServiceSearch(p, normalizedServiceSearch);
+      if (!selectedCategoryValue) return !!normalizedServiceSearch && searchOk;
+      const productKey = getCatalogProductIdentity(p);
+      const categoryOk = serviceCategoryCascade.productCategoryValues.get(productKey)?.has(selectedCategoryValue);
+      return Boolean(categoryOk) && searchOk;
+    }), [products, selectedCategoryValue, serviceCategoryCascade, normalizedServiceSearch]);
 
   const filteredCompletedOrdersServices = useMemo(() => {
     if (!normalizedServiceSearch) return completedOrdersServices;
@@ -3816,6 +4107,92 @@ function StepThreeServices({
   );
   const discountPercent = subtotal > 0 ? (discount / subtotal) * 100 : 0;
   const total = subtotal - discount;
+
+  const renderCategoryCascade = () => (
+    <div className="jo-category-cascade">
+      {categoryDropdownLevels.map((level: any) => (
+        <label key={`category-level-${level.levelIndex}-${level.parentValue || "root"}`} className="svc-category-level">
+          <span className="svc-filter-label">
+            <i className={level.levelIndex === 0 ? "fas fa-tags" : "fas fa-sitemap"}></i>
+            {level.levelIndex === 0 ? t("Category") : `${t("Subcategory")}${level.levelIndex > 1 ? ` ${level.levelIndex}` : ""}`}
+          </span>
+          <select
+            className="svc-filter-select"
+            value={level.selectedValue}
+            onChange={(e) => handleCategoryPathChange(level.levelIndex, e.target.value)}
+          >
+            <option value="">{level.levelIndex === 0 ? t("All Categories") : t("Select Subcategory")}</option>
+            {level.options.map((cat: any) => (
+              <option key={cat.value} value={cat.value} data-no-translate="true">
+                {toBilingualName(cat.labelEn, cat.labelAr, cat.labelEn || cat.labelAr || t("Category"))}
+              </option>
+            ))}
+          </select>
+        </label>
+      ))}
+    </div>
+  );
+
+  const renderCatalogProductCard = (product: any, isSelected: boolean, selectionForSpecs = selectedServices) => {
+    const productType = getCatalogProductType(product);
+    const specificationProduct = getSelectableSpecificationProduct(product, products);
+    const hasSpecs = hasServiceSpecifications(specificationProduct);
+    const selectedSpecification = getSelectedSpecificationForProduct(product, selectionForSpecs);
+    const specLabel = getServiceSpecificationLabel(selectedSpecification);
+    const colorHex = String(selectedSpecification?.specificationColorHex || "").trim();
+
+    return (
+      <div
+        key={String(product.id || product.serviceCode || product.name)}
+        className={`service-checkbox jo-service-product-card jo-catalog-${productType}${isSelected ? " selected" : ""}`}
+        onClick={() => handleToggleService(product)}
+      >
+        <div className="service-info">
+          <div className="service-name-row">
+            <span className={`jo-product-type-badge ${productType}`}>
+              <i className={productType === "package" ? "fas fa-box-open" : "fas fa-wrench"} aria-hidden="true"></i>
+              {t(getCatalogProductDisplayType(product))}
+            </span>
+            {isSelected ? (
+              <span className="jo-product-selected-badge">
+                <i className="fas fa-check" aria-hidden="true"></i>
+                {t("Selected")}
+              </span>
+            ) : null}
+          </div>
+          <div className="service-name" data-no-translate="true">{getServiceDisplayName(product)}</div>
+          {productType === "package" && (
+            <span className="jo-package-price-badge">
+              <i className="fas fa-receipt" aria-hidden="true"></i>
+              {t("Package Price Applied")}
+            </span>
+          )}
+          {hasSpecs && (
+            <div className="empty-subtext jo-spec-selection-hint" data-no-translate="true">
+              {specLabel ? (
+                <span>
+                  {colorHex ? (
+                    <span
+                      aria-hidden="true"
+                      className="jo-spec-color-dot"
+                      style={{ background: colorHex }}
+                    ></span>
+                  ) : null}
+                  {`${t("Specification")}: ${specLabel}`}
+                </span>
+              ) : (
+                <span>
+                  <i className="fas fa-palette" aria-hidden="true"></i>
+                  {t("Specification required")}
+                </span>
+              )}
+            </div>
+          )}
+        </div>
+        <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
+      </div>
+    );
+  };
 
   return (
     <div className="form-card jo-services-premium-card bg-white rounded-2xl border-none shadow-[0_8px_24px_rgba(112,144,176,0.12)] p-6 [&_label]:text-sm [&_label]:font-semibold [&_label]:text-[#2B3674] [&_label]:mb-2 [&_label]:block [&_textarea]:w-full [&_textarea]:bg-white [&_textarea]:border [&_textarea]:border-[#E7EDF8] [&_textarea]:rounded-xl [&_textarea]:px-4 [&_textarea]:py-3 [&_textarea]:text-sm [&_textarea]:text-[#2B3674] [&_textarea]:placeholder:text-[#A3AED0] [&_textarea]:focus:outline-none [&_textarea]:focus:ring-2 [&_textarea]:focus:ring-[#4318FF]/20 [&_textarea]:focus:border-[#4318FF] [&_textarea]:transition-all [&_input]:bg-white [&_input]:border [&_input]:border-[#E7EDF8] [&_input]:rounded-xl [&_input]:px-3 [&_input]:py-2 [&_input]:text-sm [&_input]:text-[#2B3674]">
@@ -3900,8 +4277,9 @@ function StepThreeServices({
                   (s: any) => normalizeCatalogKey(s?.serviceCode || s?.catalogId || s?.name) === svcKey
                 );
                 const specLabel = getServiceSpecificationLabel(selectedSpec || svc);
-                const hasSpecs = catalogProduct
-                  ? hasServiceSpecifications(catalogProduct)
+                const specificationProduct = catalogProduct ? getSelectableSpecificationProduct(catalogProduct, products) : null;
+                const hasSpecs = specificationProduct
+                  ? hasServiceSpecifications(specificationProduct)
                   : !!(svc.specificationBrandId || svc.specificationBrandName);
 
                 return (
@@ -3960,58 +4338,20 @@ function StepThreeServices({
                 <i className="fas fa-plus-circle"></i> {t("Add Other Paid Services")}
               </div>
               <div className="svc-filter-bar">
-                <div className="svc-filter-row">
-                  <span className="svc-filter-label"><i className="fas fa-tags"></i> {t("Category")}</span>
-                  <select
-                    className="svc-filter-select"
-                    value={filterCategory}
-                    onChange={(e) => { setFilterCategory(e.target.value); }}
-                  >
-                    <option value="all">{t("All Categories")}</option>
-                    {svcCategories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>{cat.nameEn}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="svc-filter-row">
-                  <span className="svc-filter-label"><i className="fas fa-layer-group"></i> {t("Type")}</span>
-                  <div className="svc-type-pills">
-                    <button type="button" className={`svc-type-pill${filterType === "all" ? " active" : ""}`} onClick={() => setFilterType("all")}>{t("All")}</button>
-                    <button type="button" className={`svc-type-pill${filterType === "service" ? " active" : ""}`} onClick={() => setFilterType("service")}><i className="fas fa-wrench"></i> {t("Services")}</button>
-                    <button type="button" className={`svc-type-pill${filterType === "package" ? " active" : ""}`} onClick={() => setFilterType("package")}><i className="fas fa-box-open"></i> {t("Packages")}</button>
-                  </div>
-                  <span className="svc-filter-count">{filteredProducts.length} {t("of")} {products.length}</span>
-                </div>
+                {renderCategoryCascade()}
               </div>
 
-              {filteredProducts.length === 0 ? (
+              {!selectedCategoryValue && !normalizedServiceSearch ? null : filteredProducts.length === 0 ? (
                 <div className="empty-state" style={{ padding: "20px 12px" }}>
-                  <div className="empty-text">{t("No services match your filter/search")}</div>
+                  <div className="empty-text">
+                    {t("No services match your filter/search")}
+                  </div>
                 </div>
               ) : (
                 <div className="services-grid" style={{ marginTop: 10 }}>
                   {filteredProducts.map((product: any) => {
                     const paidSelected = isCatalogProductSelected(product, paidSelectedServices);
-                    return (
-                      <div
-                        key={String(product.id || product.serviceCode || product.name)}
-                        className={`service-checkbox ${paidSelected ? "selected" : ""}`}
-                        onClick={() => handleToggleService(product)}
-                      >
-                        <div className="service-info">
-                          <div className="service-name-row">
-                            <div className="service-name" data-no-translate="true">{getServiceDisplayName(product)}</div>
-                            {String(product?.type ?? "").toLowerCase() === "package" && (
-                              <span className="jo-package-price-badge">
-                                <i className="fas fa-box-open" aria-hidden="true"></i>
-                                {t("Package Price Applied")}
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                        <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
-                      </div>
-                    );
+                    return renderCatalogProductCard(product, paidSelected, paidSelectedServices);
                   })}
                 </div>
               )}
@@ -4020,8 +4360,6 @@ function StepThreeServices({
         ) : (
           /* -- CATALOG MODE (new order or no completed services) -- */
           <>
-            <p>{t("Select services for")} {vehicleType}:</p>
-
             {products.length === 0 ? (
               <div className="empty-state" style={{ padding: "30px 12px" }}>
                 <div className="empty-text">{t("No services configured yet")}</div>
@@ -4053,83 +4391,16 @@ function StepThreeServices({
                     ) : null}
                   </div>
                 </div>
-                <div className="svc-filter-row">
-                  <span className="svc-filter-label"><i className="fas fa-tags"></i> {t("Category")}</span>
-                  <select
-                    className="svc-filter-select"
-                    value={filterCategory}
-                    onChange={(e) => { setFilterCategory(e.target.value); }}
-                  >
-                    <option value="all">{t("All Categories")}</option>
-                    {svcCategories.map((cat) => (
-                      <option key={cat.id} value={cat.id}>{cat.nameEn}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="svc-filter-row">
-                  <span className="svc-filter-label"><i className="fas fa-layer-group"></i> {t("Type")}</span>
-                  <div className="svc-type-pills">
-                    <button type="button" className={`svc-type-pill${filterType === "all" ? " active" : ""}`} onClick={() => setFilterType("all")}>{t("All")}</button>
-                    <button type="button" className={`svc-type-pill${filterType === "service" ? " active" : ""}`} onClick={() => setFilterType("service")}><i className="fas fa-wrench"></i> {t("Services")}</button>
-                    <button type="button" className={`svc-type-pill${filterType === "package" ? " active" : ""}`} onClick={() => setFilterType("package")}><i className="fas fa-box-open"></i> {t("Packages")}</button>
-                  </div>
-                  <span className="svc-filter-count">{filteredProducts.length} {t("of")} {products.length}</span>
-                </div>
+                {renderCategoryCascade()}
               </div>
-              {filteredProducts.length === 0 ? (
+              {!selectedCategoryValue && !normalizedServiceSearch ? null : filteredProducts.length === 0 ? (
                 <div className="empty-state" style={{ padding: "24px 12px" }}>
                   <div className="empty-text">{t("No services match your filter/search")}</div>
-                  <div className="empty-subtext">{t("Try a different category or type.")}</div>
+                  <div className="empty-subtext">{t("Try a different category or search.")}</div>
                 </div>
               ) : (
               <div className="services-grid">
-                {filteredProducts.map((product: any) => (
-                  <div
-                    key={String(product.id || product.serviceCode || product.name)}
-                    className={`service-checkbox ${isCatalogProductSelected(product, selectedServices) ? "selected" : ""}`}
-                    onClick={() => handleToggleService(product)}
-                  >
-                    <div className="service-info">
-                      <div className="service-name-row">
-                        <div className="service-name" data-no-translate="true">{getServiceDisplayName(product)}</div>
-                        {String(product?.type ?? "").toLowerCase() === "package" && (
-                          <span className="jo-package-price-badge">
-                            <i className="fas fa-box-open" aria-hidden="true"></i>
-                            {t("Package Price Applied")}
-                          </span>
-                        )}
-                      </div>
-                      {hasServiceSpecifications(product) && (
-                        <div className="empty-subtext" data-no-translate="true">
-                          {(() => {
-                            const selectedSpecification = getSelectedSpecificationForProduct(product, selectedServices);
-                            const label = getServiceSpecificationLabel(selectedSpecification);
-                            const colorHex = String(selectedSpecification?.specificationColorHex || "").trim();
-                            return label ? (
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
-                                {colorHex ? (
-                                  <span
-                                    aria-hidden="true"
-                                    style={{
-                                      width: 10,
-                                      height: 10,
-                                      borderRadius: 999,
-                                      background: colorHex,
-                                      border: "1px solid rgba(15, 23, 42, 0.14)",
-                                      display: "inline-block",
-                                    }}
-                                  ></span>
-                                ) : null}
-                                {`${t("Specification")}: ${label}`}
-                              </span>
-                            ) : t("Specification required before adding this service.");
-                          })()}
-                        </div>
-                      )}
-                    </div>
-                    <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
-                  </div>
-                ))}
+                {filteredProducts.map((product: any) => renderCatalogProductCard(product, isCatalogProductSelected(product, selectedServices)))}
               </div>
               )}
             </>
@@ -4292,14 +4563,15 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
         : selectedServices.filter((s: any) => normalizeCatalogKey(s.serviceCode || s.catalogId || s.name) !== productKey);
       setSelectedServices(dedupeSelectedServices(next));
     } else {
-      if (hasServiceSpecifications(product)) {
-        const configuredSpecification = getConfiguredSpecificationSelection(product);
+      const specificationProduct = getSelectableSpecificationProduct(product, products);
+      if (hasServiceSpecifications(specificationProduct)) {
+        const configuredSpecification = getConfiguredSpecificationSelection(specificationProduct);
         if (configuredSpecification) {
-          const expanded = expandCatalogProductToServices(product, products, vehicleType, configuredSpecification);
+          const expanded = expandCatalogProductToServices(specificationProduct, products, vehicleType, configuredSpecification);
           setSelectedServices(dedupeSelectedServices([...selectedServices, ...expanded]));
           return;
         }
-        setPendingSpecificationProduct(product);
+        setPendingSpecificationProduct(specificationProduct);
         return;
       }
       const expanded = expandCatalogProductToServices(product, products, vehicleType);
@@ -4427,51 +4699,69 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
                 </div>
               ) : (
               <div className="services-grid">
-                {asFilteredProducts.map((product: any) => (
-                  <div key={String(product.id || product.serviceCode || product.name)} className={`service-checkbox ${isCatalogProductSelected(product, selectedServices) ? "selected" : ""}`} onClick={() => handleToggleService(product)}>
-                    <div className="service-info">
-                      <div className="service-name-row">
+                {asFilteredProducts.map((product: any) => {
+                  const productType = getCatalogProductType(product);
+                  const isSelected = isCatalogProductSelected(product, selectedServices);
+                  const specificationProduct = getSelectableSpecificationProduct(product, products);
+                  const hasSpecs = hasServiceSpecifications(specificationProduct);
+                  const selectedSpecification = getSelectedSpecificationForProduct(product, selectedServices);
+                  const label = getServiceSpecificationLabel(selectedSpecification);
+                  const colorHex = String(selectedSpecification?.specificationColorHex || "").trim();
+
+                  return (
+                    <div
+                      key={String(product.id || product.serviceCode || product.name)}
+                      className={`service-checkbox jo-service-product-card jo-catalog-${productType}${isSelected ? " selected" : ""}`}
+                      onClick={() => handleToggleService(product)}
+                    >
+                      <div className="service-info">
+                        <div className="service-name-row">
+                          <span className={`jo-product-type-badge ${productType}`}>
+                            <i className={productType === "package" ? "fas fa-box-open" : "fas fa-wrench"} aria-hidden="true"></i>
+                            {t(getCatalogProductDisplayType(product))}
+                          </span>
+                          {isSelected ? (
+                            <span className="jo-product-selected-badge">
+                              <i className="fas fa-check" aria-hidden="true"></i>
+                              {t("Selected")}
+                            </span>
+                          ) : null}
+                        </div>
                         <div className="service-name" data-no-translate="true">{getServiceDisplayName(product)}</div>
-                        {String(product?.type ?? "").toLowerCase() === "package" && (
+                        {productType === "package" && (
                           <span className="jo-package-price-badge">
-                            <i className="fas fa-box-open" aria-hidden="true"></i>
+                            <i className="fas fa-receipt" aria-hidden="true"></i>
                             {t("Package Price Applied")}
                           </span>
                         )}
-                      </div>
-                      {hasServiceSpecifications(product) && (
-                        <div className="empty-subtext" data-no-translate="true">
-                          {(() => {
-                            const selectedSpecification = getSelectedSpecificationForProduct(product, selectedServices);
-                            const label = getServiceSpecificationLabel(selectedSpecification);
-                            const colorHex = String(selectedSpecification?.specificationColorHex || "").trim();
-                            return label ? (
-                              <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                        {hasSpecs && (
+                          <div className="empty-subtext jo-spec-selection-hint" data-no-translate="true">
+                            {label ? (
+                              <span>
                                 {colorHex ? (
                                   <span
                                     aria-hidden="true"
-                                    style={{
-                                      width: 10,
-                                      height: 10,
-                                      borderRadius: 999,
-                                      background: colorHex,
-                                      border: "1px solid rgba(15, 23, 42, 0.14)",
-                                      display: "inline-block",
-                                    }}
+                                    className="jo-spec-color-dot"
+                                    style={{ background: colorHex }}
                                   ></span>
                                 ) : null}
                                 {`${t("Specification")}: ${label}`}
                               </span>
-                            ) : t("Specification required before adding this service.");
-                          })()}
-                        </div>
-                      )}
+                            ) : (
+                              <span>
+                                <i className="fas fa-palette" aria-hidden="true"></i>
+                                {t("Specification required")}
+                              </span>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                      <PermissionGate moduleId="joborder" optionId="joborder_serviceprice">
+                        <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
+                      </PermissionGate>
                     </div>
-                    <PermissionGate moduleId="joborder" optionId="joborder_serviceprice">
-                      <div className="service-price">{formatPrice(resolveServicePriceForVehicleType(product, vehicleType))}</div>
-                    </PermissionGate>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
               )}
             </>
