@@ -30,6 +30,7 @@ type ModalType = "none" | "category" | "service" | "package" | "specification";
 
 type CategoryFormState = {
   id?: string;
+  parentCategoryId: string;
   categoryCode: string;
   nameEn: string;
   nameAr: string;
@@ -56,6 +57,7 @@ type ServiceFormState = {
 
 type PackageFormState = {
   id?: string;
+  categoryId: string;
   packageCode: string;
   nameEn: string;
   nameAr: string;
@@ -91,6 +93,7 @@ type BrandSpecificationFormState = {
 };
 
 const EMPTY_CATEGORY_FORM: CategoryFormState = {
+  parentCategoryId: "",
   categoryCode: "",
   nameEn: "",
   nameAr: "",
@@ -125,6 +128,7 @@ const EMPTY_BRAND_SPECIFICATION_FORM: BrandSpecificationFormState = {
 };
 
 const EMPTY_PACKAGE_FORM: PackageFormState = {
+  categoryId: "",
   packageCode: "",
   nameEn: "",
   nameAr: "",
@@ -285,6 +289,62 @@ function resolveServiceSpecificationIds(
   return uniq(collected);
 }
 
+function categoryParentId(category: ServiceCategoryItem | null | undefined) {
+  return String((category as any)?.parentCategoryId || "").trim();
+}
+
+function categoryDisplayPath(category: ServiceCategoryItem | null | undefined) {
+  if (!category) return "";
+  return sanitizeEnglishText((category as any).categoryPathEn) || sanitizeEnglishText(category.nameEn);
+}
+
+function categoryDisplayPathAr(category: ServiceCategoryItem | null | undefined) {
+  if (!category) return "";
+  return sanitizeArabicText((category as any).categoryPathAr) || sanitizeArabicText(category.nameAr);
+}
+
+function categoryOptionLabel(category: ServiceCategoryItem) {
+  const pathEn = categoryDisplayPath(category);
+  const pathAr = categoryDisplayPathAr(category);
+  return displayBilingual(pathEn, pathAr);
+}
+
+function catalogMatchesSearch(item: ServiceCatalogItem, search: string) {
+  if (!search) return true;
+  return matchesSearchQuery(
+    [
+      item.serviceCode,
+      item.name,
+      item.nameAr,
+      item.descriptionEn,
+      item.descriptionAr,
+      item.categoryCode,
+      item.categoryNameEn,
+      item.categoryNameAr,
+      (item as any).categoryPathEn,
+      (item as any).categoryPathAr,
+      item.type,
+    ],
+    search
+  );
+}
+
+function categoryMatchesSearch(category: ServiceCategoryItem, search: string) {
+  if (!search) return true;
+  return matchesSearchQuery(
+    [
+      category.categoryCode,
+      category.nameEn,
+      category.nameAr,
+      category.descriptionEn,
+      category.descriptionAr,
+      (category as any).categoryPathEn,
+      (category as any).categoryPathAr,
+    ],
+    search
+  );
+}
+
 export default function ServiceCreation() {
   const { t } = useLanguage();
   const { withLoading } = useGlobalLoading();
@@ -295,6 +355,7 @@ export default function ServiceCreation() {
   const [error, setError] = useState("");
   const [banner, setBanner] = useState<{ message: string; isError?: boolean } | null>(null);
   const [catalogSearch, setCatalogSearch] = useState("");
+  const [selectedCategoryId, setSelectedCategoryId] = useState("");
   const [showSuccessPopup, setShowSuccessPopup] = useState(false);
   const [successPopupTitle, setSuccessPopupTitle] = useState("");
   const [successPopupSubtitle, setSuccessPopupSubtitle] = useState("");
@@ -369,6 +430,131 @@ export default function ServiceCreation() {
     return map;
   }, [services]);
 
+  const activeCategories = useMemo(
+    () => categories.filter((category) => category.isActive !== false),
+    [categories]
+  );
+
+  const categoryById = useMemo(() => {
+    const map = new Map<string, ServiceCategoryItem>();
+    activeCategories.forEach((category) => map.set(category.id, category));
+    return map;
+  }, [activeCategories]);
+
+  const childrenByParentId = useMemo(() => {
+    const map = new Map<string, ServiceCategoryItem[]>();
+    for (const category of activeCategories) {
+      const parentId = categoryParentId(category);
+      const list = map.get(parentId) || [];
+      list.push(category);
+      map.set(parentId, list);
+    }
+    map.forEach((list, parentId) => {
+      map.set(
+        parentId,
+        [...list].sort((a, b) => categoryOptionLabel(a).localeCompare(categoryOptionLabel(b)))
+      );
+    });
+    return map;
+  }, [activeCategories]);
+
+  const currentCategory = selectedCategoryId ? categoryById.get(selectedCategoryId) || null : null;
+
+  useEffect(() => {
+    if (selectedCategoryId && !categoryById.has(selectedCategoryId)) {
+      setSelectedCategoryId("");
+    }
+  }, [categoryById, selectedCategoryId]);
+
+  const getCategoryPath = (category: ServiceCategoryItem | null | undefined) => {
+    if (!category) return [];
+    const path: ServiceCategoryItem[] = [];
+    const seen = new Set<string>();
+    let cursor: ServiceCategoryItem | undefined = category;
+
+    while (cursor && !seen.has(cursor.id)) {
+      path.unshift(cursor);
+      seen.add(cursor.id);
+      cursor = categoryById.get(categoryParentId(cursor));
+    }
+
+    return path;
+  };
+
+  const currentCategoryPath = currentCategory ? getCategoryPath(currentCategory) : [];
+
+  const getDescendantCategoryIds = (categoryId: string) => {
+    const out = new Set<string>();
+    const stack = [...(childrenByParentId.get(categoryId) || [])];
+    while (stack.length) {
+      const child = stack.shift();
+      if (!child || out.has(child.id)) continue;
+      out.add(child.id);
+      stack.push(...(childrenByParentId.get(child.id) || []));
+    }
+    return out;
+  };
+
+  const resolveCategoryCatalogFields = (categoryId: string) => {
+    const category = categoryById.get(categoryId);
+    if (!category) return {};
+    const path = getCategoryPath(category);
+    const pathEn = path.map((entry) => sanitizeEnglishText(entry.nameEn)).filter(Boolean).join(" > ");
+    const pathAr = path.map((entry) => sanitizeArabicText(entry.nameAr)).filter(Boolean).join(" > ");
+    return {
+      categoryId: category.id,
+      categoryCode: category.categoryCode,
+      categoryNameEn: sanitizeEnglishText(category.nameEn),
+      categoryNameAr: sanitizeArabicText(category.nameAr),
+      categoryPathEn: pathEn || sanitizeEnglishText(category.nameEn),
+      categoryPathAr: pathAr || sanitizeArabicText(category.nameAr),
+    };
+  };
+
+  const selectableCategories = useMemo(
+    () => activeCategories.filter((category) => category.id !== "uncategorized"),
+    [activeCategories]
+  );
+
+  const currentSubcategories = useMemo(() => {
+    const parentId = currentCategory?.id || "";
+    return (childrenByParentId.get(parentId) || []).filter((category) => categoryMatchesSearch(category, normalizedCatalogSearch));
+  }, [childrenByParentId, currentCategory, normalizedCatalogSearch]);
+
+  const currentServices = useMemo(() => {
+    if (!currentCategory) return [];
+    return services
+      .filter((service) => service.categoryId === currentCategory.id)
+      .filter((service) => catalogMatchesSearch(service, normalizedCatalogSearch));
+  }, [currentCategory, normalizedCatalogSearch, services]);
+
+  const currentPackages = useMemo(() => {
+    if (!currentCategory) return [];
+    return packages
+      .filter((pkg) => pkg.categoryId === currentCategory.id)
+      .filter((pkg) => catalogMatchesSearch(pkg, normalizedCatalogSearch));
+  }, [currentCategory, normalizedCatalogSearch, packages]);
+
+  const rootCategories = useMemo(
+    () => (childrenByParentId.get("") || []).filter((category) => categoryMatchesSearch(category, normalizedCatalogSearch)),
+    [childrenByParentId, normalizedCatalogSearch]
+  );
+
+  const searchedCategories = useMemo(
+    () => activeCategories.filter((category) => categoryMatchesSearch(category, normalizedCatalogSearch)),
+    [activeCategories, normalizedCatalogSearch]
+  );
+
+  const searchedServices = useMemo(
+    () => services.filter((service) => catalogMatchesSearch(service, normalizedCatalogSearch)),
+    [normalizedCatalogSearch, services]
+  );
+
+  const searchedPackages = useMemo(
+    () => packages.filter((pkg) => catalogMatchesSearch(pkg, normalizedCatalogSearch)),
+    [normalizedCatalogSearch, packages]
+  );
+
   const filteredPackages = useMemo(() => {
     if (!normalizedCatalogSearch) return packages;
 
@@ -382,6 +568,11 @@ export default function ServiceCreation() {
           pkg.nameAr,
           pkg.descriptionEn,
           pkg.descriptionAr,
+          pkg.categoryCode,
+          pkg.categoryNameEn,
+          pkg.categoryNameAr,
+          (pkg as any).categoryPathEn,
+          (pkg as any).categoryPathAr,
           ...includedNames,
           ...includedNamesAr,
         ],
@@ -417,53 +608,6 @@ export default function ServiceCreation() {
     return out;
   }, [categories, services, t]);
 
-  const filteredCategoryRows = useMemo(() => {
-    if (!normalizedCatalogSearch) return categoryRows;
-
-    return categoryRows
-      .map((row) => {
-        const categoryMatches = matchesSearchQuery(
-          [
-            row.category.categoryCode,
-            row.category.nameEn,
-            row.category.nameAr,
-            row.category.descriptionEn,
-            row.category.descriptionAr,
-          ],
-          normalizedCatalogSearch
-        );
-
-        if (categoryMatches) return row;
-
-        const nextServices = row.services.filter((service) =>
-          matchesSearchQuery(
-            [
-              service.serviceCode,
-              service.name,
-              service.nameAr,
-              service.descriptionEn,
-              service.descriptionAr,
-              service.categoryCode,
-              service.categoryNameEn,
-              service.categoryNameAr,
-            ],
-            normalizedCatalogSearch
-          )
-        );
-
-        return {
-          ...row,
-          services: nextServices,
-        };
-      })
-      .filter((row) => row.services.length > 0);
-  }, [categoryRows, normalizedCatalogSearch]);
-
-  const avgServicesPerCategory = useMemo(() => {
-    const count = categories.length || 1;
-    return (services.length / count).toFixed(1);
-  }, [categories.length, services.length]);
-
   const avgPackagePrice = useMemo(() => {
     if (!packages.length) return 0;
     const total = packages.reduce((sum, p) => sum + Number(p.suvPrice || 0), 0);
@@ -474,15 +618,19 @@ export default function ServiceCreation() {
     flushSync(() => {
       setModalType("none");
       setError("");
+      setEditingCategory(null);
+      setEditingService(null);
+      setEditingPackage(null);
       setEditingBrandSpecification(null);
       setSelectedServiceSpecificationIds([]);
     });
   };
 
-  const openCategoryModal = (item?: ServiceCategoryItem) => {
+  const openCategoryModal = (item?: ServiceCategoryItem, parentCategoryId = selectedCategoryId) => {
     const nextForm: CategoryFormState = item
       ? {
           id: item.id,
+          parentCategoryId: categoryParentId(item),
           categoryCode: item.categoryCode,
           nameEn: item.nameEn,
           nameAr: item.nameAr,
@@ -491,6 +639,7 @@ export default function ServiceCreation() {
         }
       : {
           ...EMPTY_CATEGORY_FORM,
+          parentCategoryId: parentCategoryId || "",
           categoryCode: makeNextCode(categories.map((c) => c.categoryCode), "CAT"),
         };
 
@@ -502,7 +651,7 @@ export default function ServiceCreation() {
     });
   };
 
-  const openServiceModal = (item?: ServiceCatalogItem) => {
+  const openServiceModal = (item?: ServiceCatalogItem, categoryId = selectedCategoryId) => {
     const nextForm: ServiceFormState = item
       ? {
         id: item.id,
@@ -522,6 +671,7 @@ export default function ServiceCreation() {
       }
       : {
         ...EMPTY_SERVICE_FORM,
+        categoryId: categoryId || "",
         serviceCode: makeNextCode(services.map((s) => s.serviceCode), "SVC"),
       };
     const nextSpecifications = item ? resolveServiceSpecificationIds(item, brandSpecifications) : [];
@@ -535,10 +685,11 @@ export default function ServiceCreation() {
     });
   };
 
-  const openPackageModal = (item?: ServiceCatalogItem) => {
+  const openPackageModal = (item?: ServiceCatalogItem, categoryId = selectedCategoryId) => {
     const nextForm: PackageFormState = item
       ? {
         id: item.id,
+        categoryId: item.categoryId || "",
         packageCode: item.serviceCode,
         nameEn: item.name,
         nameAr: item.nameAr || "",
@@ -554,6 +705,7 @@ export default function ServiceCreation() {
       }
       : {
         ...EMPTY_PACKAGE_FORM,
+        categoryId: categoryId || "",
         packageCode: makeNextCode(packages.map((p) => p.serviceCode), "PKG"),
       };
 
@@ -591,6 +743,10 @@ export default function ServiceCreation() {
   const validateCategory = () => {
     if (!categoryForm.nameEn.trim()) return t("English category name is required.");
     if (!categoryForm.nameAr.trim()) return t("Arabic category name is required.");
+    if (categoryForm.id && categoryForm.parentCategoryId === categoryForm.id) return t("A category cannot be inside itself.");
+    if (categoryForm.id && getDescendantCategoryIds(categoryForm.id).has(categoryForm.parentCategoryId)) {
+      return t("A category cannot be moved inside its own subcategory.");
+    }
     return "";
   };
 
@@ -605,6 +761,7 @@ export default function ServiceCreation() {
   };
 
   const validatePackage = () => {
+    if (!packageForm.categoryId.trim()) return t("Please select a category.");
     if (!packageForm.packageCode.trim()) return t("Package ID is required.");
     if (!packageForm.nameEn.trim()) return t("English package name is required.");
     if (!packageForm.nameAr.trim()) return t("Arabic package name is required.");
@@ -612,6 +769,100 @@ export default function ServiceCreation() {
     if (!packageForm.sedanPrice.trim() || Number(packageForm.sedanPrice) < 0) return t("Sedan price is required and must be valid.");
     if (packageForm.includedServiceCodes.length < 1) return t("Please include at least one service in the package.");
     return "";
+  };
+
+  const buildCategoryPayloadFields = (
+    category: Pick<ServiceCategoryItem, "id" | "categoryCode" | "nameEn" | "nameAr"> & Partial<ServiceCategoryItem>,
+    categoryMap = categoryById
+  ) => {
+    const parent = category.parentCategoryId ? categoryMap.get(String(category.parentCategoryId)) : undefined;
+    const path: ServiceCategoryItem[] = [];
+    const seen = new Set<string>();
+    let cursor: ServiceCategoryItem | undefined = parent;
+
+    while (cursor && !seen.has(cursor.id)) {
+      path.unshift(cursor);
+      seen.add(cursor.id);
+      cursor = categoryMap.get(categoryParentId(cursor));
+    }
+
+    const pathEn = [...path.map((entry) => sanitizeEnglishText(entry.nameEn)), sanitizeEnglishText(category.nameEn)].filter(Boolean).join(" > ");
+    const pathAr = [...path.map((entry) => sanitizeArabicText(entry.nameAr)), sanitizeArabicText(category.nameAr)].filter(Boolean).join(" > ");
+
+    return {
+      parentCategoryId: parent?.id,
+      parentCategoryCode: parent?.categoryCode,
+      parentCategoryNameEn: parent ? sanitizeEnglishText(parent.nameEn) : undefined,
+      parentCategoryNameAr: parent ? sanitizeArabicText(parent.nameAr) : undefined,
+      categoryPathEn: pathEn,
+      categoryPathAr: pathAr,
+      categoryLevel: path.length,
+    };
+  };
+
+  const syncCategoryMetadata = async (rootCategory: ServiceCategoryItem) => {
+    const nextCategoryById = new Map(categoryById);
+    nextCategoryById.set(rootCategory.id, rootCategory);
+
+    const affected = [rootCategory.id, ...Array.from(getDescendantCategoryIds(rootCategory.id))];
+
+    for (const categoryId of affected) {
+      const category = nextCategoryById.get(categoryId);
+      if (!category) continue;
+      const metadata = buildCategoryPayloadFields(category, nextCategoryById);
+      const updatedCategory = { ...category, ...metadata };
+      nextCategoryById.set(category.id, updatedCategory);
+
+      if (category.id !== rootCategory.id) {
+        await updateServiceCategoryItem({
+          id: category.id,
+          categoryCode: category.categoryCode,
+          nameEn: category.nameEn,
+          nameAr: category.nameAr,
+          descriptionEn: category.descriptionEn,
+          descriptionAr: category.descriptionAr,
+          ...metadata,
+        });
+      }
+
+      const catalogFields = {
+        categoryId: updatedCategory.id,
+        categoryCode: updatedCategory.categoryCode,
+        categoryNameEn: sanitizeEnglishText(updatedCategory.nameEn),
+        categoryNameAr: sanitizeArabicText(updatedCategory.nameAr),
+        categoryPathEn: metadata.categoryPathEn,
+        categoryPathAr: metadata.categoryPathAr,
+      };
+
+      const items = catalog.filter((item) => item.categoryId === category.id);
+      for (const item of items) {
+        await updateServiceCatalogItem({
+          id: item.id,
+          serviceCode: item.serviceCode,
+          name: item.name,
+          nameAr: item.nameAr,
+          descriptionEn: item.descriptionEn,
+          descriptionAr: item.descriptionAr,
+          type: item.type,
+          suvPrice: item.suvPrice,
+          sedanPrice: item.sedanPrice,
+          hatchbackPrice: item.hatchbackPrice,
+          truckPrice: item.truckPrice,
+          coupePrice: item.coupePrice,
+          otherPrice: item.otherPrice,
+          includedServiceCodes: item.includedServiceCodes,
+          hasSpecifications: item.hasSpecifications,
+          specifications: item.specifications,
+          specificationId: item.specificationId,
+          specificationName: item.specificationName,
+          specificationColorHex: item.specificationColorHex,
+          specificationProductId: item.specificationProductId,
+          specificationProductName: item.specificationProductName,
+          specificationMeasurement: item.specificationMeasurement,
+          ...catalogFields,
+        });
+      }
+    }
   };
 
   const saveCategory = async () => {
@@ -625,25 +876,37 @@ export default function ServiceCreation() {
     setError("");
 
     try {
-      const payload = {
-        categoryCode: categoryForm.categoryCode.trim() || makeNextCode(categories.map((c) => c.categoryCode), "CAT"),
+      const categoryBase = {
+        id: categoryForm.id || "draft",
+        categoryCode: categoryForm.categoryCode.trim().toUpperCase() || makeNextCode(categories.map((c) => c.categoryCode), "CAT"),
         nameEn: sanitizeEnglishText(categoryForm.nameEn),
         nameAr: sanitizeArabicText(categoryForm.nameAr),
+        parentCategoryId: categoryForm.parentCategoryId || undefined,
+      };
+      const metadata = buildCategoryPayloadFields(categoryBase as any);
+      const payload = {
+        categoryCode: categoryBase.categoryCode,
+        nameEn: categoryBase.nameEn,
+        nameAr: categoryBase.nameAr,
+        ...metadata,
         descriptionEn: sanitizeEnglishText(categoryForm.descriptionEn) || undefined,
         descriptionAr: sanitizeArabicText(categoryForm.descriptionAr) || undefined,
       };
 
+      let savedCategory: ServiceCategoryItem;
       if (categoryForm.id) {
-        await updateServiceCategoryItem({ id: categoryForm.id, ...payload });
+        savedCategory = await updateServiceCategoryItem({ id: categoryForm.id, ...payload });
         setBanner({ message: t("Category updated successfully.") });
         setSuccessPopupTitle(t("Category Updated"));
         setSuccessPopupSubtitle(t("Category updated successfully."));
       } else {
-        await createServiceCategoryItem(payload);
+        savedCategory = await createServiceCategoryItem(payload);
         setBanner({ message: t("Category created successfully.") });
         setSuccessPopupTitle(t("Category Created"));
         setSuccessPopupSubtitle(t("Category created successfully."));
       }
+      await syncCategoryMetadata(savedCategory);
+      setSelectedCategoryId(savedCategory.id);
       setShowSuccessPopup(true);
 
       closeModal();
@@ -697,10 +960,7 @@ export default function ServiceCreation() {
         nameAr: sanitizeArabicText(serviceForm.nameAr),
         descriptionEn: sanitizeEnglishText(serviceForm.descriptionEn) || undefined,
         descriptionAr: sanitizeArabicText(serviceForm.descriptionAr) || undefined,
-        categoryId: selectedCategory.id,
-        categoryCode: selectedCategory.categoryCode,
-        categoryNameEn: sanitizeEnglishText(selectedCategory.nameEn),
-        categoryNameAr: sanitizeArabicText(selectedCategory.nameAr),
+        ...resolveCategoryCatalogFields(selectedCategory.id),
         type: "service" as const,
         suvPrice: toNum(serviceForm.suvPrice),
         sedanPrice: toNum(serviceForm.sedanPrice),
@@ -752,6 +1012,12 @@ export default function ServiceCreation() {
     setError("");
 
     try {
+      const selectedCategory = categories.find((c) => c.id === packageForm.categoryId);
+      if (!selectedCategory) {
+        setError(t("Selected category does not exist."));
+        setSaving(false);
+        return;
+      }
       const payload = {
         serviceCode: packageForm.packageCode.trim().toUpperCase(),
         name: sanitizeEnglishText(packageForm.nameEn),
@@ -768,10 +1034,7 @@ export default function ServiceCreation() {
         includedServiceCodes: packageForm.includedServiceCodes,
         hasSpecifications: false,
         specifications: [],
-        categoryId: undefined,
-        categoryCode: undefined,
-        categoryNameEn: undefined,
-        categoryNameAr: undefined,
+        ...resolveCategoryCatalogFields(selectedCategory.id),
       };
 
       if (packageForm.id) {
@@ -802,10 +1065,14 @@ export default function ServiceCreation() {
     setSaving(true);
     try {
       if (pendingDelete.type === "category") {
-        const hasServices = services.some((s) => s.categoryId === pendingDelete.item.id);
-        if (hasServices) {
+        const descendantIds = getDescendantCategoryIds(pendingDelete.item.id);
+        const categoryIds = new Set([pendingDelete.item.id, ...Array.from(descendantIds)]);
+        const hasChildren = descendantIds.size > 0;
+        const hasServices = services.some((s) => categoryIds.has(String(s.categoryId || "")));
+        const hasPackages = packages.some((pkg) => categoryIds.has(String(pkg.categoryId || "")));
+        if (hasChildren || hasServices || hasPackages) {
           setBanner({
-            message: t("Cannot delete category that still has services. Move or delete services first."),
+            message: t("Cannot delete category that still has subcategories, services, or packages. Move or delete them first."),
             isError: true,
           });
           setPendingDelete(null);
@@ -813,6 +1080,9 @@ export default function ServiceCreation() {
         }
 
         await deleteServiceCategoryItem(pendingDelete.item.id);
+        if (selectedCategoryId === pendingDelete.item.id) {
+          setSelectedCategoryId(categoryParentId(pendingDelete.item));
+        }
         setBanner({ message: t("Category deleted successfully.") });
       } else if (pendingDelete.type === "specification") {
         const isAssigned = services.some((service) => service.specificationId === pendingDelete.item.id);
@@ -915,6 +1185,130 @@ export default function ServiceCreation() {
     </div>
   );
 
+  const renderCategoryCard = (category: ServiceCategoryItem) => {
+    const childCount = (childrenByParentId.get(category.id) || []).length;
+    const serviceCount = services.filter((service) => service.categoryId === category.id).length;
+    const packageCount = packages.filter((pkg) => pkg.categoryId === category.id).length;
+
+    return (
+      <article className="sc2-category-card sc2-tree-card" key={category.id}>
+        <header className="sc2-category-header" data-no-translate="true">
+          <button className="sc2-tree-title-button" type="button" onClick={() => setSelectedCategoryId(category.id)}>
+            <i className="fas fa-folder"></i>
+            <span>{displayBilingual(category.nameEn, category.nameAr)}</span>
+          </button>
+          <div className="sc2-inline-actions">
+            <button className="sc2-mini-btn" type="button" onClick={() => setSelectedCategoryId(category.id)}>{t("Open")}</button>
+            <PermissionGate moduleId="joborder" optionId="joborder_create">
+              <button className="sc2-mini-btn green" type="button" onClick={() => openCategoryModal(undefined, category.id)}>{t("Add Subcategory")}</button>
+            </PermissionGate>
+            <PermissionGate moduleId="joborder" optionId="joborder_create">
+              <button className="sc2-mini-btn" type="button" onClick={() => openServiceModal(undefined, category.id)}>{t("Add Service")}</button>
+            </PermissionGate>
+            <PermissionGate moduleId="joborder" optionId="joborder_create">
+              <button className="sc2-mini-btn warn" type="button" onClick={() => openPackageModal(undefined, category.id)}>{t("Add Package")}</button>
+            </PermissionGate>
+            <PermissionGate moduleId="joborder" optionId="joborder_create">
+              <button className="sc2-mini-btn warn" type="button" onClick={() => openCategoryModal(category)}>{t("Edit")}</button>
+            </PermissionGate>
+            <PermissionGate moduleId="joborder" optionId="joborder_create">
+              <button className="sc2-mini-btn danger" type="button" onClick={() => setPendingDelete({ type: "category", item: category })}>{t("Delete")}</button>
+            </PermissionGate>
+          </div>
+        </header>
+
+        <div className="sc2-category-path" data-no-translate="true">
+          <i className="fas fa-sitemap"></i> {categoryOptionLabel(category)}
+        </div>
+
+        {(category.descriptionEn || category.descriptionAr) && (
+          <div className="sc2-category-desc" data-no-translate="true">
+            <div><strong>{t("EN:")}</strong> {sanitizeEnglishText(category.descriptionEn) || "-"}</div>
+            <div><strong>{t("AR:")}</strong> {sanitizeArabicText(category.descriptionAr) || "-"}</div>
+          </div>
+        )}
+
+        <div className="sc2-tree-counts">
+          <span><i className="fas fa-folder-tree"></i> {childCount} {t("Subcategory")}</span>
+          <span><i className="fas fa-wrench"></i> {serviceCount} {t("Services")}</span>
+          <span><i className="fas fa-box-open"></i> {packageCount} {t("Packages")}</span>
+        </div>
+      </article>
+    );
+  };
+
+  const renderCatalogCard = (item: ServiceCatalogItem) => {
+    const isPackage = item.type === "package";
+    return (
+      <div className={`sc2-service-item sc2-catalog-item ${isPackage ? "package" : "service"}`} key={item.id}>
+        <div className="sc2-item-top" data-no-translate="true">
+          <div className="sc2-name-line">
+            <span className={`sc2-type-pill ${isPackage ? "package" : "service"}`}>
+              <i className={isPackage ? "fas fa-box-open" : "fas fa-wrench"}></i>
+              {isPackage ? t("Package") : t("Service")}
+            </span>
+            <span className="sc2-name" data-no-translate="true">
+              <span>{getEnglishDisplayText(item.name)}</span>
+              <span>{getArabicDisplayText(item.nameAr)}</span>
+            </span>
+          </div>
+          <div className="sc2-inline-actions">
+            <PermissionGate moduleId="joborder" optionId="joborder_create">
+              <button className="sc2-mini-btn" onClick={() => isPackage ? openPackageModal(item) : openServiceModal(item)}>{t("Edit")}</button>
+            </PermissionGate>
+            {!isPackage && (
+              <PermissionGate moduleId="joborder" optionId="joborder_create">
+                <button className="sc2-mini-btn warn" onClick={() => openServiceModal(item)}>
+                  {item.specificationId ? t("Change Brand Spec") : t("Set Brand Spec")}
+                </button>
+              </PermissionGate>
+            )}
+            <PermissionGate moduleId="joborder" optionId="joborder_create">
+              <button className="sc2-mini-btn danger" onClick={() => setPendingDelete({ type: "catalog", item })}>{t("Delete")}</button>
+            </PermissionGate>
+          </div>
+        </div>
+
+        <div className="sc2-category-path" data-no-translate="true">
+          <i className="fas fa-sitemap"></i> {displayBilingual((item as any).categoryPathEn || item.categoryNameEn, (item as any).categoryPathAr || item.categoryNameAr)}
+        </div>
+
+        <div className="sc2-dual-desc" data-no-translate="true">
+          <div><strong>{t("EN:")}</strong> {sanitizeEnglishText(item.descriptionEn) || "-"}</div>
+          <div><strong>{t("AR:")}</strong> {sanitizeArabicText(item.descriptionAr) || "-"}</div>
+        </div>
+
+        <div data-no-translate="true">{renderPriceChips(item)}</div>
+
+        {isPackage ? (
+          <div className="sc2-included" data-no-translate="true">
+            {(item.includedServiceCodes || []).map((code) => {
+              const service = serviceByCode.get(code);
+              return (
+                <span key={`${item.id}-${code}`} className="sc2-chip">
+                  {service ? displayBilingual(service.name, service.nameAr) : code}
+                </span>
+              );
+            })}
+          </div>
+        ) : item.hasSpecifications && item.specifications.length > 0 ? (
+          <div className="sc2-included" data-no-translate="true">
+            {item.specifications.map((brand) => (
+              <span
+                key={`${item.id}-${brand.id}`}
+                className="sc2-chip"
+                style={brand.colorHex ? { borderColor: brand.colorHex, color: brand.colorHex } : undefined}
+              >
+                {t("Brand")}: {brand.name}
+              </span>
+            ))}
+            <span className="sc2-chip">{item.specifications.length} {t("brands")}</span>
+          </div>
+        ) : null}
+      </div>
+    );
+  };
+
   const switchTab = (tab: Tab) => {
     flushSync(() => {
       setActiveTab(tab);
@@ -957,18 +1351,27 @@ export default function ServiceCreation() {
       {activeTab === "services" && (
         <section className="sc2-section">
           <div className="sc2-section-header">
-            <h2><i className="fas fa-cog"></i> {t("Services by Category")}</h2>
+            <h2><i className="fas fa-folder-tree"></i> {t("Services by Category")}</h2>
             <div className="sc2-actions-row">
               <PermissionGate moduleId="joborder" optionId="joborder_create">
-                <button className="sc2-btn green" onClick={() => openCategoryModal()}>
-                  <i className="fas fa-folder-plus"></i> {t("Add Category")}
+                <button className="sc2-btn green" onClick={() => openCategoryModal(undefined, currentCategory?.id || "")}>
+                  <i className="fas fa-folder-plus"></i> {currentCategory ? t("Add Subcategory") : t("Add Category")}
                 </button>
               </PermissionGate>
-              <PermissionGate moduleId="joborder" optionId="joborder_create">
-                <button className="sc2-btn blue" onClick={() => openServiceModal()}>
-                  <i className="fas fa-plus-circle"></i> {t("Add Service")}
-                </button>
-              </PermissionGate>
+              {currentCategory && (
+                <>
+                  <PermissionGate moduleId="joborder" optionId="joborder_create">
+                    <button className="sc2-btn blue" onClick={() => openServiceModal(undefined, currentCategory.id)}>
+                      <i className="fas fa-plus-circle"></i> {t("Add Service")}
+                    </button>
+                  </PermissionGate>
+                  <PermissionGate moduleId="joborder" optionId="joborder_create">
+                    <button className="sc2-btn blue" onClick={() => openPackageModal(undefined, currentCategory.id)}>
+                      <i className="fas fa-box-open"></i> {t("Add Package")}
+                    </button>
+                  </PermissionGate>
+                </>
+              )}
             </div>
           </div>
 
@@ -998,91 +1401,105 @@ export default function ServiceCreation() {
           <div className="sc2-stats-grid">
             <div className="sc2-stat-card"><strong>{categories.length}</strong><span>{t("Categories")}</span></div>
             <div className="sc2-stat-card"><strong>{services.length}</strong><span>{t("Total Services")}</span></div>
-            <div className="sc2-stat-card"><strong>{avgServicesPerCategory}</strong><span>{t("Avg Services/Cat")}</span></div>
+            <div className="sc2-stat-card"><strong>{packages.length}</strong><span>{t("Total Packages")}</span></div>
           </div>
 
           {loading && <div className="sc2-empty">{t("Loading services...")}</div>}
-          {!loading && filteredCategoryRows.length === 0 && <div className="sc2-empty">{t("No services match your search.")}</div>}
+          {!loading && (
+            <>
+              <nav className="sc2-breadcrumbs" data-no-translate="true">
+                <button type="button" onClick={() => setSelectedCategoryId("")}>
+                  <i className="fas fa-home"></i> {t("All Categories")}
+                </button>
+                {currentCategoryPath.map((category) => (
+                  <button key={category.id} type="button" onClick={() => setSelectedCategoryId(category.id)}>
+                    <i className="fas fa-chevron-right"></i> {displayBilingual(category.nameEn, category.nameAr)}
+                  </button>
+                ))}
+              </nav>
 
-          {!loading && filteredCategoryRows.map((row) => (
-            <article className="sc2-category-card" key={row.category.id}>
-              <header className="sc2-category-header" data-no-translate="true">
-                <div className="sc2-category-title">
-                  <i className="fas fa-folder"></i>
-                  <span>{displayBilingual(row.category.nameEn, row.category.nameAr)}</span>
-                  <small>{row.services.length} {t("services")}</small>
+              {!currentCategory && normalizedCatalogSearch ? (
+                <div className="sc2-tree-stack">
+                  <div className="sc2-tree-section-title"><i className="fas fa-folder-tree"></i> {t("Matching Categories")}</div>
+                  {searchedCategories.length ? (
+                    <div className="sc2-category-grid">{searchedCategories.map(renderCategoryCard)}</div>
+                  ) : (
+                    <div className="sc2-empty">{t("No categories match your search.")}</div>
+                  )}
+
+                  <div className="sc2-tree-section-title"><i className="fas fa-wrench"></i> {t("Matching Services")}</div>
+                  {searchedServices.length ? (
+                    <div className="sc2-services-wrap">{searchedServices.map(renderCatalogCard)}</div>
+                  ) : (
+                    <div className="sc2-empty">{t("No services match your search.")}</div>
+                  )}
+
+                  <div className="sc2-tree-section-title"><i className="fas fa-box-open"></i> {t("Matching Packages")}</div>
+                  {searchedPackages.length ? (
+                    <div className="sc2-services-wrap">{searchedPackages.map(renderCatalogCard)}</div>
+                  ) : (
+                    <div className="sc2-empty">{t("No packages match your search.")}</div>
+                  )}
                 </div>
-                {row.category.id !== "uncategorized" && (
-                  <div className="sc2-inline-actions">
-                    <PermissionGate moduleId="joborder" optionId="joborder_create">
-                      <button className="sc2-mini-btn warn" onClick={() => openCategoryModal(row.category)}>{t("Edit")}</button>
-                    </PermissionGate>
-                    <PermissionGate moduleId="joborder" optionId="joborder_create">
-                      <button className="sc2-mini-btn danger" onClick={() => setPendingDelete({ type: "category", item: row.category })}>{t("Delete")}</button>
-                    </PermissionGate>
-                  </div>
-                )}
-              </header>
+              ) : !currentCategory ? (
+                rootCategories.length ? (
+                  <div className="sc2-category-grid">{rootCategories.map(renderCategoryCard)}</div>
+                ) : (
+                  <div className="sc2-empty">{t("Click \"Add Category\" to create your first category.")}</div>
+                )
+              ) : (
+                <div className="sc2-tree-stack">
+                  <article className="sc2-current-category-panel">
+                    <div>
+                      <p className="sc2-kicker">{t("Current Category")}</p>
+                      <h3 data-no-translate="true">{displayBilingual(currentCategory.nameEn, currentCategory.nameAr)}</h3>
+                      <div className="sc2-category-path" data-no-translate="true">
+                        <i className="fas fa-sitemap"></i> {categoryOptionLabel(currentCategory)}
+                      </div>
+                    </div>
+                    <div className="sc2-inline-actions">
+                      <PermissionGate moduleId="joborder" optionId="joborder_create">
+                        <button className="sc2-mini-btn green" onClick={() => openCategoryModal(undefined, currentCategory.id)}>{t("Add Subcategory")}</button>
+                      </PermissionGate>
+                      <PermissionGate moduleId="joborder" optionId="joborder_create">
+                        <button className="sc2-mini-btn" onClick={() => openServiceModal(undefined, currentCategory.id)}>{t("Add Service")}</button>
+                      </PermissionGate>
+                      <PermissionGate moduleId="joborder" optionId="joborder_create">
+                        <button className="sc2-mini-btn warn" onClick={() => openPackageModal(undefined, currentCategory.id)}>{t("Add Package")}</button>
+                      </PermissionGate>
+                      <PermissionGate moduleId="joborder" optionId="joborder_create">
+                        <button className="sc2-mini-btn warn" onClick={() => openCategoryModal(currentCategory)}>{t("Edit")}</button>
+                      </PermissionGate>
+                      <PermissionGate moduleId="joborder" optionId="joborder_create">
+                        <button className="sc2-mini-btn danger" onClick={() => setPendingDelete({ type: "category", item: currentCategory })}>{t("Delete")}</button>
+                      </PermissionGate>
+                    </div>
+                  </article>
 
-              {(row.category.descriptionEn || row.category.descriptionAr) && (
-                <div className="sc2-category-desc" data-no-translate="true">
-                  <div><strong>{t("EN:")}</strong> {sanitizeEnglishText(row.category.descriptionEn) || "-"}</div>
-                  <div><strong>{t("AR:")}</strong> {sanitizeArabicText(row.category.descriptionAr) || "-"}</div>
+                  <div className="sc2-tree-section-title"><i className="fas fa-folder-tree"></i> {t("Subcategory")}</div>
+                  {currentSubcategories.length ? (
+                    <div className="sc2-category-grid">{currentSubcategories.map(renderCategoryCard)}</div>
+                  ) : (
+                    <div className="sc2-empty">{t("No subcategories in this category.")}</div>
+                  )}
+
+                  <div className="sc2-tree-section-title"><i className="fas fa-wrench"></i> {t("Services")}</div>
+                  {currentServices.length ? (
+                    <div className="sc2-services-wrap">{currentServices.map(renderCatalogCard)}</div>
+                  ) : (
+                    <div className="sc2-empty">{t("No services in this category.")}</div>
+                  )}
+
+                  <div className="sc2-tree-section-title"><i className="fas fa-box-open"></i> {t("Packages")}</div>
+                  {currentPackages.length ? (
+                    <div className="sc2-services-wrap">{currentPackages.map(renderCatalogCard)}</div>
+                  ) : (
+                    <div className="sc2-empty">{t("No packages in this category.")}</div>
+                  )}
                 </div>
               )}
-
-              <div className="sc2-services-wrap">
-                {row.services.map((service, idx) => (
-                  <div className="sc2-service-item" key={service.id}>
-                    <div className="sc2-item-top" data-no-translate="true">
-                      <div className="sc2-name-line">
-                        <span className="sc2-index-pill">{idx + 1}</span>
-                        <span className="sc2-name" data-no-translate="true">
-                          <span>{getEnglishDisplayText(service.name)}</span>
-                          <span>{getArabicDisplayText(service.nameAr)}</span>
-                        </span>
-                      </div>
-                      <div className="sc2-inline-actions">
-                        <PermissionGate moduleId="joborder" optionId="joborder_create">
-                          <button className="sc2-mini-btn" onClick={() => openServiceModal(service)}>{t("Edit")}</button>
-                        </PermissionGate>
-                        <PermissionGate moduleId="joborder" optionId="joborder_create">
-                          <button className="sc2-mini-btn warn" onClick={() => openServiceModal(service)}>
-                            {service.specificationId ? t("Change Brand Spec") : t("Set Brand Spec")}
-                          </button>
-                        </PermissionGate>
-                        <PermissionGate moduleId="joborder" optionId="joborder_create">
-                          <button className="sc2-mini-btn danger" onClick={() => setPendingDelete({ type: "catalog", item: service })}>{t("Delete")}</button>
-                        </PermissionGate>
-                      </div>
-                    </div>
-
-                    <div className="sc2-dual-desc" data-no-translate="true">
-                      <div><strong>{t("EN:")}</strong> {sanitizeEnglishText(service.descriptionEn) || "-"}</div>
-                      <div><strong>{t("AR:")}</strong> {sanitizeArabicText(service.descriptionAr) || "-"}</div>
-                    </div>
-
-                    <div data-no-translate="true">{renderPriceChips(service)}</div>
-
-                    {service.hasSpecifications && service.specifications.length > 0 && (
-                      <div className="sc2-included" data-no-translate="true">
-                        {service.specifications.map((brand) => (
-                          <span
-                            key={`${service.id}-${brand.id}`}
-                            className="sc2-chip"
-                            style={brand.colorHex ? { borderColor: brand.colorHex, color: brand.colorHex } : undefined}
-                          >
-                            {t("Brand")}: {brand.name}
-                          </span>
-                        ))}
-                        <span className="sc2-chip">{service.specifications.length} {t("brands")}</span>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </article>
-          ))}
+            </>
+          )}
         </section>
       )}
 
@@ -1249,6 +1666,22 @@ export default function ServiceCreation() {
                   <button onClick={closeModal}>✕</button>
                 </div>
                 <div className="sc2-modal-body">
+                  <div className="sc2-grid-1">
+                    <label>
+                      <span>{t("Parent Category")}</span>
+                      <select
+                        value={categoryForm.parentCategoryId}
+                        onChange={(e) => setCategoryForm((p) => ({ ...p, parentCategoryId: e.target.value }))}
+                      >
+                        <option value="">{t("Root category")}</option>
+                        {selectableCategories
+                          .filter((cat) => cat.id !== categoryForm.id && !(categoryForm.id && getDescendantCategoryIds(categoryForm.id).has(cat.id)))
+                          .map((cat) => (
+                            <option key={cat.id} value={cat.id}>{categoryOptionLabel(cat)}</option>
+                          ))}
+                      </select>
+                    </label>
+                  </div>
                   <div className="sc2-grid-2">
                     <label>
                       <span>{t("English Name *")}</span>
@@ -1286,8 +1719,8 @@ export default function ServiceCreation() {
                         onChange={(e) => setServiceForm((p) => ({ ...p, categoryId: e.target.value }))}
                       >
                         <option value="">{t("Select a category")}</option>
-                        {categories.map((cat) => (
-                          <option key={cat.id} value={cat.id}>{cat.nameEn} / {cat.nameAr}</option>
+                        {selectableCategories.map((cat) => (
+                          <option key={cat.id} value={cat.id}>{categoryOptionLabel(cat)}</option>
                         ))}
                       </select>
                     </label>
@@ -1389,6 +1822,18 @@ export default function ServiceCreation() {
 
                   <div className="sc2-grid-1">
                     <label>
+                      <span>{t("Service Category *")}</span>
+                      <select
+                        value={packageForm.categoryId}
+                        onChange={(e) => setPackageForm((p) => ({ ...p, categoryId: e.target.value }))}
+                      >
+                        <option value="">{t("Select a category")}</option>
+                        {selectableCategories.map((cat) => (
+                          <option key={cat.id} value={cat.id}>{categoryOptionLabel(cat)}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label>
                       <span>{t("Package ID *")}</span>
                       <input value={packageForm.packageCode} onChange={(e) => setPackageForm((p) => ({ ...p, packageCode: e.target.value.toUpperCase() }))} placeholder={t("e.g. PKG001")} />
                     </label>
@@ -1408,7 +1853,7 @@ export default function ServiceCreation() {
                   <div className="sc2-checklist" data-no-translate="true">
                     {categoryRows.map((row) => (
                       <div key={`pkg-${row.category.id}`} className="sc2-checklist-group">
-                        <div className="sc2-group-title">{displayBilingual(row.category.nameEn, row.category.nameAr)}</div>
+                        <div className="sc2-group-title">{categoryOptionLabel(row.category as ServiceCategoryItem)}</div>
                         {row.services.map((service) => {
                           const checked = packageForm.includedServiceCodes.includes(service.serviceCode);
                           return (

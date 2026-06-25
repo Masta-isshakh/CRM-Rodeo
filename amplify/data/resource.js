@@ -178,10 +178,17 @@ const schema = a
     })
         .authorization((allow) => [allow.authenticated()]),
     ServiceCategory: a
-        .model({
+      .model({
         categoryCode: a.string().required(),
         nameEn: a.string().required(),
         nameAr: a.string().required(),
+        parentCategoryId: a.id(),
+        parentCategoryCode: a.string(),
+        parentCategoryNameEn: a.string(),
+        parentCategoryNameAr: a.string(),
+        categoryPathEn: a.string(),
+        categoryPathAr: a.string(),
+        categoryLevel: a.integer(),
         descriptionEn: a.string(),
         descriptionAr: a.string(),
         isActive: a.boolean().default(true),
@@ -213,6 +220,8 @@ const schema = a
         categoryCode: a.string(),
         categoryNameEn: a.string(),
         categoryNameAr: a.string(),
+        categoryPathEn: a.string(),
+        categoryPathAr: a.string(),
         specificationId: a.id(),
         specificationName: a.string(),
         specificationColorHex: a.string(),

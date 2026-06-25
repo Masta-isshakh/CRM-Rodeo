@@ -32,6 +32,13 @@ export type ServiceCategoryItem = {
   categoryCode: string;
   nameEn: string;
   nameAr: string;
+  parentCategoryId?: string;
+  parentCategoryCode?: string;
+  parentCategoryNameEn?: string;
+  parentCategoryNameAr?: string;
+  categoryPathEn?: string;
+  categoryPathAr?: string;
+  categoryLevel?: number;
   descriptionEn?: string;
   descriptionAr?: string;
   isActive: boolean;
@@ -50,6 +57,8 @@ export type ServiceCatalogItem = {
   categoryCode?: string;
   categoryNameEn?: string;
   categoryNameAr?: string;
+  categoryPathEn?: string;
+  categoryPathAr?: string;
   specificationId?: string;
   specificationName?: string;
   specificationColorHex?: string;
@@ -178,11 +187,20 @@ function normalizeBilingualValue(nameEn: unknown, nameAr: unknown, fallback = ""
 
 function mapCategoryRow(row: any): ServiceCategoryItem {
   const names = normalizeBilingualValue(row?.nameEn, row?.nameAr);
+  const parentNames = normalizeBilingualValue(row?.parentCategoryNameEn, row?.parentCategoryNameAr);
+  const level = Number(row?.categoryLevel);
   return {
     id: String(row?.id || ""),
     categoryCode: String(row?.categoryCode || "").trim(),
     nameEn: names.en,
     nameAr: names.ar,
+    parentCategoryId: row?.parentCategoryId ? String(row.parentCategoryId).trim() : undefined,
+    parentCategoryCode: row?.parentCategoryCode ? String(row.parentCategoryCode).trim() : undefined,
+    parentCategoryNameEn: parentNames.en || undefined,
+    parentCategoryNameAr: parentNames.ar || undefined,
+    categoryPathEn: row?.categoryPathEn ? sanitizeEnglishScript(row.categoryPathEn) : undefined,
+    categoryPathAr: row?.categoryPathAr ? sanitizeArabicScript(row.categoryPathAr) : undefined,
+    categoryLevel: Number.isFinite(level) ? level : undefined,
     descriptionEn: row?.descriptionEn ? sanitizeEnglishScript(row.descriptionEn) : undefined,
     descriptionAr: row?.descriptionAr ? sanitizeArabicScript(row.descriptionAr) : undefined,
     isActive: row?.isActive !== false,
@@ -241,6 +259,8 @@ function mapServiceRow(row: any, specificationsById?: Map<string, ServiceBrandSp
     categoryCode: row?.categoryCode ? String(row.categoryCode) : undefined,
     categoryNameEn: categoryNames.en || undefined,
     categoryNameAr: categoryNames.ar || undefined,
+    categoryPathEn: row?.categoryPathEn ? sanitizeEnglishScript(row.categoryPathEn) : undefined,
+    categoryPathAr: row?.categoryPathAr ? sanitizeArabicScript(row.categoryPathAr) : undefined,
     specificationId,
     specificationName: specification?.brandName || (row?.specificationName ? String(row.specificationName) : undefined),
     specificationColorHex: specification?.colorHex || (row?.specificationColorHex ? String(row.specificationColorHex) : undefined),
@@ -365,6 +385,8 @@ export async function createServiceCatalogItem(input: {
   categoryCode?: string;
   categoryNameEn?: string;
   categoryNameAr?: string;
+  categoryPathEn?: string;
+  categoryPathAr?: string;
   specificationId?: string;
   specificationName?: string;
   specificationColorHex?: string;
@@ -395,6 +417,8 @@ export async function createServiceCatalogItem(input: {
     categoryCode: input.categoryCode ? String(input.categoryCode).trim() : undefined,
     categoryNameEn: input.categoryNameEn ? String(input.categoryNameEn).trim() : undefined,
     categoryNameAr: input.categoryNameAr ? String(input.categoryNameAr).trim() : undefined,
+    categoryPathEn: input.categoryPathEn ? String(input.categoryPathEn).trim() : undefined,
+    categoryPathAr: input.categoryPathAr ? String(input.categoryPathAr).trim() : undefined,
     specificationId: input.specificationId || undefined,
     specificationName: input.specificationName ? String(input.specificationName).trim() : undefined,
     specificationColorHex: input.specificationColorHex ? String(input.specificationColorHex).trim() : undefined,
@@ -409,8 +433,8 @@ export async function createServiceCatalogItem(input: {
     coupePrice: toOptionalNumber(input.coupePrice),
     otherPrice: toOptionalNumber(input.otherPrice),
     includedServiceCodesJson: JSON.stringify(input.includedServiceCodes || []),
-    hasSpecifications: input.type === "service" && input.hasSpecifications === true,
-    specificationsJson: JSON.stringify(input.type === "service" ? input.specifications || [] : []),
+    hasSpecifications: input.hasSpecifications === true,
+    specificationsJson: JSON.stringify(input.specifications || []),
     isActive: input.isActive !== false,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -435,6 +459,8 @@ export async function updateServiceCatalogItem(input: {
   categoryCode?: string;
   categoryNameEn?: string;
   categoryNameAr?: string;
+  categoryPathEn?: string;
+  categoryPathAr?: string;
   specificationId?: string;
   specificationName?: string;
   specificationColorHex?: string;
@@ -466,6 +492,8 @@ export async function updateServiceCatalogItem(input: {
     categoryCode: input.categoryCode ? String(input.categoryCode).trim() : undefined,
     categoryNameEn: input.categoryNameEn ? String(input.categoryNameEn).trim() : undefined,
     categoryNameAr: input.categoryNameAr ? String(input.categoryNameAr).trim() : undefined,
+    categoryPathEn: input.categoryPathEn ? String(input.categoryPathEn).trim() : undefined,
+    categoryPathAr: input.categoryPathAr ? String(input.categoryPathAr).trim() : undefined,
     specificationId: input.specificationId || undefined,
     specificationName: input.specificationName ? String(input.specificationName).trim() : undefined,
     specificationColorHex: input.specificationColorHex ? String(input.specificationColorHex).trim() : undefined,
@@ -480,8 +508,8 @@ export async function updateServiceCatalogItem(input: {
     coupePrice: toOptionalNumber(input.coupePrice),
     otherPrice: toOptionalNumber(input.otherPrice),
     includedServiceCodesJson: JSON.stringify(input.includedServiceCodes || []),
-    hasSpecifications: input.type === "service" && input.hasSpecifications === true,
-    specificationsJson: JSON.stringify(input.type === "service" ? input.specifications || [] : []),
+    hasSpecifications: input.hasSpecifications === true,
+    specificationsJson: JSON.stringify(input.specifications || []),
     isActive: input.isActive !== false,
     updatedAt: new Date().toISOString(),
   };
@@ -569,6 +597,13 @@ export async function createServiceCategoryItem(input: {
   categoryCode: string;
   nameEn: string;
   nameAr: string;
+  parentCategoryId?: string;
+  parentCategoryCode?: string;
+  parentCategoryNameEn?: string;
+  parentCategoryNameAr?: string;
+  categoryPathEn?: string;
+  categoryPathAr?: string;
+  categoryLevel?: number;
   descriptionEn?: string;
   descriptionAr?: string;
   isActive?: boolean;
@@ -579,6 +614,13 @@ export async function createServiceCategoryItem(input: {
     categoryCode: String(input.categoryCode || "").trim(),
     nameEn: String(input.nameEn || "").trim(),
     nameAr: String(input.nameAr || "").trim(),
+    parentCategoryId: input.parentCategoryId || undefined,
+    parentCategoryCode: input.parentCategoryCode ? String(input.parentCategoryCode).trim() : undefined,
+    parentCategoryNameEn: input.parentCategoryNameEn ? String(input.parentCategoryNameEn).trim() : undefined,
+    parentCategoryNameAr: input.parentCategoryNameAr ? String(input.parentCategoryNameAr).trim() : undefined,
+    categoryPathEn: input.categoryPathEn ? String(input.categoryPathEn).trim() : undefined,
+    categoryPathAr: input.categoryPathAr ? String(input.categoryPathAr).trim() : undefined,
+    categoryLevel: Number.isFinite(Number(input.categoryLevel)) ? Number(input.categoryLevel) : undefined,
     descriptionEn: input.descriptionEn ? String(input.descriptionEn).trim() : undefined,
     descriptionAr: input.descriptionAr ? String(input.descriptionAr).trim() : undefined,
     isActive: input.isActive !== false,
@@ -599,6 +641,13 @@ export async function updateServiceCategoryItem(input: {
   categoryCode: string;
   nameEn: string;
   nameAr: string;
+  parentCategoryId?: string;
+  parentCategoryCode?: string;
+  parentCategoryNameEn?: string;
+  parentCategoryNameAr?: string;
+  categoryPathEn?: string;
+  categoryPathAr?: string;
+  categoryLevel?: number;
   descriptionEn?: string;
   descriptionAr?: string;
   isActive?: boolean;
@@ -610,6 +659,13 @@ export async function updateServiceCategoryItem(input: {
     categoryCode: String(input.categoryCode || "").trim(),
     nameEn: String(input.nameEn || "").trim(),
     nameAr: String(input.nameAr || "").trim(),
+    parentCategoryId: input.parentCategoryId || undefined,
+    parentCategoryCode: input.parentCategoryCode ? String(input.parentCategoryCode).trim() : undefined,
+    parentCategoryNameEn: input.parentCategoryNameEn ? String(input.parentCategoryNameEn).trim() : undefined,
+    parentCategoryNameAr: input.parentCategoryNameAr ? String(input.parentCategoryNameAr).trim() : undefined,
+    categoryPathEn: input.categoryPathEn ? String(input.categoryPathEn).trim() : undefined,
+    categoryPathAr: input.categoryPathAr ? String(input.categoryPathAr).trim() : undefined,
+    categoryLevel: Number.isFinite(Number(input.categoryLevel)) ? Number(input.categoryLevel) : undefined,
     descriptionEn: input.descriptionEn ? String(input.descriptionEn).trim() : undefined,
     descriptionAr: input.descriptionAr ? String(input.descriptionAr).trim() : undefined,
     isActive: input.isActive !== false,
