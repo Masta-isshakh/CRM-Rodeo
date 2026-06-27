@@ -609,6 +609,16 @@ function buildServiceCategoryCascade(products: any[], categories: any[] = []) {
   }
 
   const productByCode = getCatalogProductByCode(products);
+  const addCategoryValueWithAncestors = (target: Set<string>, categoryValue: string) => {
+    const seen = new Set<string>();
+    let cursor = String(categoryValue || "").trim();
+    while (cursor && !seen.has(cursor)) {
+      seen.add(cursor);
+      target.add(cursor);
+      const node = nodesByValue.get(cursor);
+      cursor = String(node?.parentValue || "").trim();
+    }
+  };
 
   for (const product of products || []) {
     const productKey = getCatalogProductIdentity(product);
@@ -617,14 +627,14 @@ function buildServiceCategoryCascade(products: any[], categories: any[] = []) {
     const directCategoryId = String(product?.categoryId || "").trim();
 
     if (directCategoryId && categoryById.has(directCategoryId)) {
-      categoryValues.add(`cat:${directCategoryId}`);
+      addCategoryValueWithAncestors(categoryValues, `cat:${directCategoryId}`);
     } else if (getCatalogProductType(product) === "package") {
       const includedCodes = Array.isArray(product?.includedServiceCodes) ? product.includedServiceCodes : [];
       for (const code of includedCodes) {
         const child = productByCode.get(normalizeCatalogKey(code));
         const childCategoryId = String(child?.categoryId || "").trim();
         if (childCategoryId && categoryById.has(childCategoryId)) {
-          categoryValues.add(`cat:${childCategoryId}`);
+          addCategoryValueWithAncestors(categoryValues, `cat:${childCategoryId}`);
         }
       }
     }
@@ -634,7 +644,7 @@ function buildServiceCategoryCascade(products: any[], categories: any[] = []) {
       for (const path of paths) {
         path.forEach(upsertNode);
         const leaf = path[path.length - 1]?.value;
-        if (leaf) categoryValues.add(leaf);
+        if (leaf) addCategoryValueWithAncestors(categoryValues, leaf);
       }
     }
 
@@ -4140,6 +4150,13 @@ function StepThreeServices({
         .map((segment: any) => segment),
     [categoryDropdownLevels, t]
   );
+  const selectedCategoryAndDescendants = useMemo(() => {
+    if (!selectedCategoryValue) return new Set<string>();
+    return (
+      serviceCategoryCascade.descendantValuesByNode.get(selectedCategoryValue) ||
+      new Set<string>([selectedCategoryValue])
+    );
+  }, [selectedCategoryValue, serviceCategoryCascade]);
 
   const handleCategoryPathChange = useCallback((levelIndex: number, value: string) => {
     setSelectedCategoryPath((current) => {
@@ -4173,15 +4190,12 @@ function StepThreeServices({
       const searchOk = productMatchesServiceSearch(p, normalizedServiceSearch);
       if (!selectedCategoryValue) return !!normalizedServiceSearch && searchOk;
       const productKey = getCatalogProductIdentity(p);
-      const selectedCategoryAndDescendants =
-        serviceCategoryCascade.descendantValuesByNode.get(selectedCategoryValue) ||
-        new Set<string>([selectedCategoryValue]);
       const productCategories = serviceCategoryCascade.productCategoryValues.get(productKey);
       const categoryOk =
         !!productCategories &&
         Array.from(productCategories).some((value) => selectedCategoryAndDescendants.has(value));
       return Boolean(categoryOk) && searchOk;
-    }), [products, selectedCategoryValue, serviceCategoryCascade, normalizedServiceSearch]);
+    }), [products, selectedCategoryValue, serviceCategoryCascade, selectedCategoryAndDescendants, normalizedServiceSearch]);
 
   const filteredCompletedOrdersServices = useMemo(() => {
     if (!normalizedServiceSearch) return completedOrdersServices;
