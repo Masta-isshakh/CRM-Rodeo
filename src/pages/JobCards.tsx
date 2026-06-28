@@ -609,16 +609,6 @@ function buildServiceCategoryCascade(products: any[], categories: any[] = []) {
   }
 
   const productByCode = getCatalogProductByCode(products);
-  const addCategoryValueWithAncestors = (target: Set<string>, categoryValue: string) => {
-    const seen = new Set<string>();
-    let cursor = String(categoryValue || "").trim();
-    while (cursor && !seen.has(cursor)) {
-      seen.add(cursor);
-      target.add(cursor);
-      const node = nodesByValue.get(cursor);
-      cursor = String(node?.parentValue || "").trim();
-    }
-  };
 
   for (const product of products || []) {
     const productKey = getCatalogProductIdentity(product);
@@ -627,14 +617,14 @@ function buildServiceCategoryCascade(products: any[], categories: any[] = []) {
     const directCategoryId = String(product?.categoryId || "").trim();
 
     if (directCategoryId && categoryById.has(directCategoryId)) {
-      addCategoryValueWithAncestors(categoryValues, `cat:${directCategoryId}`);
+      categoryValues.add(`cat:${directCategoryId}`);
     } else if (getCatalogProductType(product) === "package") {
       const includedCodes = Array.isArray(product?.includedServiceCodes) ? product.includedServiceCodes : [];
       for (const code of includedCodes) {
         const child = productByCode.get(normalizeCatalogKey(code));
         const childCategoryId = String(child?.categoryId || "").trim();
         if (childCategoryId && categoryById.has(childCategoryId)) {
-          addCategoryValueWithAncestors(categoryValues, `cat:${childCategoryId}`);
+          categoryValues.add(`cat:${childCategoryId}`);
         }
       }
     }
@@ -644,7 +634,7 @@ function buildServiceCategoryCascade(products: any[], categories: any[] = []) {
       for (const path of paths) {
         path.forEach(upsertNode);
         const leaf = path[path.length - 1]?.value;
-        if (leaf) addCategoryValueWithAncestors(categoryValues, leaf);
+        if (leaf) categoryValues.add(leaf);
       }
     }
 
