@@ -230,6 +230,11 @@ function getCatalogProductByCode(products: any[]) {
   return byCode;
 }
 
+function getCategoryIdFromCascadeValue(value: any) {
+  const text = String(value || "").trim();
+  return text.startsWith("cat:") ? text.slice(4).trim() : "";
+}
+
 function getSelectableSpecificationProduct(product: any, products: any[] = []) {
   if (hasServiceSpecifications(product)) return product;
   if (getCatalogProductType(product) !== "package") return product;
@@ -656,6 +661,7 @@ function buildServiceCategoryCascade(products: any[], categories: any[] = []) {
   });
 
   const descendantValuesByNode = new Map<string, Set<string>>();
+  const descendantCategoryIdsByNode = new Map<string, Set<string>>();
   const collectDescendants = (nodeValue: string): Set<string> => {
     const cached = descendantValuesByNode.get(nodeValue);
     if (cached) return cached;
@@ -674,10 +680,16 @@ function buildServiceCategoryCascade(products: any[], categories: any[] = []) {
   };
 
   nodesByValue.forEach((_, nodeValue) => {
-    collectDescendants(nodeValue);
+    const descendants = collectDescendants(nodeValue);
+    const categoryIds = new Set<string>();
+    descendants.forEach((value) => {
+      const categoryId = getCategoryIdFromCascadeValue(value);
+      if (categoryId) categoryIds.add(categoryId);
+    });
+    descendantCategoryIdsByNode.set(nodeValue, categoryIds);
   });
 
-  return { nodesByValue, childrenByParent, productCategoryValues, descendantValuesByNode };
+  return { nodesByValue, childrenByParent, productCategoryValues, descendantValuesByNode, descendantCategoryIdsByNode };
 }
 
 function buildCategoryDropdownLevels(categoryCascade: any, selectedPath: string[]) {
@@ -4115,6 +4127,7 @@ function StepThreeServices({
     () => buildServiceCategoryCascade(products, serviceCategories),
     [products, serviceCategories]
   );
+  const catalogProductsByCode = useMemo(() => getCatalogProductByCode(products), [products]);
   const categoryDropdownLevels = useMemo(
     () => buildCategoryDropdownLevels(serviceCategoryCascade, selectedCategoryPath),
     [serviceCategoryCascade, selectedCategoryPath]
@@ -4146,6 +4159,13 @@ function StepThreeServices({
       serviceCategoryCascade.descendantValuesByNode.get(selectedCategoryValue) ||
       new Set<string>([selectedCategoryValue])
     );
+  }, [selectedCategoryValue, serviceCategoryCascade]);
+  const selectedCategoryIdsAndDescendantIds = useMemo(() => {
+    if (!selectedCategoryValue) return new Set<string>();
+    const categoryIds = serviceCategoryCascade.descendantCategoryIdsByNode.get(selectedCategoryValue);
+    if (categoryIds?.size) return categoryIds;
+    const directCategoryId = getCategoryIdFromCascadeValue(selectedCategoryValue);
+    return directCategoryId ? new Set<string>([directCategoryId]) : new Set<string>();
   }, [selectedCategoryValue, serviceCategoryCascade]);
 
   const handleCategoryPathChange = useCallback((levelIndex: number, value: string) => {
@@ -4179,13 +4199,37 @@ function StepThreeServices({
     products.filter((p: any) => {
       const searchOk = productMatchesServiceSearch(p, normalizedServiceSearch);
       if (!selectedCategoryValue) return !!normalizedServiceSearch && searchOk;
+      const directCategoryId = String(p?.categoryId || "").trim();
+      if (directCategoryId) {
+        return selectedCategoryIdsAndDescendantIds.has(directCategoryId) && searchOk;
+      }
+
+      if (getCatalogProductType(p) === "package") {
+        const includedCodes = Array.isArray(p?.includedServiceCodes) ? p.includedServiceCodes : [];
+        const packageChildCategoryIds = includedCodes
+          .map((code: any) => catalogProductsByCode.get(normalizeCatalogKey(code)))
+          .map((child: any) => String(child?.categoryId || "").trim())
+          .filter(Boolean);
+        if (packageChildCategoryIds.length) {
+          return packageChildCategoryIds.some((categoryId: string) => selectedCategoryIdsAndDescendantIds.has(categoryId)) && searchOk;
+        }
+      }
+
       const productKey = getCatalogProductIdentity(p);
       const productCategories = serviceCategoryCascade.productCategoryValues.get(productKey);
       const categoryOk =
         !!productCategories &&
         Array.from(productCategories).some((value) => selectedCategoryAndDescendants.has(value));
       return Boolean(categoryOk) && searchOk;
-    }), [products, selectedCategoryValue, serviceCategoryCascade, selectedCategoryAndDescendants, normalizedServiceSearch]);
+    }), [
+      products,
+      selectedCategoryValue,
+      selectedCategoryIdsAndDescendantIds,
+      catalogProductsByCode,
+      serviceCategoryCascade,
+      selectedCategoryAndDescendants,
+      normalizedServiceSearch,
+    ]);
 
   const filteredCompletedOrdersServices = useMemo(() => {
     if (!normalizedServiceSearch) return completedOrdersServices;
