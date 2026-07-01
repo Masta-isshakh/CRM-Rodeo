@@ -7,7 +7,6 @@ import "./JobOrderHistory.css";
 import "./JobCards.css";
 
 import ServiceSummaryCard from "./ServiceSummaryCard";
-import SuccessPopup from "./SuccessPopup";
 import PermissionGate from "./PermissionGate";
 import UnifiedJobOrderRoadmap from "../components/UnifiedJobOrderRoadmap";
 import { UnifiedCustomerInfoCard, UnifiedVehicleInfoCard } from "../components/UnifiedCustomerVehicleCards";
@@ -53,11 +52,6 @@ function safeJsonParse<T>(raw: any, fallback: T): T {
   } catch {
     return fallback;
   }
-}
-
-function errMsg(e: unknown) {
-  const anyE = e as any;
-  return String(anyE?.message ?? anyE?.errors?.[0]?.message ?? anyE ?? "Unknown error");
 }
 
 function slugify(s: string) {
@@ -631,9 +625,6 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   // âœ… THIS is what enables Edit/Add service to work
   const [detailsEditMode, setDetailsEditMode] = useState(false);
 
-  const [showSuccessPopup, setShowSuccessPopup] = useState(false);
-  const [successMessage, setSuccessMessage] = useState("");
-
   const [showCancelConfirmation, setShowCancelConfirmation] = useState(false);
   const [cancelOrderId, setCancelOrderId] = useState<string | null>(null);
 
@@ -1115,8 +1106,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
       flushSync(() => { setCurrentDetailsJob(merged); setDetailsEditMode(false); setShowDetails(true); });
       })(), t("Loading service details..."));
     } catch (e) {
-      setSuccessMessage(`${t("Load failed:")} ${errMsg(e)}`);
-      setShowSuccessPopup(true);
+      console.warn("Service execution details load failed:", e);
     } finally {
       setLoading(false);
     }
@@ -1157,7 +1147,6 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   const persistJobWithOptions = async (
     job: any,
     options?: {
-      successText?: string;
       refetchDetails?: boolean;
     }
   ): Promise<boolean> => {
@@ -1218,10 +1207,6 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
       detailsCacheRef.current.delete(orderNumber);
       syncJobIntoList({ ...job, services, roadmap, workStatus: workStatusLabel });
-      if (options?.successText) {
-        setSuccessMessage(options.successText);
-        setShowSuccessPopup(true);
-      }
       if (refetchDetails && job?.id) {
         const refreshed = await getJobOrderByOrderNumber(job.id);
         if (refreshed) setCurrentDetailsJob((prev: any) => ({ ...prev, ...refreshed }));
@@ -1335,9 +1320,6 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
         t("Saving services...")
       );
       if (!saved) return false;
-
-      setSuccessMessage(`${t("Added successfully")}: "${serviceName}".`);
-      setShowSuccessPopup(true);
       return true;
     } finally {
       setIsAddingService(false);
@@ -1387,7 +1369,6 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
       setCurrentDetailsJob(updated);
       syncJobIntoList(updated);
       await persistJobWithOptions(updated, {
-        successText: t("Work finished! Status changed to Quality Check."),
         refetchDetails: false,
       });
     } finally {
@@ -1406,12 +1387,9 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     setLoading(true);
     try {
       await cancelJobOrderByOrderNumber(cancelOrderId);
-      setSuccessMessage(`${t("Order")} ${cancelOrderId} ${t("cancelled successfully.")}`);
-      setShowSuccessPopup(true);
       closeDetails();
     } catch (e) {
-      setSuccessMessage(`${t("Cancel failed:")} ${errMsg(e)}`);
-      setShowSuccessPopup(true);
+      console.warn("Service execution cancel failed:", e);
     } finally {
       setLoading(false);
       setShowCancelConfirmation(false);
@@ -1514,8 +1492,6 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
               </PermissionGate>
             </div>
           </div>
-
-          <SuccessPopup isVisible={showSuccessPopup} onClose={() => setShowSuccessPopup(false)} message={successMessage} />
         </div>
       </div>
     );
@@ -1778,8 +1754,6 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
           </div>
         </div>
       </PermissionGate>
-
-      <SuccessPopup isVisible={showSuccessPopup} onClose={() => setShowSuccessPopup(false)} message={successMessage} />
     </div>
   );
 };
