@@ -20,7 +20,6 @@ import { getDataClient } from "../lib/amplifyClient";
 import {
   cancelJobOrderByOrderNumber,
   getJobOrderByOrderNumber,
-  upsertJobOrder,
 } from "./jobOrderRepo";
 
 import { getUrl } from "aws-amplify/storage";
@@ -256,6 +255,7 @@ function toBilingualName(nameEn: any, nameAr: any, fallback = "Unnamed service")
 }
 
 type AssigneeOption = { value: string; label: string };
+type ServiceExecutionTab = "assigned" | "unassigned" | "team" | "completed";
 
 function normalizeServices(orderNumber: string, services: any[]) {
   const list = Array.isArray(services) ? services : [];
@@ -303,10 +303,57 @@ function normalizeServices(orderNumber: string, services: any[]) {
   });
 }
 
+function normalizeServiceStatus(value: any) {
+  return String(value ?? "").trim().toLowerCase().replace(/[\s_]+/g, "");
+}
+
+function isCompletedServiceStatus(value: any) {
+  return normalizeServiceStatus(value) === "completed";
+}
+
+function isInactiveServiceStatus(value: any) {
+  const status = normalizeServiceStatus(value);
+  return status === "completed" || status === "cancelled" || status === "canceled" || status === "postponed";
+}
+
+function hasOnlyCompletedServices(services: any[]) {
+  const list = Array.isArray(services) ? services : [];
+  return list.length > 0 && list.every((service: any) => isCompletedServiceStatus(service?.status));
+}
+
 function pickNextActiveService(services: any[]) {
-  return (services || []).find(
-    (s: any) => s.status !== "Completed" && s.status !== "Cancelled" && s.status !== "Postponed"
-  );
+  return (services || []).find((s: any) => !isInactiveServiceStatus(s?.status));
+}
+
+function getServiceOperationStep(job: any) {
+  return (job?.roadmap || []).find((s: any) => isServiceOperationStep(s.step));
+}
+
+function isServiceExecutionTaskCandidate(job: any) {
+  return Boolean(getServiceOperationStep(job) || isServiceExecutionWorkStatus(job?.workStatus));
+}
+
+function isServiceExecutionActiveTask(job: any) {
+  const inprogressStep = getServiceOperationStep(job);
+  const roadmapActive = inprogressStep && inprogressStep.stepStatus === "Active";
+  const workStatusActive = isServiceExecutionWorkStatus(job.workStatus);
+  return Boolean(roadmapActive || workStatusActive);
+}
+
+function isCompletedServiceExecutionTask(job: any) {
+  return isServiceExecutionTaskCandidate(job) && hasOnlyCompletedServices(job?.services);
+}
+
+function mapServiceExecutionWorkStatusToDbStatus(value: any) {
+  const raw = String(value ?? "").trim().toLowerCase();
+  const compact = raw.replace(/[\s_]+/g, "");
+
+  if (raw === "cancelled" || raw === "canceled") return "CANCELLED";
+  if (raw === "completed") return "COMPLETED";
+  if (raw === "ready" || raw === "quality check") return "READY";
+  if (compact === "inprogress" || compact === "serviceoperation" || raw === "inspection") return "IN_PROGRESS";
+  if (compact === "draft") return "DRAFT";
+  return "OPEN";
 }
 
 async function resolveMaybeStorageUrl(urlOrPath: string): Promise<string> {
@@ -571,7 +618,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   };
 
   // UI state
-  const [currentTab, setCurrentTab] = useState<"assigned" | "unassigned" | "team">("assigned");
+  const [currentTab, setCurrentTab] = useState<ServiceExecutionTab>("assigned");
   const [currentSearch, setCurrentSearch] = useState("");
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
@@ -595,7 +642,6 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   const activeDropdownRef = useRef<string | null>(null);
   const pendingPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPersistJobRef = useRef<any | null>(null);
-  const pendingPersistOptionsRef = useRef<{ showErrorPopup?: boolean } | null>(null);
   const detailsCacheRef = useRef<Map<string, any>>(new Map());
   const paymentRowsCacheRef = useRef<Map<string, any[]>>(new Map());
   const normalizedInvoicesCacheRef = useRef<Map<string, any[]>>(new Map());
@@ -795,13 +841,13 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     let list = [...jobs];
 
     list = list.filter((job) => {
-      const inprogressStep = job.roadmap?.find((s: any) => isServiceOperationStep(s.step));
-      const roadmapActive = inprogressStep && inprogressStep.stepStatus === "Active";
-      const workStatusActive = isServiceExecutionWorkStatus(job.workStatus);
-      return Boolean(roadmapActive || workStatusActive);
+      if (currentTab === "completed") return isCompletedServiceExecutionTask(job);
+      return isServiceExecutionActiveTask(job) && !isCompletedServiceExecutionTask(job);
     });
 
-    if (currentTab === "unassigned" && canViewUnassignedTab) {
+    if (currentTab === "completed") {
+      // Completed tasks are already isolated above.
+    } else if (currentTab === "unassigned" && canViewUnassignedTab) {
       list = list.filter((j) => {
         const nextService = pickNextActiveService(j.services);
         return nextService && !nextService.assignedTo;
@@ -832,10 +878,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
   const counts = useMemo(() => {
     const base = jobs.filter((job) => {
-      const inprogressStep = job.roadmap?.find((s: any) => isServiceOperationStep(s.step));
-      const roadmapActive = inprogressStep && inprogressStep.stepStatus === "Active";
-      const workStatusActive = isServiceExecutionWorkStatus(job.workStatus);
-      return Boolean(roadmapActive || workStatusActive);
+      return isServiceExecutionActiveTask(job) && !isCompletedServiceExecutionTask(job);
     });
 
     const assigned = base.filter((j) => {
@@ -853,7 +896,9 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
       return nextService && nextService.assignedTo && !isAssignedToCurrentUser(nextService.assignedTo);
     }).length : 0;
 
-    return { assigned, unassigned, team };
+    const completed = jobs.filter((j) => isCompletedServiceExecutionTask(j)).length;
+
+    return { assigned, unassigned, team, completed };
   }, [jobs, currentUser, nameToEmailMap, emailToNameMap, currentUserIdentitySet, canViewTeamTab, canViewUnassignedTab]);
 
   // pagination
@@ -1085,28 +1130,94 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
       pendingPersistTimer.current = null;
     }
     pendingPersistJobRef.current = null;
-    pendingPersistOptionsRef.current = null;
     setShowDetails(false);
     setCurrentDetailsJob(null);
     setDetailsEditMode(false);
   };
+
+  const syncJobIntoList = useCallback((job: any) => {
+    const orderKey = String(job?.id ?? job?.orderNumber ?? "").trim();
+    if (!orderKey) return;
+
+    setJobs((prev) =>
+      prev.map((existing) => {
+        const existingKey = String(existing?.id ?? existing?.orderNumber ?? "").trim();
+        if (existingKey !== orderKey) return existing;
+
+        return {
+          ...existing,
+          services: normalizeServices(orderKey, Array.isArray(job?.services) ? job.services : existing.services || []),
+          roadmap: Array.isArray(job?.roadmap) ? job.roadmap : existing.roadmap,
+          workStatus: normalizeWorkStatusLabel(job?.workStatus ?? job?.workStatusLabel ?? existing.workStatus),
+        };
+      })
+    );
+  }, []);
 
   const persistJobWithOptions = async (
     job: any,
     options?: {
       successText?: string;
       refetchDetails?: boolean;
-      showErrorPopup?: boolean;
     }
-  ) => {
+  ): Promise<boolean> => {
     const refetchDetails = options?.refetchDetails ?? true;
-    const showErrorPopup = options?.showErrorPopup ?? true;
     setLoading(true);
     try {
-      await upsertJobOrder(job);
-      if (job?.id) {
-        detailsCacheRef.current.delete(String(job.id));
+      const orderNumber = String(job?.id ?? job?.orderNumber ?? "").trim();
+      const backendId = String(job?._backendId ?? "").trim();
+      if (!orderNumber || !backendId) throw new Error("Missing service execution order reference.");
+
+      const rowRes = await (client.models.JobOrder as any).get({ id: backendId } as any);
+      const row = (rowRes as any)?.data ?? {};
+      const parsed = safeJsonParse<any>(row?.dataJson, {});
+      const services = normalizeServices(orderNumber, Array.isArray(job?.services) ? job.services : Array.isArray(parsed?.services) ? parsed.services : []);
+      const roadmap = Array.isArray(job?.roadmap) ? job.roadmap : Array.isArray(parsed?.roadmap) ? parsed.roadmap : [];
+      const workStatusLabel = normalizeWorkStatusLabel(
+        job?.workStatus ?? job?.workStatusLabel ?? parsed?.workStatusLabel ?? row?.workStatusLabel
+      );
+      const paymentStatusLabel = String(row?.paymentStatusLabel ?? parsed?.paymentStatusLabel ?? job?.paymentStatusLabel ?? job?.paymentStatus ?? "").trim();
+      const completedServiceCount = services.filter((service: any) => isCompletedServiceStatus(service?.status)).length;
+      const totalServiceCount = services.length;
+
+      const dataJson = JSON.stringify({
+        ...parsed,
+        vehicleDetails: job?.vehicleDetails ?? parsed?.vehicleDetails ?? {},
+        services,
+        documents: Array.isArray(job?.documents) ? job.documents : Array.isArray(parsed?.documents) ? parsed.documents : [],
+        billing: job?.billing ?? parsed?.billing ?? {},
+        roadmap,
+        exitPermit: job?.exitPermit ?? parsed?.exitPermit ?? {},
+        exitPermitInfo: job?.exitPermitInfo ?? parsed?.exitPermitInfo ?? {},
+        additionalServiceRequests: Array.isArray(job?.additionalServiceRequests)
+          ? job.additionalServiceRequests
+          : Array.isArray(parsed?.additionalServiceRequests)
+            ? parsed.additionalServiceRequests
+            : [],
+        customerNotes: job?.customerNotes ?? parsed?.customerNotes ?? null,
+        expectedDeliveryDate: job?.expectedDeliveryDate ?? parsed?.expectedDeliveryDate ?? null,
+        expectedDeliveryTime: job?.expectedDeliveryTime ?? parsed?.expectedDeliveryTime ?? null,
+        workStatusLabel,
+        paymentStatusLabel: paymentStatusLabel || parsed?.paymentStatusLabel,
+      });
+
+      const out = await (client.models.JobOrder as any).update({
+        id: backendId,
+        status: mapServiceExecutionWorkStatusToDbStatus(workStatusLabel),
+        workStatusLabel,
+        totalServiceCount,
+        completedServiceCount,
+        pendingServiceCount: Math.max(0, totalServiceCount - completedServiceCount),
+        dataJson,
+        updatedBy: resolveActorName(currentUser),
+      } as any);
+
+      if ((out as any)?.errors?.length) {
+        throw new Error((out as any).errors.map((err: any) => err?.message || String(err)).join(" | "));
       }
+
+      detailsCacheRef.current.delete(orderNumber);
+      syncJobIntoList({ ...job, services, roadmap, workStatus: workStatusLabel });
       if (options?.successText) {
         setSuccessMessage(options.successText);
         setShowSuccessPopup(true);
@@ -1115,33 +1226,28 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
         const refreshed = await getJobOrderByOrderNumber(job.id);
         if (refreshed) setCurrentDetailsJob((prev: any) => ({ ...prev, ...refreshed }));
       }
+      return true;
     } catch (e) {
-      if (showErrorPopup) {
-        setSuccessMessage(`${t("Save failed:")} ${errMsg(e)}`);
-        setShowSuccessPopup(true);
-      }
+      console.warn("Service execution save failed:", e);
+      return false;
     } finally {
       setLoading(false);
     }
   };
 
-  const schedulePersistJob = (job: any, options?: { showErrorPopup?: boolean }) => {
+  const schedulePersistJob = (job: any) => {
     pendingPersistJobRef.current = job;
-    pendingPersistOptionsRef.current = options ?? null;
     if (pendingPersistTimer.current) {
       clearTimeout(pendingPersistTimer.current);
     }
 
     pendingPersistTimer.current = setTimeout(() => {
       const nextJob = pendingPersistJobRef.current;
-      const nextOptions = pendingPersistOptionsRef.current;
       pendingPersistJobRef.current = null;
-      pendingPersistOptionsRef.current = null;
       pendingPersistTimer.current = null;
       if (nextJob) {
         void persistJobWithOptions(nextJob, {
           refetchDetails: false,
-          showErrorPopup: nextOptions?.showErrorPopup ?? true,
         });
       }
     }, 150);
@@ -1154,13 +1260,10 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     }
 
     const pending = pendingPersistJobRef.current;
-    const pendingOptions = pendingPersistOptionsRef.current;
     pendingPersistJobRef.current = null;
-    pendingPersistOptionsRef.current = null;
     if (pending) {
       await persistJobWithOptions(pending, {
         refetchDetails: false,
-        showErrorPopup: pendingOptions?.showErrorPopup ?? true,
       });
     }
   };
@@ -1171,7 +1274,6 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
         clearTimeout(pendingPersistTimer.current);
       }
       pendingPersistJobRef.current = null;
-      pendingPersistOptionsRef.current = null;
     };
   }, []);
 
@@ -1179,7 +1281,8 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     if (!currentDetailsJob) return;
     const updated = { ...currentDetailsJob, services: normalizeServices(currentDetailsJob.id, reorderedServices) };
     setCurrentDetailsJob(updated);
-    schedulePersistJob(updated, { showErrorPopup: false });
+    syncJobIntoList(updated);
+    schedulePersistJob(updated);
   };
 
   const handleServiceUpdate = (serviceId: string, updates: any) => {
@@ -1191,6 +1294,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     Object.assign(svc, updates);
     updated.services = services;
     setCurrentDetailsJob(updated);
+    syncJobIntoList(updated);
     schedulePersistJob(updated);
   };
 
@@ -1218,18 +1322,19 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     };
 
     setCurrentDetailsJob(updated);
+    syncJobIntoList(updated);
 
     try {
       setIsAddingService(true);
 
       // Persist immediately so Add Service stays disabled until backend save finishes.
-      await withLoading(
+      const saved = await withLoading(
         persistJobWithOptions(updated, {
           refetchDetails: false,
-          showErrorPopup: true,
         }),
         t("Saving services...")
       );
+      if (!saved) return false;
 
       setSuccessMessage(`${t("Added successfully")}: "${serviceName}".`);
       setShowSuccessPopup(true);
@@ -1240,8 +1345,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   };
 
   const allServicesCompleted = useMemo(() => {
-    const s = currentDetailsJob?.services || [];
-    return s.every((x: any) => x.status === "Postponed" || x.status === "Cancelled" || x.status === "Completed");
+    return hasOnlyCompletedServices(currentDetailsJob?.services || []);
   }, [currentDetailsJob]);
 
   const canFinishWork = useMemo(() => {
@@ -1281,6 +1385,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
       // Optimistic UI transition to keep finish action snappy.
       setCurrentDetailsJob(updated);
+      syncJobIntoList(updated);
       await persistJobWithOptions(updated, {
         successText: t("Work finished! Status changed to Quality Check."),
         refetchDetails: false,
@@ -1418,7 +1523,13 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
   // ---------------- LIST SCREEN ----------------
   const tabTitle =
-    currentTab === "unassigned" ? t("Unassigned tasks") : currentTab === "team" ? t("Team tasks") : t("Assigned to me");
+    currentTab === "completed"
+      ? t("Completed tasks")
+      : currentTab === "unassigned"
+        ? t("Unassigned tasks")
+        : currentTab === "team"
+          ? t("Team tasks")
+          : t("Assigned to me");
 
   return (
     <div className="service-execution-wrapper">
@@ -1465,6 +1576,9 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
               <i className="fas fa-users"></i> {t("Team tasks")} ({counts.team})
             </div>
           )}
+          <div className={`task-tab completed ${currentTab === "completed" ? "active" : ""}`} onClick={() => setCurrentTab("completed")}>
+            <i className="fas fa-circle-check"></i> {t("Completed tasks")} ({counts.completed})
+          </div>
         </div>
 
         <section className="results-section">
@@ -1510,12 +1624,17 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                   <tbody>
                     {paginatedJobs.map((job) => {
                       const currentService = pickNextActiveService(job.services);
+                      const completedTask = isCompletedServiceExecutionTask(job);
                       const serviceDisplay = currentService
                         ? `${toBilingualName(currentService.name, (currentService as any).nameAr)} (${currentService.status})`
-                        : t("No active services");
+                        : completedTask
+                          ? `${t("Completed services")} (${Array.isArray(job.services) ? job.services.length : 0})`
+                          : t("No active services");
                       const assignedToDisplay = currentService?.assignedTo
                         ? getAssigneeDisplayName(currentService.assignedTo)
-                        : "-";
+                        : completedTask
+                          ? t("Completed")
+                          : "-";
 
                       return (
                         <tr key={job.id}>

@@ -5828,6 +5828,8 @@ const RUNTIME_OVERRIDE_TRANSLATIONS_EN_AR: Array<[string, string]> = [
   ["Assigned to me", "مسند إلي"],
   ["Unassigned tasks", "مهام غير مسندة"],
   ["Team tasks", "مهام الفريق"],
+  ["Completed tasks", "مهام مكتملة"],
+  ["Completed services", "خدمات مكتملة"],
   ["No tasks in this view", "لا توجد مهام في هذا العرض"],
   ["View voucher log", "عرض سجل القسائم"],
   ["View Voucher Log", "عرض سجل القسائم"],

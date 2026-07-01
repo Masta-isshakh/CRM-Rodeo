@@ -163,6 +163,12 @@
   box-shadow: 0 6px 18px rgba(78, 64, 248, 0.12);
 }
 
+.service-execution-wrapper .task-tab.completed.active {
+  color: #047857;
+  border-color: #bbf7d0;
+  box-shadow: 0 6px 18px rgba(16, 185, 129, 0.14);
+}
+
 .service-execution-wrapper .search-section {
   margin-bottom: 12px;
 }
