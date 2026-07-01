@@ -512,7 +512,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
   const [allOrders, setAllOrders] = useState<ListOrder[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
-  const [paymentRecordTab, setPaymentRecordTab] = useState<PaymentRecordTab>("unpaid");
+  const [paymentRecordTab, setPaymentRecordTab] = useState<PaymentRecordTab>("all");
 
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
