@@ -35,7 +35,7 @@ import {
   getCustomerWithVehicles,
   createCustomer,
   createVehicleForCustomer,
-  listCompletedOrdersByPlateNumber,
+  listCompletedOrdersByCustomerOrVehicle,
 } from "./jobOrderRepo";
 import {
   listServiceCatalog,
@@ -2879,7 +2879,12 @@ function NewJobScreen({ currentUser, products = [], serviceCategories = [], onCl
   const handleVehicleSelected = async (vehicleInfo: any) => {
     setVehicleData(vehicleInfo);
     const plate = vehicleInfo.plateNumber || vehicleInfo.license || "";
-    const completed = plate ? await listCompletedOrdersByPlateNumber(plate) : [];
+    const completed = await listCompletedOrdersByCustomerOrVehicle({
+      plateNumber: plate,
+      customerId: customerData?.id || customerData?.customerId,
+      customerName: customerData?.name || customerData?.fullName || customerData?.displayName,
+      customerPhone: customerData?.mobile || customerData?.phone || customerData?.phoneNumber,
+    });
     setVehicleCompletedServices(completed);
     if (orderType === "service" && completed.length === 0) setOrderType("new");
   };
@@ -3985,6 +3990,27 @@ function StepThreeServices({
     [selectedServices]
   );
 
+  const selectedServiceGroups = useMemo(
+    () => groupServicesByPackage(selectedServices ?? []),
+    [selectedServices]
+  );
+
+  const removeSelectedServiceGroup = useCallback((group: any) => {
+    const first = group?.items?.[0];
+    if (!first) return;
+    const packageKey = getPackageGroupKey(first);
+    if (packageKey) {
+      setSelectedServices((selectedServices ?? []).filter((s: any) => getPackageGroupKey(s) !== packageKey));
+      return;
+    }
+    const serviceKey = normalizeCatalogKey(first?.complimentaryKey || first?.serviceCode || first?.catalogId || first?.name);
+    setSelectedServices(
+      (selectedServices ?? []).filter(
+        (s: any) => normalizeCatalogKey(s?.complimentaryKey || s?.serviceCode || s?.catalogId || s?.name) !== serviceKey
+      )
+    );
+  }, [selectedServices, setSelectedServices]);
+
   const mapComplimentaryService = useCallback((svc: any, idx: number) => {
     const svcKey = normalizeCatalogKey(svc?.serviceCode || svc?.catalogId || svc?.name || idx);
     return {
@@ -4375,6 +4401,59 @@ function StepThreeServices({
     );
   };
 
+  const renderSelectedServicesTray = () => (
+    <div className="jo-selected-services-panel">
+      <div className="jo-selected-services-head">
+        <div>
+          <span>{t("Selected Services")}</span>
+          <strong>{selectedServiceGroups.length}</strong>
+        </div>
+        <small>{formatPrice(subtotal)}</small>
+      </div>
+      {selectedServiceGroups.length === 0 ? (
+        <div className="jo-selected-services-empty">
+          <i className="fas fa-plus-circle" aria-hidden="true"></i>
+          {t("No services or packages selected yet.")}
+        </div>
+      ) : (
+        <div className="jo-selected-services-list">
+          {selectedServiceGroups.map((group: any) => {
+            const first = group.items?.[0] || {};
+            const packageKey = getPackageGroupKey(first);
+            const isPackage = Boolean(packageKey);
+            const title = isPackage
+              ? toBilingualName(first.packageName || group.packageTitle, first.packageNameAr, group.packageTitle || t("Package"))
+              : toBilingualName(first.name, first.nameAr, t("Service"));
+            const groupTotal = isPackage && group.packagePrice != null
+              ? group.packagePrice
+              : group.items.reduce((sum: number, item: any) => sum + toMoneyNumber(item?.price), 0);
+
+            return (
+              <div key={group.key} className={`jo-selected-service-chip ${isPackage ? "package" : "service"}`}>
+                <button
+                  type="button"
+                  className="jo-selected-service-remove"
+                  onClick={() => removeSelectedServiceGroup(group)}
+                  aria-label={t("Remove selected service") as string}
+                  title={t("Remove selected service") as string}
+                >
+                  <i className="fas fa-times" aria-hidden="true"></i>
+                </button>
+                <span className="jo-selected-service-kind">
+                  <i className={isPackage ? "fas fa-box-open" : "fas fa-wrench"} aria-hidden="true"></i>
+                  {isPackage ? t("Package") : t("Service")}
+                </span>
+                <strong data-no-translate="true">{title}</strong>
+                {isPackage ? <small>{group.items.length} {t("service(s)")}</small> : null}
+                <em>{formatPrice(groupTotal)}</em>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div className="form-card jo-services-premium-card bg-white rounded-2xl border-none shadow-[0_8px_24px_rgba(112,144,176,0.12)] p-6 [&_label]:text-sm [&_label]:font-semibold [&_label]:text-[#2B3674] [&_label]:mb-2 [&_label]:block [&_textarea]:w-full [&_textarea]:bg-white [&_textarea]:border [&_textarea]:border-[#E7EDF8] [&_textarea]:rounded-xl [&_textarea]:px-4 [&_textarea]:py-3 [&_textarea]:text-sm [&_textarea]:text-[#2B3674] [&_textarea]:placeholder:text-[#A3AED0] [&_textarea]:focus:outline-none [&_textarea]:focus:ring-2 [&_textarea]:focus:ring-[#4318FF]/20 [&_textarea]:focus:border-[#4318FF] [&_textarea]:transition-all [&_input]:bg-white [&_input]:border [&_input]:border-[#E7EDF8] [&_input]:rounded-xl [&_input]:px-3 [&_input]:py-2 [&_input]:text-sm [&_input]:text-[#2B3674]">
       <div className="form-card-title mb-6 flex items-center gap-2">
@@ -4383,6 +4462,7 @@ function StepThreeServices({
       </div>
 
       <div className="form-card-content jo-services-premium-content">
+        {renderSelectedServicesTray()}
 
         {/* -- COMPLETED SERVICES MODE (service order + completed history) -- */}
         {useCompletedPool ? (
@@ -5987,6 +6067,24 @@ function RoadmapCard({ order, actorMap, className = "" }: any) {
 // ============================================
 function OrderTypeSelection({ vehicleCompletedServices, onSelectOrderType, onBack, orderType }: any) {
   const { t } = useLanguage();
+  const completedServicePreview = useMemo(() => {
+    const out: any[] = [];
+    for (const order of vehicleCompletedServices || []) {
+      const services = Array.isArray(order?.services) ? order.services : [];
+      services.forEach((service: any, idx: number) => {
+        out.push({
+          key: `${order?.id || "completed"}-${service?.serviceCode || service?.catalogId || service?.name || idx}`,
+          orderId: order?.id || t("Completed Order"),
+          name: service?.name || service?.serviceName || t("Service"),
+          nameAr: service?.nameAr || service?.serviceNameAr || "",
+          status: service?.status || order?.workStatus || t("Completed"),
+          price: Number(service?.price || service?.unitPrice || 0),
+        });
+      });
+    }
+    return out;
+  }, [vehicleCompletedServices, t]);
+
   return (
     <div className="form-card bg-white rounded-2xl border-none shadow-[0_8px_24px_rgba(112,144,176,0.12)] p-6">
       <div className="form-card-title mb-6 flex items-center gap-2">
@@ -5997,6 +6095,36 @@ function OrderTypeSelection({ vehicleCompletedServices, onSelectOrderType, onBac
         <p className="mb-5 text-sm text-[#A3AED0]">
           {t("This vehicle has")} {vehicleCompletedServices.length} {t("completed service(s). Choose the type of order you want to create:")}
         </p>
+
+        <div className="jo-completed-history-panel">
+          <div className="jo-completed-history-head">
+            <div>
+              <span>{t("Completed Services History")}</span>
+              <strong>{completedServicePreview.length}</strong>
+            </div>
+            <small>{t("Related to the selected customer or vehicle")}</small>
+          </div>
+          {completedServicePreview.length === 0 ? (
+            <div className="jo-completed-history-empty">{t("No completed services found for this customer or vehicle.")}</div>
+          ) : (
+            <div className="jo-completed-history-grid">
+              {completedServicePreview.slice(0, 12).map((service) => (
+                <div key={service.key} className="jo-completed-history-item">
+                  <div>
+                    <span className="jo-completed-history-order">{service.orderId}</span>
+                    <strong data-no-translate="true">{toBilingualName(service.name, service.nameAr, service.name)}</strong>
+                  </div>
+                  <em>{t(service.status)}</em>
+                </div>
+              ))}
+            </div>
+          )}
+          {completedServicePreview.length > 12 ? (
+            <div className="jo-completed-history-more">
+              +{completedServicePreview.length - 12} {t("more completed service(s)")}
+            </div>
+          ) : null}
+        </div>
 
         <div className="option-selector grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className={`option-btn rounded-xl border px-4 py-4 font-bold transition-all cursor-pointer ${orderType === "new" ? "bg-[#4318FF] text-white border-[#4318FF]" : "bg-[#F4F7FE] text-[#A3AED0] border-[#E7EDF8]"}`} onClick={() => onSelectOrderType("new")}>

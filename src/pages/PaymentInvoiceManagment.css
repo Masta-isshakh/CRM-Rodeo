@@ -1840,6 +1840,68 @@ textarea.form-control {
   color: var(--color-muted-text);
 }
 
+.pim-payment-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pim-payment-tab {
+  border: 1px solid #DDE7F6;
+  background: #FFFFFF;
+  color: #2B3674;
+  border-radius: 9px;
+  min-height: 36px;
+  padding: 7px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.78rem;
+  font-weight: 800;
+  cursor: pointer;
+  transition: border-color 0.16s ease, background 0.16s ease, color 0.16s ease, box-shadow 0.16s ease;
+}
+
+.pim-payment-tab strong {
+  min-width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #EEF3FF;
+  color: #4318FF;
+  font-size: 0.72rem;
+}
+
+.pim-payment-tab:hover {
+  border-color: #BFD3F7;
+  background: #F8FBFF;
+}
+
+.pim-payment-tab.active {
+  border-color: #4318FF;
+  background: linear-gradient(90deg, #4318FF 0%, #22D3EE 100%);
+  color: #FFFFFF;
+  box-shadow: 0 8px 18px rgba(67, 24, 255, 0.2);
+}
+
+.pim-payment-tab.active strong {
+  background: rgba(255, 255, 255, 0.22);
+  color: #FFFFFF;
+}
+
+.pim-page .action-dropdown-menu-fixed {
+  position: fixed !important;
+  right: auto !important;
+  max-width: calc(100vw - 16px);
+  max-height: calc(100vh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  z-index: 10050;
+}
+
 /* ===================== SEARCH SECTION ===================== */
 .pim-search-section {
   background: linear-gradient(180deg, #FBFCFF 0%, #FFFFFF 100%);
@@ -2105,6 +2167,22 @@ textarea.form-control {
 
   .pim-section-header h2 {
     width: 100%;
+  }
+
+  .pim-payment-tabs {
+    width: 100%;
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .pim-payment-tab {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .pim-page .action-dropdown-menu-fixed {
+    left: 8px !important;
+    width: calc(100vw - 16px) !important;
   }
 
   .pim-pagination-controls {

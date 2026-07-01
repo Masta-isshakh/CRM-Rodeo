@@ -149,6 +149,32 @@ function isFullyPaidStatus(enumVal?: string, label?: string): boolean {
   return normalizePaymentStatusLabel(enumVal, label) === "Fully Paid";
 }
 
+type PaymentRecordTab = "fully" | "partial" | "unpaid";
+
+function getPaymentRecordTab(order: ListOrder): PaymentRecordTab {
+  const snap = computePaymentSnapshot(
+    order.paymentTotalAmount,
+    order.paymentDiscount,
+    order.paymentAmountPaid
+  );
+  const hasBalanceSignal =
+    order.paymentNetAmount > 0 ||
+    order.paymentAmountPaid > 0 ||
+    order.paymentBalanceDue > 0 ||
+    snap.netAmount > 0 ||
+    snap.amountPaid > 0 ||
+    snap.balanceDue > 0;
+
+  if (hasBalanceSignal && (order.paymentBalanceDue <= 0.00001 || snap.balanceDue <= 0.00001) && snap.netAmount > 0) {
+    return "fully";
+  }
+
+  const normalized = normalizePaymentStatusLabel(order.paymentEnum, order.paymentStatus);
+  if (normalized === "Fully Paid" || isFullyPaidStatus(order.paymentEnum, order.paymentStatus)) return "fully";
+  if (normalized === "Partially Paid" || snap.amountPaid > 0.00001) return "partial";
+  return "unpaid";
+}
+
 type DocItem = {
   id: string;
   name: string;
@@ -486,6 +512,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
   const [allOrders, setAllOrders] = useState<ListOrder[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
+  const [paymentRecordTab, setPaymentRecordTab] = useState<PaymentRecordTab>("unpaid");
 
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
@@ -514,7 +541,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   >(new Map());
 
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
-  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0 });
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 220 });
   const activeDropdownRef = useRef<string | null>(null);
   const repairTriggeredRef = useRef(false);
 
@@ -621,14 +648,18 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
       return;
     }
     const rect = anchorEl.getBoundingClientRect();
-    const menuHeight = 140;
-    const menuWidth = 220;
-    const spaceBelow = window.innerHeight - rect.bottom;
-    const top = spaceBelow < menuHeight ? rect.top - menuHeight - 6 : rect.bottom + 6;
-    const left = Math.max(8, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 8));
+    const viewportW = Math.max(0, window.innerWidth || 0);
+    const viewportH = Math.max(0, window.innerHeight || 0);
+    const menuHeight = 124;
+    const menuWidth = Math.min(220, Math.max(176, viewportW - 16));
+    const spaceBelow = viewportH - rect.bottom;
+    const preferredTop = spaceBelow < menuHeight + 10 ? rect.top - menuHeight - 8 : rect.bottom + 8;
+    const top = Math.max(8, Math.min(preferredTop, Math.max(8, viewportH - menuHeight - 8)));
+    const preferredLeft = rect.right - menuWidth;
+    const left = Math.max(8, Math.min(preferredLeft, Math.max(8, viewportW - menuWidth - 8)));
     flushSync(() => {
       activeDropdownRef.current = orderId;
-      setDropdownPosition({ top, left });
+      setDropdownPosition({ top, left, width: menuWidth });
       setActiveDropdown(orderId);
     });
   }, []);
@@ -705,33 +736,28 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   }, [client, hideLoading, showLoading]);
 
   // -------------------- filter rules --------------------
+  const paymentTabCounts = useMemo(() => {
+    const counts: Record<PaymentRecordTab, number> = { fully: 0, partial: 0, unpaid: 0 };
+    allOrders.forEach((order) => {
+      const tab = getPaymentRecordTab(order);
+      const isCancelled =
+        String(order.workStatus || "").toLowerCase().includes("cancel") ||
+        String(order.statusEnum || "").toUpperCase() === "CANCELLED";
+      if (isCancelled && tab === "unpaid") return;
+      counts[tab] += 1;
+    });
+    return counts;
+  }, [allOrders]);
+
   const filteredOrders = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    const allowedStatuses = new Set(["Unpaid", "Partially Paid"]);
-
     const list = allOrders.filter((o) => {
-      const normalizedPay = normalizePaymentStatusLabel(o.paymentEnum, o.paymentStatus);
       const isCancelled =
         String(o.workStatus || "").toLowerCase().includes("cancel") ||
         String(o.statusEnum || "").toUpperCase() === "CANCELLED";
 
-      const snap = computePaymentSnapshot(
-        o.paymentTotalAmount,
-        o.paymentDiscount,
-        o.paymentAmountPaid
-      );
-      const hasBalanceSignal = o.paymentNetAmount > 0 || o.paymentAmountPaid > 0 || o.paymentBalanceDue > 0;
-      const isFullyPaidByAmounts = hasBalanceSignal
-        ? (o.paymentBalanceDue <= 0.00001 || snap.balanceDue <= 0.00001)
-        : false;
-
-      if (isCancelled) {
-        return snap.amountPaid > 0.00001;
-      }
-
-      if (isFullyPaidByAmounts) return false;
-      if (isFullyPaidStatus(o.paymentEnum, o.paymentStatus)) return false;
-      return allowedStatuses.has(normalizedPay);
+      if (isCancelled && paymentRecordTab === "unpaid") return false;
+      return getPaymentRecordTab(o) === paymentRecordTab;
     });
 
     if (!q) return list;
@@ -742,9 +768,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
         q
       );
     });
-  }, [allOrders, searchQuery]);
+  }, [allOrders, paymentRecordTab, searchQuery]);
 
-  useEffect(() => setCurrentPage(1), [pageSize, searchQuery]);
+  useEffect(() => setCurrentPage(1), [pageSize, searchQuery, paymentRecordTab]);
   const totalPages = Math.max(1, Math.ceil(filteredOrders.length / pageSize));
   const startIndex = (currentPage - 1) * pageSize;
   const paginatedData = filteredOrders.slice(startIndex, startIndex + pageSize);
@@ -2888,13 +2914,33 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
             />
           </div>
           <div className="pim-header-stats">
-            {t("Showing unpaid/partially paid and cancelled-with-refundable-balance •")} {filteredOrders.length} {t("shown of")} {allOrders.length} {t("total")}
+            {t("Showing")} {filteredOrders.length} {t("shown of")} {allOrders.length} {t("total")}
           </div>
         </header>
 
         <section className="pim-results-section">
           <div className="pim-section-header">
             <h2><i className="fas fa-list"></i> {t("Payment & Invoice Records")}</h2>
+            <div className="pim-payment-tabs" role="tablist" aria-label={t("Payment status filters") as string}>
+              {[
+                { key: "fully" as PaymentRecordTab, label: t("Fully Paid"), count: paymentTabCounts.fully, icon: "fas fa-circle-check" },
+                { key: "partial" as PaymentRecordTab, label: t("Partially Paid"), count: paymentTabCounts.partial, icon: "fas fa-circle-half-stroke" },
+                { key: "unpaid" as PaymentRecordTab, label: t("Unpaid"), count: paymentTabCounts.unpaid, icon: "fas fa-circle-exclamation" },
+              ].map((tab) => (
+                <button
+                  key={tab.key}
+                  type="button"
+                  role="tab"
+                  aria-selected={paymentRecordTab === tab.key}
+                  className={`pim-payment-tab ${paymentRecordTab === tab.key ? "active" : ""}`}
+                  onClick={() => setPaymentRecordTab(tab.key)}
+                >
+                  <i className={tab.icon} aria-hidden="true"></i>
+                  <span>{tab.label}</span>
+                  <strong>{tab.count}</strong>
+                </button>
+              ))}
+            </div>
             <div className="pim-pagination-controls">
               <label htmlFor="pageSizeSelect">{t("Records per page:")}</label>
               <select
@@ -2967,7 +3013,17 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                   createPortal(
                     <div
                       className={`action-dropdown-menu show action-dropdown-menu-fixed ${activeDropdown ? "open" : "closed"}`}
-                      style={activeDropdown ? { top: `${dropdownPosition.top}px`, left: `${dropdownPosition.left}px` } : { top: "-9999px", left: "-9999px" }}
+                      style={
+                        activeDropdown
+                          ? {
+                              position: "fixed",
+                              top: `${dropdownPosition.top}px`,
+                              left: `${dropdownPosition.left}px`,
+                              width: `${dropdownPosition.width}px`,
+                              zIndex: 10050,
+                            }
+                          : { position: "fixed", top: "-9999px", left: "-9999px", width: `${dropdownPosition.width}px` }
+                      }
                     >
                       <PermissionGate moduleId="payment" optionId="payment_viewdetails">
                         <button

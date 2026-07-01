@@ -1900,43 +1900,60 @@ export async function cancelJobOrderByOrderNumber(orderKey: string): Promise<voi
   await upsertJobOrder(order);
 }
 
-export async function listCompletedOrdersByPlateNumber(plateNumber: string): Promise<any[]> {
+function mapCompletedJobOrderRow(r: any) {
+  const parsed = safeJsonParse<any>(r?.dataJson) ?? {};
+  const services = Array.isArray(parsed.services) ? parsed.services : [];
+  return {
+    id: r.orderNumber,
+    vehiclePlate: r.plateNumber ?? parsed?.plateNumber ?? "",
+    customerId: r.customerId ?? parsed?.customerId ?? parsed?.customerDetails?.customerId ?? "",
+    customerName: r.customerName ?? parsed?.customerName ?? "",
+    customerPhone: r.customerPhone ?? parsed?.customerPhone ?? "",
+    completedAt: r.updatedAt ?? r.createdAt ?? "",
+    workStatus: r.workStatusLabel ?? "Completed",
+    services,
+  };
+}
+
+export async function listCompletedOrdersByCustomerOrVehicle(input: {
+  plateNumber?: string;
+  customerId?: string;
+  customerName?: string;
+  customerPhone?: string;
+}): Promise<any[]> {
   const client = getDataClient();
-  const plate = String(plateNumber ?? "").trim();
-  if (!plate) return [];
+  const plate = String(input?.plateNumber ?? "").trim().toLowerCase();
+  const customerId = String(input?.customerId ?? "").trim().toLowerCase();
+  const customerName = String(input?.customerName ?? "").trim().toLowerCase();
+  const customerPhone = String(input?.customerPhone ?? "").replace(/\D+/g, "");
+  if (!plate && !customerId && !customerName && !customerPhone) return [];
 
   let rows: any[] = [];
   try {
-    const byIdx = await (client.models.JobOrder as any)?.jobOrdersByPlateNumber?.({
-      plateNumber: plate,
-      limit: 2000,
-    });
-    rows = byIdx?.data ?? [];
+    rows = await listAll<any>((args) => client.models.JobOrder.list(args), 5000);
   } catch {
-    const res = await client.models.JobOrder.list({
-      filter: { plateNumber: { eq: plate } } as any,
-      limit: 2000,
-    });
-    rows = res.data ?? [];
+    rows = [];
   }
 
   return (rows ?? [])
     .filter((r: any) => String(r.status) === "COMPLETED")
-    .map((r: any) => {
-      let services: any[] = [];
-      try {
-        const parsed = JSON.parse(String(r.dataJson ?? "{}"));
-        services = Array.isArray(parsed.services) ? parsed.services : [];
-      } catch {
-        services = [];
-      }
-      return {
-        id: r.orderNumber,
-        vehiclePlate: r.plateNumber,
-        workStatus: r.workStatusLabel ?? "Completed",
-        services,
-      };
+    .map(mapCompletedJobOrderRow)
+    .filter((order: any) => {
+      const orderPlate = String(order.vehiclePlate ?? "").trim().toLowerCase();
+      const orderCustomerId = String(order.customerId ?? "").trim().toLowerCase();
+      const orderCustomerName = String(order.customerName ?? "").trim().toLowerCase();
+      const orderCustomerPhone = String(order.customerPhone ?? "").replace(/\D+/g, "");
+      return (
+        (!!plate && orderPlate === plate) ||
+        (!!customerId && orderCustomerId === customerId) ||
+        (!!customerPhone && orderCustomerPhone === customerPhone) ||
+        (!!customerName && orderCustomerName === customerName)
+      );
     });
+}
+
+export async function listCompletedOrdersByPlateNumber(plateNumber: string): Promise<any[]> {
+  return listCompletedOrdersByCustomerOrVehicle({ plateNumber });
 }
 
 export async function listJobOrdersForExitPermit(): Promise<any[]> {

@@ -595,6 +595,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   const activeDropdownRef = useRef<string | null>(null);
   const pendingPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingPersistJobRef = useRef<any | null>(null);
+  const pendingPersistOptionsRef = useRef<{ showErrorPopup?: boolean } | null>(null);
   const detailsCacheRef = useRef<Map<string, any>>(new Map());
   const paymentRowsCacheRef = useRef<Map<string, any[]>>(new Map());
   const normalizedInvoicesCacheRef = useRef<Map<string, any[]>>(new Map());
@@ -1084,6 +1085,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
       pendingPersistTimer.current = null;
     }
     pendingPersistJobRef.current = null;
+    pendingPersistOptionsRef.current = null;
     setShowDetails(false);
     setCurrentDetailsJob(null);
     setDetailsEditMode(false);
@@ -1123,20 +1125,23 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     }
   };
 
-  const schedulePersistJob = (job: any) => {
+  const schedulePersistJob = (job: any, options?: { showErrorPopup?: boolean }) => {
     pendingPersistJobRef.current = job;
+    pendingPersistOptionsRef.current = options ?? null;
     if (pendingPersistTimer.current) {
       clearTimeout(pendingPersistTimer.current);
     }
 
     pendingPersistTimer.current = setTimeout(() => {
       const nextJob = pendingPersistJobRef.current;
+      const nextOptions = pendingPersistOptionsRef.current;
       pendingPersistJobRef.current = null;
+      pendingPersistOptionsRef.current = null;
       pendingPersistTimer.current = null;
       if (nextJob) {
         void persistJobWithOptions(nextJob, {
           refetchDetails: false,
-          showErrorPopup: true,
+          showErrorPopup: nextOptions?.showErrorPopup ?? true,
         });
       }
     }, 150);
@@ -1149,11 +1154,13 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     }
 
     const pending = pendingPersistJobRef.current;
+    const pendingOptions = pendingPersistOptionsRef.current;
     pendingPersistJobRef.current = null;
+    pendingPersistOptionsRef.current = null;
     if (pending) {
       await persistJobWithOptions(pending, {
         refetchDetails: false,
-        showErrorPopup: true,
+        showErrorPopup: pendingOptions?.showErrorPopup ?? true,
       });
     }
   };
@@ -1164,6 +1171,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
         clearTimeout(pendingPersistTimer.current);
       }
       pendingPersistJobRef.current = null;
+      pendingPersistOptionsRef.current = null;
     };
   }, []);
 
@@ -1171,7 +1179,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     if (!currentDetailsJob) return;
     const updated = { ...currentDetailsJob, services: normalizeServices(currentDetailsJob.id, reorderedServices) };
     setCurrentDetailsJob(updated);
-    schedulePersistJob(updated);
+    schedulePersistJob(updated, { showErrorPopup: false });
   };
 
   const handleServiceUpdate = (serviceId: string, updates: any) => {

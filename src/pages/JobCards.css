@@ -2720,6 +2720,216 @@ mark.search-highlight {
     border: 1px solid #A5F3FC;
   }
 
+  .jo-completed-history-panel,
+  .jo-selected-services-panel {
+    border: 1px solid #DDE7F6;
+    border-radius: 12px;
+    background: linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    box-shadow: 0 8px 22px rgba(51, 84, 160, 0.08);
+    padding: 14px;
+    margin-bottom: 18px;
+  }
+
+  .jo-completed-history-head,
+  .jo-selected-services-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+
+  .jo-completed-history-head div,
+  .jo-selected-services-head div {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    color: #102A68;
+    font-weight: 900;
+  }
+
+  .jo-completed-history-head span,
+  .jo-selected-services-head span {
+    font-size: 0.92rem;
+  }
+
+  .jo-completed-history-head strong,
+  .jo-selected-services-head strong {
+    min-width: 26px;
+    height: 26px;
+    border-radius: 999px;
+    background: #4318FF;
+    color: #FFFFFF;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.76rem;
+  }
+
+  .jo-completed-history-head small,
+  .jo-selected-services-head small {
+    color: #64748B;
+    font-weight: 800;
+  }
+
+  .jo-completed-history-grid,
+  .jo-selected-services-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 10px;
+  }
+
+  .jo-completed-history-item {
+    border: 1px solid #E7EDF8;
+    border-radius: 10px;
+    background: #FFFFFF;
+    padding: 10px 12px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .jo-completed-history-item strong {
+    display: block;
+    color: #102A68;
+    font-size: 0.86rem;
+    line-height: 1.35;
+  }
+
+  .jo-completed-history-order {
+    display: block;
+    color: #7E8FB9;
+    font-size: 0.72rem;
+    font-weight: 800;
+    margin-bottom: 3px;
+  }
+
+  .jo-completed-history-item em {
+    font-style: normal;
+    color: #0F766E;
+    background: #CCFBF1;
+    border: 1px solid #99F6E4;
+    border-radius: 999px;
+    padding: 3px 8px;
+    font-size: 0.68rem;
+    font-weight: 900;
+    white-space: nowrap;
+  }
+
+  .jo-completed-history-empty,
+  .jo-selected-services-empty {
+    border: 1px dashed #CBD5E1;
+    border-radius: 10px;
+    color: #64748B;
+    background: #F8FAFC;
+    padding: 14px;
+    font-weight: 800;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    text-align: center;
+  }
+
+  .jo-completed-history-more {
+    margin-top: 10px;
+    color: #4318FF;
+    font-size: 0.78rem;
+    font-weight: 900;
+  }
+
+  .jo-selected-service-chip {
+    position: relative;
+    border-radius: 11px;
+    padding: 12px 38px 12px 12px;
+    min-height: 104px;
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+    border: 1px solid #DDE7F6;
+    background: #FFFFFF;
+    overflow: hidden;
+  }
+
+  .jo-selected-service-chip::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+  }
+
+  .jo-selected-service-chip.service {
+    border-color: #99F6E4;
+    background: linear-gradient(180deg, #FFFFFF 0%, #F0FDFA 100%);
+  }
+
+  .jo-selected-service-chip.service::before {
+    background: #14B8A6;
+  }
+
+  .jo-selected-service-chip.package {
+    border-color: #FCD34D;
+    background: linear-gradient(180deg, #FFFFFF 0%, #FFFBEB 100%);
+  }
+
+  .jo-selected-service-chip.package::before {
+    background: #F59E0B;
+  }
+
+  .jo-selected-service-remove {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    width: 24px;
+    height: 24px;
+    border-radius: 999px;
+    border: 1px solid #E2E8F0;
+    background: #FFFFFF;
+    color: #EF4444;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .jo-selected-service-kind {
+    align-self: flex-start;
+    border-radius: 999px;
+    padding: 3px 8px;
+    font-size: 0.68rem;
+    font-weight: 900;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: #EEF2FF;
+    color: #4318FF;
+  }
+
+  .jo-selected-service-chip strong {
+    color: #102A68;
+    line-height: 1.35;
+    font-size: 0.88rem;
+  }
+
+  .jo-selected-service-chip small {
+    color: #64748B;
+    font-weight: 800;
+  }
+
+  .jo-selected-service-chip em {
+    margin-top: auto;
+    align-self: flex-start;
+    font-style: normal;
+    border-radius: 8px;
+    padding: 4px 8px;
+    color: #102A68;
+    background: #FFFFFF;
+    border: 1px solid #E2E8F0;
+    font-size: 0.76rem;
+    font-weight: 900;
+  }
+
   .jo-category-cascade {
     display: flex;
     align-items: flex-end;

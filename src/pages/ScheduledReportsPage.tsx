@@ -535,7 +535,7 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
     });
   }, [filters, modelRows, selectedFields, fieldOptions]);
 
-  const exportPdf = () => {
+  const exportPdf = async () => {
     if (!canExportPdf) {
       setMessage(t("You do not have access to export PDF reports."));
       return;
@@ -545,43 +545,129 @@ export default function ScheduledReportsPage({ permissions }: PageProps) {
       return;
     }
 
-    const fields = selectedFields.slice(0, 9);
-    const colWidth = 30;
-
+    const fields = selectedFields.slice(0, 8);
+    const rows = filteredRows.slice(0, 220);
     const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-    let y = 14;
-    doc.setFont("helvetica", "bold");
-    doc.setFontSize(15);
-    doc.text(`${t("Scheduled Report")} - ${selectedModelLabel}`, 10, y);
-    y += 7;
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    doc.text(`${t("Generated at")}: ${new Date().toLocaleString()}`, 10, y);
-    y += 8;
 
-    let x = 8;
-    doc.setFont("helvetica", "bold");
-    for (const field of fields) {
-      doc.rect(x, y, colWidth, 7);
-      doc.text(field.slice(0, 16), x + 1, y + 4.6);
-      x += colWidth;
-    }
-    y += 7;
+    const pageWmm = 297;
+    const pageHmm = 210;
+    const pxPerMm = 4;
+    const width = Math.round(pageWmm * pxPerMm);
+    const height = Math.round(pageHmm * pxPerMm);
+    const margin = 38;
+    const headerH = 116;
+    const footerH = 34;
+    const tableTop = headerH + 16;
+    const rowH = 46;
+    const headH = 44;
+    const rowsPerPage = Math.max(1, Math.floor((height - tableTop - headH - footerH) / rowH));
+    const pageCount = Math.ceil(rows.length / rowsPerPage);
+    const arabicRegex = /[\u0600-\u06FF]/;
 
-    doc.setFont("helvetica", "normal");
-    for (const row of filteredRows.slice(0, 120)) {
-      if (y > 188) {
-        doc.addPage("a4", "landscape");
-        y = 12;
+    const truncateToWidth = (ctx: CanvasRenderingContext2D, value: string, maxWidth: number) => {
+      let out = value || "-";
+      if (ctx.measureText(out).width <= maxWidth) return out;
+      while (out.length > 1 && ctx.measureText(`${out}...`).width > maxWidth) out = out.slice(0, -1);
+      return `${out}...`;
+    };
+
+    const drawText = (
+      ctx: CanvasRenderingContext2D,
+      value: string,
+      x: number,
+      y: number,
+      maxWidth: number,
+      options: { size?: number; weight?: number | string; color?: string; align?: CanvasTextAlign } = {}
+    ) => {
+      const hasArabic = arabicRegex.test(value);
+      ctx.save();
+      ctx.font = `${options.weight || 700} ${options.size || 18}px "Segoe UI", Tahoma, Arial, sans-serif`;
+      ctx.fillStyle = options.color || "#102A68";
+      ctx.textBaseline = "middle";
+      ctx.direction = hasArabic ? "rtl" : "ltr";
+      ctx.textAlign = options.align || (hasArabic ? "right" : "left");
+      const text = truncateToWidth(ctx, value || "-", maxWidth);
+      ctx.fillText(text, x, y);
+      ctx.restore();
+    };
+
+    const renderPage = (pageIndex: number) => {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Canvas rendering is not available.");
+
+      ctx.fillStyle = "#F6F9FF";
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fillRect(margin / 2, margin / 2, width - margin, height - margin);
+
+      const title = `${t("Scheduled Report")} - ${selectedModelLabel}`;
+      drawText(ctx, title, margin, 44, width - margin * 2, { size: 26, weight: 900 });
+      drawText(ctx, `${t("Generated at")}: ${new Date().toLocaleString()}`, margin, 78, width - margin * 2, {
+        size: 16,
+        weight: 700,
+        color: "#64748B",
+      });
+      drawText(ctx, `${t("Records")}: ${rows.length} | ${t("Page")} ${pageIndex + 1} / ${pageCount}`, width - margin, 78, 360, {
+        size: 16,
+        weight: 800,
+        color: "#4318FF",
+        align: "right",
+      });
+
+      const tableW = width - margin * 2;
+      const colW = tableW / fields.length;
+      let x = margin;
+      ctx.fillStyle = "#102A68";
+      ctx.fillRect(margin, tableTop, tableW, headH);
+      fields.forEach((field) => {
+        drawText(ctx, formatDynamicDataLabel(field, language, t), x + 10, tableTop + headH / 2, colW - 20, {
+          size: 15,
+          weight: 900,
+          color: "#FFFFFF",
+        });
+        x += colW;
+      });
+
+      const pageRows = rows.slice(pageIndex * rowsPerPage, pageIndex * rowsPerPage + rowsPerPage);
+      pageRows.forEach((row, rowIdx) => {
+        const y = tableTop + headH + rowIdx * rowH;
+        ctx.fillStyle = rowIdx % 2 === 0 ? "#FFFFFF" : "#F8FBFF";
+        ctx.fillRect(margin, y, tableW, rowH);
+        ctx.strokeStyle = "#E2E8F0";
+        ctx.strokeRect(margin, y, tableW, rowH);
+        x = margin;
+        fields.forEach((field) => {
+          const value = txt(row[field]) || "-";
+          const hasArabic = arabicRegex.test(value);
+          drawText(ctx, value, hasArabic ? x + colW - 10 : x + 10, y + rowH / 2, colW - 20, {
+            size: 14,
+            weight: 700,
+            color: "#0F172A",
+            align: hasArabic ? "right" : "left",
+          });
+          x += colW;
+        });
+      });
+
+      drawText(ctx, "CRM Rodeo", margin, height - 28, 220, { size: 13, weight: 900, color: "#64748B" });
+      drawText(ctx, `${t("Arabic and English supported")}`, width - margin, height - 28, 360, {
+        size: 13,
+        weight: 900,
+        color: "#64748B",
+        align: "right",
+      });
+
+      return canvas.toDataURL("image/png", 0.96);
+    };
+
+    for (let pageIndex = 0; pageIndex < pageCount; pageIndex += 1) {
+      if (pageIndex > 0) doc.addPage("a4", "landscape");
+      const dataUrl = renderPage(pageIndex);
+      doc.addImage(dataUrl, "PNG", 0, 0, pageWmm, pageHmm);
       }
-      x = 8;
-      for (const field of fields) {
-        doc.rect(x, y, colWidth, 6.6);
-        doc.text(txt(row[field]).slice(0, 24) || "-", x + 1, y + 4.1);
-        x += colWidth;
-      }
-      y += 6.6;
-    }
 
     doc.save(`scheduled-report-${fileToken(selectedModels.join("-"))}-${Date.now()}.pdf`);
     setMessage(t("PDF report generated successfully."));
