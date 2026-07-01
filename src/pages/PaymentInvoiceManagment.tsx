@@ -149,7 +149,7 @@ function isFullyPaidStatus(enumVal?: string, label?: string): boolean {
   return normalizePaymentStatusLabel(enumVal, label) === "Fully Paid";
 }
 
-type PaymentRecordTab = "fully" | "partial" | "unpaid";
+type PaymentRecordTab = "all" | "fully" | "partial" | "unpaid";
 
 function getPaymentRecordTab(order: ListOrder): PaymentRecordTab {
   const snap = computePaymentSnapshot(
@@ -737,7 +737,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
   // -------------------- filter rules --------------------
   const paymentTabCounts = useMemo(() => {
-    const counts: Record<PaymentRecordTab, number> = { fully: 0, partial: 0, unpaid: 0 };
+    const counts: Record<PaymentRecordTab, number> = { all: allOrders.length, fully: 0, partial: 0, unpaid: 0 };
     allOrders.forEach((order) => {
       const tab = getPaymentRecordTab(order);
       const isCancelled =
@@ -752,6 +752,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   const filteredOrders = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     const list = allOrders.filter((o) => {
+      if (paymentRecordTab === "all") return true;
       const isCancelled =
         String(o.workStatus || "").toLowerCase().includes("cancel") ||
         String(o.statusEnum || "").toUpperCase() === "CANCELLED";
@@ -1501,12 +1502,24 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
   const openRefundPopup = () => {
     if (!selectedOrder) return;
 
-    const isCancelled =
-      String(selectedOrder?.workStatus || "").toLowerCase().includes("cancel") ||
-      String(selectedOrder?._row?.status || "").toUpperCase() === "CANCELLED";
-
-    if (!isCancelled) {
-      setErrorMessage(t("Refund can only be initiated for cancelled orders."));
+    const paymentSnap = computePaymentSnapshot(
+      toNum(selectedOrder?.billing?.totalAmount),
+      toNum(selectedOrder?.billing?.discount),
+      Math.max(roundMoney(sumApprovedPayments(paymentRowsRaw)), toNum(selectedOrder?.billing?.amountPaid))
+    );
+    const paymentStatusLabel = derivePaymentStatusFromFinancials({
+      paymentEnum: String(selectedOrder?.paymentStatusEnum || selectedOrder?._row?.paymentStatus || ""),
+      paymentLabel: String(selectedOrder?.paymentStatus || selectedOrder?._row?.paymentStatusLabel || ""),
+      totalAmount: paymentSnap.totalAmount,
+      discount: paymentSnap.discount,
+      amountPaid: paymentSnap.amountPaid,
+      netAmount: paymentSnap.netAmount,
+      balanceDue: paymentSnap.balanceDue,
+    });
+    const canRefundByStatus =
+      paymentStatusLabel === "Fully Paid" || paymentStatusLabel === "Partially Paid";
+    if (!canRefundByStatus) {
+      setErrorMessage(t("Refund is available only for Fully Paid or Partially Paid orders."));
       setShowErrorPopup(true);
       return;
     }
@@ -2384,10 +2397,6 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
 
   // ===================== DETAILS SCREEN =====================
   if (showDetailsScreen && selectedOrder) {
-    const isCancelled =
-      String(selectedOrder?.workStatus || "").toLowerCase().includes("cancel") ||
-      String(selectedOrder?._row?.status || "").toUpperCase() === "CANCELLED";
-
     const rawDocs: DocItem[] = Array.isArray(selectedOrder.documents) ? selectedOrder.documents : [];
     const canViewPaymentDocuments = canOption("payment", "payment_documents", false);
     const canGenerateBillDoc = canOption("payment", "payment_generatebill", false);
@@ -2412,6 +2421,9 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
     const liveTotalAmount = toNum(selectedOrder?.billing?.totalAmount);
     const liveDiscount = toNum(selectedOrder?.billing?.discount);
     const summaryPaymentSnap = computePaymentSnapshot(liveTotalAmount, liveDiscount, liveAmountPaid);
+    const canRefundByStatus =
+      summaryPaymentSnap.paymentStatusLabel === "Fully Paid" ||
+      summaryPaymentSnap.paymentStatusLabel === "Partially Paid";
     const paymentDiscountAllowance = paymentForm
       ? computeCumulativeDiscountAllowance({
           policyMaxPercent: centralDiscountPercent,
@@ -2490,7 +2502,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                     </PermissionGate>
 
                     <PermissionGate moduleId="payment" optionId="payment_refund">
-                      {isCancelled && paymentRowsRaw.reduce((a, p) => a + toNum(p.amount), 0) > 0 && (
+                      {canRefundByStatus && paymentRowsRaw.reduce((a, p) => a + toNum(p.amount), 0) > 0 && (
                         <button className="pim-btn pim-btn-warn" type="button" onClick={openRefundPopup}>
                           <i className="fas fa-undo"></i> {t("Refund")}
                         </button>
@@ -2923,6 +2935,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
             <h2><i className="fas fa-list"></i> {t("Payment & Invoice Records")}</h2>
             <div className="pim-payment-tabs" role="tablist" aria-label={t("Payment status filters") as string}>
               {[
+                { key: "all" as PaymentRecordTab, label: t("All"), count: paymentTabCounts.all, icon: "fas fa-layer-group" },
                 { key: "fully" as PaymentRecordTab, label: t("Fully Paid"), count: paymentTabCounts.fully, icon: "fas fa-circle-check" },
                 { key: "partial" as PaymentRecordTab, label: t("Partially Paid"), count: paymentTabCounts.partial, icon: "fas fa-circle-half-stroke" },
                 { key: "unpaid" as PaymentRecordTab, label: t("Unpaid"), count: paymentTabCounts.unpaid, icon: "fas fa-circle-exclamation" },

@@ -305,14 +305,18 @@ function isCompletedServiceStatus(value: any) {
   return normalizeServiceStatus(value) === "completed";
 }
 
+function isPendingServiceStatus(value: any) {
+  return normalizeServiceStatus(value) === "pending";
+}
+
 function isInactiveServiceStatus(value: any) {
   const status = normalizeServiceStatus(value);
   return status === "completed" || status === "cancelled" || status === "canceled" || status === "postponed";
 }
 
-function hasOnlyCompletedServices(services: any[]) {
+function hasNoPendingServices(services: any[]) {
   const list = Array.isArray(services) ? services : [];
-  return list.length > 0 && list.every((service: any) => isCompletedServiceStatus(service?.status));
+  return list.length > 0 && list.every((service: any) => !isPendingServiceStatus(service?.status));
 }
 
 function pickNextActiveService(services: any[]) {
@@ -335,7 +339,7 @@ function isServiceExecutionActiveTask(job: any) {
 }
 
 function isCompletedServiceExecutionTask(job: any) {
-  return isServiceExecutionTaskCandidate(job) && hasOnlyCompletedServices(job?.services);
+  return isServiceExecutionTaskCandidate(job) && hasNoPendingServices(job?.services);
 }
 
 function mapServiceExecutionWorkStatusToDbStatus(value: any) {
@@ -1327,7 +1331,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
   };
 
   const allServicesCompleted = useMemo(() => {
-    return hasOnlyCompletedServices(currentDetailsJob?.services || []);
+    return hasNoPendingServices(currentDetailsJob?.services || []);
   }, [currentDetailsJob]);
 
   const canFinishWork = useMemo(() => {
