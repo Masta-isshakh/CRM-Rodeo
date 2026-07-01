@@ -2817,6 +2817,142 @@ mark.search-highlight {
     white-space: nowrap;
   }
 
+  .jo-order-history-item {
+    align-items: center;
+  }
+
+  .jo-order-history-meta {
+    margin-top: 4px;
+    color: #8C9ABF;
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  .jo-order-history-actions {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 8px;
+  }
+
+  .jo-order-history-actions em.ready {
+    color: #1D4ED8;
+    background: #DBEAFE;
+    border-color: #BFDBFE;
+  }
+
+  .jo-order-history-actions em.completed {
+    color: #0F766E;
+    background: #CCFBF1;
+    border-color: #99F6E4;
+  }
+
+  .jo-order-history-view-btn {
+    border: 1px solid #C7D5F1;
+    background: #FFFFFF;
+    color: #2B3674;
+    border-radius: 9px;
+    padding: 5px 10px;
+    font-size: 0.72rem;
+    font-weight: 800;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .jo-order-history-view-btn:hover {
+    background: #EEF3FF;
+    border-color: #AFC5F1;
+  }
+
+  .jo-order-history-modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1300;
+    padding: 16px;
+  }
+
+  .jo-order-history-modal {
+    width: min(920px, 100%);
+    max-height: min(88vh, 860px);
+    overflow: auto;
+    border-radius: 14px;
+    border: 1px solid #DDE7F6;
+    background: linear-gradient(180deg, #FFFFFF 0%, #F8FBFF 100%);
+    box-shadow: 0 22px 64px rgba(15, 23, 42, 0.34);
+  }
+
+  .jo-order-history-modal-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 16px 18px;
+    border-bottom: 1px solid #E7EDF8;
+  }
+
+  .jo-order-history-modal-head h3 {
+    margin: 0;
+    color: #102A68;
+    font-size: 1rem;
+    font-weight: 900;
+  }
+
+  .jo-order-history-modal-head button {
+    border: 1px solid #DDE7F6;
+    border-radius: 8px;
+    background: #FFFFFF;
+    color: #64748B;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+  }
+
+  .jo-order-history-modal-body {
+    padding: 16px 18px 18px;
+    display: grid;
+    gap: 14px;
+  }
+
+  .jo-order-history-summary-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 14px;
+    color: #2B3674;
+    font-size: 0.82rem;
+    font-weight: 700;
+  }
+
+  .jo-order-history-section h4 {
+    margin: 0 0 8px;
+    color: #2B3674;
+    font-size: 0.9rem;
+    font-weight: 900;
+  }
+
+  .jo-order-history-service-list,
+  .jo-order-history-roadmap-list {
+    display: grid;
+    gap: 8px;
+  }
+
+  .jo-order-history-service-item,
+  .jo-order-history-roadmap-item {
+    border: 1px solid #E7EDF8;
+    border-radius: 9px;
+    background: #FFFFFF;
+    padding: 9px 11px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: #2B3674;
+    font-size: 0.8rem;
+  }
+
   .jo-completed-history-empty,
   .jo-selected-services-empty {
     border: 1px dashed #CBD5E1;

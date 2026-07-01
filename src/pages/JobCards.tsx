@@ -36,6 +36,7 @@ import {
   createCustomer,
   createVehicleForCustomer,
   listCompletedOrdersByCustomerOrVehicle,
+  listReadyOrCompletedOrdersByCustomerOrVehicle,
 } from "./jobOrderRepo";
 import {
   listServiceCatalog,
@@ -2853,6 +2854,7 @@ function NewJobScreen({ currentUser, products = [], serviceCategories = [], onCl
   const [expectedDeliveryDate, setExpectedDeliveryDate] = useState("");
   const [expectedDeliveryTime, setExpectedDeliveryTime] = useState("");
   const [vehicleCompletedServices, setVehicleCompletedServices] = useState<any[]>([]);
+  const [vehicleReadyCompletedOrders, setVehicleReadyCompletedOrders] = useState<any[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actorIdentityMap, setActorIdentityMap] = useState<Record<string, string>>({});
   const actorUsername = resolveAuthenticatedEmail(currentUser) || "system";
@@ -2879,13 +2881,22 @@ function NewJobScreen({ currentUser, products = [], serviceCategories = [], onCl
   const handleVehicleSelected = async (vehicleInfo: any) => {
     setVehicleData(vehicleInfo);
     const plate = vehicleInfo.plateNumber || vehicleInfo.license || "";
-    const completed = await listCompletedOrdersByCustomerOrVehicle({
+    const query = {
       plateNumber: plate,
       customerId: customerData?.id || customerData?.customerId,
       customerName: customerData?.name || customerData?.fullName || customerData?.displayName,
       customerPhone: customerData?.mobile || customerData?.phone || customerData?.phoneNumber,
+    };
+
+    const completed = await listCompletedOrdersByCustomerOrVehicle({
+      ...query,
     });
+    const readyAndCompleted = await listReadyOrCompletedOrdersByCustomerOrVehicle({
+      ...query,
+    });
+
     setVehicleCompletedServices(completed);
+    setVehicleReadyCompletedOrders(readyAndCompleted);
     if (orderType === "service" && completed.length === 0) setOrderType("new");
   };
 
@@ -3058,10 +3069,16 @@ function NewJobScreen({ currentUser, products = [], serviceCategories = [], onCl
         {step === 2 && (
           <StepTwoVehicle vehicleData={vehicleData} setVehicleData={setVehicleData} customerData={customerData} setCustomerData={setCustomerData} onVehicleSelected={handleVehicleSelected} onNext={() => setStep(3)} onBack={() => setStep(1)} actorUsername={actorUsername} />
         )}
-        {step === 3 && vehicleCompletedServices.length > 0 && (
-          <OrderTypeSelection vehicleCompletedServices={vehicleCompletedServices} orderType={orderType} onSelectOrderType={(type: any) => { setOrderType(type); setStep(4); }} onBack={() => setStep(2)} />
+        {step === 3 && vehicleReadyCompletedOrders.length > 0 && (
+          <OrderTypeSelection
+            vehicleOrdersHistory={vehicleReadyCompletedOrders}
+            vehicleCompletedServices={vehicleCompletedServices}
+            orderType={orderType}
+            onSelectOrderType={(type: any) => { setOrderType(type); setStep(4); }}
+            onBack={() => setStep(2)}
+          />
         )}
-        {step === 3 && vehicleCompletedServices.length === 0 && (
+        {step === 3 && vehicleReadyCompletedOrders.length === 0 && (
           <NoCompletedServicesMessage onNext={() => { setOrderType("new"); setStep(4); }} onBack={() => setStep(2)} />
         )}
         {step === 4 && (
@@ -6065,8 +6082,28 @@ function RoadmapCard({ order, actorMap, className = "" }: any) {
 // ============================================
 // ORDER TYPE SCREENS
 // ============================================
-function OrderTypeSelection({ vehicleCompletedServices, onSelectOrderType, onBack, orderType }: any) {
+function OrderTypeSelection({ vehicleOrdersHistory, vehicleCompletedServices, onSelectOrderType, onBack, orderType }: any) {
   const { t } = useLanguage();
+  const [viewingOrder, setViewingOrder] = useState<any>(null);
+
+  const orderHistory = useMemo(() => {
+    return (vehicleOrdersHistory || []).map((order: any, idx: number) => {
+      const services = Array.isArray(order?.services) ? order.services : [];
+      const roadmap = Array.isArray(order?.roadmap) ? order.roadmap : [];
+      const workStatus = String(order?.workStatus || "Completed").trim() || "Completed";
+
+      return {
+        key: `${order?.id || order?.orderNumber || "order"}-${idx}`,
+        orderId: String(order?.id || order?.orderNumber || t("Job Order")).trim(),
+        orderType: String(order?.orderType || "-").trim(),
+        workStatus,
+        createDate: String(order?.createDate || order?.completedAt || "-").trim(),
+        services,
+        roadmap,
+      };
+    });
+  }, [vehicleOrdersHistory, t]);
+
   const completedServicePreview = useMemo(() => {
     const out: any[] = [];
     for (const order of vehicleCompletedServices || []) {
@@ -6086,65 +6123,154 @@ function OrderTypeSelection({ vehicleCompletedServices, onSelectOrderType, onBac
   }, [vehicleCompletedServices, t]);
 
   return (
-    <div className="form-card bg-white rounded-2xl border-none shadow-[0_8px_24px_rgba(112,144,176,0.12)] p-6">
-      <div className="form-card-title mb-6 flex items-center gap-2">
-        <i className="fas fa-list-check"></i>
-        <h2 className="text-lg font-bold text-[#2B3674]">{t("Select Order Type")}</h2>
-      </div>
-      <div className="form-card-content">
-        <p className="mb-5 text-sm text-[#A3AED0]">
-          {t("This vehicle has")} {vehicleCompletedServices.length} {t("completed service(s). Choose the type of order you want to create:")}
-        </p>
+    <>
+      <div className="form-card bg-white rounded-2xl border-none shadow-[0_8px_24px_rgba(112,144,176,0.12)] p-6">
+        <div className="form-card-title mb-6 flex items-center gap-2">
+          <i className="fas fa-list-check"></i>
+          <h2 className="text-lg font-bold text-[#2B3674]">{t("Select Order Type")}</h2>
+        </div>
+        <div className="form-card-content">
+          <p className="mb-5 text-sm text-[#A3AED0]">
+            {t("This customer/vehicle has")} {orderHistory.length} {t("ready or completed job order(s). Choose the type of order you want to create:")}
+          </p>
 
-        <div className="jo-completed-history-panel">
-          <div className="jo-completed-history-head">
-            <div>
-              <span>{t("Completed Services History")}</span>
-              <strong>{completedServicePreview.length}</strong>
+          <div className="jo-completed-history-panel">
+            <div className="jo-completed-history-head">
+              <div>
+                <span>{t("Ready & Completed Job Orders")}</span>
+                <strong>{orderHistory.length}</strong>
+              </div>
+              <small>{t("Related to the selected customer or vehicle")}</small>
             </div>
-            <small>{t("Related to the selected customer or vehicle")}</small>
-          </div>
-          {completedServicePreview.length === 0 ? (
-            <div className="jo-completed-history-empty">{t("No completed services found for this customer or vehicle.")}</div>
-          ) : (
-            <div className="jo-completed-history-grid">
-              {completedServicePreview.slice(0, 12).map((service) => (
-                <div key={service.key} className="jo-completed-history-item">
-                  <div>
-                    <span className="jo-completed-history-order">{service.orderId}</span>
-                    <strong data-no-translate="true">{toBilingualName(service.name, service.nameAr, service.name)}</strong>
+            {orderHistory.length === 0 ? (
+              <div className="jo-completed-history-empty">{t("No ready/completed job orders found for this customer or vehicle.")}</div>
+            ) : (
+              <div className="jo-completed-history-grid">
+                {orderHistory.slice(0, 12).map((entry: any) => (
+                  <div key={entry.key} className="jo-completed-history-item jo-order-history-item">
+                    <div>
+                      <span className="jo-completed-history-order">{entry.orderId}</span>
+                      <strong data-no-translate="true">{entry.orderType || t("Job Order")}</strong>
+                      <div className="jo-order-history-meta">{entry.services.length} {t("service(s)")} • {entry.createDate || "-"}</div>
+                    </div>
+                    <div className="jo-order-history-actions">
+                      <em className={String(entry.workStatus).toLowerCase() === "ready" ? "ready" : "completed"}>{t(entry.workStatus)}</em>
+                      <button
+                        type="button"
+                        className="jo-order-history-view-btn"
+                        onClick={() => setViewingOrder(entry)}
+                      >
+                        <i className="fas fa-eye"></i> {t("View Details")}
+                      </button>
+                    </div>
                   </div>
-                  <em>{t(service.status)}</em>
-                </div>
-              ))}
-            </div>
-          )}
-          {completedServicePreview.length > 12 ? (
-            <div className="jo-completed-history-more">
-              +{completedServicePreview.length - 12} {t("more completed service(s)")}
-            </div>
-          ) : null}
-        </div>
+                ))}
+              </div>
+            )}
+            {orderHistory.length > 12 ? (
+              <div className="jo-completed-history-more">
+                +{orderHistory.length - 12} {t("more job order(s)")}
+              </div>
+            ) : null}
+          </div>
 
-        <div className="option-selector grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className={`option-btn rounded-xl border px-4 py-4 font-bold transition-all cursor-pointer ${orderType === "new" ? "bg-[#4318FF] text-white border-[#4318FF]" : "bg-[#F4F7FE] text-[#A3AED0] border-[#E7EDF8]"}`} onClick={() => onSelectOrderType("new")}>
-            <i className="fas fa-file-alt" style={{ marginRight: "8px" }}></i>
-            {t("New Job Order")}
+          <div className="jo-completed-history-panel" style={{ marginTop: 12 }}>
+            <div className="jo-completed-history-head">
+              <div>
+                <span>{t("Completed Services History")}</span>
+                <strong>{completedServicePreview.length}</strong>
+              </div>
+              <small>{t("Used when creating Service Order")}</small>
+            </div>
+            {completedServicePreview.length === 0 ? (
+              <div className="jo-completed-history-empty">{t("No completed services found for this customer or vehicle.")}</div>
+            ) : (
+              <div className="jo-completed-history-grid">
+                {completedServicePreview.slice(0, 12).map((service) => (
+                  <div key={service.key} className="jo-completed-history-item">
+                    <div>
+                      <span className="jo-completed-history-order">{service.orderId}</span>
+                      <strong data-no-translate="true">{toBilingualName(service.name, service.nameAr, service.name)}</strong>
+                    </div>
+                    <em>{t(service.status)}</em>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <div className={`option-btn rounded-xl border px-4 py-4 font-bold transition-all cursor-pointer ${orderType === "service" ? "bg-[#4318FF] text-white border-[#4318FF]" : "bg-[#F4F7FE] text-[#A3AED0] border-[#E7EDF8]"}`} onClick={() => onSelectOrderType("service")}>
-            <i className="fas fa-tools" style={{ marginRight: "8px" }}></i>
-            {t("Service Order")}
+
+          <div className="option-selector grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className={`option-btn rounded-xl border px-4 py-4 font-bold transition-all cursor-pointer ${orderType === "new" ? "bg-[#4318FF] text-white border-[#4318FF]" : "bg-[#F4F7FE] text-[#A3AED0] border-[#E7EDF8]"}`} onClick={() => onSelectOrderType("new")}>
+              <i className="fas fa-file-alt" style={{ marginRight: "8px" }}></i>
+              {t("New Job Order")}
+            </div>
+            <div className={`option-btn rounded-xl border px-4 py-4 font-bold transition-all cursor-pointer ${orderType === "service" ? "bg-[#4318FF] text-white border-[#4318FF]" : "bg-[#F4F7FE] text-[#A3AED0] border-[#E7EDF8]"}`} onClick={() => onSelectOrderType("service")}>
+              <i className="fas fa-tools" style={{ marginRight: "8px" }}></i>
+              {t("Service Order")}
+            </div>
           </div>
+        </div>
+        <div className="action-buttons mt-8 flex justify-end">
+          <button className="btn btn-secondary bg-white text-[#2B3674] border border-[#E7EDF8] rounded-xl px-6 py-3 font-bold hover:bg-[#F4F7FE]" onClick={onBack}>
+            <i className="fas fa-arrow-left" style={{ marginRight: "8px" }}></i>
+            {t("Back")}
+          </button>
         </div>
       </div>
 
-      <div className="action-buttons mt-8 flex justify-end">
-        <button className="btn btn-secondary bg-white text-[#2B3674] border border-[#E7EDF8] rounded-xl px-6 py-3 font-bold hover:bg-[#F4F7FE]" onClick={onBack}>
-          <i className="fas fa-arrow-left" style={{ marginRight: "8px" }}></i>
-          {t("Back")}
-        </button>
-      </div>
-    </div>
+      {viewingOrder ? (
+        <div className="jo-order-history-modal-overlay" onClick={() => setViewingOrder(null)}>
+          <div className="jo-order-history-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="jo-order-history-modal-head">
+              <h3>{t("Job Order Details")} - {viewingOrder.orderId}</h3>
+              <button type="button" onClick={() => setViewingOrder(null)}>
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+
+            <div className="jo-order-history-modal-body">
+              <div className="jo-order-history-summary-row">
+                <span>{t("Work Status")}: <strong>{t(viewingOrder.workStatus)}</strong></span>
+                <span>{t("Order Type")}: <strong>{viewingOrder.orderType || "-"}</strong></span>
+                <span>{t("Services")}: <strong>{viewingOrder.services.length}</strong></span>
+              </div>
+
+              <div className="jo-order-history-section">
+                <h4>{t("Services")}</h4>
+                {viewingOrder.services.length === 0 ? (
+                  <div className="jo-completed-history-empty">{t("No services available")}</div>
+                ) : (
+                  <div className="jo-order-history-service-list">
+                    {viewingOrder.services.map((service: any, idx: number) => (
+                      <div key={`${viewingOrder.key}-svc-${idx}`} className="jo-order-history-service-item">
+                        <strong data-no-translate="true">{toBilingualName(service?.name, service?.nameAr, service?.serviceName || t("Service"))}</strong>
+                        <span>{t(service?.status || viewingOrder.workStatus || "-")}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="jo-order-history-section">
+                <h4>{t("Roadmap")}</h4>
+                {viewingOrder.roadmap.length === 0 ? (
+                  <div className="jo-completed-history-empty">{t("No roadmap data")}</div>
+                ) : (
+                  <div className="jo-order-history-roadmap-list">
+                    {viewingOrder.roadmap.map((step: any, idx: number) => (
+                      <div key={`${viewingOrder.key}-rm-${idx}`} className="jo-order-history-roadmap-item">
+                        <strong>{t(String(step?.step || "-").replace(/_/g, " "))}</strong>
+                        <span>{t(String(step?.stepStatus || step?.status || "Upcoming"))}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
 
@@ -6160,7 +6286,7 @@ function NoCompletedServicesMessage({ onNext, onBack }: any) {
         <div className="mb-5 rounded-xl border border-[#E7EDF8] bg-[#F4F7FE] p-4 text-sm">
           <i className="fas fa-exclamation-circle mr-2 text-[#A3AED0]" />
           <span className="font-semibold text-[#2B3674]">
-            {t("This vehicle has no completed services yet. Proceeding with New Job Order.")}
+            {t("This customer or vehicle has no ready/completed job orders yet. Proceeding with New Job Order.")}
           </span>
         </div>
       </div>

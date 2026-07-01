@@ -1347,6 +1347,41 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
     return isServiceExecutionWorkStatus(currentDetailsJob.workStatus || currentDetailsJob.workStatusLabel);
   }, [currentDetailsJob]);
 
+  useEffect(() => {
+    if (!showDetails || !currentDetailsJob?.id) return;
+
+    const interval = window.setInterval(() => {
+      if (detailsEditMode || loading) return;
+
+      void (async () => {
+        try {
+          const refreshed = await getJobOrderByOrderNumber(currentDetailsJob.id);
+          if (!refreshed) return;
+
+          setCurrentDetailsJob((prev: any) => {
+            if (!prev || String(prev?.id ?? "") !== String(refreshed?.id ?? "")) return prev;
+
+            const merged = {
+              ...prev,
+              ...refreshed,
+              services: normalizeServices(prev.id, refreshed?.services || prev?.services || []),
+              roadmap: Array.isArray(refreshed?.roadmap) ? refreshed.roadmap : prev?.roadmap,
+            };
+
+            syncJobIntoList(merged);
+            return merged;
+          });
+        } catch {
+          // keep polling resilient to transient backend/network errors
+        }
+      })();
+    }, 2500);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, [showDetails, currentDetailsJob?.id, detailsEditMode, loading, syncJobIntoList]);
+
   const handleFinishWork = async () => {
     if (!currentDetailsJob || !allServicesCompleted || !canFinishWork || isFinishingWork) return;
 

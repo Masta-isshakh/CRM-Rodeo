@@ -1900,9 +1900,13 @@ export async function cancelJobOrderByOrderNumber(orderKey: string): Promise<voi
   await upsertJobOrder(order);
 }
 
-function mapCompletedJobOrderRow(r: any) {
+function mapHistoricalJobOrderRow(r: any) {
   const parsed = safeJsonParse<any>(r?.dataJson) ?? {};
   const services = Array.isArray(parsed.services) ? parsed.services : [];
+  const resolvedWorkStatus = String(
+    r?.workStatusLabel ?? parsed?.workStatusLabel ?? parsed?.workStatus ?? "Completed"
+  ).trim() || "Completed";
+
   return {
     id: r.orderNumber,
     vehiclePlate: r.plateNumber ?? parsed?.plateNumber ?? "",
@@ -1910,7 +1914,10 @@ function mapCompletedJobOrderRow(r: any) {
     customerName: r.customerName ?? parsed?.customerName ?? "",
     customerPhone: r.customerPhone ?? parsed?.customerPhone ?? "",
     completedAt: r.updatedAt ?? r.createdAt ?? "",
-    workStatus: r.workStatusLabel ?? "Completed",
+    workStatus: resolvedWorkStatus,
+    orderType: r.orderType ?? parsed?.orderType ?? "",
+    createDate: parsed?.createDate ?? r.createdAt ?? "",
+    roadmap: Array.isArray(parsed?.roadmap) ? parsed.roadmap : [],
     services,
   };
 }
@@ -1927,6 +1934,20 @@ function isCompletedJobOrderRow(row: any) {
     .toLowerCase();
 
   return workStatus === "completed";
+}
+
+function isReadyOrCompletedJobOrderRow(row: any) {
+  const enumStatus = String(row?.status ?? "").trim().toUpperCase();
+  if (enumStatus === "READY" || enumStatus === "COMPLETED") return true;
+
+  const parsed = safeJsonParse<any>(row?.dataJson) ?? {};
+  const workStatus = String(
+    row?.workStatusLabel ?? parsed?.workStatusLabel ?? parsed?.workStatus ?? ""
+  )
+    .trim()
+    .toLowerCase();
+
+  return workStatus === "ready" || workStatus === "completed";
 }
 
 export async function listCompletedOrdersByCustomerOrVehicle(input: {
@@ -1951,7 +1972,7 @@ export async function listCompletedOrdersByCustomerOrVehicle(input: {
 
   return (rows ?? [])
     .filter((r: any) => isCompletedJobOrderRow(r))
-    .map(mapCompletedJobOrderRow)
+    .map(mapHistoricalJobOrderRow)
     .filter((order: any) => {
       const orderPlate = String(order.vehiclePlate ?? "").trim().toLowerCase();
       const orderCustomerId = String(order.customerId ?? "").trim().toLowerCase();
@@ -1968,6 +1989,44 @@ export async function listCompletedOrdersByCustomerOrVehicle(input: {
 
 export async function listCompletedOrdersByPlateNumber(plateNumber: string): Promise<any[]> {
   return listCompletedOrdersByCustomerOrVehicle({ plateNumber });
+}
+
+export async function listReadyOrCompletedOrdersByCustomerOrVehicle(input: {
+  plateNumber?: string;
+  customerId?: string;
+  customerName?: string;
+  customerPhone?: string;
+}): Promise<any[]> {
+  const client = getDataClient();
+  const plate = String(input?.plateNumber ?? "").trim().toLowerCase();
+  const customerId = String(input?.customerId ?? "").trim().toLowerCase();
+  const customerName = String(input?.customerName ?? "").trim().toLowerCase();
+  const customerPhone = String(input?.customerPhone ?? "").replace(/\D+/g, "");
+  if (!plate && !customerId && !customerName && !customerPhone) return [];
+
+  let rows: any[] = [];
+  try {
+    rows = await listAll<any>((args) => client.models.JobOrder.list(args), 5000);
+  } catch {
+    rows = [];
+  }
+
+  return (rows ?? [])
+    .filter((r: any) => isReadyOrCompletedJobOrderRow(r))
+    .map(mapHistoricalJobOrderRow)
+    .filter((order: any) => {
+      const orderPlate = String(order.vehiclePlate ?? "").trim().toLowerCase();
+      const orderCustomerId = String(order.customerId ?? "").trim().toLowerCase();
+      const orderCustomerName = String(order.customerName ?? "").trim().toLowerCase();
+      const orderCustomerPhone = String(order.customerPhone ?? "").replace(/\D+/g, "");
+
+      return (
+        (!!plate && orderPlate === plate) ||
+        (!!customerId && orderCustomerId === customerId) ||
+        (!!customerPhone && orderCustomerPhone === customerPhone) ||
+        (!!customerName && orderCustomerName === customerName)
+      );
+    });
 }
 
 export async function listJobOrdersForExitPermit(): Promise<any[]> {
@@ -2050,7 +2109,8 @@ export async function createExitPermitForOrderNumber(input: {
   const roadmap = Array.isArray(order.roadmap) ? [...order.roadmap] : [];
 
   const updatedRoadmap = roadmap.map((step: any) => {
-    if (String(step?.step ?? "").toLowerCase() === "ready for delivery") {
+    const stepName = String(step?.step ?? "").trim().toLowerCase();
+    if (stepName === "ready for delivery" || stepName === "ready") {
       return {
         ...step,
         stepStatus: "completed",
@@ -2061,13 +2121,16 @@ export async function createExitPermitForOrderNumber(input: {
     return step;
   });
 
-  const hasExit = updatedRoadmap.some((s: any) => String(s?.step ?? "").toLowerCase() === "exit permit issued");
+  const hasExit = updatedRoadmap.some((s: any) => {
+    const stepName = String(s?.step ?? "").trim().toLowerCase();
+    return stepName === "exit permit issued" || stepName === "exit permit bypass issued";
+  });
   const finalRoadmap = hasExit
     ? updatedRoadmap
     : [
         ...updatedRoadmap,
         {
-          step: isBypass ? "Exit Permit Bypass Issued" : "Exit Permit Issued",
+          step: "Exit Permit Issued",
           stepStatus: "completed",
           startTimestamp: createDate,
           endTimestamp: createDate,
@@ -2076,7 +2139,7 @@ export async function createExitPermitForOrderNumber(input: {
         },
       ];
 
-  if (work === "ready" && !isBypass) {
+  if (work === "ready") {
     order.workStatus = "Completed";
     order.workStatusLabel = "Completed";
   }
