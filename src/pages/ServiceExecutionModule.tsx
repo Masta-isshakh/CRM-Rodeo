@@ -315,6 +315,18 @@ function hasOnlyFinalizedServices(services: any[]) {
   return list.length > 0 && list.every((service: any) => isInactiveServiceStatus(service?.status));
 }
 
+function getCompletedTaskReason(services: any[]) {
+  const list = Array.isArray(services) ? services : [];
+  if (!list.length) return "Completed+Cancelled/Postponed";
+
+  const hasCancelledOrPostponed = list.some((service: any) => {
+    const status = normalizeServiceStatus(service?.status);
+    return status === "cancelled" || status === "canceled" || status === "postponed";
+  });
+
+  return hasCancelledOrPostponed ? "Completed+Cancelled/Postponed" : "All Completed";
+}
+
 function pickNextActiveService(services: any[]) {
   return (services || []).find((s: any) => !isInactiveServiceStatus(s?.status));
 }
@@ -1601,6 +1613,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                     {paginatedJobs.map((job) => {
                       const currentService = pickNextActiveService(job.services);
                       const completedTask = isCompletedServiceExecutionTask(job);
+                      const completedTaskReason = completedTask ? getCompletedTaskReason(job.services) : "";
                       const serviceDisplay = currentService
                         ? `${toBilingualName(currentService.name, (currentService as any).nameAr)} (${currentService.status})`
                         : completedTask
@@ -1620,7 +1633,16 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                           <td>{job.customerName}</td>
                           <td>{job.vehiclePlate}</td>
                           <td>{assignedToDisplay}</td>
-                          <td data-no-translate="true">{serviceDisplay}</td>
+                          <td data-no-translate="true">
+                            <div className="sem-service-cell">
+                              <span>{serviceDisplay}</span>
+                              {completedTask ? (
+                                <span className={`sem-completion-reason-badge ${completedTaskReason === "All Completed" ? "all-completed" : "mixed-completed"}`}>
+                                  {t(completedTaskReason)}
+                                </span>
+                              ) : null}
+                            </div>
+                          </td>
                           <td>
                             <PermissionGate moduleId="serviceexec" optionId="serviceexec_actions">
                               <div className="action-dropdown-container">

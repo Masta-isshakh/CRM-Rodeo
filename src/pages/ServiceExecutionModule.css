@@ -169,6 +169,36 @@
   box-shadow: 0 6px 18px rgba(16, 185, 129, 0.14);
 }
 
+.service-execution-wrapper .sem-service-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.service-execution-wrapper .sem-completion-reason-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  border: 1px solid transparent;
+}
+
+.service-execution-wrapper .sem-completion-reason-badge.all-completed {
+  color: #047857;
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+}
+
+.service-execution-wrapper .sem-completion-reason-badge.mixed-completed {
+  color: #7c2d12;
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
 .service-execution-wrapper .search-section {
   margin-bottom: 12px;
 }

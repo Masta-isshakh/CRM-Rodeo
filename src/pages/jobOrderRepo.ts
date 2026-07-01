@@ -1915,6 +1915,20 @@ function mapCompletedJobOrderRow(r: any) {
   };
 }
 
+function isCompletedJobOrderRow(row: any) {
+  const enumStatus = String(row?.status ?? "").trim().toUpperCase();
+  if (enumStatus === "COMPLETED") return true;
+
+  const parsed = safeJsonParse<any>(row?.dataJson) ?? {};
+  const workStatus = String(
+    row?.workStatusLabel ?? parsed?.workStatusLabel ?? parsed?.workStatus ?? ""
+  )
+    .trim()
+    .toLowerCase();
+
+  return workStatus === "completed";
+}
+
 export async function listCompletedOrdersByCustomerOrVehicle(input: {
   plateNumber?: string;
   customerId?: string;
@@ -1936,7 +1950,7 @@ export async function listCompletedOrdersByCustomerOrVehicle(input: {
   }
 
   return (rows ?? [])
-    .filter((r: any) => String(r.status) === "COMPLETED")
+    .filter((r: any) => isCompletedJobOrderRow(r))
     .map(mapCompletedJobOrderRow)
     .filter((order: any) => {
       const orderPlate = String(order.vehiclePlate ?? "").trim().toLowerCase();
