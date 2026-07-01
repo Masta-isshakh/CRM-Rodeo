@@ -370,7 +370,10 @@ function getServiceOperationStep(job: any) {
 }
 
 function isServiceExecutionTaskCandidate(job: any) {
-  return Boolean(getServiceOperationStep(job) || isServiceExecutionWorkStatus(job?.workStatus));
+  const inprogressStep = getServiceOperationStep(job);
+  const stepStatus = String(inprogressStep?.stepStatus ?? "").trim().toLowerCase();
+  const roadmapInScope = Boolean(inprogressStep) && stepStatus !== "completed";
+  return Boolean(roadmapInScope || isServiceExecutionWorkStatus(job?.workStatus));
 }
 
 function isServiceExecutionActiveTask(job: any) {
@@ -1378,7 +1381,10 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
 
   const canFinishWork = useMemo(() => {
     if (!currentDetailsJob) return false;
-    return isServiceExecutionWorkStatus(currentDetailsJob.workStatus || currentDetailsJob.workStatusLabel);
+    return (
+      isServiceExecutionWorkStatus(currentDetailsJob.workStatus || currentDetailsJob.workStatusLabel) ||
+      isCompletedServiceExecutionTask(currentDetailsJob)
+    );
   }, [currentDetailsJob]);
 
   useEffect(() => {

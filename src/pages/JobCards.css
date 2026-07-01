@@ -2953,6 +2953,16 @@ mark.search-highlight {
     font-size: 0.8rem;
   }
 
+  .jo-bilingual-slash {
+    opacity: 0.72;
+  }
+
+  .jo-bilingual-ar {
+    direction: rtl;
+    unicode-bidi: isolate;
+    letter-spacing: 0;
+  }
+
   .jo-completed-history-empty,
   .jo-selected-services-empty {
     border: 1px dashed #CBD5E1;

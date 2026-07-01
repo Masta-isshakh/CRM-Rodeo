@@ -175,6 +175,21 @@ function toBilingualName(nameEn: any, nameAr: any, fallback = "Unnamed service")
   return en || ar || fallback;
 }
 
+function renderBilingualWithRtl(nameEn: any, nameAr: any, fallback = "Unnamed service") {
+  const en = String(nameEn || "").trim();
+  const ar = String(nameAr || "").trim();
+  const plain = toBilingualName(en, ar, fallback);
+
+  return (
+    <>
+      {en ? <span>{en}</span> : null}
+      {en && ar ? <span className="jo-bilingual-slash"> / </span> : null}
+      {ar ? <span className="jo-bilingual-ar" dir="rtl" lang="ar">{ar}</span> : null}
+      {!en && !ar ? <span>{plain}</span> : null}
+    </>
+  );
+}
+
 function dedupeSelectedServices(items: any[]) {
   const out: any[] = [];
   const seen = new Set<string>();
@@ -6190,7 +6205,7 @@ function OrderTypeSelection({ vehicleOrdersHistory, vehicleCompletedServices, on
                   <div key={service.key} className="jo-completed-history-item">
                     <div>
                       <span className="jo-completed-history-order">{service.orderId}</span>
-                      <strong data-no-translate="true">{toBilingualName(service.name, service.nameAr, service.name)}</strong>
+                      <strong data-no-translate="true">{renderBilingualWithRtl(service.name, service.nameAr, service.name)}</strong>
                     </div>
                     <em>{t(service.status)}</em>
                   </div>
@@ -6243,7 +6258,7 @@ function OrderTypeSelection({ vehicleOrdersHistory, vehicleCompletedServices, on
                   <div className="jo-order-history-service-list">
                     {viewingOrder.services.map((service: any, idx: number) => (
                       <div key={`${viewingOrder.key}-svc-${idx}`} className="jo-order-history-service-item">
-                        <strong data-no-translate="true">{toBilingualName(service?.name, service?.nameAr, service?.serviceName || t("Service"))}</strong>
+                        <strong data-no-translate="true">{renderBilingualWithRtl(service?.name, service?.nameAr, service?.serviceName || t("Service"))}</strong>
                         <span>{t(service?.status || viewingOrder.workStatus || "-")}</span>
                       </div>
                     ))}

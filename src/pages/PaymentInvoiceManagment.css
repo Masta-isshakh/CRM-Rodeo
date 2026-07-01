@@ -2717,6 +2717,16 @@ textarea.form-control {
     max-width: 300px;
   }
 
+  .pim-bilingual-slash {
+    opacity: 0.72;
+  }
+
+  .pim-bilingual-ar {
+    direction: rtl;
+    unicode-bidi: plaintext;
+    display: inline-block;
+  }
+
   .bi-pill {
     padding: 3px 7px;
     font-size: 9.5px;

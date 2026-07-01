@@ -79,6 +79,26 @@ function fmtQar(n: number) {
   return `QAR ${Number.isFinite(n) ? n.toFixed(2) : "0.00"}`;
 }
 
+function renderBilingualWithRtl(value: any) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+
+  const segments = raw.split(" / ");
+  if (segments.length !== 2) return raw;
+
+  const left = segments[0]?.trim();
+  const right = segments[1]?.trim();
+  if (!left || !right) return raw;
+
+  return (
+    <>
+      <span>{left}</span>
+      <span className="pim-bilingual-slash"> / </span>
+      <span className="pim-bilingual-ar" dir="rtl" lang="ar">{right}</span>
+    </>
+  );
+}
+
 function safeFileName(name: string) {
   return String(name || "file")
     .trim()
@@ -2618,7 +2638,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                                         <i className={`fas ${isPackageEntry ? "fa-box-open" : "fa-check-circle"}`}></i>
                                         <span className="pim-invoice-service-main">
                                           {isPackageEntry ? <span className="pim-invoice-service-badge">{t("Package")}</span> : null}
-                                          <span className="pim-invoice-service-label">{serviceItem.displayLabel}</span>
+                                          <span className="pim-invoice-service-label">{renderBilingualWithRtl(serviceItem.displayLabel)}</span>
                                         </span>
                                         {specLabel ? (
                                           <span className="pim-invoice-service-spec" style={{ marginLeft: 8, display: "inline-flex", alignItems: "center", gap: 6 }}>
@@ -2635,7 +2655,7 @@ export default function PaymentInvoiceManagement({ currentUser }: { currentUser:
                                                 }}
                                               ></span>
                                             ) : null}
-                                            <span>{specLabel}</span>
+                                            <span>{renderBilingualWithRtl(specLabel)}</span>
                                           </span>
                                         ) : null}
                                       </li>

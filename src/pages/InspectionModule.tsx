@@ -63,6 +63,21 @@ function toBilingualName(nameEn: any, nameAr: any, fallback = "Unnamed service")
   return en || ar || fallback;
 }
 
+function renderBilingualWithRtl(nameEn: any, nameAr: any, fallback = "Unnamed service") {
+  const en = String(nameEn || "").trim();
+  const ar = String(nameAr || "").trim();
+  const plain = toBilingualName(en, ar, fallback);
+
+  return (
+    <>
+      {en ? <span>{en}</span> : null}
+      {en && ar ? <span className="im-bilingual-slash"> / </span> : null}
+      {ar ? <span className="im-bilingual-ar" dir="rtl" lang="ar">{ar}</span> : null}
+      {!en && !ar ? <span>{plain}</span> : null}
+    </>
+  );
+}
+
 function safeFileName(name: string) {
   return String(name || "file")
     .trim()
@@ -1545,7 +1560,7 @@ function InspectionModule({ currentUser }: any) {
                       activeOrder.services.map((s: any, idx: number) => (
                         <div key={idx} className="pim-service-item">
                           <div className="pim-service-header">
-                            <span className="pim-service-name" data-no-translate="true">{toBilingualName(s?.name, s?.nameAr)}</span>
+                            <span className="pim-service-name" data-no-translate="true">{renderBilingualWithRtl(s?.name, s?.nameAr)}</span>
                             <span className={`status-badge ${getServiceStatusClass(s.status || "New")}`}>{t(String(s.status || "New"))}</span>
                           </div>
                         </div>
@@ -2025,7 +2040,7 @@ function AddServiceScreen({ order, products = [], maxDiscountPercent = 0, onClos
                   >
                     <div className="service-info">
                       <div className="service-name-row">
-                        <div className="service-name" data-no-translate="true">{toBilingualName(product?.name, product?.nameAr)}</div>
+                        <div className="service-name" data-no-translate="true">{renderBilingualWithRtl(product?.name, product?.nameAr)}</div>
                         {String(product?.type ?? "").toLowerCase() === "package" && (
                           <span className="jo-package-price-badge">
                             <i className="fas fa-box-open" aria-hidden="true"></i>

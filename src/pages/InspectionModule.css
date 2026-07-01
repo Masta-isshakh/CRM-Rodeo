@@ -602,6 +602,16 @@
 	font-weight: 700;
 }
 
+.inspection-module .im-bilingual-slash {
+	opacity: 0.72;
+}
+
+.inspection-module .im-bilingual-ar {
+	direction: rtl;
+	unicode-bidi: isolate;
+	letter-spacing: 0;
+}
+
 .inspection-module .pim-doc-meta {
 	margin-top: 4px;
 	color: #8C9ABF;
