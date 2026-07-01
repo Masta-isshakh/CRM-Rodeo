@@ -248,6 +248,40 @@ function toBilingualName(nameEn: any, nameAr: any, fallback = "Unnamed service")
   return en || ar || fallback;
 }
 
+function renderAssignedServiceLabel(service: any, status: any) {
+  const en = firstNonEmptyText(
+    service?.name,
+    service?.serviceName,
+    service?.nameEn,
+    service?.titleEn,
+    service?.title
+  );
+
+  const ar = firstNonEmptyText(
+    service?.nameAr,
+    service?.serviceNameAr,
+    service?.name_ar,
+    service?.arabicName,
+    service?.titleAr,
+    service?.title_ar
+  );
+
+  const fallback = toBilingualName(en, ar);
+  const statusLabel = String(status ?? "").trim();
+
+  return (
+    <>
+      {en ? <span>{en}</span> : null}
+      {en && ar ? <span className="sem-service-slash"> / </span> : null}
+      {ar ? (
+        <span className="sem-service-ar" dir="rtl" lang="ar">{ar}</span>
+      ) : null}
+      {!en && !ar ? <span>{fallback}</span> : null}
+      {statusLabel ? <span>{` (${statusLabel})`}</span> : null}
+    </>
+  );
+}
+
 type AssigneeOption = { value: string; label: string };
 type ServiceExecutionTab = "assigned" | "unassigned" | "team" | "completed";
 
@@ -1650,7 +1684,7 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                       const completedTask = isCompletedServiceExecutionTask(job);
                       const completedTaskReason = completedTask ? getCompletedTaskReason(job.services) : "";
                       const serviceDisplay = currentService
-                        ? `${toBilingualName(currentService.name, (currentService as any).nameAr)} (${currentService.status})`
+                        ? null
                         : completedTask
                           ? `${t("Completed services")} (${Array.isArray(job.services) ? job.services.length : 0})`
                           : t("No active services");
@@ -1670,7 +1704,11 @@ const ServiceExecutionModule = ({ currentUser }: any) => {
                           <td>{assignedToDisplay}</td>
                           <td data-no-translate="true">
                             <div className="sem-service-cell">
-                              <span>{serviceDisplay}</span>
+                              {currentService ? (
+                                <span>{renderAssignedServiceLabel(currentService, currentService.status)}</span>
+                              ) : (
+                                <span>{serviceDisplay}</span>
+                              )}
                               {completedTask ? (
                                 <span className={`sem-completion-reason-badge ${completedTaskReason === "All Completed" ? "all-completed" : "mixed-completed"}`}>
                                   {t(completedTaskReason)}

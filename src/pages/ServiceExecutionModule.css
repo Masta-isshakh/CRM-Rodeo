@@ -176,6 +176,17 @@
   flex-wrap: wrap;
 }
 
+.service-execution-wrapper .sem-service-slash {
+  opacity: 0.72;
+}
+
+.service-execution-wrapper .sem-service-ar {
+  direction: rtl;
+  unicode-bidi: isolate;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+
 .service-execution-wrapper .sem-completion-reason-badge {
   display: inline-flex;
   align-items: center;
